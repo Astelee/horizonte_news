@@ -1,0 +1,44 @@
+name: horizonte_news
+description: Aplicativo de notícias profissional para o portal Horizonte News.
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Gerenciamento de Estado e Navegação
+  provider: ^6.1.2
+  google_nav_bar: ^5.0.6
+
+  # API e Comunicação Rest (Blogger v3)
+  http: ^1.2.1
+  url_launcher: ^6.3.0
+
+  # Firebase e Notificações (FCM)
+  firebase_core: ^3.1.1
+  firebase_messaging: ^15.0.1
+  firebase_analytics: ^11.1.1
+
+  # Interface, Utilitários e Imagens
+  cached_network_image: ^3.3.1
+  intl: ^0.19.0
+  share_plus: ^9.0.0
+  shimmer: ^3.0.0
+  flutter_html: ^3.0.0-beta.2
+  font_awesome_flutter: ^10.7.0
+  shared_preferences: ^2.2.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
