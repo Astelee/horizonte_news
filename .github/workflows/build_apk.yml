@@ -1,6 +1,5 @@
 name: Compilar Flutter APK
 
-# O GitHub vai disparar esta automação toda vez que você der um 'git push' na branch main
 on:
   push:
     branches:
@@ -19,30 +18,30 @@ jobs:
       - name: Baixar Código do Repositório
         uses: actions/checkout@v4
 
-      # 2. Instala o Java (necessário para compilar apps Android)
+      # 2. Instala o Java Corretamente (Utilizando a action oficial do GitHub)
       - name: Configurar Java JDK (Temurin 17)
-        uses: actions/actions-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 3. Instala e configura o ecossistema do Flutter de forma estável
+      # 3. Instala e configura o ecossistema do Flutter
       - name: Configurar Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.19.x'
           channel: 'stable'
-          cache: true # Ativa o cache para tornar as próximas compilações muito mais rápidas
+          cache: true
 
-      # 4. Baixa todas as dependências que declaramos no pubspec.yaml (Firebase, HTTP, etc.)
+      # 4. Baixa todas as dependências do pubspec.yaml
       - name: Instalar Dependências do Projeto
         run: flutter pub get
 
-      # 5. Executa a compilação oficial do aplicativo em modo de liberação comercial
+      # 5. Executa a compilação oficial em modo release
       - name: Compilar APK em Modo Release
         run: flutter build apk --release
 
-      # 6. Pega o arquivo APK gerado e o disponibiliza para download na aba 'Actions'
+      # 6. Disponibiliza o APK para download
       - name: Disponibilizar APK para Download
         uses: actions/upload-artifact@v4
         with:
