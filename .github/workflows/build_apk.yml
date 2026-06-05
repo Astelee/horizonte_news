@@ -1,0 +1,50 @@
+name: Compilar Flutter APK
+
+# O GitHub vai disparar esta automação toda vez que você der um 'git push' na branch main
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Configurar Ambiente e Gerar APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Faz o download do código do repositório para o servidor do GitHub
+      - name: Baixar Código do Repositório
+        uses: actions/checkout@v4
+
+      # 2. Instala o Java (necessário para compilar apps Android)
+      - name: Configurar Java JDK (Temurin 17)
+        uses: actions/actions-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 3. Instala e configura o ecossistema do Flutter de forma estável
+      - name: Configurar Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.x'
+          channel: 'stable'
+          cache: true # Ativa o cache para tornar as próximas compilações muito mais rápidas
+
+      # 4. Baixa todas as dependências que declaramos no pubspec.yaml (Firebase, HTTP, etc.)
+      - name: Instalar Dependências do Projeto
+        run: flutter pub get
+
+      # 5. Executa a compilação oficial do aplicativo em modo de liberação comercial
+      - name: Compilar APK em Modo Release
+        run: flutter build apk --release
+
+      # 6. Pega o arquivo APK gerado e o disponibiliza para download na aba 'Actions'
+      - name: Disponibilizar APK para Download
+        uses: actions/upload-artifact@v4
+        with:
+          name: horizonte-news-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
