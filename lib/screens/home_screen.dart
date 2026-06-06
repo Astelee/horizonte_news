@@ -22,12 +22,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Dispara o carregamento assíncrono das postagens do Blogger na inicialização
+    // Dispara o carregamento assíncrono das postagens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<PostsProvider>(context, listen: false).loadInitialPosts();
     });
 
-    // Monitora a rolagem para ativar o scroll infinito ao se aproximar do final da página
+    // Monitora a rolagem para scroll infinito
     _scrollController.addListener(() {
       final postsProvider = Provider.of<PostsProvider>(context, listen: false);
       if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
@@ -49,7 +49,6 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Image.asset(
           'assets/images/logo.png',
           height: 40,
-          // Caso a logo ainda não exista fisicamente na pasta assets, exibe texto como fallback de proteção
           errorBuilder: (context, error, stackTrace) => const Text(
             'HORIZONTE NEWS',
             style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5),
@@ -58,15 +57,17 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
-            onPressed: () {
-              Navigator.pushNamed(context, AppRoutes.search);
-            },
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.search),
           ),
         ],
       ),
       drawer: const AppDrawer(),
       body: RefreshIndicator(
-        onRefresh: () => Provider.of<PostsProvider>(context, listen: false).loadInitialPosts(),
+        // Integrado com sua cor Laranja principal
+        color: AppColors.primaryOrange,
+        onRefresh: () async {
+          await Provider.of<PostsProvider>(context, listen: false).loadInitialPosts();
+        },
         child: Consumer<PostsProvider>(
           builder: (context, provider, child) {
             if (provider.isLoading && provider.posts.isEmpty) {
@@ -87,7 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: Theme.of(context).textTheme.titleLarge,
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () => provider.loadInitialPosts(),
                         child: const Text('Tentar Novamente'),
@@ -98,27 +99,24 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             }
 
-            // Descobre de forma dinâmica se há alguma postagem marcada como Urgente para o banner
             final urgentPost = provider.posts.any((p) => p.categories.any((c) => c.name.toLowerCase() == 'urgente' || c.name.toLowerCase() == 'plantão'))
                 ? provider.posts.firstWhere((p) => p.categories.any((c) => c.name.toLowerCase() == 'urgente' || c.name.toLowerCase() == 'plantão'))
                 : null;
 
             return CustomScrollView(
               controller: _scrollController,
+              // physics garante que o pull-to-refresh funcione sempre
+              physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                // Barra de rolagem horizontal para categorias fixa no topo
                 const SliverToBoxAdapter(child: CategoryBar()),
 
-                // Banner Vermelho de Boletim Urgente / Plantão
                 if (urgentPost != null)
                   SliverToBoxAdapter(child: BreakingNewsBanner(urgentPost: urgentPost)),
 
-                // Seção 1: Carrossel de Destaques principais (Gera os 3 posts mais novos)
                 SliverToBoxAdapter(
                   child: FeaturedCarousel(featuredPosts: provider.featuredPosts),
                 ),
 
-                // Divisor indicando a seção de últimas notícias
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.only(left: 16, top: 16, bottom: 8),
@@ -133,7 +131,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-                // Seção 2: Feed Geral de Notícias Regulares (Ignora os posts fixados nos destaques do carrossel)
                 SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
@@ -144,7 +141,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-                // Indicador visual de carregamento de mais páginas no final do Scroll
                 if (provider.hasMore)
                   const SliverToBoxAdapter(
                     child: Padding(
