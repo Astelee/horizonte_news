@@ -8,20 +8,25 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Gerenciamento de Estado
   provider: ^6.1.2
+  # UI e Widgets
   google_nav_bar: ^5.0.6
-  http: ^1.2.1
-  url_launcher: ^6.3.0
-  firebase_core: ^3.1.1
-  firebase_messaging: ^15.0.1
-  firebase_analytics: ^11.1.1
-  cached_network_image: ^3.3.1
-  intl: ^0.19.0
-  share_plus: ^9.0.0
   shimmer: ^3.0.0
   flutter_html: ^3.0.0-beta.2
   font_awesome_flutter: ^10.7.0
+  # Rede e Imagem
+  http: ^1.2.1
+  cached_network_image: ^3.3.1
+  # Funcionalidades
+  url_launcher: ^6.3.0
+  share_plus: ^9.0.0
   shared_preferences: ^2.2.3
+  intl: ^0.19.0
+  # Firebase
+  firebase_core: ^3.1.1
+  firebase_messaging: ^15.0.1
+  firebase_analytics: ^11.1.1
 
 dev_dependencies:
   flutter_test:
