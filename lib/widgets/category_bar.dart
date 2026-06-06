@@ -18,6 +18,9 @@ class CategoryBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Definindo as cores com base no tema atual para garantir legibilidade
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       height: 50,
       margin: const EdgeInsets.symmetric(vertical: 4),
@@ -31,19 +34,23 @@ class CategoryBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: ActionChip(
               label: Text(category),
-              labelStyle: const TextStyle(
+              labelStyle: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
+                // Aqui está a correção: usa a cor do texto do tema atual
+                color: Theme.of(context).textTheme.bodyMedium?.color,
               ),
-              backgroundColor: Theme.of(context).brightness == Brightness.dark
-                  ? AppColors.surfaceDark
-                  : Colors.white,
+              backgroundColor: isDark 
+                  ? AppColors.surfaceDark 
+                  : AppColors.surfaceLight,
               side: BorderSide(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? AppColors.borderDark
+                color: isDark 
+                    ? AppColors.borderDark 
                     : AppColors.borderLight,
               ),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               onPressed: () {
                 Navigator.pushNamed(
                   context,
