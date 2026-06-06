@@ -30,13 +30,14 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # Adicionamos a limpeza aqui para evitar arquivos acumulados
-      - name: Limpeza e Dependências
+      - name: Limpeza, Dependências e Ícones
         run: |
           flutter clean
           flutter pub get
-
-      # Gerando split-per-abi para reduzir o tamanho dos APKs individuais
+          # Instala o gerador de ícones e aplica sua imagem (assets/images/icon_app.png)
+          dart pub global activate flutter_launcher_icons
+          dart run flutter_launcher_icons
+          
       - name: Compilar APK em Modo Debug
         run: flutter build apk --debug --split-per-abi
 
@@ -44,5 +45,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Horizonte-News-APKs
-          # Isso enviará todos os APKs gerados, escolha o 'arm64-v8a' para celulares modernos
+          # Filtramos apenas os APKs para evitar o envio de logs pesados e desnecessários
           path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 1
