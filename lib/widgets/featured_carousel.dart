@@ -78,7 +78,8 @@ class FeaturedCarousel extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, py: 4),
+                            // CORREÇÃO: py substituído por vertical
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: AppColors.emergencyRed,
                               borderRadius: BorderRadius.circular(4),
