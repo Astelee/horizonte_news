@@ -1,41 +1,45 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
-import '../providers/theme_provider.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-
     return Drawer(
       child: Column(
         children: [
-          // Cabeçalho institucional do Menu Lateral
-          UserAccountsDrawerHeader(
+          // Cabeçalho com Degradê
+          Container(
+            height: 200,
+            width: double.infinity,
             decoration: const BoxDecoration(
-              color: AppColors.primaryBlue,
+              gradient: LinearGradient(
+                colors: [Colors.black, AppColors.primaryBlue], // Ou use Colors.orange.shade900 se preferir
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
             ),
-            accountName: const Text(
-              'Horizonte News',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            accountEmail: const Text('Jornalismo independente local'),
-            currentAccountPicture: const CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Icon(Icons.newspaper, color: AppColors.primaryBlue, size: 40),
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  backgroundColor: Colors.white,
+                  radius: 30,
+                  child: Icon(Icons.newspaper, color: AppColors.primaryBlue, size: 40),
+                ),
+                SizedBox(height: 10),
+                Text('Horizonte News', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                Text('Jornalismo independente local', style: TextStyle(color: Colors.white70)),
+              ],
             ),
           ),
-          // Itens de Navegação
+          
           ListTile(
             leading: const Icon(Icons.home),
             title: const Text('Início'),
-            onTap: () {
-              Navigator.pushReplacementNamed(context, AppRoutes.home);
-            },
+            onTap: () => Navigator.pushReplacementNamed(context, AppRoutes.home),
           ),
           ListTile(
             leading: const Icon(Icons.bookmark),
@@ -62,24 +66,20 @@ class AppDrawer extends StatelessWidget {
             },
           ),
           const Divider(),
-          // Seção de Configuração do Tema Reativo
-          SwitchListTile(
-            title: const Text('Modo Escuro'),
-            subtitle: const Text('Economize bateria no AMOLED'),
-            secondary: Icon(themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode),
-            value: themeProvider.isDarkMode,
-            onChanged: (bool value) {
-              themeProvider.toggleTheme();
+          // Novo botão de Configurações
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Configurações'),
+            onTap: () {
+              Navigator.pop(context);
+              // Aqui chamamos a nova tela de configurações
+              Navigator.pushNamed(context, '/settings'); 
             },
           ),
           const Spacer(),
-          // Rodapé informativo
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'Versão 1.0.0 © 2026',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
-            ),
+            child: Text('Versão 1.0.0 © 2026', style: TextStyle(fontSize: 12, color: Colors.grey)),
           ),
         ],
       ),
