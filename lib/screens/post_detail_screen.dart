@@ -3,11 +3,31 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
 import '../models/post_model.dart';
 import '../providers/favorites_provider.dart';
-import '../providers/posts_provider.dart'; // Import necessário para o refresh
+import '../providers/posts_provider.dart';
 import '../config/app_colors.dart';
-import '../utils/date_formatter.dart'; // Import da nossa nova classe de utilitário
+
+// Classe utilitária interna para evitar erros de importação na build
+class DateFormatter {
+  static String formatTimeAgo(DateTime postDate) {
+    final now = DateTime.now();
+    final difference = now.difference(postDate);
+
+    if (difference.inSeconds < 60) {
+      return 'Agora';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minuto' : 'minutos'} atrás';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} ${difference.inHours == 1 ? 'hora' : 'horas'} atrás';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} ${difference.inDays == 1 ? 'dia' : 'dias'} atrás';
+    } else {
+      return DateFormat('dd/MM/yyyy HH:mm').format(postDate);
+    }
+  }
+}
 
 class PostDetailScreen extends StatelessWidget {
   const PostDetailScreen({Key? key}) : super(key: key);
@@ -22,11 +42,10 @@ class PostDetailScreen extends StatelessWidget {
       body: RefreshIndicator(
         color: AppColors.primaryOrange,
         onRefresh: () async {
-          // Lógica para recarregar esta notícia específica se necessário
           await Provider.of<PostsProvider>(context, listen: false).loadInitialPosts();
         },
         child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(), // Necessário para o RefreshIndicator
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverAppBar(
               expandedHeight: 260,
@@ -84,7 +103,6 @@ class PostDetailScreen extends StatelessWidget {
                       children: [
                         const Icon(Icons.access_time, size: 16, color: Colors.grey),
                         const SizedBox(width: 6),
-                        // AQUI usamos a nossa nova função de data amigável
                         Text(
                           DateFormatter.formatTimeAgo(post.publishedAt),
                           style: const TextStyle(color: Colors.grey, fontSize: 13),
@@ -104,7 +122,7 @@ class PostDetailScreen extends StatelessWidget {
                           margin: Margins.only(bottom: 16),
                         ),
                         "a": Style(
-                          color: AppColors.primaryOrange, // Cor laranja atualizada
+                          color: AppColors.primaryOrange,
                           textDecoration: TextDecoration.underline,
                         ),
                       },
