@@ -6,7 +6,6 @@ class VideosScreen extends StatelessWidget {
   const VideosScreen({Key? key}) : super(key: key);
 
   // Lista estática simulando o feed de reportagens em vídeo do Horizonte News
-  // Pode ser integrada futuramente com a API do YouTube
   static const List<Map<String, String>> _videoMock = [
     {
       'title': 'Cobertura Especial: Eventos e Ações no Município',
@@ -72,8 +71,11 @@ class VideosScreen extends StatelessWidget {
                         bottom: 8,
                         right: 8,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, py: 2),
-                          color: Colors.black87,
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.black87,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
                           child: Text(
                             video['duration']!,
                             style: const TextStyle(color: Colors.white, fontSize: 12),
