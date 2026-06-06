@@ -7,11 +7,11 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      primaryColor: AppColors.primaryBlue,
+      primaryColor: AppColors.primaryOrange,
       scaffoldBackgroundColor: AppColors.backgroundLight,
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.primaryBlue,
-        foregroundColor: AppColors.surfaceLight,
+        backgroundColor: Colors.black, // AppBar preta para identidade forte
+        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
       ),
@@ -37,8 +37,8 @@ class AppTheme {
         ),
       ),
       colorScheme: const ColorScheme.light(
-        primary: AppColors.primaryBlue,
-        secondary: AppColors.accentBlue,
+        primary: AppColors.primaryOrange,
+        secondary: AppColors.primaryOrange,
         surface: AppColors.surfaceLight,
         error: AppColors.emergencyRed,
       ),
@@ -50,14 +50,13 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      primaryColor: AppColors.primaryBlue,
+      primaryColor: AppColors.primaryOrange,
       scaffoldBackgroundColor: AppColors.backgroundDark,
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.backgroundDark, // Mantido escuro para o AMOLED
-        foregroundColor: AppColors.textPrimaryDark,
+        backgroundColor: Colors.black, // Fundo preto absoluto
+        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        // Adicionando uma borda sutil na AppBar para destacar no modo escuro
         shape: Border(
           bottom: BorderSide(color: AppColors.surfaceDark, width: 1),
         ),
@@ -84,8 +83,8 @@ class AppTheme {
         ),
       ),
       colorScheme: const ColorScheme.dark(
-        primary: AppColors.primaryBlue,
-        secondary: AppColors.accentBlue,
+        primary: AppColors.primaryOrange,
+        secondary: AppColors.primaryOrange,
         surface: AppColors.surfaceDark,
         error: AppColors.emergencyRed,
       ),
