@@ -14,18 +14,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Faz o download do código do repositório para o servidor do GitHub
       - name: Baixar Código do Repositório
         uses: actions/checkout@v4
 
-      # 2. Instala o Java Corretamente (Utilizando a action oficial do GitHub)
       - name: Configurar Java JDK (Temurin 17)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 3. Instala e configura o ecossistema do Flutter
       - name: Configurar Flutter SDK
         uses: subosito/flutter-action@v2
         with:
@@ -33,21 +30,19 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # 4. Baixa todas as dependências do pubspec.yaml
-      - name: Instalar Dependências do Projeto
-        run: flutter pub get
+      # Adicionamos a limpeza aqui para evitar arquivos acumulados
+      - name: Limpeza e Dependências
+        run: |
+          flutter clean
+          flutter pub get
 
-      # 5. Executa a compilação em modo debug (para permitir instalação sem assinatura oficial)
+      # Gerando split-per-abi para reduzir o tamanho dos APKs individuais
       - name: Compilar APK em Modo Debug
-        run: flutter build apk --debug
+        run: flutter build apk --debug --split-per-abi
 
-      # 6. Renomeia o arquivo app-debug.apk para Horizonte News.apk
-      - name: Renomear APK
-        run: mv build/app/outputs/flutter-apk/app-debug.apk "build/app/outputs/flutter-apk/Horizonte News.apk"
-
-      # 7. Disponibiliza o APK para download com o nome correto
       - name: Disponibilizar APK para Download
         uses: actions/upload-artifact@v4
         with:
-          name: Horizonte News
-          path: "build/app/outputs/flutter-apk/Horizonte News.apk"
+          name: Horizonte-News-APKs
+          # Isso enviará todos os APKs gerados, escolha o 'arm64-v8a' para celulares modernos
+          path: build/app/outputs/flutter-apk/*.apk
