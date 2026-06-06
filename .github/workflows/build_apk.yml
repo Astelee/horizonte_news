@@ -37,13 +37,17 @@ jobs:
       - name: Instalar Dependências do Projeto
         run: flutter pub get
 
-      # 5. Executa a compilação oficial em modo release
-      - name: Compilar APK em Modo Release
-        run: flutter build apk --release
+      # 5. Executa a compilação em modo debug (para permitir instalação sem assinatura oficial)
+      - name: Compilar APK em Modo Debug
+        run: flutter build apk --debug
 
-      # 6. Disponibiliza o APK para download
+      # 6. Renomeia o arquivo app-debug.apk para Horizonte News.apk
+      - name: Renomear APK
+        run: mv build/app/outputs/flutter-apk/app-debug.apk "build/app/outputs/flutter-apk/Horizonte News.apk"
+
+      # 7. Disponibiliza o APK para download com o nome correto
       - name: Disponibilizar APK para Download
         uses: actions/upload-artifact@v4
         with:
-          name: horizonte-news-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: Horizonte News
+          path: "build/app/outputs/flutter-apk/Horizonte News.apk"
