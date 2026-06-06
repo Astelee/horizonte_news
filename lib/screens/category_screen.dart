@@ -16,14 +16,19 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
   @override
   void didChangeDependencies() {
-    super.didChangeDependencies() {
-      if (_isInit) {
-        // Captura o nome da categoria repassado por argumento de rota
-        _categoryName = ModalRoute.of(context)!.settings.arguments as String;
+    // 1. Chamada obrigatória ao método pai
+    super.didChangeDependencies(); 
+
+    // 2. Lógica de inicialização corrigida
+    if (_isInit) {
+      // Captura o nome da categoria repassado por argumento de rota
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args != null) {
+        _categoryName = args as String;
         // Executa a requisição isolada baseada no marcador
         Provider.of<PostsProvider>(context, listen: false).loadPostsByCategory(_categoryName);
-        _isInit = false;
       }
+      _isInit = false;
     }
   }
 
