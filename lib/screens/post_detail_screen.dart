@@ -50,7 +50,7 @@ class PostDetailScreen extends StatelessWidget {
                     placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
                     errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 50),
                   ),
-                  // Gradiente sutil para não sumir os botões brancos superiores
+                  // Gradiente sutil
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -67,14 +67,13 @@ class PostDetailScreen extends StatelessWidget {
               ),
             ),
           ),
-          // Corpo do Artigo jornalístico
+          // Corpo do Artigo
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Título Principal
                   Text(
                     post.title,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -83,7 +82,6 @@ class PostDetailScreen extends StatelessWidget {
                         ),
                   ),
                   const SizedBox(height: 12),
-                  // Metadados (Data e Identificadores)
                   Row(
                     children: [
                       const Icon(Icons.access_time, size: 16, color: Colors.grey),
@@ -98,7 +96,7 @@ class PostDetailScreen extends StatelessWidget {
                     padding: EdgeInsets.symmetric(vertical: 12),
                     child: Divider(),
                   ),
-                  // Interpretador de conteúdo HTML do Blogger
+                  // HTML Interpretado - Removido borderRadius inválido
                   Html(
                     data: post.content,
                     style: {
@@ -111,9 +109,7 @@ class PostDetailScreen extends StatelessWidget {
                         color: AppColors.primaryBlue,
                         textDecoration: TextDecoration.underline,
                       ),
-                      "img": Style(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      // "img" não aceita borderRadius diretamente aqui na v3 beta
                     },
                   ),
                 ],
