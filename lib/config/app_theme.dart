@@ -53,10 +53,14 @@ class AppTheme {
       primaryColor: AppColors.primaryBlue,
       scaffoldBackgroundColor: AppColors.backgroundDark,
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.backgroundDark,
+        backgroundColor: AppColors.backgroundDark, // Mantido escuro para o AMOLED
         foregroundColor: AppColors.textPrimaryDark,
         elevation: 0,
         centerTitle: true,
+        // Adicionando uma borda sutil na AppBar para destacar no modo escuro
+        shape: Border(
+          bottom: BorderSide(color: AppColors.surfaceDark, width: 1),
+        ),
       ),
       cardTheme: const CardTheme(
         color: AppColors.surfaceDark,
