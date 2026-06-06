@@ -34,9 +34,10 @@ jobs:
         run: |
           flutter clean
           flutter pub get
-          # Instala o gerador e foca apenas no Android para evitar erros de iOS
+          # Instala o gerador de ícones
           dart pub global activate flutter_launcher_icons
-          dart run flutter_launcher_icons:main --android
+          # Executa o gerador; ele lerá as configurações (ios: false) do seu pubspec.yaml
+          dart run flutter_launcher_icons
           
       - name: Compilar APK em Modo Debug
         run: flutter build apk --debug --split-per-abi
