@@ -45,7 +45,8 @@ class BreakingNewsBanner extends StatelessWidget {
                       'PLANTÃO / URGENTE',
                       style: TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.black,
+                        // CORREÇÃO: FontWeight.black substituído por w900
+                        fontWeight: FontWeight.w900,
                         fontSize: 11,
                         letterSpacing: 0.5,
                       ),
