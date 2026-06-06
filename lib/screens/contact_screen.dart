@@ -35,7 +35,7 @@ class ContactScreen extends StatelessWidget {
               style: TextStyle(fontSize: 15, height: 1.4),
             ),
             const SizedBox(height: 24),
-            
+
             // Botão WhatsApp (Denúncias urgentes)
             Card(
               color: const Color(0xFF25D366),
@@ -45,9 +45,10 @@ class ContactScreen extends StatelessWidget {
                   'WhatsApp Geral / Plantão',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
-                subtitle: const Text('Envie fotos e vídeos de flagrantes', style: TextStyle(color: Colors.whiteFaded)),
+                // CORREÇÃO: Usando AppColors.whiteFaded
+                subtitle: const Text('Envie fotos e vídeos de flagrantes', style: TextStyle(color: AppColors.whiteFaded)),
                 trailing: const Icon(Icons.chevron_right, color: Colors.white),
-                onTap: () => _launchIntent(context, 'https://wa.me/549111111111'), // Substituir pelo número real
+                onTap: () => _launchIntent(context, 'https://wa.me/549111111111'),
               ),
             ),
             const SizedBox(height: 12),
@@ -61,7 +62,8 @@ class ContactScreen extends StatelessWidget {
                   'Instagram Oficial',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
-                subtitle: const Text('@horizontenews', style: TextStyle(color: Colors.whiteFaded)),
+                // CORREÇÃO: Usando AppColors.whiteFaded
+                subtitle: const Text('@horizontenews', style: TextStyle(color: AppColors.whiteFaded)),
                 trailing: const Icon(Icons.chevron_right, color: Colors.white),
                 onTap: () => _launchIntent(context, 'https://instagram.com'),
               ),
