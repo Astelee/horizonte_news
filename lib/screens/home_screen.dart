@@ -52,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // Caso a logo ainda não exista fisicamente na pasta assets, exibe texto como fallback de proteção
           errorBuilder: (context, error, stackTrace) => const Text(
             'HORIZONTE NEWS',
-            style: TextStyle(fontWeight: FontWeight.black, letterSpacing: 1.5),
+            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5),
           ),
         ),
         actions: [
