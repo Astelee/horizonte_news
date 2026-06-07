@@ -79,22 +79,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
         child: Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
           child: _emailSent ? _buildSuccessState() : _buildFormState(),
         ),
       ),
     );
   }
 
-  // ── ESTADO: FORMULÁRIO ────────────────────────────────────────────
+  // ── ESTADO: FORMULÁRIO ──────────────────────────────────────────
   Widget _buildFormState() {
     return Form(
       key: _formKey,
@@ -105,41 +107,46 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
           // Ícone com glow
           AnimatedBuilder(
             animation: _glowAnim,
-            builder: (_, child) => Container(
-              alignment: Alignment.center,
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF0A0A0A),
-                  border: Border.all(
-                    color: AppColors.primaryOrange
-                        .withOpacity(0.4 * _glowAnim.value),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
+            builder: (context, child) {
+              return Center(
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF0A0A0A),
+                    border: Border.all(
                       color: AppColors.primaryOrange
-                          .withOpacity(0.3 * _glowAnim.value),
-                      blurRadius: 32,
-                      spreadRadius: 4,
+                          .withOpacity(0.4 * _glowAnim.value),
+                      width: 1.5,
                     ),
-                  ],
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primaryOrange
+                            .withOpacity(0.3 * _glowAnim.value),
+                        blurRadius: 32,
+                        spreadRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.lock_reset_rounded,
+                    size: 38,
+                    color: AppColors.primaryOrange,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.lock_reset_rounded,
-                  size: 38,
-                  color: AppColors.primaryOrange,
-                ),
-              ),
-            ),
+              );
+            },
           ),
           const SizedBox(height: 28),
 
           ShaderMask(
             shaderCallback: (bounds) => const LinearGradient(
-              colors: [Color(0xFFFF6D00), Color(0xFFFFB74D), Color(0xFFE65100)],
+              colors: [
+                Color(0xFFFF6D00),
+                Color(0xFFFFB74D),
+                Color(0xFFE65100),
+              ],
             ).createShader(bounds),
             child: const Text(
               'RECUPERAR SENHA',
@@ -156,11 +163,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
           const Text(
             'Informe seu e-mail. Enviaremos um link seguro para você redefinir sua senha.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF757575), fontSize: 13, height: 1.5),
+            style: TextStyle(
+              color: Color(0xFF757575),
+              fontSize: 13,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 40),
 
-          // Card do campo
+          // Card do formulário
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
@@ -179,27 +190,31 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
             ),
             child: Stack(
               children: [
+                // Linha brilhante no topo
                 Positioned(
                   top: 0,
                   left: 40,
                   right: 40,
                   child: AnimatedBuilder(
                     animation: _glowAnim,
-                    builder: (_, __) => Container(
-                      height: 1,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.transparent,
-                            AppColors.primaryOrange
-                                .withOpacity(0.7 * _glowAnim.value),
-                            Colors.transparent,
-                          ],
+                    builder: (context, child) {
+                      return Container(
+                        height: 1,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              AppColors.primaryOrange
+                                  .withOpacity(0.7 * _glowAnim.value),
+                              Colors.transparent,
+                            ],
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
+
                 Padding(
                   padding: const EdgeInsets.all(28.0),
                   child: Column(
@@ -215,23 +230,32 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                         ),
                       ),
                       const SizedBox(height: 8),
+
+                      // Campo e-mail
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         style: const TextStyle(
-                            color: Colors.white, fontSize: 15),
+                          color: Colors.white,
+                          fontSize: 15,
+                        ),
                         decoration: InputDecoration(
                           hintText: 'seu@email.com',
                           hintStyle: const TextStyle(
-                              color: Color(0xFF424242), fontSize: 15),
+                            color: Color(0xFF424242),
+                            fontSize: 15,
+                          ),
                           prefixIcon: const Icon(
-                              Icons.alternate_email_rounded,
-                              color: AppColors.primaryOrange,
-                              size: 20),
+                            Icons.alternate_email_rounded,
+                            color: AppColors.primaryOrange,
+                            size: 20,
+                          ),
                           filled: true,
                           fillColor: const Color(0xFF141414),
                           contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 18),
+                            horizontal: 16,
+                            vertical: 18,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide:
@@ -245,47 +269,65 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: const BorderSide(
-                                color: AppColors.primaryOrange, width: 1.5),
+                              color: AppColors.primaryOrange,
+                              width: 1.5,
+                            ),
                           ),
                           errorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: const BorderSide(
-                                color: AppColors.emergencyRed, width: 1.5),
+                              color: AppColors.emergencyRed,
+                              width: 1.5,
+                            ),
                           ),
                           focusedErrorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: const BorderSide(
-                                color: AppColors.emergencyRed, width: 1.5),
+                              color: AppColors.emergencyRed,
+                              width: 1.5,
+                            ),
                           ),
                           errorStyle: const TextStyle(
-                              color: AppColors.emergencyRed, fontSize: 11),
+                            color: AppColors.emergencyRed,
+                            fontSize: 11,
+                          ),
                         ),
                         validator: (v) {
-                          if (v == null || v.isEmpty)
+                          if (v == null || v.isEmpty) {
                             return 'Informe seu e-mail';
-                          if (!v.contains('@')) return 'E-mail inválido';
+                          }
+                          if (!v.contains('@')) {
+                            return 'E-mail inválido';
+                          }
                           return null;
                         },
                       ),
                       const SizedBox(height: 24),
 
+                      // Banner de erro
                       if (_errorMessage != null)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                           margin: const EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
                             color: AppColors.emergencyRed.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                                color: AppColors.emergencyRed
-                                    .withOpacity(0.4),
-                                width: 1),
+                              color:
+                                  AppColors.emergencyRed.withOpacity(0.4),
+                              width: 1,
+                            ),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.warning_amber_rounded,
-                                  color: AppColors.emergencyRed, size: 18),
+                              const Icon(
+                                Icons.warning_amber_rounded,
+                                color: AppColors.emergencyRed,
+                                size: 18,
+                              ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
@@ -304,67 +346,73 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                       // Botão enviar
                       AnimatedBuilder(
                         animation: _glowAnim,
-                        builder: (_, __) => Container(
-                          height: 56,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(14),
-                            gradient: const LinearGradient(
-                              colors: [
-                                Color(0xFFBF360C),
-                                Color(0xFFE65100),
-                                Color(0xFFF57C00)
-                              ],
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primaryOrange
-                                    .withOpacity(0.4 * _glowAnim.value),
-                                blurRadius: 24,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
+                        builder: (context, child) {
+                          return Container(
+                            height: 56,
+                            decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(14),
-                              onTap: _isLoading ? null : _handleReset,
-                              splashColor: Colors.white.withOpacity(0.1),
-                              child: Center(
-                                child: _isLoading
-                                    ? const SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation(
-                                                  Colors.white),
-                                        ),
-                                      )
-                                    : const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            'ENVIAR LINK',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w800,
-                                              letterSpacing: 3,
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xFFBF360C),
+                                  Color(0xFFE65100),
+                                  Color(0xFFF57C00),
+                                ],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primaryOrange
+                                      .withOpacity(0.4 * _glowAnim.value),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(14),
+                                onTap: _isLoading ? null : _handleReset,
+                                splashColor: Colors.white.withOpacity(0.1),
+                                child: Center(
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
                                             ),
                                           ),
-                                          SizedBox(width: 10),
-                                          Icon(Icons.send_rounded,
-                                              color: Colors.white, size: 18),
-                                        ],
-                                      ),
+                                        )
+                                      : const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              'ENVIAR LINK',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w800,
+                                                letterSpacing: 3,
+                                              ),
+                                            ),
+                                            SizedBox(width: 10),
+                                            Icon(
+                                              Icons.send_rounded,
+                                              color: Colors.white,
+                                              size: 18,
+                                            ),
+                                          ],
+                                        ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -377,7 +425,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     );
   }
 
-  // ── ESTADO: SUCESSO ───────────────────────────────────────────────
+  // ── ESTADO: SUCESSO ─────────────────────────────────────────────
   Widget _buildSuccessState() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -385,35 +433,36 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       children: [
         AnimatedBuilder(
           animation: _glowAnim,
-          builder: (_, __) => Container(
-            alignment: Alignment.center,
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF0A0A0A),
-                border: Border.all(
-                  color: const Color(0xFF2E7D32)
-                      .withOpacity(0.5 * _glowAnim.value),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
+          builder: (context, child) {
+            return Center(
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF0A0A0A),
+                  border: Border.all(
                     color: const Color(0xFF2E7D32)
-                        .withOpacity(0.3 * _glowAnim.value),
-                    blurRadius: 40,
-                    spreadRadius: 6,
+                        .withOpacity(0.5 * _glowAnim.value),
+                    width: 1.5,
                   ),
-                ],
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF2E7D32)
+                          .withOpacity(0.3 * _glowAnim.value),
+                      blurRadius: 40,
+                      spreadRadius: 6,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.mark_email_read_rounded,
+                  size: 48,
+                  color: Color(0xFF4CAF50),
+                ),
               ),
-              child: const Icon(
-                Icons.mark_email_read_rounded,
-                size: 48,
-                color: Color(0xFF4CAF50),
-              ),
-            ),
-          ),
+            );
+          },
         ),
         const SizedBox(height: 32),
         const Text(
@@ -440,7 +489,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         const Text(
           'Verifique também sua caixa de spam.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Color(0xFF424242), fontSize: 12),
+          style: TextStyle(
+            color: Color(0xFF424242),
+            fontSize: 12,
+          ),
         ),
         const SizedBox(height: 48),
         Container(
@@ -474,7 +526,5 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         ),
       ],
     );
-  }
-}    );
   }
 }
