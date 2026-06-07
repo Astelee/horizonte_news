@@ -6,7 +6,11 @@ import '../screens/search_screen.dart';
 import '../screens/favorites_screen.dart';
 import '../screens/videos_screen.dart';
 import '../screens/contact_screen.dart';
-import '../screens/settings_screen.dart'; // Import da nova tela
+import '../screens/settings_screen.dart';
+// Imports das novas telas de autenticação
+import '../screens/login_screen.dart';
+import '../screens/register_screen.dart';
+import '../screens/forgot_password_screen.dart';
 
 class AppRoutes {
   static const String home = '/';
@@ -16,7 +20,12 @@ class AppRoutes {
   static const String favorites = '/favorites';
   static const String videos = '/videos';
   static const String contact = '/contact';
-  static const String settings = '/settings'; // Nova constante
+  static const String settings = '/settings';
+  
+  // Novas constantes de rotas para autenticação
+  static const String login = '/login';
+  static const String register = '/register';
+  static const String forgotPassword = '/forgot-password';
 
   static Map<String, WidgetBuilder> get routes {
     return {
@@ -27,7 +36,12 @@ class AppRoutes {
       favorites: (context) => const FavoritesScreen(),
       videos: (context) => const VideosScreen(),
       contact: (context) => const ContactScreen(),
-      settings: (context) => const SettingsScreen(), // Registro da rota
+      settings: (context) => const SettingsScreen(),
+      
+      // Registro das novas rotas de autenticação no mapa do app
+      login: (context) => const LoginScreen(),
+      register: (context) => const RegisterScreen(),
+      forgotPassword: (context) => const ForgotPasswordScreen(),
     };
   }
 }
