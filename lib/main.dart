@@ -11,7 +11,12 @@ import 'providers/favorites_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    // Firebase já inicializado ou erro — continua normalmente
+  }
 
   runApp(
     MultiProvider(
@@ -35,11 +40,9 @@ class HorizonteNewsApp extends StatelessWidget {
     return MaterialApp(
       title: 'Horizonte News',
       debugShowCheckedModeBanner: false,
-
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.currentTheme,
-
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -48,12 +51,7 @@ class HorizonteNewsApp extends StatelessWidget {
       supportedLocales: const [
         Locale('pt', 'BR'),
       ],
-
-      // 'home:' é a única rota raiz — sem conflito com routes:
       home: const _AuthGate(),
-
-      // onGenerateRoute substitui routes: completamente,
-      // evitando qualquer conflito com o '/' do home:
       onGenerateRoute: (settings) {
         final builder = AppRoutes.routes[settings.name];
         if (builder != null) {
@@ -62,7 +60,6 @@ class HorizonteNewsApp extends StatelessWidget {
             settings: settings,
           );
         }
-        // Rota não encontrada — volta para o AuthGate
         return MaterialPageRoute(
           builder: (_) => const _AuthGate(),
         );
@@ -79,16 +76,34 @@ class _AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+    return FutureBuilder(
+      // Verifica se o Firebase está disponível antes de usar o Auth
+      future: Firebase.initializeApp(),
       builder: (context, snapshot) {
+
+        // Ainda inicializando
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const _SplashLoading();
         }
-        if (snapshot.hasData && snapshot.data != null) {
-          return AppRoutes.routes[AppRoutes.home]!(context);
+
+        // Firebase falhou — vai direto para login sem autenticação
+        if (snapshot.hasError) {
+          return AppRoutes.routes[AppRoutes.login]!(context);
         }
-        return AppRoutes.routes[AppRoutes.login]!(context);
+
+        // Firebase ok — escuta o estado de autenticação
+        return StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (context, authSnapshot) {
+            if (authSnapshot.connectionState == ConnectionState.waiting) {
+              return const _SplashLoading();
+            }
+            if (authSnapshot.hasData && authSnapshot.data != null) {
+              return AppRoutes.routes[AppRoutes.home]!(context);
+            }
+            return AppRoutes.routes[AppRoutes.login]!(context);
+          },
+        );
       },
     );
   }
