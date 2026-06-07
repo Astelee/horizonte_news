@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // Import necessário para as traduções
 import 'package:provider/provider.dart';
 import 'config/app_theme.dart';
 import 'config/app_routes.dart';
@@ -9,7 +10,7 @@ import 'providers/favorites_provider.dart';
 void main() {
   // Garante que as ligações dos widgets do Flutter estejam inicializadas antes de rodar os serviços
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   runApp(
     MultiProvider(
       providers: [
@@ -39,12 +40,23 @@ class HorizonteNewsApp extends StatelessWidget {
     return MaterialApp(
       title: 'Horizonte News',
       debugShowCheckedModeBanner: false,
-      
+
       // Definição dos temas estruturados
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.currentTheme,
-      
+
+      // --- CONFIGURAÇÃO DE IDIOMA (Tradução de botões nativos como Copiar/Colar) ---
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('pt', 'BR'), // Força o suporte ao Português do Brasil
+      ],
+      // -----------------------------------------------------------------------------
+
       // Mapeamento de rotas e ponto inicial
       initialRoute: AppRoutes.home,
       routes: AppRoutes.routes,
