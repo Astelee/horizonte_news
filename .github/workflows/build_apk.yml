@@ -30,21 +30,30 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Decodificar Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/horizonte-key.jks
+
+      - name: Criar key.properties
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=../horizonte-key.jks" >> android/key.properties
+
       - name: Limpeza, Dependências e Ícones
         run: |
           flutter clean
           flutter pub get
-          # Instala o gerador de ícones
           dart pub global activate flutter_launcher_icons
-          # Executa o gerador; ele lerá as configurações (ios: false) do seu pubspec.yaml
           dart run flutter_launcher_icons
-          
-      - name: Compilar APK em Modo Debug
-        run: flutter build apk --debug --split-per-abi
+
+      - name: Compilar APK Release
+        run: flutter build apk --release --split-per-abi
 
       - name: Disponibilizar APK para Download
         uses: actions/upload-artifact@v4
         with:
           name: Horizonte-News-APKs
-          path: build/app/outputs/flutter-apk/*.apk
-          retention-days: 1
+          path: build/app/outputs/flutter-apk/*-release.apk
+          retention-days: 7
