@@ -11,12 +11,9 @@ import 'providers/favorites_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  try {
-    await Firebase.initializeApp();
-  } catch (e) {
-    // Firebase já inicializado ou erro — continua normalmente
-  }
+  
+  // Liga o motor do Firebase oficialmente
+  await Firebase.initializeApp();
 
   runApp(
     MultiProvider(
@@ -37,6 +34,9 @@ class HorizonteNewsApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
+    final Map<String, WidgetBuilder> safeRoutes = Map.from(AppRoutes.routes);
+    safeRoutes.remove(AppRoutes.home);
+
     return MaterialApp(
       title: 'Horizonte News',
       debugShowCheckedModeBanner: false,
@@ -52,66 +52,31 @@ class HorizonteNewsApp extends StatelessWidget {
         Locale('pt', 'BR'),
       ],
       home: const _AuthGate(),
-      onGenerateRoute: (settings) {
-        final builder = AppRoutes.routes[settings.name];
-        if (builder != null) {
-          return MaterialPageRoute(
-            builder: builder,
-            settings: settings,
-          );
-        }
-        return MaterialPageRoute(
-          builder: (_) => const _AuthGate(),
-        );
-      },
+      routes: safeRoutes,
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// AUTH GATE
-// ═══════════════════════════════════════════════════════════════════
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      // Verifica se o Firebase está disponível antes de usar o Auth
-      future: Firebase.initializeApp(),
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-
-        // Ainda inicializando
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const _SplashLoading();
         }
-
-        // Firebase falhou — vai direto para login sem autenticação
-        if (snapshot.hasError) {
-          return AppRoutes.routes[AppRoutes.login]!(context);
+        if (snapshot.hasData && snapshot.data != null) {
+          return AppRoutes.routes[AppRoutes.home]!(context);
         }
-
-        // Firebase ok — escuta o estado de autenticação
-        return StreamBuilder<User?>(
-          stream: FirebaseAuth.instance.authStateChanges(),
-          builder: (context, authSnapshot) {
-            if (authSnapshot.connectionState == ConnectionState.waiting) {
-              return const _SplashLoading();
-            }
-            if (authSnapshot.hasData && authSnapshot.data != null) {
-              return AppRoutes.routes[AppRoutes.home]!(context);
-            }
-            return AppRoutes.routes[AppRoutes.login]!(context);
-          },
-        );
+        return AppRoutes.routes[AppRoutes.login]!(context);
       },
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// SPLASH LOADING
-// ═══════════════════════════════════════════════════════════════════
 class _SplashLoading extends StatefulWidget {
   const _SplashLoading();
 
@@ -159,8 +124,7 @@ class _SplashLoadingState extends State<_SplashLoading>
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFE65100)
-                          .withOpacity(0.6 * _pulse.value),
+                      color: const Color(0xFFE65100).withOpacity(0.6 * _pulse.value),
                       blurRadius: 40,
                       spreadRadius: 8,
                     ),
@@ -168,41 +132,22 @@ class _SplashLoadingState extends State<_SplashLoading>
                 ),
                 child: child,
               ),
-              child: const Icon(
-                Icons.public,
-                size: 56,
-                color: Color(0xFFE65100),
-              ),
+              child: const Icon(Icons.public, size: 56, color: Color(0xFFE65100)),
             ),
             const SizedBox(height: 28),
             ShaderMask(
               shaderCallback: (bounds) => const LinearGradient(
-                colors: [
-                  Color(0xFFFF6D00),
-                  Color(0xFFFFB74D),
-                  Color(0xFFE65100),
-                ],
+                colors: [Color(0xFFFF6D00), Color(0xFFFFB74D), Color(0xFFE65100)],
               ).createShader(bounds),
               child: const Text(
                 'HORIZONTE NEWS',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  letterSpacing: 4,
-                ),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 4),
               ),
             ),
             const SizedBox(height: 32),
             SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  const Color(0xFFE65100).withOpacity(0.8),
-                ),
-              ),
+              width: 24, height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFFE65100).withOpacity(0.8))),
             ),
           ],
         ),
