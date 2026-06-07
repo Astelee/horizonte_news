@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart'; // Import necessário para as traduções
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'config/app_theme.dart';
 import 'config/app_routes.dart';
 import 'providers/posts_provider.dart';
@@ -8,21 +9,14 @@ import 'providers/theme_provider.dart';
 import 'providers/favorites_provider.dart';
 
 void main() {
-  // Garante que as ligações dos widgets do Flutter estejam inicializadas antes de rodar os serviços
   WidgetsFlutterBinding.ensureInitialized();
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(
-          create: (_) => ThemeProvider(),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => PostsProvider(),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => FavoritesProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => PostsProvider()),
+        ChangeNotifierProvider(create: (_) => FavoritesProvider()),
       ],
       child: const HorizonteNewsApp(),
     ),
@@ -34,32 +28,165 @@ class HorizonteNewsApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Escuta as mudanças de tema controladas pelo usuário ou sistema
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
       title: 'Horizonte News',
       debugShowCheckedModeBanner: false,
 
-      // Definição dos temas estruturados
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.currentTheme,
 
-      // --- CONFIGURAÇÃO DE IDIOMA (Tradução de botões nativos como Copiar/Colar) ---
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('pt', 'BR'), // Força o suporte ao Português do Brasil
+        Locale('pt', 'BR'),
       ],
-      // -----------------------------------------------------------------------------
 
-      // Mapeamento de rotas e ponto inicial
-      initialRoute: AppRoutes.home,
+      // Tela inicial inteligente: verifica sessão antes de decidir a rota
+      home: const _AuthGate(),
       routes: AppRoutes.routes,
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// AUTH GATE — decide para onde o usuário vai ao abrir o app
+// ═══════════════════════════════════════════════════════════════════
+class _AuthGate extends StatelessWidget {
+  const _AuthGate();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      // Escuta em tempo real o estado de autenticação do Firebase
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+
+        // Ainda carregando a sessão — exibe splash de loading
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _SplashLoading();
+        }
+
+        // Usuário autenticado — vai direto para o Home
+        if (snapshot.hasData && snapshot.data != null) {
+          return AppRoutes.routes[AppRoutes.home]!(context);
+        }
+
+        // Sem sessão ativa — exibe tela de Login
+        return AppRoutes.routes[AppRoutes.login]!(context);
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SPLASH DE LOADING — exibido enquanto o Firebase verifica a sessão
+// ═══════════════════════════════════════════════════════════════════
+class _SplashLoading extends StatefulWidget {
+  const _SplashLoading();
+
+  @override
+  State<_SplashLoading> createState() => _SplashLoadingState();
+}
+
+class _SplashLoadingState extends State<_SplashLoading>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _pulse = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF000000),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Ícone pulsante com glow
+            AnimatedBuilder(
+              animation: _pulse,
+              builder: (_, child) => Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFE65100)
+                          .withOpacity(0.6 * _pulse.value),
+                      blurRadius: 40,
+                      spreadRadius: 8,
+                    ),
+                  ],
+                ),
+                child: child,
+              ),
+              child: const Icon(
+                Icons.public,
+                size: 56,
+                color: Color(0xFFE65100),
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            // Nome do app
+            ShaderMask(
+              shaderCallback: (bounds) => const LinearGradient(
+                colors: [
+                  Color(0xFFFF6D00),
+                  Color(0xFFFFB74D),
+                  Color(0xFFE65100),
+                ],
+              ).createShader(bounds),
+              child: const Text(
+                'HORIZONTE NEWS',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: 4,
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            // Indicador de carregamento
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  const Color(0xFFE65100).withOpacity(0.8),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
