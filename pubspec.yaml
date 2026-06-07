@@ -27,6 +27,7 @@ dependencies:
   intl: ^0.19.0
   # Firebase
   firebase_core: ^3.1.1
+  firebase_auth: ^5.1.1       # <-- Adicionado para Login e Cadastro
   firebase_messaging: ^15.0.1
   firebase_analytics: ^11.1.1
 
