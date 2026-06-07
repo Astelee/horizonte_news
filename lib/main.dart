@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart'; // Import crucial do Firebase
 import 'package:firebase_auth/firebase_auth.dart';
 import 'config/app_theme.dart';
 import 'config/app_routes.dart';
@@ -8,8 +9,12 @@ import 'providers/posts_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/favorites_provider.dart';
 
-void main() {
+// Transformamos o main em async para poder iniciar o Firebase
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializa o Firebase antes de rodar o app
+  await Firebase.initializeApp();
 
   runApp(
     MultiProvider(
@@ -30,6 +35,10 @@ class HorizonteNewsApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
+    // Truque: Copia as rotas e remove o '/' para não conflitar com o 'home:'
+    final Map<String, WidgetBuilder> safeRoutes = Map.from(AppRoutes.routes);
+    safeRoutes.remove(AppRoutes.home);
+
     return MaterialApp(
       title: 'Horizonte News',
       debugShowCheckedModeBanner: false,
@@ -47,9 +56,9 @@ class HorizonteNewsApp extends StatelessWidget {
         Locale('pt', 'BR'),
       ],
 
-      // Tela inicial inteligente: verifica sessão antes de decidir a rota
+      // Tela inicial inteligente configurada corretamente
       home: const _AuthGate(),
-      routes: AppRoutes.routes,
+      routes: safeRoutes, 
     );
   }
 }
@@ -63,21 +72,17 @@ class _AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      // Escuta em tempo real o estado de autenticação do Firebase
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-
-        // Ainda carregando a sessão — exibe splash de loading
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const _SplashLoading();
         }
 
-        // Usuário autenticado — vai direto para o Home
         if (snapshot.hasData && snapshot.data != null) {
+          // Usamos a rota original do AppRoutes para chamar a Home
           return AppRoutes.routes[AppRoutes.home]!(context);
         }
 
-        // Sem sessão ativa — exibe tela de Login
         return AppRoutes.routes[AppRoutes.login]!(context);
       },
     );
@@ -125,7 +130,6 @@ class _SplashLoadingState extends State<_SplashLoading>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Ícone pulsante com glow
             AnimatedBuilder(
               animation: _pulse,
               builder: (_, child) => Container(
@@ -151,8 +155,6 @@ class _SplashLoadingState extends State<_SplashLoading>
               ),
             ),
             const SizedBox(height: 28),
-
-            // Nome do app
             ShaderMask(
               shaderCallback: (bounds) => const LinearGradient(
                 colors: [
@@ -172,8 +174,6 @@ class _SplashLoadingState extends State<_SplashLoading>
               ),
             ),
             const SizedBox(height: 32),
-
-            // Indicador de carregamento
             SizedBox(
               width: 24,
               height: 24,
