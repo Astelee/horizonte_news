@@ -49,6 +49,9 @@ class _RegisterScreenState extends State<RegisterScreen>
   }
 
   Future<void> _handleRegister() async {
+    // Fecha o teclado
+    FocusScope.of(context).unfocus();
+
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -62,28 +65,34 @@ class _RegisterScreenState extends State<RegisterScreen>
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-      await credential.user
-          ?.updateDisplayName(_nameController.text.trim());
+
+      await credential.user?.updateDisplayName(_nameController.text.trim());
 
       if (mounted) {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
       }
     } on FirebaseAuthException catch (e) {
-      setState(() {
-        switch (e.code) {
-          case 'email-already-in-use':
-            _errorMessage = 'Este e-mail já está cadastrado.';
-            break;
-          case 'weak-password':
-            _errorMessage = 'Senha muito fraca. Use pelo menos 6 caracteres.';
-            break;
-          case 'invalid-email':
-            _errorMessage = 'Formato de e-mail inválido.';
-            break;
-          default:
-            _errorMessage = 'Erro ao criar conta. Tente novamente.';
-        }
-      });
+      String msg;
+      switch (e.code) {
+        case 'email-already-in-use':
+          msg = 'Este e-mail já está cadastrado.';
+          break;
+        case 'weak-password':
+          msg = 'Senha muito fraca. Use pelo menos 6 caracteres.';
+          break;
+        case 'invalid-email':
+          msg = 'Formato de e-mail inválido.';
+          break;
+        case 'network-request-failed':
+          msg = 'Sem conexão com a internet.';
+          break;
+        default:
+          msg = 'Erro Firebase: ${e.code} — ${e.message}';
+      }
+      if (mounted) setState(() => _errorMessage = msg);
+    } catch (e) {
+      // Captura qualquer outro erro e mostra na tela
+      if (mounted) setState(() => _errorMessage = 'Erro inesperado: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -104,14 +113,12 @@ class _RegisterScreenState extends State<RegisterScreen>
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Cabeçalho
                 ShaderMask(
                   shaderCallback: (bounds) => const LinearGradient(
                     colors: [
@@ -137,7 +144,6 @@ class _RegisterScreenState extends State<RegisterScreen>
                 ),
                 const SizedBox(height: 32),
 
-                // Card do formulário
                 Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(24),
@@ -156,26 +162,27 @@ class _RegisterScreenState extends State<RegisterScreen>
                   ),
                   child: Stack(
                     children: [
-                      // Linha brilhante no topo
                       Positioned(
                         top: 0,
                         left: 40,
                         right: 40,
                         child: AnimatedBuilder(
                           animation: _glowAnim,
-                          builder: (_, __) => Container(
-                            height: 1,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.transparent,
-                                  AppColors.primaryOrange
-                                      .withOpacity(0.7 * _glowAnim.value),
-                                  Colors.transparent,
-                                ],
+                          builder: (context, child) {
+                            return Container(
+                              height: 1,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.transparent,
+                                    AppColors.primaryOrange
+                                        .withOpacity(0.7 * _glowAnim.value),
+                                    Colors.transparent,
+                                  ],
+                                ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
                         ),
                       ),
                       Padding(
@@ -223,14 +230,13 @@ class _RegisterScreenState extends State<RegisterScreen>
                                   color: const Color(0xFF616161),
                                   size: 20,
                                 ),
-                                onPressed: () => setState(
-                                    () => _obscurePassword = !_obscurePassword),
+                                onPressed: () => setState(() =>
+                                    _obscurePassword = !_obscurePassword),
                               ),
                               validator: (v) {
                                 if (v == null || v.isEmpty)
                                   return 'Informe uma senha';
-                                if (v.length < 6)
-                                  return 'Mínimo 6 caracteres';
+                                if (v.length < 6) return 'Mínimo 6 caracteres';
                                 return null;
                               },
                             ),
@@ -253,6 +259,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                                     () => _obscureConfirm = !_obscureConfirm),
                               ),
                               validator: (v) {
+                                if (v == null || v.isEmpty)
+                                  return 'Confirme sua senha';
                                 if (v != _passwordController.text)
                                   return 'As senhas não coincidem';
                                 return null;
@@ -260,68 +268,105 @@ class _RegisterScreenState extends State<RegisterScreen>
                             ),
                             const SizedBox(height: 28),
 
-                            if (_errorMessage != null)
-                              _buildErrorBanner(_errorMessage!),
-                            if (_errorMessage != null)
+                            // Banner de erro — agora sempre visível quando há erro
+                            if (_errorMessage != null) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color:
+                                      AppColors.emergencyRed.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppColors.emergencyRed
+                                        .withOpacity(0.4),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.warning_amber_rounded,
+                                        color: AppColors.emergencyRed,
+                                        size: 18),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        _errorMessage!,
+                                        style: const TextStyle(
+                                          color: AppColors.emergencyRed,
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                               const SizedBox(height: 16),
+                            ],
 
                             // Botão cadastrar
                             AnimatedBuilder(
                               animation: _glowAnim,
-                              builder: (_, __) => Container(
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(14),
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFFBF360C),
-                                      Color(0xFFE65100),
-                                      Color(0xFFF57C00)
-                                    ],
-                                    begin: Alignment.centerLeft,
-                                    end: Alignment.centerRight,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.primaryOrange
-                                          .withOpacity(0.4 * _glowAnim.value),
-                                      blurRadius: 24,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
+                              builder: (context, child) {
+                                return Container(
+                                  height: 56,
+                                  decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(14),
-                                    onTap: _isLoading ? null : _handleRegister,
-                                    splashColor:
-                                        Colors.white.withOpacity(0.1),
-                                    child: Center(
-                                      child: _isLoading
-                                          ? const SizedBox(
-                                              width: 22,
-                                              height: 22,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation(
-                                                        Colors.white),
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFFBF360C),
+                                        Color(0xFFE65100),
+                                        Color(0xFFF57C00)
+                                      ],
+                                      begin: Alignment.centerLeft,
+                                      end: Alignment.centerRight,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.primaryOrange
+                                            .withOpacity(
+                                                0.4 * _glowAnim.value),
+                                        blurRadius: 24,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      onTap:
+                                          _isLoading ? null : _handleRegister,
+                                      splashColor:
+                                          Colors.white.withOpacity(0.1),
+                                      child: Center(
+                                        child: _isLoading
+                                            ? const SizedBox(
+                                                width: 22,
+                                                height: 22,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation(
+                                                          Colors.white),
+                                                ),
+                                              )
+                                            : const Text(
+                                                'CRIAR CONTA',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w800,
+                                                  letterSpacing: 3,
+                                                ),
                                               ),
-                                            )
-                                          : const Text(
-                                              'CRIAR CONTA',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w800,
-                                                letterSpacing: 3,
-                                              ),
-                                            ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -341,8 +386,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                     ),
                     TextButton(
                       style: TextButton.styleFrom(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
@@ -399,8 +443,7 @@ class _RegisterScreenState extends State<RegisterScreen>
             hintText: hint,
             hintStyle:
                 const TextStyle(color: Color(0xFF424242), fontSize: 15),
-            prefixIcon:
-                Icon(icon, color: AppColors.primaryOrange, size: 20),
+            prefixIcon: Icon(icon, color: AppColors.primaryOrange, size: 20),
             suffixIcon: suffixIcon,
             filled: true,
             fillColor: const Color(0xFF141414),
@@ -435,35 +478,6 @@ class _RegisterScreenState extends State<RegisterScreen>
           validator: validator,
         ),
       ],
-    );
-  }
-
-  Widget _buildErrorBanner(String message) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.emergencyRed.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: AppColors.emergencyRed.withOpacity(0.4), width: 1),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.warning_amber_rounded,
-              color: AppColors.emergencyRed, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(
-                color: AppColors.emergencyRed,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
