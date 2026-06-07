@@ -8,6 +8,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   # Gerenciamento de Estado
   provider: ^6.1.2
   # UI e Widgets
