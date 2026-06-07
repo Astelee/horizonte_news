@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "435843055834",
+    "project_id": "horizontenews-6b48f",
+    "storage_bucket": "horizontenews-6b48f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:435843055834:android:0567d65464ec25dd9765e3",
+        "android_client_info": {
+          "package_name": "com.astelee.horizonte_news"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAAzDgrlLGUTsu3helestO6USQ5UMC8N3A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
