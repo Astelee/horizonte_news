@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart'; // Import crucial do Firebase
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'config/app_theme.dart';
 import 'config/app_routes.dart';
@@ -9,11 +9,8 @@ import 'providers/posts_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/favorites_provider.dart';
 
-// Transformamos o main em async para poder iniciar o Firebase
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Inicializa o Firebase antes de rodar o app
   await Firebase.initializeApp();
 
   runApp(
@@ -35,10 +32,6 @@ class HorizonteNewsApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
-    // Truque: Copia as rotas e remove o '/' para não conflitar com o 'home:'
-    final Map<String, WidgetBuilder> safeRoutes = Map.from(AppRoutes.routes);
-    safeRoutes.remove(AppRoutes.home);
-
     return MaterialApp(
       title: 'Horizonte News',
       debugShowCheckedModeBanner: false,
@@ -56,15 +49,30 @@ class HorizonteNewsApp extends StatelessWidget {
         Locale('pt', 'BR'),
       ],
 
-      // Tela inicial inteligente configurada corretamente
+      // 'home:' é a única rota raiz — sem conflito com routes:
       home: const _AuthGate(),
-      routes: safeRoutes, 
+
+      // onGenerateRoute substitui routes: completamente,
+      // evitando qualquer conflito com o '/' do home:
+      onGenerateRoute: (settings) {
+        final builder = AppRoutes.routes[settings.name];
+        if (builder != null) {
+          return MaterialPageRoute(
+            builder: builder,
+            settings: settings,
+          );
+        }
+        // Rota não encontrada — volta para o AuthGate
+        return MaterialPageRoute(
+          builder: (_) => const _AuthGate(),
+        );
+      },
     );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// AUTH GATE — decide para onde o usuário vai ao abrir o app
+// AUTH GATE
 // ═══════════════════════════════════════════════════════════════════
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
@@ -77,12 +85,9 @@ class _AuthGate extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const _SplashLoading();
         }
-
         if (snapshot.hasData && snapshot.data != null) {
-          // Usamos a rota original do AppRoutes para chamar a Home
           return AppRoutes.routes[AppRoutes.home]!(context);
         }
-
         return AppRoutes.routes[AppRoutes.login]!(context);
       },
     );
@@ -90,7 +95,7 @@ class _AuthGate extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SPLASH DE LOADING — exibido enquanto o Firebase verifica a sessão
+// SPLASH LOADING
 // ═══════════════════════════════════════════════════════════════════
 class _SplashLoading extends StatefulWidget {
   const _SplashLoading();
