@@ -11,9 +11,17 @@ import 'providers/favorites_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Liga o motor do Firebase oficialmente
-  await Firebase.initializeApp();
+
+  // Inicialização manual e direta do Firebase com as chaves do seu projeto
+  await Firebase.initializeApp(
+    options: const FirebaseOptions(
+      apiKey: 'AIzaSyAAzDgrlLGUTsu3helestO6USQ5UMC8N3A',
+      appId: '1:435843055834:android:0567d65464ec25dd9765e3',
+      messagingSenderId: '435843055834',
+      projectId: 'horizontenews-6b48f',
+      storageBucket: 'horizontenews-6b48f.firebasestorage.app',
+    ),
+  );
 
   runApp(
     MultiProvider(
@@ -34,9 +42,6 @@ class HorizonteNewsApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
-    final Map<String, WidgetBuilder> safeRoutes = Map.from(AppRoutes.routes);
-    safeRoutes.remove(AppRoutes.home);
-
     return MaterialApp(
       title: 'Horizonte News',
       debugShowCheckedModeBanner: false,
@@ -52,16 +57,31 @@ class HorizonteNewsApp extends StatelessWidget {
         Locale('pt', 'BR'),
       ],
       home: const _AuthGate(),
-      routes: safeRoutes,
+      onGenerateRoute: (settings) {
+        final builder = AppRoutes.routes[settings.name];
+        if (builder != null) {
+          return MaterialPageRoute(
+            builder: builder,
+            settings: settings,
+          );
+        }
+        return MaterialPageRoute(
+          builder: (_) => const _AuthGate(),
+        );
+      },
     );
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// AUTH GATE
+// ═══════════════════════════════════════════════════════════════════
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
 
   @override
   Widget build(BuildContext context) {
+    // Como o Firebase já foi iniciado no main(), podemos ir direto para o StreamBuilder
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
@@ -77,6 +97,9 @@ class _AuthGate extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// SPLASH LOADING
+// ═══════════════════════════════════════════════════════════════════
 class _SplashLoading extends StatefulWidget {
   const _SplashLoading();
 
@@ -124,7 +147,8 @@ class _SplashLoadingState extends State<_SplashLoading>
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFE65100).withOpacity(0.6 * _pulse.value),
+                      color: const Color(0xFFE65100)
+                          .withOpacity(0.6 * _pulse.value),
                       blurRadius: 40,
                       spreadRadius: 8,
                     ),
@@ -132,22 +156,41 @@ class _SplashLoadingState extends State<_SplashLoading>
                 ),
                 child: child,
               ),
-              child: const Icon(Icons.public, size: 56, color: Color(0xFFE65100)),
+              child: const Icon(
+                Icons.public,
+                size: 56,
+                color: Color(0xFFE65100),
+              ),
             ),
             const SizedBox(height: 28),
             ShaderMask(
               shaderCallback: (bounds) => const LinearGradient(
-                colors: [Color(0xFFFF6D00), Color(0xFFFFB74D), Color(0xFFE65100)],
+                colors: [
+                  Color(0xFFFF6D00),
+                  Color(0xFFFFB74D),
+                  Color(0xFFE65100),
+                ],
               ).createShader(bounds),
               child: const Text(
                 'HORIZONTE NEWS',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 4),
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: 4,
+                ),
               ),
             ),
             const SizedBox(height: 32),
             SizedBox(
-              width: 24, height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFFE65100).withOpacity(0.8))),
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  const Color(0xFFE65100).withOpacity(0.8),
+                ),
+              ),
             ),
           ],
         ),
