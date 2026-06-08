@@ -128,7 +128,7 @@ class PostDetailScreen extends StatelessWidget {
                             margin: Margins.only(bottom: 8), 
                           ),
                           "br": Style(
-                            height: 0, // Garante que quebras de linha não criem espaços vazios gigantes
+                            height: (0), // Garante que quebras de linha não criem espaços vazios gigantes
                           ),
                           "a": Style(
                             color: AppColors.primaryOrange,
