@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../providers/user_xp_provider.dart';
-import '../providers/admin_provider.dart'; // Importação adicionada para o AdminProvider
+import '../providers/admin_provider.dart'; // Importação adicionada
 import '../services/xp_service.dart';
 
 class AppDrawer extends StatefulWidget {
@@ -134,25 +134,14 @@ class _AppDrawerState extends State<AppDrawer>
                           const SizedBox(height: 12),
                           _buildDivider(),
                           _buildSectionLabel('OUTROS'),
-                          ..._secondaryItems.asMap().entries.map((e) =>
-                              _DrawerTile(
-                                item: e.value,
-                                isActive: currentRoute == e.value.route,
-                                delay: (_mainItems.length + e.key) * 55,
-                                onTap: () =>
-                                    _navigate(context, e.value.route),
-                              )),
 
-                          // ── ITEM ADM — visível só para admins ────
+                          // ── ITEM ADM — adicionado logo após o divider da seção "OUTROS" ────
                           Consumer<AdminProvider>(
                             builder: (context, admin, _) {
                               if (!admin.isAdmin) return const SizedBox.shrink();
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const SizedBox(height: 12),
-                                  _buildDivider(),
-                                  _buildSectionLabel('ADMINISTRAÇÃO'),
                                   _DrawerTile(
                                     item: const _NavItem(
                                       icon: Icons.shield_rounded,
@@ -164,10 +153,21 @@ class _AppDrawerState extends State<AppDrawer>
                                     onTap: () => _navigate(context, AppRoutes.adminPanel),
                                     badge: _AdminBadge(),
                                   ),
+                                  const SizedBox(height: 12),
+                                  _buildDivider(),
                                 ],
                               );
                             },
                           ),
+
+                          ..._secondaryItems.asMap().entries.map((e) =>
+                              _DrawerTile(
+                                item: e.value,
+                                isActive: currentRoute == e.value.route,
+                                delay: (_mainItems.length + e.key) * 55,
+                                onTap: () =>
+                                    _navigate(context, e.value.route),
+                              )),
                         ],
                       ),
                     ),
@@ -453,7 +453,7 @@ class _XpBadge extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// BADGE ADM — exibido ao lado do Painel Administrativo
+// BADGE ADM — Atualizado com o gradiente e sombras customizadas
 // ═══════════════════════════════════════════════════════════════════
 class _AdminBadge extends StatelessWidget {
   @override
@@ -462,18 +462,20 @@ class _AdminBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        color: Colors.red.withOpacity(0.15),
-        border: Border.all(
-          color: Colors.red.withOpacity(0.4),
-          width: 1,
-        ),
+        gradient: AppColors.orangeGradient, // Aplica o gradiente
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryOrange.withOpacity(0.4),
+            blurRadius: 8,
+          ),
+        ],
       ),
       child: const Text(
         'ADM',
         style: TextStyle(
-          color: Colors.red,
+          color: Colors.white,
           fontSize: 9,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w900,
           letterSpacing: 0.5,
         ),
       ),
