@@ -65,12 +65,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Widget _buildAppBar() {
     return SliverAppBar(
       pinned: true,
-      expandedHeight: 130,
+      expandedHeight: 150, // Aumentado um pouco para dar mais respiro
       backgroundColor: Colors.black,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-        onPressed: () => Navigator.pop(context),
-      ),
+      automaticallyImplyLeading: false, // Remove o botão padrão para usarmos o customizado com folga
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           fit: StackFit.expand,
@@ -97,49 +94,61 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 60, 20, 0),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      gradient: AppColors.orangeGradient,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primaryOrange.withOpacity(0.4),
-                          blurRadius: 16,
-                        ),
-                      ],
+            // SafeArea adicionado aqui para empurrar os nomes para baixo da barra de status
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 20, 0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
                     ),
-                    child: const Icon(Icons.shield_rounded,
-                        color: Colors.white, size: 22),
-                  ),
-                  const SizedBox(width: 14),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Text(
-                        'PAINEL ADMINISTRATIVO',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5,
-                        ),
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        gradient: AppColors.orangeGradient,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryOrange.withOpacity(0.4),
+                            blurRadius: 16,
+                          ),
+                        ],
                       ),
-                      Text(
-                        'Horizonte News',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                        ),
+                      child: const Icon(Icons.shield_rounded,
+                          color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Text(
+                            'PAINEL ADMINISTRATIVO',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Horizonte News',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -189,9 +198,15 @@ class _DashboardTabState extends State<_DashboardTab> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     setState(() => _loading = true);
     final stats = await widget.service.getStats();
-    if (mounted) setState(() { _stats = stats; _loading = false; });
+    if (mounted) {
+      setState(() {
+        _stats = stats;
+        _loading = false;
+      });
+    }
   }
 
   @override
@@ -199,6 +214,13 @@ class _DashboardTabState extends State<_DashboardTab> {
     if (_loading) {
       return const Center(
         child: CircularProgressIndicator(color: AppColors.primaryOrange),
+      );
+    }
+
+    if (_stats == null) {
+      return const _EmptyState(
+        icon: Icons.error_outline_rounded,
+        message: 'Erro ao carregar estatísticas.',
       );
     }
 
@@ -213,7 +235,6 @@ class _DashboardTabState extends State<_DashboardTab> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ── Cards de estatísticas ──────────────────────────────
           Row(
             children: [
               _StatCard(
@@ -238,32 +259,32 @@ class _DashboardTabState extends State<_DashboardTab> {
               ),
             ],
           ),
-
           const SizedBox(height: 20),
-
-          // ── Top usuários ───────────────────────────────────────
-          _SectionTitle(title: 'TOP USUÁRIOS POR XP'),
+          const _SectionTitle(title: 'TOP USUÁRIOS POR XP'),
           const SizedBox(height: 10),
-          ...topUsers.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            final name = data['displayName'] ?? doc.id.substring(0, 8);
-            final xp = (data['totalXp'] as num?)?.toInt() ?? 0;
-            final level = (data['level'] as num?)?.toInt() ?? 1;
-            return _TopUserTile(
-              name: name,
-              xp: xp,
-              level: level,
-              userId: doc.id,
-            );
-          }),
-
+          if (topUsers.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Text('Nenhum usuário listado', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+            )
+          else
+            ...topUsers.map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final name = data['displayName'] ?? doc.id.substring(0, 8);
+              final xp = (data['totalXp'] as num?)?.toInt() ?? 0;
+              final level = (data['level'] as num?)?.toInt() ?? 1;
+              return _TopUserTile(
+                name: name,
+                xp: xp,
+                level: level,
+                userId: doc.id,
+              );
+            }),
           const SizedBox(height: 20),
-
-          // ── Log de ações recentes ──────────────────────────────
-          _SectionTitle(title: 'AÇÕES RECENTES'),
+          const _SectionTitle(title: 'AÇÕES RECENTES'),
           const SizedBox(height: 10),
           if (logs.isEmpty)
-            _EmptyState(
+            const _EmptyState(
               icon: Icons.history_rounded,
               message: 'Nenhuma ação registrada ainda',
             )
@@ -297,7 +318,6 @@ class _CommentsTabState extends State<_CommentsTab> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // ── Filtros ────────────────────────────────────────────
         Container(
           color: Colors.black,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -325,8 +345,6 @@ class _CommentsTabState extends State<_CommentsTab> {
             ],
           ),
         ),
-
-        // ── Lista ──────────────────────────────────────────────
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
             stream: widget.service.allCommentsStream(
@@ -336,13 +354,12 @@ class _CommentsTabState extends State<_CommentsTab> {
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
-                  child: CircularProgressIndicator(
-                      color: AppColors.primaryOrange),
+                  child: CircularProgressIndicator(color: AppColors.primaryOrange),
                 );
               }
 
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return _EmptyState(
+                return const _EmptyState(
                   icon: Icons.chat_bubble_outline_rounded,
                   message: 'Nenhum comentário encontrado',
                 );
@@ -356,7 +373,6 @@ class _CommentsTabState extends State<_CommentsTab> {
                   final data = doc.data() as Map<String, dynamic>;
                   final ref = doc.reference;
 
-                  // Extrai postId do caminho: comments/{postId}/postComments/{id}
                   final pathParts = ref.path.split('/');
                   final postId = pathParts.length >= 2 ? pathParts[1] : '';
 
@@ -399,7 +415,7 @@ class _UsersTab extends StatelessWidget {
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _EmptyState(
+          return const _EmptyState(
             icon: Icons.people_outline_rounded,
             message: 'Nenhum usuário encontrado',
           );
@@ -424,7 +440,7 @@ class _UsersTab extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// WIDGETS INTERNOS
+// WIDGETS INTERNOS (Mantidos e limpos de consts incorretas)
 // ═══════════════════════════════════════════════════════════════════
 
 class _StatCard extends StatelessWidget {
@@ -539,7 +555,7 @@ class _TopUserTile extends StatelessWidget {
           Container(
             width: 36,
             height: 36,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
               gradient: AppColors.orangeGradient,
             ),
@@ -702,13 +718,12 @@ class _AdminCommentTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Cabeçalho ────────────────────────────────────────
           Row(
             children: [
               Container(
                 width: 30,
                 height: 30,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: AppColors.orangeGradient,
                 ),
@@ -789,10 +804,7 @@ class _AdminCommentTile extends StatelessWidget {
                 ),
             ],
           ),
-
           const SizedBox(height: 10),
-
-          // ── Texto do comentário ───────────────────────────────
           Text(
             data['text'] ?? '',
             style: TextStyle(
@@ -804,10 +816,7 @@ class _AdminCommentTile extends StatelessWidget {
                   isHidden ? FontStyle.italic : FontStyle.normal,
             ),
           ),
-
           const SizedBox(height: 12),
-
-          // ── Ações ADM ─────────────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
@@ -818,7 +827,7 @@ class _AdminCommentTile extends StatelessWidget {
                   color: AppColors.textSecondary,
                   onTap: () async {
                     await service.hideComment(postId, commentId);
-                    _snack(context, 'Comentário ocultado');
+                    if(context.mounted) _snack(context, 'Comentário ocultado');
                   },
                 )
               else
@@ -828,7 +837,7 @@ class _AdminCommentTile extends StatelessWidget {
                   color: const Color(0xFF66BB6A),
                   onTap: () async {
                     await service.restoreComment(postId, commentId);
-                    _snack(context, 'Comentário restaurado');
+                    if(context.mounted) _snack(context, 'Comentário restaurado');
                   },
                 ),
               const SizedBox(width: 8),
@@ -1044,7 +1053,7 @@ class _AdminUserTile extends StatelessWidget {
           Container(
             width: 44,
             height: 44,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
               gradient: AppColors.orangeGradient,
             ),
