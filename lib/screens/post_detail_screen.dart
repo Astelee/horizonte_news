@@ -9,7 +9,6 @@ import '../providers/favorites_provider.dart';
 import '../providers/posts_provider.dart';
 import '../config/app_colors.dart';
 
-// Classe utilitária interna para evitar erros de importação
 class DateFormatter {
   static String formatTimeAgo(DateTime postDate) {
     final now = DateTime.now();
@@ -34,7 +33,8 @@ class PostDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final PostModel post = ModalRoute.of(context)!.settings.arguments as PostModel;
+    final PostModel post =
+        ModalRoute.of(context)!.settings.arguments as PostModel;
     final favoritesProvider = Provider.of<FavoritesProvider>(context);
     final bool isFav = favoritesProvider.isFavorite(post.id);
 
@@ -42,9 +42,10 @@ class PostDetailScreen extends StatelessWidget {
       body: RefreshIndicator(
         color: AppColors.primaryOrange,
         onRefresh: () async {
-          await Provider.of<PostsProvider>(context, listen: false).loadInitialPosts();
+          await Provider.of<PostsProvider>(context, listen: false)
+              .loadInitialPosts();
         },
-        child: SelectionArea( 
+        child: SelectionArea(
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -53,13 +54,16 @@ class PostDetailScreen extends StatelessWidget {
                 pinned: true,
                 actions: [
                   IconButton(
-                    icon: Icon(isFav ? Icons.bookmark : Icons.bookmark_border),
-                    onPressed: () => favoritesProvider.toggleFavorite(post),
+                    icon: Icon(
+                        isFav ? Icons.bookmark : Icons.bookmark_border),
+                    onPressed: () =>
+                        favoritesProvider.toggleFavorite(post),
                   ),
                   IconButton(
                     icon: const Icon(Icons.share),
                     onPressed: () {
-                      Share.share('${post.title}\n\nLeia a matéria completa em: ${post.url}');
+                      Share.share(
+                          '${post.title}\n\nLeia a matéria completa em: ${post.url}');
                     },
                   ),
                 ],
@@ -70,15 +74,20 @@ class PostDetailScreen extends StatelessWidget {
                       CachedNetworkImage(
                         imageUrl: post.thumbnailUrl,
                         fit: BoxFit.cover,
-                        placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
-                        errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 50),
+                        placeholder: (context, url) => const Center(
+                            child: CircularProgressIndicator()),
+                        errorWidget: (context, url, error) =>
+                            const Icon(Icons.broken_image, size: 50),
                       ),
                       Container(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
-                            colors: [Colors.black.withOpacity(0.4), Colors.transparent],
+                            colors: [
+                              Colors.black.withOpacity(0.4),
+                              Colors.transparent
+                            ],
                           ),
                         ),
                       ),
@@ -94,7 +103,10 @@ class PostDetailScreen extends StatelessWidget {
                     children: [
                       Text(
                         post.title,
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(
                               fontWeight: FontWeight.bold,
                               height: 1.25,
                             ),
@@ -102,11 +114,13 @@ class PostDetailScreen extends StatelessWidget {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                          const Icon(Icons.access_time,
+                              size: 16, color: Colors.grey),
                           const SizedBox(width: 6),
                           Text(
                             DateFormatter.formatTimeAgo(post.publishedAt),
-                            style: const TextStyle(color: Colors.grey, fontSize: 13),
+                            style: const TextStyle(
+                                color: Colors.grey, fontSize: 13),
                           ),
                         ],
                       ),
@@ -115,20 +129,23 @@ class PostDetailScreen extends StatelessWidget {
                         child: Divider(),
                       ),
                       Html(
-                        // Filtro aplicado: remove a primeira imagem duplicada
-                        data: post.content.replaceFirst(RegExp(r'<img[^>]*>'), ''),
+                        data: post.content
+                            .replaceFirst(RegExp(r'<img[^>]*>'), ''),
                         style: {
                           "*": Style(
                             fontSize: FontSize(16.5),
-                            lineHeight: LineHeight(1.4), // Ajustado para melhor legibilidade
-                            color: Theme.of(context).textTheme.bodyMedium?.color,
+                            lineHeight: LineHeight(1.4),
+                            color: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.color,
                           ),
                           "p": Style(
-                            // Margem inferior reduzida para evitar espaços enormes entre parágrafos
-                            margin: Margins.only(bottom: 8), 
+                            margin: Margins.only(bottom: 8),
                           ),
                           "br": Style(
-                            height: (0), // Garante que quebras de linha não criem espaços vazios gigantes
+                            // ✅ CORREÇÃO: Height() em vez de int puro
+                            height: Height(0),
                           ),
                           "a": Style(
                             color: AppColors.primaryOrange,
