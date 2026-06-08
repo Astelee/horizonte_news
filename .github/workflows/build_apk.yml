@@ -48,16 +48,20 @@ jobs:
           dart pub global activate flutter_launcher_icons
           dart run flutter_launcher_icons
 
-      - name: Compilar APK Release Universal
-        run: flutter build apk --release
+      - name: Compilar APK Release
+        run: flutter build apk --release --split-per-abi
 
-      - name: Renomear APK
+      - name: Renomear APKs
         run: |
-          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Horizonte-News-Universal.apk
+          cd build/app/outputs/flutter-apk
+          for f in *-release.apk; do
+            ARCH=$(echo "$f" | sed 's/app-\(.*\)-release\.apk/\1/')
+            mv "$f" "Horizonte-News-${ARCH}.apk"
+          done
 
       - name: Disponibilizar APK para Download
         uses: actions/upload-artifact@v4
         with:
           name: Horizonte-News-APKs
-          path: build/app/outputs/flutter-apk/Horizonte-News-Universal.apk
+          path: build/app/outputs/flutter-apk/Horizonte-News-*.apk
           retention-days: 7
