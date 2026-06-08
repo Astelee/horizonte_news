@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Import necessário
 import 'package:provider/provider.dart';
 import '../providers/posts_provider.dart';
 import '../config/app_colors.dart';
@@ -20,20 +19,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
 
-  // Função de Logout
-  Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
-    // Como o AuthGate no main.dart escuta as mudanças, 
-    // ele enviará o usuário para a tela de login automaticamente.
-  }
-
   @override
   void initState() {
     super.initState();
+    // Dispara o carregamento assíncrono das postagens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<PostsProvider>(context, listen: false).loadInitialPosts();
     });
 
+    // Monitora a rolagem para scroll infinito
     _scrollController.addListener(() {
       final postsProvider = Provider.of<PostsProvider>(context, listen: false);
       if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
@@ -51,69 +45,109 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Fundo escuro igual ao seu Login
-      backgroundColor: AppColors.backgroundDark,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          'HORIZONTE NEWS',
-          style: TextStyle(
-            fontWeight: FontWeight.w900, 
-            letterSpacing: 2, 
-            color: Colors.white
+        title: Image.asset(
+          'assets/images/logo.png',
+          height: 40,
+          errorBuilder: (context, error, stackTrace) => const Text(
+            'HORIZONTE NEWS',
+            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5),
           ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout_rounded, color: AppColors.primaryOrange),
-            onPressed: _logout, // Chama a função de sair
+            icon: const Icon(Icons.search),
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.search),
           ),
         ],
       ),
       drawer: const AppDrawer(),
       body: RefreshIndicator(
+        // Integrado com sua cor Laranja principal
         color: AppColors.primaryOrange,
-        backgroundColor: Colors.black,
         onRefresh: () async {
           await Provider.of<PostsProvider>(context, listen: false).loadInitialPosts();
         },
         child: Consumer<PostsProvider>(
           builder: (context, provider, child) {
-            // ... (manter sua lógica de erro e loading igual)
-            
+            if (provider.isLoading && provider.posts.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (provider.errorMessage.isNotEmpty && provider.posts.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.cloud_off, size: 64, color: AppColors.emergencyRed),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Não foi possível atualizar o feed.',
+                        style: Theme.of(context).textTheme.titleLarge,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () => provider.loadInitialPosts(),
+                        child: const Text('Tentar Novamente'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            final urgentPost = provider.posts.any((p) => p.categories.any((c) => c.name.toLowerCase() == 'urgente' || c.name.toLowerCase() == 'plantão'))
+                ? provider.posts.firstWhere((p) => p.categories.any((c) => c.name.toLowerCase() == 'urgente' || c.name.toLowerCase() == 'plantão'))
+                : null;
+
             return CustomScrollView(
               controller: _scrollController,
+              // physics garante que o pull-to-refresh funcione sempre
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 const SliverToBoxAdapter(child: CategoryBar()),
-                
-                // Adicionei uma leve transparência para combinar com o estilo "Glow"
-                if (provider.posts.isNotEmpty) 
-                  SliverToBoxAdapter(child: FeaturedCarousel(featuredPosts: provider.featuredPosts)),
+
+                if (urgentPost != null)
+                  SliverToBoxAdapter(child: BreakingNewsBanner(urgentPost: urgentPost)),
+
+                SliverToBoxAdapter(
+                  child: FeaturedCarousel(featuredPosts: provider.featuredPosts),
+                ),
 
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                    padding: const EdgeInsets.only(left: 16, top: 16, bottom: 8),
                     child: Text(
                       'ÚLTIMAS NOTÍCIAS',
-                      style: TextStyle(
-                        color: AppColors.primaryOrange, // Cor laranja para combinar
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
-                      ),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
                     ),
                   ),
                 ),
 
                 SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) => NewsCard(post: provider.recentPosts[index]),
+                    (context, index) {
+                      final post = provider.recentPosts[index];
+                      return NewsCard(post: post);
+                    },
                     childCount: provider.recentPosts.length,
                   ),
                 ),
+
+                if (provider.hasMore)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  ),
               ],
             );
           },
