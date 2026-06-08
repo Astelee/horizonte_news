@@ -44,7 +44,7 @@ class PostDetailScreen extends StatelessWidget {
         onRefresh: () async {
           await Provider.of<PostsProvider>(context, listen: false).loadInitialPosts();
         },
-        child: SelectionArea( // Envolve o conteúdo para permitir a seleção de texto
+        child: SelectionArea( 
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -115,16 +115,20 @@ class PostDetailScreen extends StatelessWidget {
                         child: Divider(),
                       ),
                       Html(
-                        // Filtro aplicado: remove apenas a primeira ocorrência de tag <img> do HTML
+                        // Filtro aplicado: remove a primeira imagem duplicada
                         data: post.content.replaceFirst(RegExp(r'<img[^>]*>'), ''),
                         style: {
                           "*": Style(
                             fontSize: FontSize(16.5),
-                            lineHeight: LineHeight.em(1.5),
+                            lineHeight: LineHeight(1.4), // Ajustado para melhor legibilidade
                             color: Theme.of(context).textTheme.bodyMedium?.color,
                           ),
                           "p": Style(
-                            margin: Margins.only(bottom: 16),
+                            // Margem inferior reduzida para evitar espaços enormes entre parágrafos
+                            margin: Margins.only(bottom: 8), 
+                          ),
+                          "br": Style(
+                            height: 0, // Garante que quebras de linha não criem espaços vazios gigantes
                           ),
                           "a": Style(
                             color: AppColors.primaryOrange,
