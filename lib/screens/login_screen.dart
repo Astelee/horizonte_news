@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 
@@ -16,12 +17,13 @@ class _LoginScreenState extends State<LoginScreen>
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _secureStorage = const FlutterSecureStorage();
 
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _rememberMe = false;
   String? _errorMessage;
 
-  // Controllers de animação
   late AnimationController _bgAnimController;
   late AnimationController _formAnimController;
   late AnimationController _pulseController;
@@ -35,7 +37,11 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
+    _initAnimations();
+    _loadSavedCredentials();
+  }
 
+  void _initAnimations() {
     _bgAnimController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 8),
@@ -59,16 +65,14 @@ class _LoginScreenState extends State<LoginScreen>
     _formFadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _formAnimController, curve: Curves.easeOut),
     );
-
     _formSlideAnim =
         Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero).animate(
-      CurvedAnimation(parent: _formAnimController, curve: Curves.easeOutCubic),
+      CurvedAnimation(
+          parent: _formAnimController, curve: Curves.easeOutCubic),
     );
-
     _pulseAnim = Tween<double>(begin: 0.95, end: 1.05).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-
     _glowAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
@@ -76,6 +80,36 @@ class _LoginScreenState extends State<LoginScreen>
     Future.delayed(const Duration(milliseconds: 200), () {
       if (mounted) _formAnimController.forward();
     });
+  }
+
+  // ── Carrega credenciais salvas ────────────────────────────────────
+  Future<void> _loadSavedCredentials() async {
+    final email = await _secureStorage.read(key: 'saved_email');
+    final password = await _secureStorage.read(key: 'saved_password');
+    final remember = await _secureStorage.read(key: 'remember_me');
+
+    if (remember == 'true' && email != null && password != null) {
+      setState(() {
+        _emailController.text = email;
+        _passwordController.text = password;
+        _rememberMe = true;
+      });
+    }
+  }
+
+  // ── Salva ou limpa credenciais ────────────────────────────────────
+  Future<void> _handleCredentialStorage() async {
+    if (_rememberMe) {
+      await _secureStorage.write(
+          key: 'saved_email', value: _emailController.text.trim());
+      await _secureStorage.write(
+          key: 'saved_password', value: _passwordController.text.trim());
+      await _secureStorage.write(key: 'remember_me', value: 'true');
+    } else {
+      await _secureStorage.delete(key: 'saved_email');
+      await _secureStorage.delete(key: 'saved_password');
+      await _secureStorage.write(key: 'remember_me', value: 'false');
+    }
   }
 
   @override
@@ -91,7 +125,6 @@ class _LoginScreenState extends State<LoginScreen>
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
-
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -102,6 +135,7 @@ class _LoginScreenState extends State<LoginScreen>
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+      await _handleCredentialStorage();
       if (mounted) {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
       }
@@ -135,15 +169,11 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
       body: Stack(
         children: [
-          // ── Fundo animado ──────────────────────────────────────────
           _AnimatedBackground(controller: _bgAnimController, size: size),
-
-          // ── Conteúdo principal ────────────────────────────────────
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -159,16 +189,10 @@ class _LoginScreenState extends State<LoginScreen>
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Logo pulsante
                           _buildLogo(),
                           const SizedBox(height: 36),
-
-                          // Card do formulário
                           _buildFormCard(),
-
                           const SizedBox(height: 20),
-
-                          // Linha de cadastro
                           _buildRegisterRow(),
                         ],
                       ),
@@ -183,16 +207,13 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ── LOGO ──────────────────────────────────────────────────────────
   Widget _buildLogo() {
     return Column(
       children: [
         AnimatedBuilder(
           animation: _pulseAnim,
-          builder: (_, child) => Transform.scale(
-            scale: _pulseAnim.value,
-            child: child,
-          ),
+          builder: (_, child) =>
+              Transform.scale(scale: _pulseAnim.value, child: child),
           child: AnimatedBuilder(
             animation: _glowAnim,
             builder: (_, child) => Container(
@@ -225,17 +246,17 @@ class _LoginScreenState extends State<LoginScreen>
               ),
               child: child,
             ),
-            child: const Icon(
-              Icons.public,
-              size: 48,
-              color: Colors.white,
-            ),
+            child: const Icon(Icons.public, size: 48, color: Colors.white),
           ),
         ),
         const SizedBox(height: 16),
         ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFFFF6D00), Color(0xFFFFB74D), Color(0xFFE65100)],
+            colors: [
+              Color(0xFFFF6D00),
+              Color(0xFFFFB74D),
+              Color(0xFFE65100),
+            ],
           ).createShader(bounds),
           child: const Text(
             'HORIZONTE NEWS',
@@ -261,7 +282,6 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ── CARD DO FORMULÁRIO ────────────────────────────────────────────
   Widget _buildFormCard() {
     return Container(
       decoration: BoxDecoration(
@@ -282,7 +302,6 @@ class _LoginScreenState extends State<LoginScreen>
       ),
       child: Stack(
         children: [
-          // Detalhe: linha superior brilhante
           Positioned(
             top: 0,
             left: 40,
@@ -304,13 +323,11 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.all(28.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Título do card
                 const Text(
                   'LOGIN',
                   style: TextStyle(
@@ -323,14 +340,9 @@ class _LoginScreenState extends State<LoginScreen>
                 const SizedBox(height: 4),
                 const Text(
                   'Entre com suas credenciais',
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Color(0xFF9E9E9E),
-                  ),
+                  style: TextStyle(fontSize: 15, color: Color(0xFF9E9E9E)),
                 ),
                 const SizedBox(height: 28),
-
-                // Campo e-mail
                 _buildCyberField(
                   controller: _emailController,
                   label: 'E-MAIL',
@@ -344,8 +356,6 @@ class _LoginScreenState extends State<LoginScreen>
                   },
                 ),
                 const SizedBox(height: 20),
-
-                // Campo senha
                 _buildCyberField(
                   controller: _passwordController,
                   label: 'SENHA',
@@ -360,8 +370,8 @@ class _LoginScreenState extends State<LoginScreen>
                       color: const Color(0xFF616161),
                       size: 20,
                     ),
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
+                    onPressed: () => setState(
+                        () => _obscurePassword = !_obscurePassword),
                   ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Informe sua senha';
@@ -369,9 +379,12 @@ class _LoginScreenState extends State<LoginScreen>
                     return null;
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
-                // Esqueceu a senha
+                // ── Lembrar conta ──────────────────────────────────
+                _buildRememberMeRow(),
+
+                // ── Esqueceu a senha ───────────────────────────────
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
@@ -396,11 +409,10 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
                 const SizedBox(height: 24),
 
-                // Mensagem de erro
-                if (_errorMessage != null) _buildErrorBanner(_errorMessage!),
+                if (_errorMessage != null)
+                  _buildErrorBanner(_errorMessage!),
                 if (_errorMessage != null) const SizedBox(height: 16),
 
-                // Botão login
                 _buildLoginButton(),
               ],
             ),
@@ -410,7 +422,56 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ── CAMPO CYBER ───────────────────────────────────────────────────
+  // ── LEMBRAR CONTA ─────────────────────────────────────────────────
+  Widget _buildRememberMeRow() {
+    return GestureDetector(
+      onTap: () => setState(() => _rememberMe = !_rememberMe),
+      child: Row(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              color: _rememberMe
+                  ? AppColors.primaryOrange
+                  : Colors.transparent,
+              border: Border.all(
+                color: _rememberMe
+                    ? AppColors.primaryOrange
+                    : const Color(0xFF424242),
+                width: 1.5,
+              ),
+              boxShadow: _rememberMe
+                  ? [
+                      BoxShadow(
+                        color:
+                            AppColors.primaryOrange.withOpacity(0.4),
+                        blurRadius: 8,
+                        spreadRadius: 0,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: _rememberMe
+                ? const Icon(Icons.check_rounded,
+                    size: 14, color: Colors.white)
+                : null,
+          ),
+          const SizedBox(width: 10),
+          const Text(
+            'Lembrar minha conta',
+            style: TextStyle(
+              color: Color(0xFF9E9E9E),
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCyberField({
     required TextEditingController controller,
     required String label,
@@ -438,22 +499,18 @@ class _LoginScreenState extends State<LoginScreen>
           controller: controller,
           keyboardType: keyboardType,
           obscureText: obscureText,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-          ),
+          style: const TextStyle(color: Colors.white, fontSize: 15),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(
-              color: Color(0xFF424242),
-              fontSize: 15,
-            ),
-            prefixIcon: Icon(icon, color: AppColors.primaryOrange, size: 20),
+            hintStyle:
+                const TextStyle(color: Color(0xFF424242), fontSize: 15),
+            prefixIcon:
+                Icon(icon, color: AppColors.primaryOrange, size: 20),
             suffixIcon: suffixIcon,
             filled: true,
             fillColor: const Color(0xFF141414),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 18),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: const BorderSide(color: Color(0xFF212121)),
@@ -464,8 +521,8 @@ class _LoginScreenState extends State<LoginScreen>
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide:
-                  const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+              borderSide: const BorderSide(
+                  color: AppColors.primaryOrange, width: 1.5),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
@@ -477,10 +534,8 @@ class _LoginScreenState extends State<LoginScreen>
               borderSide: const BorderSide(
                   color: AppColors.emergencyRed, width: 1.5),
             ),
-            errorStyle: const TextStyle(
-              color: AppColors.emergencyRed,
-              fontSize: 11,
-            ),
+            errorStyle:
+                const TextStyle(color: AppColors.emergencyRed, fontSize: 11),
           ),
           validator: validator,
         ),
@@ -488,7 +543,6 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ── BOTÃO LOGIN ───────────────────────────────────────────────────
   Widget _buildLoginButton() {
     return AnimatedBuilder(
       animation: _glowAnim,
@@ -497,14 +551,18 @@ class _LoginScreenState extends State<LoginScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           gradient: const LinearGradient(
-            colors: [Color(0xFFBF360C), Color(0xFFE65100), Color(0xFFF57C00)],
+            colors: [
+              Color(0xFFBF360C),
+              Color(0xFFE65100),
+              Color(0xFFF57C00),
+            ],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
           ),
           boxShadow: [
             BoxShadow(
-              color:
-                  AppColors.primaryOrange.withOpacity(0.45 * _glowAnim.value),
+              color: AppColors.primaryOrange
+                  .withOpacity(0.45 * _glowAnim.value),
               blurRadius: 24,
               spreadRadius: 0,
               offset: const Offset(0, 4),
@@ -550,7 +608,6 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ── BANNER DE ERRO ────────────────────────────────────────────────
   Widget _buildErrorBanner(String message) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -582,7 +639,6 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ── LINHA DE CADASTRO ─────────────────────────────────────────────
   Widget _buildRegisterRow() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -628,17 +684,19 @@ class _AnimatedBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: controller,
-      builder: (_, __) => CustomPaint(
-        size: size,
-        painter: _CyberGridPainter(controller.value),
-      ),
+      builder: (_, __) {
+        return CustomPaint(
+          size: size,
+          painter: _BgPainter(controller.value),
+        );
+      },
     );
   }
 }
 
-class _CyberGridPainter extends CustomPainter {
+class _BgPainter extends CustomPainter {
   final double t;
-  _CyberGridPainter(this.t);
+  _BgPainter(this.t);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -647,75 +705,52 @@ class _CyberGridPainter extends CustomPainter {
       Paint()..color = const Color(0xFF000000),
     );
 
-    // Grade futurista
-    final gridPaint = Paint()
-      ..color = AppColors.primaryOrange.withOpacity(0.04)
-      ..strokeWidth = 0.5;
-
-    const spacing = 32.0;
-    final offsetX = (t * spacing * 2) % spacing;
-    final offsetY = (t * spacing) % spacing;
-
-    for (double x = -spacing + offsetX; x < size.width + spacing; x += spacing) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-    for (double y = -spacing + offsetY; y < size.height + spacing; y += spacing) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-
-    // Orbes de brilho
-    final orbPaint = Paint()..style = PaintingStyle.fill;
-
     final orbs = [
       _Orb(
-        center: Offset(size.width * 0.15, size.height * 0.2),
-        radius: 200,
-        color: AppColors.primaryOrange.withOpacity(0.07),
-        phase: 0.0,
+        center: Offset(
+          size.width * (0.2 + 0.15 * math.sin(t * 2 * math.pi)),
+          size.height * (0.25 + 0.1 * math.cos(t * 2 * math.pi)),
+        ),
+        radius: size.width * 0.55,
+        color: const Color(0xFFFF6B00).withOpacity(0.07),
       ),
       _Orb(
-        center: Offset(size.width * 0.85, size.height * 0.75),
-        radius: 180,
-        color: AppColors.emergencyRed.withOpacity(0.05),
-        phase: 0.5,
-      ),
-      _Orb(
-        center: Offset(size.width * 0.5, size.height * 0.5),
-        radius: 250,
-        color: AppColors.accentOrange.withOpacity(0.03),
-        phase: 0.3,
+        center: Offset(
+          size.width * (0.8 + 0.1 * math.cos(t * 2 * math.pi + 1)),
+          size.height * (0.65 + 0.1 * math.sin(t * 2 * math.pi + 1)),
+        ),
+        radius: size.width * 0.5,
+        color: const Color(0xFFE65100).withOpacity(0.05),
       ),
     ];
 
     for (final orb in orbs) {
-      final pulse = math.sin((t + orb.phase) * 2 * math.pi) * 0.3 + 0.7;
-      orbPaint.shader = RadialGradient(
-        colors: [orb.color.withOpacity(orb.color.opacity * pulse), Colors.transparent],
-      ).createShader(
-        Rect.fromCircle(center: orb.center, radius: orb.radius),
+      canvas.drawCircle(
+        orb.center,
+        orb.radius,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [orb.color, Colors.transparent],
+          ).createShader(Rect.fromCircle(
+              center: orb.center, radius: orb.radius)),
       );
-      canvas.drawCircle(orb.center, orb.radius, orbPaint);
     }
   }
 
   @override
-  bool shouldRepaint(_CyberGridPainter old) => old.t != t;
+  bool shouldRepaint(_BgPainter old) => old.t != t;
 }
 
 class _Orb {
   final Offset center;
   final double radius;
   final Color color;
-  final double phase;
   const _Orb(
-      {required this.center,
-      required this.radius,
-      required this.color,
-      required this.phase});
+      {required this.center, required this.radius, required this.color});
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// LOADING ANIMADO
+// CYBER LOADER
 // ═══════════════════════════════════════════════════════════════════
 
 class _CyberLoader extends StatefulWidget {
@@ -728,7 +763,6 @@ class _CyberLoader extends StatefulWidget {
 class _CyberLoaderState extends State<_CyberLoader>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
-  late Animation<double> _anim;
 
   @override
   void initState() {
@@ -736,7 +770,6 @@ class _CyberLoaderState extends State<_CyberLoader>
     _ctrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 900))
       ..repeat();
-    _anim = Tween<double>(begin: 0, end: 1).animate(_ctrl);
   }
 
   @override
@@ -747,33 +780,16 @@ class _CyberLoaderState extends State<_CyberLoader>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (_, __) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'AUTENTICANDO',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 3,
-            ),
-          ),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(
-              value: null,
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                Colors.white.withOpacity(0.9),
-              ),
-            ),
-          ),
-        ],
+    return SizedBox(
+      width: 22,
+      height: 22,
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (_, __) => CircularProgressIndicator(
+          value: null,
+          strokeWidth: 2.5,
+          valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+        ),
       ),
     );
   }
