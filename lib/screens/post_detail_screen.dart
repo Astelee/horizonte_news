@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../models/post_model.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/posts_provider.dart';
+import '../providers/user_xp_provider.dart';
 import '../config/app_colors.dart';
 import '../utils/blogger_cleaner.dart';
 import '../widgets/comments_section.dart';
@@ -48,6 +49,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     with SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   bool _showFloatingTitle = false;
+  bool _articleReadRegistered = false; // ← evita registrar mais de uma vez
   late AnimationController _animController;
   late Animation<double> _fadeIn;
 
@@ -70,6 +72,17 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       if (show != _showFloatingTitle) {
         setState(() => _showFloatingTitle = show);
       }
+
+      // ── Registra "artigo lido" quando o usuário rolar 30% do conteúdo
+      if (!_articleReadRegistered &&
+          _scrollController.offset > 300) {
+        _articleReadRegistered = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          Provider.of<UserXpProvider>(context, listen: false)
+              .onArticleRead();
+        });
+      }
     });
   }
 
@@ -87,32 +100,33 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     return '$minutes min de leitura';
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // NORMALIZA O HTML DO BLOGGER
-  // Converte <br> soltos entre texto em </p><p> para garantir
-  // que cada bloco vire um parágrafo com margem correta.
-  // ─────────────────────────────────────────────────────────────
   String _normalizeContent(String raw) {
     String html = raw;
 
-    // 1. Troca sequências de <br> / <br/> entre texto por fechamento de parágrafo
     html = html.replaceAllMapped(
       RegExp(r'(<br\s*/?>){1,}', caseSensitive: false),
       (m) => '</p><p>',
     );
 
-    // 2. Remove <p> vazios que sobraram: <p></p>, <p> </p>, <p>&nbsp;</p>
     html = html.replaceAll(
       RegExp(r'<p>\s*(&nbsp;)?\s*</p>', caseSensitive: false),
       '',
     );
 
-    // 3. Se o conteúdo não tiver nenhuma tag <p>, envolve tudo em <p>
     if (!html.contains('<p')) {
       html = '<p>$html</p>';
     }
 
     return html;
+  }
+
+  // ── Compartilhar + registrar XP ──────────────────────────────────
+  Future<void> _sharePost(PostModel post) async {
+    await Share.share(
+      '${post.title}\n\nLeia a matéria completa em: ${post.url}',
+    );
+    if (!mounted) return;
+    Provider.of<UserXpProvider>(context, listen: false).onShare();
   }
 
   @override
@@ -216,9 +230,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                           const SizedBox(width: 8),
                           _glassButton(
                             icon: Icons.share_rounded,
-                            onTap: () => Share.share(
-                              '${post.title}\n\nLeia a matéria completa em: ${post.url}',
-                            ),
+                            onTap: () => _sharePost(post), // ← XP aqui
                           ),
                         ],
                       ),
@@ -377,9 +389,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             const SizedBox(width: 8),
             _glassButton(
               icon: Icons.share_rounded,
-              onTap: () => Share.share(
-                '${post.title}\n\nLeia a matéria completa em: ${post.url}',
-              ),
+              onTap: () => _sharePost(post), // ← XP aqui também
             ),
           ],
         ),
@@ -505,8 +515,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
 
   // ─────────────────────────────────────────────────────────────
   // CONTEÚDO HTML
-  // br agora some (já foram convertidos em </p><p> antes)
-  // p tem margem bottom generosa para separar parágrafos
   // ─────────────────────────────────────────────────────────────
   Widget _buildHtmlContent(
       BuildContext context, String content, bool isDark) {
@@ -533,12 +541,10 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             fontSize: FontSize(17),
             lineHeight: LineHeight(1.85),
             color: textColor,
-            // margem generosa entre parágrafos
             margin: Margins.only(top: 0, bottom: 20),
             padding: HtmlPaddings.zero,
             display: Display.block,
           ),
-          // br não deve aparecer — já convertemos em </p><p>
           'br': Style(
             display: Display.none,
             height: Height(0),
