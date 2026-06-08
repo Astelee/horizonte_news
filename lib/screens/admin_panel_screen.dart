@@ -36,7 +36,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
     if (!admin.isAdmin) {
       return const Scaffold(
-        backgroundColor: AppColors.backgroundDark, // FIX #2
+        backgroundColor: AppColors.backgroundDark,
         body: Center(
           child: Text('Acesso negado.',
               style: TextStyle(color: Colors.white)),
@@ -44,27 +44,32 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       );
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDark, // FIX #2
-      body: NestedScrollView(
-        headerSliverBuilder: (context, _) => [_buildAppBar()],
-        body: TabBarView(
-          controller: _tabController,
-          children: [
-            // FIX #2: cada aba com cor de fundo explícita
-            ColoredBox(
-              color: AppColors.backgroundDark,
-              child: _DashboardTab(service: _service),
-            ),
-            ColoredBox(
-              color: AppColors.backgroundDark,
-              child: _CommentsTab(service: _service),
-            ),
-            ColoredBox(
-              color: AppColors.backgroundDark,
-              child: _UsersTab(service: _service),
-            ),
-          ],
+    return Theme(
+      data: Theme.of(context).copyWith(
+        canvasColor: AppColors.backgroundDark,
+        scaffoldBackgroundColor: AppColors.backgroundDark,
+      ),
+      child: Scaffold(
+        backgroundColor: AppColors.backgroundDark,
+        body: NestedScrollView(
+          headerSliverBuilder: (context, _) => [_buildAppBar()],
+          body: TabBarView(
+            controller: _tabController,
+            children: [
+              Container(
+                color: AppColors.backgroundDark,
+                child: _DashboardTab(service: _service),
+              ),
+              Container(
+                color: AppColors.backgroundDark,
+                child: _CommentsTab(service: _service),
+              ),
+              Container(
+                color: AppColors.backgroundDark,
+                child: _UsersTab(service: _service),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -75,6 +80,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       pinned: true,
       expandedHeight: 110,
       backgroundColor: Colors.black,
+      foregroundColor: Colors.white,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
         onPressed: () => Navigator.pop(context),
@@ -158,6 +164,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         indicatorWeight: 2,
         labelColor: AppColors.primaryOrange,
         unselectedLabelColor: AppColors.textSecondary,
+        dividerColor: Colors.transparent,
         labelStyle: const TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w800,
@@ -225,54 +232,60 @@ class _DashboardTabState extends State<_DashboardTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.primaryOrange),
+      return const ColoredBox(
+        color: AppColors.backgroundDark,
+        child: Center(
+          child: CircularProgressIndicator(color: AppColors.primaryOrange),
+        ),
       );
     }
 
     if (_hasError || _stats == null) {
-      return RefreshIndicator(
-        color: AppColors.primaryOrange,
-        backgroundColor: AppColors.backgroundElevated,
-        onRefresh: _load,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.error_outline_rounded,
-                      color: AppColors.primaryOrange.withOpacity(0.3),
-                      size: 48,
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Erro ao carregar dados do painel.\nPuxe para baixo para atualizar.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 13,
+      return ColoredBox(
+        color: AppColors.backgroundDark,
+        child: RefreshIndicator(
+          color: AppColors.primaryOrange,
+          backgroundColor: AppColors.backgroundElevated,
+          onRefresh: _load,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline_rounded,
+                        color: AppColors.primaryOrange.withOpacity(0.3),
+                        size: 48,
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    TextButton.icon(
-                      onPressed: _load,
-                      icon: const Icon(Icons.refresh_rounded,
-                          color: AppColors.primaryOrange),
-                      label: const Text(
-                        'Tentar novamente',
-                        style: TextStyle(color: AppColors.primaryOrange),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Erro ao carregar dados do painel.\nPuxe para baixo para atualizar.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 13,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 24),
+                      TextButton.icon(
+                        onPressed: _load,
+                        icon: const Icon(Icons.refresh_rounded,
+                            color: AppColors.primaryOrange),
+                        label: const Text(
+                          'Tentar novamente',
+                          style: TextStyle(color: AppColors.primaryOrange),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
@@ -285,83 +298,86 @@ class _DashboardTabState extends State<_DashboardTab> {
         ? stats['topUsers'] as List<QueryDocumentSnapshot>
         : <QueryDocumentSnapshot>[];
 
-    return RefreshIndicator(
-      color: AppColors.primaryOrange,
-      backgroundColor: AppColors.backgroundElevated,
-      onRefresh: _load,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          Row(
-            children: [
-              _StatCard(
-                icon: Icons.people_rounded,
-                label: 'Usuários',
-                value: '${stats['totalUsers'] ?? 0}',
-                color: const Color(0xFF4FC3F7),
-              ),
-              const SizedBox(width: 10),
-              _StatCard(
-                icon: Icons.chat_bubble_rounded,
-                label: 'Comentários',
-                value: '${stats['totalComments'] ?? 0}',
-                color: AppColors.primaryOrange,
-              ),
-              const SizedBox(width: 10),
-              _StatCard(
-                icon: Icons.flag_rounded,
-                label: 'Denunciados',
-                value: '${stats['reportedComments'] ?? 0}',
-                color: const Color(0xFFEF5350),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          const _SectionTitle(title: 'TOP USUÁRIOS POR XP'),
-          const SizedBox(height: 10),
-          if (topUsers.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Center(
-                child: Text(
-                  'Nenhum usuário listado',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+    return ColoredBox(
+      color: AppColors.backgroundDark,
+      child: RefreshIndicator(
+        color: AppColors.primaryOrange,
+        backgroundColor: AppColors.backgroundElevated,
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            Row(
+              children: [
+                _StatCard(
+                  icon: Icons.people_rounded,
+                  label: 'Usuários',
+                  value: '${stats['totalUsers'] ?? 0}',
+                  color: const Color(0xFF4FC3F7),
                 ),
-              ),
-            )
-          else
-            ...topUsers.map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              final name = data['displayName'] ?? doc.id.substring(0, 8);
-              final xp = (data['totalXp'] as num?)?.toInt() ?? 0;
-              final level = (data['level'] as num?)?.toInt() ?? 1;
-              return _TopUserTile(
-                name: name,
-                xp: xp,
-                level: level,
-                userId: doc.id,
-              );
-            }),
-          const SizedBox(height: 20),
-          const _SectionTitle(title: 'AÇÕES RECENTES'),
-          const SizedBox(height: 10),
-          if (logs.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Center(
-                child: Text(
-                  'Nenhuma ação registrada ainda',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                const SizedBox(width: 10),
+                _StatCard(
+                  icon: Icons.chat_bubble_rounded,
+                  label: 'Comentários',
+                  value: '${stats['totalComments'] ?? 0}',
+                  color: AppColors.primaryOrange,
                 ),
-              ),
-            )
-          else
-            ...logs.map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              return _LogTile(data: data);
-            }),
-        ],
+                const SizedBox(width: 10),
+                _StatCard(
+                  icon: Icons.flag_rounded,
+                  label: 'Denunciados',
+                  value: '${stats['reportedComments'] ?? 0}',
+                  color: const Color(0xFFEF5350),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const _SectionTitle(title: 'TOP USUÁRIOS POR XP'),
+            const SizedBox(height: 10),
+            if (topUsers.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: Text(
+                    'Nenhum usuário listado',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                  ),
+                ),
+              )
+            else
+              ...topUsers.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final name = data['displayName'] ?? doc.id.substring(0, 8);
+                final xp = (data['totalXp'] as num?)?.toInt() ?? 0;
+                final level = (data['level'] as num?)?.toInt() ?? 1;
+                return _TopUserTile(
+                  name: name,
+                  xp: xp,
+                  level: level,
+                  userId: doc.id,
+                );
+              }),
+            const SizedBox(height: 20),
+            const _SectionTitle(title: 'AÇÕES RECENTES'),
+            const SizedBox(height: 10),
+            if (logs.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: Text(
+                    'Nenhuma ação registrada ainda',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                  ),
+                ),
+              )
+            else
+              ...logs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return _LogTile(data: data);
+              }),
+          ],
+        ),
       ),
     );
   }
@@ -384,105 +400,138 @@ class _CommentsTabState extends State<_CommentsTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          color: Colors.black,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              _FilterChip(
-                label: 'Todos',
-                active: _filter == 'all',
-                onTap: () => setState(() => _filter = 'all'),
-              ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: 'Denunciados',
-                active: _filter == 'reported',
-                color: const Color(0xFFEF5350),
-                onTap: () => setState(() => _filter = 'reported'),
-              ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: 'Ocultos',
-                active: _filter == 'hidden',
-                color: AppColors.textSecondary,
-                onTap: () => setState(() => _filter = 'hidden'),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: widget.service.allCommentsStream(
-              onlyReported: _filter == 'reported',
-              onlyHidden: _filter == 'hidden',
+    return ColoredBox(
+      color: AppColors.backgroundDark,
+      child: Column(
+        children: [
+          Container(
+            color: Colors.black,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                _FilterChip(
+                  label: 'Todos',
+                  active: _filter == 'all',
+                  onTap: () => setState(() => _filter = 'all'),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: 'Denunciados',
+                  active: _filter == 'reported',
+                  color: const Color(0xFFEF5350),
+                  onTap: () => setState(() => _filter = 'reported'),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: 'Ocultos',
+                  active: _filter == 'hidden',
+                  color: AppColors.textSecondary,
+                  onTap: () => setState(() => _filter = 'hidden'),
+                ),
+              ],
             ),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                      color: AppColors.primaryOrange),
-                );
-              }
-
-              // FIX #1: trata erros do stream
-              if (snapshot.hasError) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.error_outline_rounded,
-                            color: AppColors.primaryOrange.withOpacity(0.4),
-                            size: 48),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Erro ao carregar comentários.\n${snapshot.error}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              color: AppColors.textMuted, fontSize: 13),
-                        ),
-                      ],
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: widget.service.allCommentsStream(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const ColoredBox(
+                    color: AppColors.backgroundDark,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                          color: AppColors.primaryOrange),
                     ),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return ColoredBox(
+                    color: AppColors.backgroundDark,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.error_outline_rounded,
+                                color: AppColors.primaryOrange.withOpacity(0.4),
+                                size: 48),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Erro ao carregar comentários.\n${snapshot.error}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  color: AppColors.textMuted, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const ColoredBox(
+                    color: AppColors.backgroundDark,
+                    child: _EmptyState(
+                      icon: Icons.chat_bubble_outline_rounded,
+                      message: 'Nenhum comentário encontrado',
+                    ),
+                  );
+                }
+
+                // Filtro em memória — sem índice no Firestore
+                var docs = snapshot.data!.docs;
+
+                if (_filter == 'reported') {
+                  docs = docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return ((data['reportCount'] as num?)?.toInt() ?? 0) > 0;
+                  }).toList();
+                } else if (_filter == 'hidden') {
+                  docs = docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return data['hidden'] == true;
+                  }).toList();
+                }
+
+                if (docs.isEmpty) {
+                  return const ColoredBox(
+                    color: AppColors.backgroundDark,
+                    child: _EmptyState(
+                      icon: Icons.chat_bubble_outline_rounded,
+                      message: 'Nenhum comentário encontrado',
+                    ),
+                  );
+                }
+
+                return ColoredBox(
+                  color: AppColors.backgroundDark,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: docs.length,
+                    itemBuilder: (context, i) {
+                      final doc = docs[i];
+                      final data = doc.data() as Map<String, dynamic>;
+                      final pathParts = doc.reference.path.split('/');
+                      final postId =
+                          pathParts.length >= 4 ? pathParts[1] : '';
+
+                      return _AdminCommentTile(
+                        commentId: doc.id,
+                        postId: postId,
+                        data: data,
+                        service: widget.service,
+                      );
+                    },
                   ),
                 );
-              }
-
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const _EmptyState(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  message: 'Nenhum comentário encontrado',
-                );
-              }
-
-              return ListView.builder(
-                padding: const EdgeInsets.all(12),
-                itemCount: snapshot.data!.docs.length,
-                itemBuilder: (context, i) {
-                  final doc = snapshot.data!.docs[i];
-                  final data = doc.data() as Map<String, dynamic>;
-                  final ref = doc.reference;
-
-                  // FIX #1: path correto posts/{postId}/comments/{commentId}
-                  final pathParts = ref.path.split('/');
-                  final postId =
-                      pathParts.length >= 4 ? pathParts[1] : '';
-
-                  return _AdminCommentTile(
-                    commentId: doc.id,
-                    postId: postId,
-                    data: data,
-                    service: widget.service,
-                  );
-                },
-              );
-            },
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -497,39 +546,42 @@ class _UsersTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users_xp')
-          .orderBy('totalXp', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.primaryOrange),
-          );
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const _EmptyState(
-            icon: Icons.people_outline_rounded,
-            message: 'Nenhum usuário encontrado',
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(12),
-          itemCount: snapshot.data!.docs.length,
-          itemBuilder: (context, i) {
-            final doc = snapshot.data!.docs[i];
-            final data = doc.data() as Map<String, dynamic>;
-            return _AdminUserTile(
-              userId: doc.id,
-              data: data,
-              service: service,
+    return ColoredBox(
+      color: AppColors.backgroundDark,
+      child: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('users_xp')
+            .orderBy('totalXp', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.primaryOrange),
             );
-          },
-        );
-      },
+          }
+
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const _EmptyState(
+              icon: Icons.people_outline_rounded,
+              message: 'Nenhum usuário encontrado',
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: snapshot.data!.docs.length,
+            itemBuilder: (context, i) {
+              final doc = snapshot.data!.docs[i];
+              final data = doc.data() as Map<String, dynamic>;
+              return _AdminUserTile(
+                userId: doc.id,
+                data: data,
+                service: service,
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -778,7 +830,10 @@ class _LogTile extends StatelessWidget {
   }
 }
 
-// FIX #3: convertido de StatelessWidget para StatefulWidget
+// ═══════════════════════════════════════════════════════════════════
+// TILE DE COMENTÁRIO — StatefulWidget para mounted funcionar
+// ═══════════════════════════════════════════════════════════════════
+
 class _AdminCommentTile extends StatefulWidget {
   final String commentId;
   final String postId;
@@ -959,7 +1014,6 @@ class _AdminCommentTileState extends State<_AdminCommentTile> {
     );
   }
 
-  // FIX #3: _snack usa mounted do State corretamente
   void _snack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -997,7 +1051,6 @@ class _AdminCommentTileState extends State<_AdminCommentTile> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              // FIX #3: deleteComment usa widget. e mounted do State
               await widget.service.deleteComment(widget.postId, widget.commentId);
               if (mounted) _snack('Comentário excluído');
             },
@@ -1075,8 +1128,7 @@ class _AdminCommentTileState extends State<_AdminCommentTile> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide:
-                        const BorderSide(color: AppColors.primaryOrange),
+                    borderSide: const BorderSide(color: AppColors.primaryOrange),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 8),
