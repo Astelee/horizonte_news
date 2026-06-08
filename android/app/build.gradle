@@ -27,10 +27,14 @@ android {
 
     defaultConfig {
         applicationId "com.astelee.horizonte_news"
-        minSdkVersion 23
+        // 1. ALTERADO: Reduzido para 21 para suportar Android 5.0+
+        minSdkVersion 21 
         targetSdkVersion flutter.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        
+        // 2. ADICIONADO: Ativa o suporte para dividir bibliotecas grandes em aparelhos antigos
+        multiDexEnabled true 
     }
 
     signingConfigs {
@@ -54,6 +58,11 @@ android {
 
 flutter {
     source '../..'
+}
+
+// 3. ADICIONADO: Dependência oficial do MultiDex para o Android 5.0 e 6.0
+dependencies {
+    implementation "androidx.multidex:multidex:2.0.1"
 }
 
 // Plugin aplicado no final — compatível com o sistema de Gradle do projeto
