@@ -87,6 +87,34 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     return '$minutes min de leitura';
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // NORMALIZA O HTML DO BLOGGER
+  // Converte <br> soltos entre texto em </p><p> para garantir
+  // que cada bloco vire um parágrafo com margem correta.
+  // ─────────────────────────────────────────────────────────────
+  String _normalizeContent(String raw) {
+    String html = raw;
+
+    // 1. Troca sequências de <br> / <br/> entre texto por fechamento de parágrafo
+    html = html.replaceAllMapped(
+      RegExp(r'(<br\s*/?>){1,}', caseSensitive: false),
+      (m) => '</p><p>',
+    );
+
+    // 2. Remove <p> vazios que sobraram: <p></p>, <p> </p>, <p>&nbsp;</p>
+    html = html.replaceAll(
+      RegExp(r'<p>\s*(&nbsp;)?\s*</p>', caseSensitive: false),
+      '',
+    );
+
+    // 3. Se o conteúdo não tiver nenhuma tag <p>, envolve tudo em <p>
+    if (!html.contains('<p')) {
+      html = '<p>$html</p>';
+    }
+
+    return html;
+  }
+
   @override
   Widget build(BuildContext context) {
     final PostModel post =
@@ -95,6 +123,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     final bool isFav = favoritesProvider.isFavorite(post.id);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final String cleanedContent = BloggerCleaner.clean(post.content);
+    final String normalizedContent = _normalizeContent(cleanedContent);
     final String category = post.categories.isNotEmpty
         ? post.categories.first.name
         : 'Notícia';
@@ -129,10 +158,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                       parent: AlwaysScrollableScrollPhysics(),
                     ),
                     slivers: [
-                      // ── HERO SEM APPBAR ────────────────────────
                       _buildSliverAppBar(post),
-
-                      // ── CORPO ──────────────────────────────────
                       SliverToBoxAdapter(
                         child: Container(
                           decoration: BoxDecoration(
@@ -145,9 +171,10 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                             children: [
                               _buildCategoryBadge(category),
                               _buildTitle(context, post),
-                              _buildMeta(context, post, cleanedContent),
+                              _buildMeta(context, post, normalizedContent),
                               _buildGlowDivider(),
-                              _buildHtmlContent(context, cleanedContent, isDark),
+                              _buildHtmlContent(
+                                  context, normalizedContent, isDark),
                               _buildGlowDivider(),
                               CommentsSection(
                                 postId: post.id,
@@ -163,7 +190,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                 ),
               ),
 
-              // ── BOTÕES GLASS — visíveis só quando imagem aparece ──
+              // ── BOTÕES GLASS ───────────────────────────────────
               if (!_showFloatingTitle)
                 Positioned(
                   top: topPadding + 8,
@@ -199,7 +226,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                   ),
                 ),
 
-              // ── BARRA COLAPSADA — aparece só após scroll ──
+              // ── BARRA COLAPSADA ────────────────────────────────
               _buildCollapsedBar(context, post, isFav, favoritesProvider),
             ],
           ),
@@ -209,7 +236,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   }
 
   // ─────────────────────────────────────────────────────────────
-  // SLIVER APP BAR — apenas imagem, zero título/botões
+  // SLIVER APP BAR
   // ─────────────────────────────────────────────────────────────
   Widget _buildSliverAppBar(PostModel post) {
     return SliverAppBar(
@@ -262,7 +289,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             ),
           ),
         ),
-        // Overlay superior
         Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -272,7 +298,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             ),
           ),
         ),
-        // Overlay inferior
         Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -287,7 +312,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   }
 
   // ─────────────────────────────────────────────────────────────
-  // BARRA COLAPSADA — só aparece quando scroll > 220
+  // BARRA COLAPSADA
   // ─────────────────────────────────────────────────────────────
   Widget _buildCollapsedBar(
     BuildContext context,
@@ -438,8 +463,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
             child: Text('·',
-                style:
-                    TextStyle(color: AppColors.textSecondary, fontSize: 16)),
+                style: TextStyle(
+                    color: AppColors.textSecondary, fontSize: 16)),
           ),
           const Icon(Icons.menu_book_rounded,
               size: 15, color: AppColors.primaryOrange),
@@ -480,6 +505,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
 
   // ─────────────────────────────────────────────────────────────
   // CONTEÚDO HTML
+  // br agora some (já foram convertidos em </p><p> antes)
+  // p tem margem bottom generosa para separar parágrafos
   // ─────────────────────────────────────────────────────────────
   Widget _buildHtmlContent(
       BuildContext context, String content, bool isDark) {
@@ -498,34 +525,46 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             padding: HtmlPaddings.zero,
             fontFamily: 'Roboto',
           ),
-          'p': Style(
-            fontSize: FontSize(17),
-            lineHeight: LineHeight(1.8),
-            color: textColor,
-            margin: Margins.only(bottom: 18),
+          'body': Style(
+            margin: Margins.zero,
             padding: HtmlPaddings.zero,
           ),
+          'p': Style(
+            fontSize: FontSize(17),
+            lineHeight: LineHeight(1.85),
+            color: textColor,
+            // margem generosa entre parágrafos
+            margin: Margins.only(top: 0, bottom: 20),
+            padding: HtmlPaddings.zero,
+            display: Display.block,
+          ),
+          // br não deve aparecer — já convertemos em </p><p>
           'br': Style(
-            height: Height(0),
             display: Display.none,
+            height: Height(0),
+            margin: Margins.zero,
+            padding: HtmlPaddings.zero,
           ),
           'h1': Style(
             fontSize: FontSize(22),
             fontWeight: FontWeight.w800,
             color: AppColors.primaryOrange,
             margin: Margins.only(top: 24, bottom: 10),
+            display: Display.block,
           ),
           'h2': Style(
             fontSize: FontSize(20),
             fontWeight: FontWeight.w700,
             color: AppColors.primaryOrangeLight,
             margin: Margins.only(top: 20, bottom: 8),
+            display: Display.block,
           ),
           'h3': Style(
             fontSize: FontSize(18),
             fontWeight: FontWeight.w700,
             color: AppColors.primaryOrangeLight,
             margin: Margins.only(top: 16, bottom: 6),
+            display: Display.block,
           ),
           'a': Style(
             color: AppColors.primaryOrange,
@@ -551,8 +590,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
               ),
             ),
             padding: HtmlPaddings.only(left: 16),
-            margin:
-                Margins.only(left: 0, right: 0, top: 16, bottom: 16),
+            margin: Margins.only(left: 0, right: 0, top: 16, bottom: 20),
             fontStyle: FontStyle.italic,
             color: secondaryColor,
             fontSize: FontSize(16),
@@ -569,11 +607,12 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             fontSize: FontSize(17),
             lineHeight: LineHeight(1.8),
             color: textColor,
-            margin: Margins.only(bottom: 6),
+            margin: Margins.only(bottom: 8),
           ),
           'img': Style(
             margin: Margins.symmetric(vertical: 16),
             padding: HtmlPaddings.zero,
+            display: Display.block,
           ),
           'div': Style(
             margin: Margins.zero,
