@@ -10,17 +10,17 @@ class AdminService {
     bool onlyReported = false,
     bool onlyHidden = false,
   }) {
-    // Busca em todos os posts via collectionGroup
+    // CORRIGIDO: removido orderBy para não precisar de índice composto
     Query query = _db.collectionGroup('postComments');
 
     if (onlyReported) {
       query = query.where('reportCount', isGreaterThan: 0);
-    }
-    if (onlyHidden) {
+    } else if (onlyHidden) {
+      // CORRIGIDO: else if para não combinar dois where que também exigiriam índice
       query = query.where('hidden', isEqualTo: true);
     }
 
-    return query.orderBy('createdAt', descending: true).limit(100).snapshots();
+    return query.limit(100).snapshots();
   }
 
   Future<void> hideComment(String postId, String commentId) async {
@@ -92,7 +92,6 @@ class AdminService {
           .limit(20)
           .get();
 
-      // Conta comentários via collectionGroup
       final commentsSnap =
           await _db.collectionGroup('postComments').count().get();
       final reportedSnap = await _db
@@ -101,7 +100,6 @@ class AdminService {
           .count()
           .get();
 
-      // Top usuários por XP
       final topUsersSnap = await _db
           .collection('users_xp')
           .orderBy('totalXp', descending: true)
