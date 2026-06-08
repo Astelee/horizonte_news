@@ -1,0 +1,987 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import '../config/app_colors.dart';
+import '../config/app_routes.dart';
+import '../providers/user_xp_provider.dart';
+import '../services/xp_service.dart';
+
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _glowCtrl;
+  late AnimationController _barCtrl;
+  late AnimationController _fadeCtrl;
+  late Animation<double> _glowAnim;
+  late Animation<double> _barAnim;
+  late Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _glowCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
+
+    _barCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+
+    _fadeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..forward();
+
+    _glowAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
+    );
+
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+
+    // Inicia a barra de progresso animada após o frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _barCtrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _glowCtrl.dispose();
+    _barCtrl.dispose();
+    _fadeCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _LogoutDialog(),
+    );
+    if (confirm == true && mounted) {
+      await FirebaseAuth.instance.signOut();
+      Navigator.pushNamedAndRemoveUntil(
+          context, AppRoutes.login, (_) => false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    return Scaffold(
+      backgroundColor: AppColors.backgroundDark,
+      body: FadeTransition(
+        opacity: _fadeAnim,
+        child: Consumer<UserXpProvider>(
+          builder: (context, xpProvider, _) {
+            final data = xpProvider.data;
+            final isLoading = xpProvider.isLoading;
+
+            return CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                // ── AppBar customizada ─────────────────────────────
+                _buildSliverAppBar(user, data),
+
+                SliverToBoxAdapter(
+                  child: isLoading
+                      ? const _ProfileSkeleton()
+                      : Column(
+                          children: [
+                            const SizedBox(height: 20),
+
+                            // ── Card de XP e Nível ─────────────────
+                            _buildXpCard(data),
+
+                            const SizedBox(height: 16),
+
+                            // ── Estatísticas ───────────────────────
+                            _buildStatsRow(data),
+
+                            const SizedBox(height: 16),
+
+                            // ── Conquistas ─────────────────────────
+                            _buildAchievementsSection(data),
+
+                            const SizedBox(height: 16),
+
+                            // ── Ações da conta ─────────────────────
+                            _buildAccountActions(),
+
+                            const SizedBox(height: 40),
+                          ],
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // ── SLIVER APP BAR ────────────────────────────────────────────────
+  Widget _buildSliverAppBar(User? user, UserXpData data) {
+    return SliverAppBar(
+      expandedHeight: 220,
+      pinned: true,
+      backgroundColor: AppColors.backgroundDark,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        onPressed: () => Navigator.pop(context),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Fundo com gradiente
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF1A0800), Color(0xFF000000)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+            ),
+
+            // Orb de glow
+            AnimatedBuilder(
+              animation: _glowAnim,
+              builder: (_, __) => Positioned(
+                top: -40,
+                right: -40,
+                child: Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        AppColors.primaryOrange
+                            .withOpacity(0.15 * _glowAnim.value),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Avatar + info
+            Positioned(
+              bottom: 20,
+              left: 0,
+              right: 0,
+              child: Column(
+                children: [
+                  // Avatar com glow
+                  AnimatedBuilder(
+                    animation: _glowAnim,
+                    builder: (_, child) => Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryOrange
+                                .withOpacity(0.5 * _glowAnim.value),
+                            blurRadius: 24,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: child,
+                    ),
+                    child: CircleAvatar(
+                      radius: 40,
+                      backgroundColor: const Color(0xFF1A0800),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [
+                              Color(0xFFFF6B00),
+                              Color(0xFFCC4400),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _getInitials(user?.displayName ?? user?.email),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Nome do usuário
+                  Text(
+                    user?.displayName ??
+                        user?.email?.split('@').first ??
+                        'Usuário',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  // Badge de nível
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      gradient: AppColors.orangeGradient,
+                    ),
+                    child: Text(
+                      '${XpService.levelIcon(data.level)}  ${XpService.levelTitle(data.level)}  •  Nível ${data.level}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── CARD DE XP ────────────────────────────────────────────────────
+  Widget _buildXpCard(UserXpData data) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: const Color(0xFF0A0A0A),
+          border: Border.all(
+            color: AppColors.primaryOrange.withOpacity(0.25),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primaryOrange.withOpacity(0.06),
+              blurRadius: 30,
+              spreadRadius: 0,
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header do card
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'EXPERIÊNCIA',
+                      style: TextStyle(
+                        color: AppColors.primaryOrange,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${data.totalXp}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            height: 1,
+                          ),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 4, left: 4),
+                          child: Text(
+                            'XP',
+                            style: TextStyle(
+                              color: AppColors.primaryOrange,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                // Círculo de nível
+                AnimatedBuilder(
+                  animation: _glowAnim,
+                  builder: (_, __) => Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.primaryOrange,
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primaryOrange
+                              .withOpacity(0.4 * _glowAnim.value),
+                          blurRadius: 16,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'LVL',
+                          style: TextStyle(
+                            color: AppColors.primaryOrange,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        Text(
+                          '${data.level}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            height: 1.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // Info de progresso
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${data.xpInCurrentLevel} / ${data.xpForNextLevel} XP',
+                  style: const TextStyle(
+                    color: Color(0xFF9E9E9E),
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  'Nível ${data.level + 1} em ${data.xpForNextLevel - data.xpInCurrentLevel} XP',
+                  style: const TextStyle(
+                    color: AppColors.primaryOrange,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            // Barra de progresso animada
+            _buildProgressBar(data.progressPercent),
+
+            const SizedBox(height: 16),
+
+            // Tempo online
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                color: AppColors.primaryOrange.withOpacity(0.08),
+                border: Border.all(
+                  color: AppColors.primaryOrange.withOpacity(0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.timer_outlined,
+                      color: AppColors.primaryOrange, size: 16),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Tempo online total:',
+                    style: TextStyle(
+                      color: Color(0xFF9E9E9E),
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    data.formattedTimeOnline,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  const Text(
+                    '10 XP/min',
+                    style: TextStyle(
+                      color: AppColors.primaryOrange,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── BARRA DE PROGRESSO ANIMADA ────────────────────────────────────
+  Widget _buildProgressBar(double progress) {
+    return AnimatedBuilder(
+      animation: _barCtrl,
+      builder: (_, __) {
+        final animatedProgress =
+            Curves.easeOutCubic.transform(_barCtrl.value) * progress;
+        return Column(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Stack(
+                children: [
+                  // Track
+                  Container(
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A1A),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  // Fill
+                  FractionallySizedBox(
+                    widthFactor: animatedProgress,
+                    child: Container(
+                      height: 10,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFFFF6B00),
+                            Color(0xFFFFAA00),
+                          ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryOrange.withOpacity(0.6),
+                            blurRadius: 8,
+                            spreadRadius: 0,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ── ESTATÍSTICAS ──────────────────────────────────────────────────
+  Widget _buildStatsRow(UserXpData data) {
+    final articles =
+        (data.stats['articlesRead'] as num?)?.toInt() ?? 0;
+    final shares =
+        (data.stats['articlesShared'] as num?)?.toInt() ?? 0;
+    final comments =
+        (data.stats['commentsPosted'] as num?)?.toInt() ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          _StatCard(
+            icon: Icons.article_outlined,
+            label: 'Artigos\nLidos',
+            value: '$articles',
+          ),
+          const SizedBox(width: 10),
+          _StatCard(
+            icon: Icons.share_outlined,
+            label: 'Compar-\ntilhados',
+            value: '$shares',
+          ),
+          const SizedBox(width: 10),
+          _StatCard(
+            icon: Icons.chat_bubble_outline_rounded,
+            label: 'Comentá-\nrios',
+            value: '$comments',
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── CONQUISTAS ────────────────────────────────────────────────────
+  Widget _buildAchievementsSection(UserXpData data) {
+    final xpService = XpService();
+    final achievements =
+        xpService.getAllAchievements(data.achievements);
+    final unlocked =
+        achievements.where((a) => a.unlocked).length;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: const Color(0xFF0A0A0A),
+          border: Border.all(
+            color: AppColors.primaryOrange.withOpacity(0.2),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'CONQUISTAS',
+                  style: TextStyle(
+                    color: AppColors.primaryOrange,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 2,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    color: AppColors.primaryOrange.withOpacity(0.15),
+                  ),
+                  child: Text(
+                    '$unlocked / ${achievements.length}',
+                    style: const TextStyle(
+                      color: AppColors.primaryOrange,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ...achievements
+                .map((a) => _AchievementTile(achievement: a))
+                .toList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── AÇÕES DA CONTA ────────────────────────────────────────────────
+  Widget _buildAccountActions() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: [
+          _ActionButton(
+            icon: Icons.settings_outlined,
+            label: 'Configurações',
+            onTap: () => Navigator.pushNamed(context, AppRoutes.settings),
+          ),
+          const SizedBox(height: 10),
+          _ActionButton(
+            icon: Icons.logout_rounded,
+            label: 'Sair da conta',
+            isDestructive: true,
+            onTap: _handleLogout,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getInitials(String? name) {
+    if (name == null || name.isEmpty) return '?';
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return name[0].toUpperCase();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// WIDGETS AUXILIARES
+// ═══════════════════════════════════════════════════════════════════
+
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _StatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFF0A0A0A),
+          border: Border.all(
+            color: AppColors.primaryOrange.withOpacity(0.2),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: AppColors.primaryOrange, size: 22),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF757575),
+                fontSize: 10,
+                height: 1.3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AchievementTile extends StatelessWidget {
+  final Achievement achievement;
+  const _AchievementTile({required this.achievement});
+
+  @override
+  Widget build(BuildContext context) {
+    final unlocked = achievement.unlocked;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: unlocked
+            ? AppColors.primaryOrange.withOpacity(0.08)
+            : const Color(0xFF0F0F0F),
+        border: Border.all(
+          color: unlocked
+              ? AppColors.primaryOrange.withOpacity(0.3)
+              : const Color(0xFF1A1A1A),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Text(
+            achievement.icon,
+            style: TextStyle(
+              fontSize: 24,
+              color: unlocked ? null : const Color(0xFF333333),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  achievement.title,
+                  style: TextStyle(
+                    color: unlocked ? Colors.white : const Color(0xFF444444),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  achievement.description,
+                  style: TextStyle(
+                    color: unlocked
+                        ? const Color(0xFF9E9E9E)
+                        : const Color(0xFF333333),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (unlocked)
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: AppColors.primaryOrange.withOpacity(0.2),
+              ),
+              child: const Text(
+                'OBTIDA',
+                style: TextStyle(
+                  color: AppColors.primaryOrange,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
+              ),
+            )
+          else
+            const Icon(Icons.lock_outline_rounded,
+                color: Color(0xFF333333), size: 16),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool isDestructive;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.isDestructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        isDestructive ? AppColors.emergencyRed : Colors.white;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: const Color(0xFF0A0A0A),
+          border: Border.all(
+            color: isDestructive
+                ? AppColors.emergencyRed.withOpacity(0.3)
+                : const Color(0xFF1A1A1A),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            Icon(Icons.chevron_right_rounded,
+                color: color.withOpacity(0.5), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileSkeleton extends StatelessWidget {
+  const _ProfileSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(16.0),
+      child: Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
+          strokeWidth: 2,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DIALOG DE LOGOUT
+// ═══════════════════════════════════════════════════════════════════
+
+class _LogoutDialog extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: const Color(0xFF0A0A0A),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: AppColors.emergencyRed.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.emergencyRed.withOpacity(0.1),
+                border: Border.all(
+                  color: AppColors.emergencyRed.withOpacity(0.3),
+                ),
+              ),
+              child: const Icon(Icons.logout_rounded,
+                  color: AppColors.emergencyRed, size: 26),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Sair da conta?',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Seu progresso e XP estão salvos.\nVocê pode entrar novamente a qualquer momento.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF9E9E9E),
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context, false),
+                    child: Container(
+                      height: 46,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF2A2A2A)),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'CANCELAR',
+                          style: TextStyle(
+                            color: Color(0xFF9E9E9E),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context, true),
+                    child: Container(
+                      height: 46,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: AppColors.emergencyRed.withOpacity(0.15),
+                        border: Border.all(
+                          color: AppColors.emergencyRed.withOpacity(0.4),
+                        ),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'SAIR',
+                          style: TextStyle(
+                            color: AppColors.emergencyRed,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
