@@ -115,9 +115,9 @@ class PostDetailScreen extends StatelessWidget {
                         child: Divider(),
                       ),
                       Html(
-                        data: post.content,
+                        // Filtro aplicado: remove apenas a primeira ocorrência de tag <img> do HTML
+                        data: post.content.replaceFirst(RegExp(r'<img[^>]*>'), ''),
                         style: {
-                          // Regra universal para forçar o tamanho correto e ignorar formatação do Blogger
                           "*": Style(
                             fontSize: FontSize(16.5),
                             lineHeight: LineHeight.em(1.5),
