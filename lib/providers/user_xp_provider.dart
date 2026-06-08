@@ -9,11 +9,9 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   bool _isLoading = true;
   bool _isActive = false;
 
-  // Timer que conta o tempo ativo
   Timer? _activeTimer;
   int _secondsAccumulated = 0;
 
-  // A cada quantos segundos salva no Firestore (evita writes excessivos)
   static const int _saveIntervalSeconds = 60;
 
   UserXpData get data => _data;
@@ -32,25 +30,23 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     _startTimer();
   }
 
-  // ── Responde às mudanças de ciclo de vida do app ─────────────────
+  // ── Ciclo de vida do app ─────────────────────────────────────────
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
-        // App voltou ao primeiro plano — retoma contagem
         _startTimer();
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
-        // App foi para background ou tela bloqueada — pausa e salva
         _pauseAndSave();
         break;
     }
   }
 
-  // ── Inicia o timer de tempo ativo ────────────────────────────────
+  // ── Timer de tempo ativo ─────────────────────────────────────────
   void _startTimer() {
     if (_isActive) return;
     _isActive = true;
@@ -58,15 +54,12 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
 
     _activeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _secondsAccumulated++;
-
-      // A cada _saveIntervalSeconds, salva no Firestore e atualiza UI
       if (_secondsAccumulated >= _saveIntervalSeconds) {
         _flushToFirestore();
       }
     });
   }
 
-  // ── Pausa o timer e salva o que acumulou ─────────────────────────
   void _pauseAndSave() {
     if (!_isActive) return;
     _isActive = false;
@@ -78,7 +71,6 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
-  // ── Envia tempo acumulado para o Firestore ───────────────────────
   Future<void> _flushToFirestore() async {
     if (_secondsAccumulated <= 0) return;
 
@@ -90,7 +82,7 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
-  // ── API pública para registrar eventos ───────────────────────────
+  // ── Eventos de XP ────────────────────────────────────────────────
   Future<void> onArticleRead() async {
     await _service.recordArticleRead();
     _data = await _service.loadUserXpData();
@@ -103,11 +95,20 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
-  Future<void> onComment() async {
-    await _service.recordComment();
-    _data = await _service.loadUserXpData();
-    notifyListeners();
+  // ── Comentário — usado pelo CommentsSection ───────────────────────
+  // Chame provider.addXpForComment() no widget de comentários
+  Future<void> addXpForComment() async {
+    try {
+      await _service.recordComment();
+      _data = await _service.loadUserXpData();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Erro ao adicionar XP por comentário: $e');
+    }
   }
+
+  // Mantido para compatibilidade com código existente
+  Future<void> onComment() async => addXpForComment();
 
   Future<void> reload() async {
     _isLoading = true;
