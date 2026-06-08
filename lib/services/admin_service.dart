@@ -6,21 +6,16 @@ class AdminService {
 
   // ── Comentários ──────────────────────────────────────────────────
 
+  // CORRIGIDO: busca tudo sem filtro no Firestore, filtra em memória no widget
   Stream<QuerySnapshot> allCommentsStream({
     bool onlyReported = false,
     bool onlyHidden = false,
   }) {
-    // CORRIGIDO: removido orderBy para não precisar de índice composto
-    Query query = _db.collectionGroup('postComments');
-
-    if (onlyReported) {
-      query = query.where('reportCount', isGreaterThan: 0);
-    } else if (onlyHidden) {
-      // CORRIGIDO: else if para não combinar dois where que também exigiriam índice
-      query = query.where('hidden', isEqualTo: true);
-    }
-
-    return query.limit(100).snapshots();
+    // Sem where nem orderBy — evita qualquer exigência de índice
+    return _db
+        .collectionGroup('postComments')
+        .limit(200)
+        .snapshots();
   }
 
   Future<void> hideComment(String postId, String commentId) async {
