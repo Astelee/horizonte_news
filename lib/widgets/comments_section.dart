@@ -30,7 +30,8 @@ class CommentModel {
       userId: data['userId'] ?? '',
       userName: data['userName'] ?? 'Anônimo',
       text: data['text'] ?? '',
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt:
+          (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 }
@@ -80,10 +81,11 @@ class _CommentsSectionState extends State<CommentsSection>
     super.dispose();
   }
 
-  CollectionReference get _commentsRef => FirebaseFirestore.instance
-      .collection('comments')
-      .doc(widget.postId)
-      .collection('postComments');
+  CollectionReference get _commentsRef =>
+      FirebaseFirestore.instance
+          .collection('comments')
+          .doc(widget.postId)
+          .collection('postComments');
 
   String _initials(String name) {
     final parts = name.trim().split(' ');
@@ -134,20 +136,23 @@ class _CommentsSectionState extends State<CommentsSection>
       _controller.clear();
       _focusNode.unfocus();
 
-      // XP: concede apenas uma vez por post
-      if (!_xpAwarded) {
-        if (mounted) {
-          await Provider.of<UserXpProvider>(context, listen: false)
-              .addXpForComment();
-          _xpAwarded = true;
-          _showXpSnack();
-        }
+      if (!_xpAwarded && mounted) {
+        await Provider.of<UserXpProvider>(context, listen: false)
+            .addXpForComment();
+        _xpAwarded = true;
+        _showXpSnack();
       }
     } catch (e) {
       _showSnack('Erro ao enviar comentário. Tente novamente.');
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
+  }
+
+  Future<void> _deleteComment(String commentId) async {
+    try {
+      await _commentsRef.doc(commentId).delete();
+    } catch (_) {}
   }
 
   void _showLoginSnack() {
@@ -195,7 +200,8 @@ class _CommentsSectionState extends State<CommentsSection>
             SizedBox(width: 10),
             Text('+XP por comentar!',
                 style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w600)),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600)),
           ],
         ),
         backgroundColor: const Color(0xFF1A0800),
@@ -208,6 +214,9 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // BUILD
+  // ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -215,15 +224,9 @@ class _CommentsSectionState extends State<CommentsSection>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── HEADER ──────────────────────────────────────────────
         _buildHeader(),
-
-        // ── CAMPO DE COMENTÁRIO ──────────────────────────────────
         _buildInputArea(user),
-
         const SizedBox(height: 8),
-
-        // ── LISTA DE COMENTÁRIOS ─────────────────────────────────
         _buildCommentsList(),
       ],
     );
@@ -268,7 +271,6 @@ class _CommentsSectionState extends State<CommentsSection>
                 ),
               ),
               const SizedBox(width: 10),
-              // Contador
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 3),
@@ -321,7 +323,6 @@ class _CommentsSectionState extends State<CommentsSection>
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar do usuário
                 _buildAvatar(
                   user?.displayName ??
                       user?.email?.split('@').first ??
@@ -329,8 +330,6 @@ class _CommentsSectionState extends State<CommentsSection>
                   size: 36,
                 ),
                 const SizedBox(width: 12),
-
-                // Campo de texto
                 Expanded(
                   child: TextField(
                     controller: _controller,
@@ -363,21 +362,19 @@ class _CommentsSectionState extends State<CommentsSection>
                 ),
               ],
             ),
-
             const SizedBox(height: 12),
-
-            // Linha divisória + botão enviar
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Dica de XP
                 Row(
                   children: [
-                    Icon(Icons.star_rounded,
-                        size: 13,
-                        color: AppColors.primaryOrange.withOpacity(0.7)),
+                    Icon(
+                      Icons.star_rounded,
+                      size: 13,
+                      color: AppColors.primaryOrange.withOpacity(0.7),
+                    ),
                     const SizedBox(width: 4),
-                    Text(
+                    const Text(
                       'Ganhe XP ao comentar',
                       style: TextStyle(
                         color: AppColors.textMuted,
@@ -386,8 +383,6 @@ class _CommentsSectionState extends State<CommentsSection>
                     ),
                   ],
                 ),
-
-                // Botão enviar
                 ScaleTransition(
                   scale: _sendAnim,
                   child: GestureDetector(
@@ -527,20 +522,16 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
-  Future<void> _deleteComment(String commentId) async {
-    try {
-      await _commentsRef.doc(commentId).delete();
-    } catch (_) {}
-  }
-
+  // ─────────────────────────────────────────────────────────────
+  // AVATAR
+  // ─────────────────────────────────────────────────────────────
   Widget _buildAvatar(String name, {double size = 40}) {
-    final colors = [
+    final colorPairs = [
       [const Color(0xFFFF6B00), const Color(0xFFCC4400)],
       [const Color(0xFFFF8C3A), const Color(0xFFFF6B00)],
       [const Color(0xFFE65100), const Color(0xFF8D3200)],
     ];
-    final colorPair =
-        colors[name.codeUnitAt(0) % colors.length];
+    final pair = colorPairs[name.codeUnitAt(0) % colorPairs.length];
 
     return Container(
       width: size,
@@ -548,7 +539,7 @@ class _CommentsSectionState extends State<CommentsSection>
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
-          colors: colorPair,
+          colors: pair,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -584,12 +575,13 @@ class _CommentTile extends StatefulWidget {
   final VoidCallback onDelete;
 
   const _CommentTile({
+    Key? key,
     required this.comment,
     required this.initials,
     required this.timeAgo,
     required this.currentUserId,
     required this.onDelete,
-  });
+  }) : super(key: key);
 
   @override
   State<_CommentTile> createState() => _CommentTileState();
@@ -608,7 +600,8 @@ class _CommentTileState extends State<_CommentTile>
       vsync: this,
       duration: const Duration(milliseconds: 350),
     );
-    _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _opacity =
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
     _slide =
         Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero)
             .animate(
@@ -624,6 +617,84 @@ class _CommentTileState extends State<_CommentTile>
 
   bool get _isOwner =>
       widget.comment.userId == widget.currentUserId;
+
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0A0A0A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+              color: AppColors.primaryOrange.withOpacity(0.2)),
+        ),
+        title: const Text(
+          'Excluir comentário?',
+          style: TextStyle(color: Colors.white, fontSize: 16),
+        ),
+        content: const Text(
+          'Esta ação não pode ser desfeita.',
+          style: TextStyle(
+              color: AppColors.textSecondary, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              widget.onDelete();
+            },
+            child: const Text(
+              'Excluir',
+              style: TextStyle(
+                color: AppColors.emergencyRed,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatar() {
+    final colorPairs = [
+      [const Color(0xFFFF6B00), const Color(0xFFCC4400)],
+      [const Color(0xFFFF8C3A), const Color(0xFFFF6B00)],
+      [const Color(0xFFE65100), const Color(0xFF8D3200)],
+    ];
+    final name = widget.comment.userName;
+    final pair = colorPairs[name.codeUnitAt(0) % colorPairs.length];
+
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: pair,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          widget.initials,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -643,3 +714,97 @@ class _CommentTileState extends State<_CommentTile>
                   : AppColors.borderSubtle,
             ),
           ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildAvatar(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              widget.comment.userName,
+                              style: TextStyle(
+                                color: _isOwner
+                                    ? AppColors.primaryOrange
+                                    : Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (_isOwner) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding:
+                                    const EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  borderRadius:
+                                      BorderRadius.circular(4),
+                                  color: AppColors.primaryOrange
+                                      .withOpacity(0.15),
+                                ),
+                                child: const Text(
+                                  'EU',
+                                  style: TextStyle(
+                                    color: AppColors.primaryOrange,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              widget.timeAgo,
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11,
+                              ),
+                            ),
+                            if (_isOwner) ...[
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () =>
+                                    _confirmDelete(context),
+                                child: const Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 15,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.comment.text,
+                      style: const TextStyle(
+                        color: AppColors.textSecondaryDark,
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
