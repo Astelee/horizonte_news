@@ -107,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen>
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
                   const SliverToBoxAdapter(
-                      child: SizedBox(height: kToolbarHeight + 24)),
+                      child: SizedBox(height: kToolbarHeight + 40)),
                   const SliverToBoxAdapter(child: CategoryBar()),
                   if (urgentPost != null)
                     SliverToBoxAdapter(
