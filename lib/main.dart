@@ -9,6 +9,7 @@ import 'providers/posts_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/user_xp_provider.dart';
+import 'providers/admin_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +31,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => PostsProvider()),
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
         ChangeNotifierProvider(create: (_) => UserXpProvider()),
+        ChangeNotifierProvider(create: (_) => AdminProvider()),
       ],
       child: const HorizonteNewsApp(),
     ),
@@ -72,9 +74,6 @@ class HorizonteNewsApp extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// AUTH GATE — inicializa XP quando usuário está logado
-// ═══════════════════════════════════════════════════════════════════
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
 
@@ -88,14 +87,19 @@ class _AuthGate extends StatelessWidget {
         }
 
         if (snapshot.hasData && snapshot.data != null) {
-          // Inicializa o sistema de XP quando o usuário está logado
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            final xpProvider =
-                Provider.of<UserXpProvider>(context, listen: false);
-            xpProvider.initialize();
+            // Inicializa XP
+            Provider.of<UserXpProvider>(context, listen: false).initialize();
+            // Inicializa verificação ADM
+            Provider.of<AdminProvider>(context, listen: false).initialize();
           });
           return AppRoutes.routes[AppRoutes.home]!(context);
         }
+
+        // Reset ADM ao deslogar
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Provider.of<AdminProvider>(context, listen: false).reset();
+        });
 
         return AppRoutes.routes[AppRoutes.login]!(context);
       },
@@ -104,7 +108,7 @@ class _AuthGate extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SPLASH LOADING
+// SPLASH LOADING — idêntico ao original
 // ═══════════════════════════════════════════════════════════════════
 class _SplashLoading extends StatefulWidget {
   const _SplashLoading();
