@@ -13,14 +13,13 @@ class BloggerCleaner {
     html = html.replaceAll(RegExp(r'line-height\s*:\s*[^;]+;?'), '');
     html = html.replaceAll(RegExp(r'font-size\s*:\s*[^;]+;?'), '');
 
-    // Múltiplos <br> → um só parágrafo
+    // Qualquer quantidade de <br> (1 ou mais) → fechamento de parágrafo
+    // Isso garante que tanto 1 <br> quanto vários virem parágrafo separado
     html = html.replaceAll(
-        RegExp(r'(<br\s*/?>(\s|&nbsp;)*){2,}', caseSensitive: false),
+        RegExp(r'(<br\s*/?>(\s|&nbsp;)*)+', caseSensitive: false),
         '</p><p>');
-    html = html.replaceAll(
-        RegExp(r'<br\s*/?>', caseSensitive: false), ' ');
 
-    // Remove parágrafos vazios
+    // Remove parágrafos vazios que sobraram
     html = html.replaceAll(
         RegExp(r'<p[^>]*>(\s|&nbsp;|&#160;)*</p>',
             caseSensitive: false),
