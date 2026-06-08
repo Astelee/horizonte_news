@@ -48,7 +48,7 @@ class ContactScreen extends StatelessWidget {
                 // CORREÇÃO: Usando AppColors.whiteFaded
                 subtitle: const Text('Envie fotos e vídeos de flagrantes', style: TextStyle(color: AppColors.whiteFaded)),
                 trailing: const Icon(Icons.chevron_right, color: Colors.white),
-                onTap: () => _launchIntent(context, 'https://wa.me/549111111111'),
+                onTap: () => _launchIntent(context, 'https://linktr.ee/Horizontenews'),
               ),
             ),
             const SizedBox(height: 12),
@@ -80,7 +80,7 @@ class ContactScreen extends StatelessWidget {
                 ),
                 subtitle: const Text('contato@horizontenews.com'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => _launchIntent(context, 'mailto:contato@horizontenews.com'),
+                onTap: () => _launchIntent(context, 'mailto:diego.magno321@gmail.com'),
               ),
             ),
           ],
