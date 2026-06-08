@@ -8,11 +8,11 @@ import 'config/app_routes.dart';
 import 'providers/posts_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/favorites_provider.dart';
+import 'providers/user_xp_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicialização manual e direta do Firebase com as chaves do seu projeto
   await Firebase.initializeApp(
     options: const FirebaseOptions(
       apiKey: 'AIzaSyAAzDgrlLGUTsu3helestO6USQ5UMC8N3A',
@@ -29,6 +29,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => PostsProvider()),
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+        ChangeNotifierProvider(create: (_) => UserXpProvider()),
       ],
       child: const HorizonteNewsApp(),
     ),
@@ -65,32 +66,37 @@ class HorizonteNewsApp extends StatelessWidget {
             settings: settings,
           );
         }
-        return MaterialPageRoute(
-          builder: (_) => const _AuthGate(),
-        );
+        return MaterialPageRoute(builder: (_) => const _AuthGate());
       },
     );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// AUTH GATE
+// AUTH GATE — inicializa XP quando usuário está logado
 // ═══════════════════════════════════════════════════════════════════
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
 
   @override
   Widget build(BuildContext context) {
-    // Como o Firebase já foi iniciado no main(), podemos ir direto para o StreamBuilder
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const _SplashLoading();
         }
+
         if (snapshot.hasData && snapshot.data != null) {
+          // Inicializa o sistema de XP quando o usuário está logado
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final xpProvider =
+                Provider.of<UserXpProvider>(context, listen: false);
+            xpProvider.initialize();
+          });
           return AppRoutes.routes[AppRoutes.home]!(context);
         }
+
         return AppRoutes.routes[AppRoutes.login]!(context);
       },
     );
