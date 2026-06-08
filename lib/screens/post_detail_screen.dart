@@ -175,7 +175,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   }
 
   // ─────────────────────────────────────────────────────────────
-  // SLIVER APP BAR
+  // SLIVER APP BAR — SEM título, apenas botões glass sobre a imagem
   // ─────────────────────────────────────────────────────────────
   Widget _buildSliverAppBar(
     BuildContext context,
@@ -188,46 +188,29 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       pinned: true,
       stretch: true,
       backgroundColor: Colors.black,
-      leading: _glassButton(
-        icon: Icons.arrow_back_ios_new_rounded,
-        onTap: () => Navigator.pop(context),
+      automaticallyImplyLeading: false,   // ← desativa o back padrão
+      title: null,                         // ← nunca mostra título aqui
+      // ── Substituímos leading + actions por um Row no bottom ──
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(0),
+        child: const SizedBox.shrink(),
       ),
-      actions: [
-        _glassButton(
-          icon: isFav
-              ? Icons.bookmark_rounded
-              : Icons.bookmark_border_rounded,
-          onTap: () => favoritesProvider.toggleFavorite(post),
-          active: isFav,
-        ),
-        const SizedBox(width: 4),
-        _glassButton(
-          icon: Icons.share_rounded,
-          onTap: () => Share.share(
-            '${post.title}\n\nLeia a matéria completa em: ${post.url}',
-          ),
-        ),
-        const SizedBox(width: 8),
-      ],
       flexibleSpace: FlexibleSpaceBar(
         collapseMode: CollapseMode.parallax,
         stretchModes: const [StretchMode.zoomBackground],
         background: _buildHeroImage(post),
       ),
-      title: _showFloatingTitle
-          ? Text(
-              post.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            )
-          : null,
     );
   }
+
+  // Overlay de botões glass posicionados sobre a imagem
+  // (renderizado no Stack pai, sempre visível enquanto AppBar expandida)
+  // Os botões ficam no topo fixo via Stack — veja _buildFloatingBar que
+  // já cuida do estado colapsado. Para o estado EXPANDIDO usamos o
+  // posicionamento abaixo no Stack principal do build():
+  //
+  // NOTA: adicionamos os botões diretamente no Stack do build() como
+  // _buildExpandedButtons(). Veja abaixo.
 
   Widget _buildHeroImage(PostModel post) {
     return Stack(
@@ -517,7 +500,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   }
 
   // ─────────────────────────────────────────────────────────────
-  // BARRA FLUTUANTE
+  // BARRA FLUTUANTE — aparece ao rolar (colapsada) E cobre o
+  // estado expandido com botões glass no topo
   // ─────────────────────────────────────────────────────────────
   Widget _buildFloatingBar(
     BuildContext context,
@@ -525,70 +509,110 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     bool isFav,
     FavoritesProvider favoritesProvider,
   ) {
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 200),
-      top: _showFloatingTitle ? 0 : -80,
-      left: 0,
-      right: 0,
-      child: Container(
-        padding: EdgeInsets.only(
-          top: MediaQuery.of(context).padding.top + 8,
-          bottom: 8,
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    return Stack(
+      children: [
+        // ── Botões glass sobre a imagem (sempre visíveis no topo) ──
+        Positioned(
+          top: topPadding + 8,
           left: 8,
           right: 8,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.92),
-          border: const Border(
-            bottom: BorderSide(color: AppColors.borderDark, width: 1),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Botão Voltar
+              _glassButton(
+                icon: Icons.arrow_back_ios_new_rounded,
+                onTap: () => Navigator.pop(context),
+              ),
+              // Botões direita
+              Row(
+                children: [
+                  _glassButton(
+                    icon: isFav
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_border_rounded,
+                    onTap: () => favoritesProvider.toggleFavorite(post),
+                    active: isFav,
+                  ),
+                  const SizedBox(width: 8),
+                  _glassButton(
+                    icon: Icons.share_rounded,
+                    onTap: () => Share.share(
+                      '${post.title}\n\nLeia a matéria completa em: ${post.url}',
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primaryOrange.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
-        child: Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white, size: 20),
-              onPressed: () => Navigator.pop(context),
+
+        // ── Barra sólida ao colapsar (scroll > 220) ──
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 200),
+          top: _showFloatingTitle ? 0 : -80,
+          left: 0,
+          right: 0,
+          child: Container(
+            padding: EdgeInsets.only(
+              top: topPadding + 8,
+              bottom: 8,
+              left: 8,
+              right: 8,
             ),
-            Expanded(
-              child: Text(
-                post.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.95),
+              border: const Border(
+                bottom: BorderSide(color: AppColors.borderDark, width: 1),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryOrange.withOpacity(0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
                 ),
-              ),
+              ],
             ),
-            IconButton(
-              icon: Icon(
-                isFav
-                    ? Icons.bookmark_rounded
-                    : Icons.bookmark_border_rounded,
-                color: isFav ? AppColors.primaryOrange : Colors.white,
-                size: 22,
-              ),
-              onPressed: () => favoritesProvider.toggleFavorite(post),
+            child: Row(
+              children: [
+                _glassButton(
+                  icon: Icons.arrow_back_ios_new_rounded,
+                  onTap: () => Navigator.pop(context),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    post.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                _glassButton(
+                  icon: isFav
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded,
+                  onTap: () => favoritesProvider.toggleFavorite(post),
+                  active: isFav,
+                ),
+                const SizedBox(width: 8),
+                _glassButton(
+                  icon: Icons.share_rounded,
+                  onTap: () => Share.share(
+                    '${post.title}\n\nLeia a matéria completa em: ${post.url}',
+                  ),
+                ),
+              ],
             ),
-            IconButton(
-              icon: const Icon(Icons.share_rounded,
-                  color: Colors.white, size: 22),
-              onPressed: () => Share.share(
-                '${post.title}\n\nLeia a matéria completa em: ${post.url}',
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -603,22 +627,21 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 38,
-        height: 38,
-        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        width: 42,
+        height: 42,
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.5),
           shape: BoxShape.circle,
           border: Border.all(
             color: active
                 ? AppColors.primaryOrange
-                : Colors.white.withOpacity(0.2),
-            width: 1,
+                : Colors.white.withOpacity(0.25),
+            width: 1.2,
           ),
           boxShadow: active
               ? [
                   BoxShadow(
-                    color: AppColors.primaryOrange.withOpacity(0.4),
+                    color: AppColors.primaryOrange.withOpacity(0.35),
                     blurRadius: 10,
                   ),
                 ]
@@ -626,8 +649,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         ),
         child: Icon(
           icon,
-          size: 18,
           color: active ? AppColors.primaryOrange : Colors.white,
+          size: 20,
         ),
       ),
     );
