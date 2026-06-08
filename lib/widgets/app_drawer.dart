@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../providers/user_xp_provider.dart';
+import '../providers/admin_provider.dart'; // Importação adicionada para o AdminProvider
 import '../services/xp_service.dart';
 
 class AppDrawer extends StatefulWidget {
@@ -69,7 +70,6 @@ class _AppDrawerState extends State<AppDrawer>
         decoration: const BoxDecoration(gradient: AppColors.drawerGradient),
         child: Stack(
           children: [
-            // Glow decorativo superior
             Positioned(
               top: -80,
               left: -80,
@@ -82,7 +82,6 @@ class _AppDrawerState extends State<AppDrawer>
                 ),
               ),
             ),
-            // Linha brilhante direita
             Positioned(
               top: 0,
               right: 0,
@@ -104,7 +103,6 @@ class _AppDrawerState extends State<AppDrawer>
                 ),
               ),
             ),
-            // Conteúdo
             SafeArea(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -129,7 +127,6 @@ class _AppDrawerState extends State<AppDrawer>
                                 delay: e.key * 55,
                                 onTap: () =>
                                     _navigate(context, e.value.route),
-                                // Badge de XP só no item de Perfil
                                 badge: e.value.route == AppRoutes.profile
                                     ? _XpBadge()
                                     : null,
@@ -145,6 +142,32 @@ class _AppDrawerState extends State<AppDrawer>
                                 onTap: () =>
                                     _navigate(context, e.value.route),
                               )),
+
+                          // ── ITEM ADM — visível só para admins ────
+                          Consumer<AdminProvider>(
+                            builder: (context, admin, _) {
+                              if (!admin.isAdmin) return const SizedBox.shrink();
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 12),
+                                  _buildDivider(),
+                                  _buildSectionLabel('ADMINISTRAÇÃO'),
+                                  _DrawerTile(
+                                    item: const _NavItem(
+                                      icon: Icons.shield_rounded,
+                                      label: 'Painel Administrativo',
+                                      route: AppRoutes.adminPanel,
+                                    ),
+                                    isActive: currentRoute == AppRoutes.adminPanel,
+                                    delay: 0,
+                                    onTap: () => _navigate(context, AppRoutes.adminPanel),
+                                    badge: _AdminBadge(),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
@@ -323,8 +346,6 @@ class _AppDrawerState extends State<AppDrawer>
         children: [
           _buildDivider(),
           const SizedBox(height: 14),
-
-          // ── Botão Meu Perfil (vai para ProfileScreen) ──────────────
           GestureDetector(
             onTap: () => _navigate(context, AppRoutes.profile),
             child: Container(
@@ -360,7 +381,6 @@ class _AppDrawerState extends State<AppDrawer>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // Badge de nível
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 7, vertical: 2),
@@ -383,7 +403,6 @@ class _AppDrawerState extends State<AppDrawer>
               ),
             ),
           ),
-
           const SizedBox(height: 12),
           const Text(
             'Versão 1.0.0  ©  Horizonte News 2026',
@@ -402,7 +421,6 @@ class _AppDrawerState extends State<AppDrawer>
 // ═══════════════════════════════════════════════════════════════════
 // BADGE DE XP — exibido ao lado do item "Meu Perfil" no menu
 // ═══════════════════════════════════════════════════════════════════
-
 class _XpBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -435,9 +453,37 @@ class _XpBadge extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// BADGE ADM — exibido ao lado do Painel Administrativo
+// ═══════════════════════════════════════════════════════════════════
+class _AdminBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: Colors.red.withOpacity(0.15),
+        border: Border.all(
+          color: Colors.red.withOpacity(0.4),
+          width: 1,
+        ),
+      ),
+      child: const Text(
+        'ADM',
+        style: TextStyle(
+          color: Colors.red,
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // MODELO
 // ═══════════════════════════════════════════════════════════════════
-
 class _NavItem {
   final IconData icon;
   final String label;
@@ -449,7 +495,6 @@ class _NavItem {
 // ═══════════════════════════════════════════════════════════════════
 // TILE ANIMADO
 // ═══════════════════════════════════════════════════════════════════
-
 class _DrawerTile extends StatefulWidget {
   final _NavItem item;
   final bool isActive;
@@ -488,8 +533,9 @@ class _DrawerTileState extends State<_DrawerTile>
         Tween<Offset>(begin: const Offset(-0.12, 0), end: Offset.zero)
             .animate(
                 CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-    Future.delayed(Duration(milliseconds: widget.delay),
-        () { if (mounted) _ctrl.forward(); });
+    Future.delayed(Duration(milliseconds: widget.delay), () {
+      if (mounted) _ctrl.forward();
+    });
   }
 
   @override
@@ -513,10 +559,8 @@ class _DrawerTileState extends State<_DrawerTile>
           onTapCancel: () => setState(() => _pressed = false),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            margin:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-            padding: const EdgeInsets.symmetric(
-                horizontal: 13, vertical: 11),
+            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(11),
               color: widget.isActive
@@ -549,8 +593,7 @@ class _DrawerTileState extends State<_DrawerTile>
                         height: 34,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color:
-                              AppColors.primaryOrange.withOpacity(0.18),
+                          color: AppColors.primaryOrange.withOpacity(0.18),
                         ),
                       ),
                     Icon(
@@ -578,7 +621,6 @@ class _DrawerTileState extends State<_DrawerTile>
                     ),
                   ),
                 ),
-                // Badge personalizado (ex: nível no item Perfil)
                 if (widget.badge != null) ...[
                   const SizedBox(width: 6),
                   widget.badge!,
