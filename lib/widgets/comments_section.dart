@@ -112,6 +112,23 @@ class _CommentsSectionState extends State<CommentsSection>
       _showLoginSnack();
       return;
     }
+
+    // Verifica suspensão antes de enviar
+    final suspension = await FirebaseFirestore.instance
+        .collection('suspensions')
+        .doc(user.uid)
+        .get();
+
+    if (suspension.exists) {
+      final until = (suspension.data()?['until'] as Timestamp?)?.toDate();
+      if (until != null && DateTime.now().isBefore(until)) {
+        final fmt = '${until.day}/${until.month}/${until.year}';
+        _showSnack('Você está suspenso até $fmt.');
+        setState(() => _isSending = false);
+        return;
+      }
+    }
+
     if (text.isEmpty) return;
     if (text.length < 3) {
       _showSnack('Comentário muito curto.');
