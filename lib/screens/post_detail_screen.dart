@@ -10,6 +10,7 @@ import '../providers/favorites_provider.dart';
 import '../providers/posts_provider.dart';
 import '../config/app_colors.dart';
 import '../utils/blogger_cleaner.dart';
+import '../widgets/comments_section.dart';
 
 // ─────────────────────────────────────────────────────────────────
 // UTILITÁRIO DE DATA
@@ -30,10 +31,6 @@ class DateFormatter {
       return '${difference.inDays} ${difference.inDays == 1 ? 'dia' : 'dias'} atrás';
     }
     return DateFormat('dd/MM/yyyy · HH:mm').format(postDate);
-  }
-
-  static String formatFull(DateTime date) {
-    return DateFormat("d 'de' MMMM 'de' y", 'pt_BR').format(date);
   }
 }
 
@@ -83,7 +80,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     super.dispose();
   }
 
-  // Estima tempo de leitura
   String _readingTime(String content) {
     final text = content.replaceAll(RegExp(r'<[^>]*>'), '');
     final words = text.trim().split(RegExp(r'\s+'));
@@ -97,14 +93,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         ModalRoute.of(context)!.settings.arguments as PostModel;
     final favoritesProvider = Provider.of<FavoritesProvider>(context);
     final bool isFav = favoritesProvider.isFavorite(post.id);
-    final isDark =
-        Theme.of(context).brightness == Brightness.dark;
-
-    // Limpa o HTML do Blogger
-    final String cleanedContent =
-        BloggerCleaner.clean(post.content);
-
-    // Categoria principal
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final String cleanedContent = BloggerCleaner.clean(post.content);
     final String category = post.categories.isNotEmpty
         ? post.categories.first.name
         : 'Notícia';
@@ -121,15 +111,14 @@ class _PostDetailScreenState extends State<PostDetailScreen>
           opacity: _fadeIn,
           child: Stack(
             children: [
-              // ── CONTEÚDO SCROLLÁVEL ──────────────────────────────
+              // ── CONTEÚDO SCROLLÁVEL ────────────────────────────
               RefreshIndicator(
                 color: AppColors.primaryOrange,
                 backgroundColor: isDark
                     ? AppColors.backgroundElevated
                     : Colors.white,
                 onRefresh: () async {
-                  await Provider.of<PostsProvider>(context,
-                          listen: false)
+                  await Provider.of<PostsProvider>(context, listen: false)
                       .loadInitialPosts();
                 },
                 child: SelectionArea(
@@ -139,11 +128,11 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                       parent: AlwaysScrollableScrollPhysics(),
                     ),
                     slivers: [
-                      // ── HERO IMAGE + APPBAR ─────────────────────
+                      // ── HERO + APPBAR ──────────────────────────
                       _buildSliverAppBar(
                           context, post, isFav, favoritesProvider),
 
-                      // ── CORPO DA NOTÍCIA ────────────────────────
+                      // ── CORPO ──────────────────────────────────
                       SliverToBoxAdapter(
                         child: Container(
                           decoration: BoxDecoration(
@@ -152,30 +141,20 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                                 : AppColors.backgroundLight,
                           ),
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Badge de categoria
                               _buildCategoryBadge(category),
-
-                              // Título
                               _buildTitle(context, post),
-
-                              // Metadados
-                              _buildMeta(
-                                  context, post, cleanedContent),
-
-                              // Linha divisória com glow
+                              _buildMeta(context, post, cleanedContent),
                               _buildGlowDivider(),
-
-                              // Conteúdo HTML
                               _buildHtmlContent(
                                   context, cleanedContent, isDark),
-
-                              // Linha divisória final
                               _buildGlowDivider(),
-
-                              const SizedBox(height: 32),
+                              CommentsSection(
+                                postId: post.id,
+                                postTitle: post.title,
+                              ),
+                              const SizedBox(height: 40),
                             ],
                           ),
                         ),
@@ -185,7 +164,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                 ),
               ),
 
-              // ── BARRA FLUTUANTE (aparece ao rolar) ───────────────
+              // ── BARRA FLUTUANTE ────────────────────────────────
               _buildFloatingBar(
                   context, post, isFav, favoritesProvider),
             ],
@@ -196,7 +175,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   }
 
   // ─────────────────────────────────────────────────────────────
-  // SLIVER APP BAR — IMAGEM HERO
+  // SLIVER APP BAR
   // ─────────────────────────────────────────────────────────────
   Widget _buildSliverAppBar(
     BuildContext context,
@@ -235,7 +214,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         stretchModes: const [StretchMode.zoomBackground],
         background: _buildHeroImage(post),
       ),
-      // Título comprimido (quando a imagem some)
       title: _showFloatingTitle
           ? Text(
               post.title,
@@ -255,7 +233,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Imagem
         CachedNetworkImage(
           imageUrl: post.thumbnailUrl,
           fit: BoxFit.cover,
@@ -274,45 +251,36 @@ class _PostDetailScreenState extends State<PostDetailScreen>
           ),
           errorWidget: (context, url, error) => Container(
             color: AppColors.backgroundElevated,
-            child: Column(
+            child: const Column(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
+              children: [
                 Icon(Icons.image_not_supported_rounded,
                     color: AppColors.primaryOrange, size: 40),
                 SizedBox(height: 8),
                 Text('Sem imagem',
                     style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13)),
+                        color: AppColors.textSecondary, fontSize: 13)),
               ],
             ),
           ),
         ),
-
-        // Overlay gradiente — superior (botões legíveis)
+        // Overlay superior
         Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.center,
-              colors: [
-                Color(0xCC000000),
-                Colors.transparent,
-              ],
+              colors: [Color(0xCC000000), Colors.transparent],
             ),
           ),
         ),
-
-        // Overlay gradiente — inferior (fade suave para o fundo)
+        // Overlay inferior
         Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.center,
               end: Alignment.bottomCenter,
-              colors: [
-                Colors.transparent,
-                Color(0xFF000000),
-              ],
+              colors: [Colors.transparent, Color(0xFF000000)],
             ),
           ),
         ),
@@ -327,8 +295,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
           gradient: AppColors.orangeGradient,
           borderRadius: BorderRadius.circular(20),
@@ -376,7 +343,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   }
 
   // ─────────────────────────────────────────────────────────────
-  // METADADOS (data, tempo de leitura)
+  // METADADOS
   // ─────────────────────────────────────────────────────────────
   Widget _buildMeta(
       BuildContext context, PostModel post, String content) {
@@ -384,7 +351,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Row(
         children: [
-          // Ícone de relógio + data
           const Icon(Icons.schedule_rounded,
               size: 15, color: AppColors.primaryOrange),
           const SizedBox(width: 5),
@@ -396,16 +362,12 @@ class _PostDetailScreenState extends State<PostDetailScreen>
               fontWeight: FontWeight.w500,
             ),
           ),
-
-          // Ponto separador
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
             child: Text('·',
                 style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 16)),
           ),
-
-          // Tempo de leitura
           const Icon(Icons.menu_book_rounded,
               size: 15, color: AppColors.primaryOrange),
           const SizedBox(width: 5),
@@ -444,13 +406,12 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   }
 
   // ─────────────────────────────────────────────────────────────
-  // CONTEÚDO HTML — CORAÇÃO DO REDESIGN
+  // CONTEÚDO HTML
   // ─────────────────────────────────────────────────────────────
   Widget _buildHtmlContent(
       BuildContext context, String content, bool isDark) {
-    final textColor = isDark
-        ? AppColors.textPrimaryDark
-        : AppColors.textPrimaryLight;
+    final textColor =
+        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryColor = isDark
         ? AppColors.textSecondaryDark
         : AppColors.textSecondaryLight;
@@ -460,72 +421,57 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       child: Html(
         data: content,
         style: {
-          // Reset global — combate margens do Blogger
-          "*": Style(
+          '*': Style(
             margin: Margins.zero,
             padding: HtmlPaddings.zero,
             fontFamily: 'Roboto',
           ),
-
-          // Parágrafos — espaçamento controlado
-          "p": Style(
+          'p': Style(
             fontSize: FontSize(17),
             lineHeight: LineHeight(1.8),
             color: textColor,
             margin: Margins.only(bottom: 18),
             padding: HtmlPaddings.zero,
           ),
-
-          // BR suprimido — evita linhas em branco duplas
-          "br": Style(
+          'br': Style(
             height: Height(0),
             display: Display.none,
           ),
-
-          // Títulos internos
-          "h1": Style(
+          'h1': Style(
             fontSize: FontSize(22),
             fontWeight: FontWeight.w800,
             color: AppColors.primaryOrange,
             margin: Margins.only(top: 24, bottom: 10),
           ),
-          "h2": Style(
+          'h2': Style(
             fontSize: FontSize(20),
             fontWeight: FontWeight.w700,
             color: AppColors.primaryOrangeLight,
             margin: Margins.only(top: 20, bottom: 8),
           ),
-          "h3": Style(
+          'h3': Style(
             fontSize: FontSize(18),
             fontWeight: FontWeight.w700,
             color: AppColors.primaryOrangeLight,
             margin: Margins.only(top: 16, bottom: 6),
           ),
-
-          // Links
-          "a": Style(
+          'a': Style(
             color: AppColors.primaryOrange,
             textDecoration: TextDecoration.underline,
           ),
-
-          // Negrito
-          "strong": Style(
+          'strong': Style(
             fontWeight: FontWeight.w700,
             color: textColor,
           ),
-          "b": Style(
+          'b': Style(
             fontWeight: FontWeight.w700,
             color: textColor,
           ),
-
-          // Itálico
-          "em": Style(
+          'em': Style(
             fontStyle: FontStyle.italic,
             color: secondaryColor,
           ),
-
-          // Blockquote estilizado
-          "blockquote": Style(
+          'blockquote': Style(
             border: Border(
               left: BorderSide(
                 color: AppColors.primaryOrange,
@@ -539,37 +485,29 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             color: secondaryColor,
             fontSize: FontSize(16),
           ),
-
-          // Listas
-          "ul": Style(
+          'ul': Style(
             margin: Margins.only(bottom: 16, left: 4),
             padding: HtmlPaddings.zero,
           ),
-          "ol": Style(
+          'ol': Style(
             margin: Margins.only(bottom: 16, left: 4),
             padding: HtmlPaddings.zero,
           ),
-          "li": Style(
+          'li': Style(
             fontSize: FontSize(17),
             lineHeight: LineHeight(1.8),
             color: textColor,
             margin: Margins.only(bottom: 6),
           ),
-
-          // Imagens dentro do conteúdo
-          "img": Style(
+          'img': Style(
             margin: Margins.symmetric(vertical: 16),
             padding: HtmlPaddings.zero,
           ),
-
-          // Divs — sem margem
-          "div": Style(
+          'div': Style(
             margin: Margins.zero,
             padding: HtmlPaddings.zero,
           ),
-
-          // Span — sem margem
-          "span": Style(
+          'span': Style(
             margin: Margins.zero,
             padding: HtmlPaddings.zero,
           ),
@@ -579,7 +517,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   }
 
   // ─────────────────────────────────────────────────────────────
-  // BARRA FLUTUANTE (aparece ao rolar para cima)
+  // BARRA FLUTUANTE
   // ─────────────────────────────────────────────────────────────
   Widget _buildFloatingBar(
     BuildContext context,
@@ -602,10 +540,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.92),
           border: const Border(
-            bottom: BorderSide(
-              color: AppColors.borderDark,
-              width: 1,
-            ),
+            bottom: BorderSide(color: AppColors.borderDark, width: 1),
           ),
           boxShadow: [
             BoxShadow(
@@ -617,14 +552,11 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         ),
         child: Row(
           children: [
-            // Voltar
             IconButton(
               icon: const Icon(Icons.arrow_back_ios_new_rounded,
                   color: Colors.white, size: 20),
               onPressed: () => Navigator.pop(context),
             ),
-
-            // Título
             Expanded(
               child: Text(
                 post.title,
@@ -636,4 +568,68 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                   fontWeight: FontWeight.w600,
                 ),
               ),
-      
+            ),
+            IconButton(
+              icon: Icon(
+                isFav
+                    ? Icons.bookmark_rounded
+                    : Icons.bookmark_border_rounded,
+                color: isFav ? AppColors.primaryOrange : Colors.white,
+                size: 22,
+              ),
+              onPressed: () => favoritesProvider.toggleFavorite(post),
+            ),
+            IconButton(
+              icon: const Icon(Icons.share_rounded,
+                  color: Colors.white, size: 22),
+              onPressed: () => Share.share(
+                '${post.title}\n\nLeia a matéria completa em: ${post.url}',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // BOTÃO GLASS
+  // ─────────────────────────────────────────────────────────────
+  Widget _glassButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    bool active = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.5),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: active
+                ? AppColors.primaryOrange
+                : Colors.white.withOpacity(0.2),
+            width: 1,
+          ),
+          boxShadow: active
+              ? [
+                  BoxShadow(
+                    color: AppColors.primaryOrange.withOpacity(0.4),
+                    blurRadius: 10,
+                  ),
+                ]
+              : null,
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: active ? AppColors.primaryOrange : Colors.white,
+        ),
+      ),
+    );
+  }
+}
