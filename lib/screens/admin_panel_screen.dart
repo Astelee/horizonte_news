@@ -36,7 +36,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
     if (!admin.isAdmin) {
       return const Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: AppColors.backgroundDark, // FIX #2
         body: Center(
           child: Text('Acesso negado.',
               style: TextStyle(color: Colors.white)),
@@ -45,15 +45,25 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.backgroundDark, // FIX #2
       body: NestedScrollView(
         headerSliverBuilder: (context, _) => [_buildAppBar()],
         body: TabBarView(
           controller: _tabController,
           children: [
-            _DashboardTab(service: _service),
-            _CommentsTab(service: _service),
-            _UsersTab(service: _service),
+            // FIX #2: cada aba com cor de fundo explícita
+            ColoredBox(
+              color: AppColors.backgroundDark,
+              child: _DashboardTab(service: _service),
+            ),
+            ColoredBox(
+              color: AppColors.backgroundDark,
+              child: _CommentsTab(service: _service),
+            ),
+            ColoredBox(
+              color: AppColors.backgroundDark,
+              child: _UsersTab(service: _service),
+            ),
           ],
         ),
       ),
@@ -188,15 +198,12 @@ class _DashboardTabState extends State<_DashboardTab> {
 
   Future<void> _load() async {
     if (!mounted) return;
-
     setState(() {
       _loading = true;
       _hasError = false;
     });
-
     try {
       final stats = await widget.service.getStats();
-
       if (mounted) {
         setState(() {
           _stats = stats;
@@ -271,11 +278,9 @@ class _DashboardTabState extends State<_DashboardTab> {
     }
 
     final stats = _stats!;
-
     final logs = stats['recentLogs'] != null
         ? stats['recentLogs'] as List<QueryDocumentSnapshot>
         : <QueryDocumentSnapshot>[];
-
     final topUsers = stats['topUsers'] != null
         ? stats['topUsers'] as List<QueryDocumentSnapshot>
         : <QueryDocumentSnapshot>[];
@@ -422,6 +427,30 @@ class _CommentsTabState extends State<_CommentsTab> {
                 );
               }
 
+              // FIX #1: trata erros do stream
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.error_outline_rounded,
+                            color: AppColors.primaryOrange.withOpacity(0.4),
+                            size: 48),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Erro ao carregar comentários.\n${snapshot.error}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: AppColors.textMuted, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return const _EmptyState(
                   icon: Icons.chat_bubble_outline_rounded,
@@ -437,9 +466,10 @@ class _CommentsTabState extends State<_CommentsTab> {
                   final data = doc.data() as Map<String, dynamic>;
                   final ref = doc.reference;
 
+                  // FIX #1: path correto posts/{postId}/comments/{commentId}
                   final pathParts = ref.path.split('/');
                   final postId =
-                      pathParts.length >= 2 ? pathParts[1] : '';
+                      pathParts.length >= 4 ? pathParts[1] : '';
 
                   return _AdminCommentTile(
                     commentId: doc.id,
@@ -748,7 +778,8 @@ class _LogTile extends StatelessWidget {
   }
 }
 
-class _AdminCommentTile extends StatelessWidget {
+// FIX #3: convertido de StatelessWidget para StatefulWidget
+class _AdminCommentTile extends StatefulWidget {
   final String commentId;
   final String postId;
   final Map<String, dynamic> data;
@@ -762,9 +793,14 @@ class _AdminCommentTile extends StatelessWidget {
   });
 
   @override
+  State<_AdminCommentTile> createState() => _AdminCommentTileState();
+}
+
+class _AdminCommentTileState extends State<_AdminCommentTile> {
+  @override
   Widget build(BuildContext context) {
-    final isHidden = data['hidden'] == true;
-    final reportCount = (data['reportCount'] as num?)?.toInt() ?? 0;
+    final isHidden = widget.data['hidden'] == true;
+    final reportCount = (widget.data['reportCount'] as num?)?.toInt() ?? 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -794,7 +830,7 @@ class _AdminCommentTile extends StatelessWidget {
                 ),
                 child: Center(
                   child: Text(
-                    (data['userName'] as String? ?? '?')[0].toUpperCase(),
+                    (widget.data['userName'] as String? ?? '?')[0].toUpperCase(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
@@ -809,7 +845,7 @@ class _AdminCommentTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      data['userName'] ?? 'Anônimo',
+                      widget.data['userName'] ?? 'Anônimo',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
@@ -817,7 +853,7 @@ class _AdminCommentTile extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      data['userId'] ?? '',
+                      widget.data['userId'] ?? '',
                       style: const TextStyle(
                         color: AppColors.textMuted,
                         fontSize: 9,
@@ -830,8 +866,7 @@ class _AdminCommentTile extends StatelessWidget {
               ),
               if (reportCount > 0)
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
                     color: const Color(0xFFEF5350).withOpacity(0.15),
@@ -850,8 +885,7 @@ class _AdminCommentTile extends StatelessWidget {
               if (isHidden)
                 Container(
                   margin: const EdgeInsets.only(left: 6),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
                     color: AppColors.textMuted.withOpacity(0.15),
@@ -871,7 +905,7 @@ class _AdminCommentTile extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            data['text'] ?? '',
+            widget.data['text'] ?? '',
             style: TextStyle(
               color: isHidden
                   ? AppColors.textMuted
@@ -890,8 +924,8 @@ class _AdminCommentTile extends StatelessWidget {
                   label: 'Ocultar',
                   color: AppColors.textSecondary,
                   onTap: () async {
-                    await service.hideComment(postId, commentId);
-                    _snack(context, 'Comentário ocultado');
+                    await widget.service.hideComment(widget.postId, widget.commentId);
+                    if (mounted) _snack('Comentário ocultado');
                   },
                 )
               else
@@ -900,8 +934,8 @@ class _AdminCommentTile extends StatelessWidget {
                   label: 'Restaurar',
                   color: const Color(0xFF66BB6A),
                   onTap: () async {
-                    await service.restoreComment(postId, commentId);
-                    _snack(context, 'Comentário restaurado');
+                    await widget.service.restoreComment(widget.postId, widget.commentId);
+                    if (mounted) _snack('Comentário restaurado');
                   },
                 ),
               const SizedBox(width: 8),
@@ -916,8 +950,7 @@ class _AdminCommentTile extends StatelessWidget {
                 icon: Icons.person_off_rounded,
                 label: 'Suspender',
                 color: const Color(0xFFFFA726),
-                onTap: () =>
-                    _showSuspendDialog(context, data['userId'] ?? ''),
+                onTap: () => _showSuspendDialog(context, widget.data['userId'] ?? ''),
               ),
             ],
           ),
@@ -926,14 +959,15 @@ class _AdminCommentTile extends StatelessWidget {
     );
   }
 
-  void _snack(BuildContext context, String msg) {
+  // FIX #3: _snack usa mounted do State corretamente
+  void _snack(String msg) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: const TextStyle(color: Colors.white)),
         backgroundColor: AppColors.backgroundElevated,
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
       ),
     );
@@ -946,15 +980,13 @@ class _AdminCommentTile extends StatelessWidget {
         backgroundColor: const Color(0xFF0A0A0A),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side:
-              BorderSide(color: const Color(0xFFEF5350).withOpacity(0.3)),
+          side: BorderSide(color: const Color(0xFFEF5350).withOpacity(0.3)),
         ),
         title: const Text('Excluir comentário?',
             style: TextStyle(color: Colors.white, fontSize: 16)),
         content: const Text(
           'Esta ação não pode ser desfeita.',
-          style:
-              TextStyle(color: AppColors.textSecondary, fontSize: 14),
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
         ),
         actions: [
           TextButton(
@@ -965,8 +997,9 @@ class _AdminCommentTile extends StatelessWidget {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              await service.deleteComment(postId, commentId);
-              if (context.mounted) _snack(context, 'Comentário excluído');
+              // FIX #3: deleteComment usa widget. e mounted do State
+              await widget.service.deleteComment(widget.postId, widget.commentId);
+              if (mounted) _snack('Comentário excluído');
             },
             child: const Text('Excluir',
                 style: TextStyle(color: Color(0xFFEF5350))),
@@ -987,8 +1020,7 @@ class _AdminCommentTile extends StatelessWidget {
           backgroundColor: const Color(0xFF0A0A0A),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-                color: const Color(0xFFFFA726).withOpacity(0.3)),
+            side: BorderSide(color: const Color(0xFFFFA726).withOpacity(0.3)),
           ),
           title: const Text('Suspender usuário',
               style: TextStyle(color: Colors.white, fontSize: 16)),
@@ -996,16 +1028,14 @@ class _AdminCommentTile extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'ID: ${userId.substring(0, 12)}...',
-                style: const TextStyle(
-                    color: AppColors.textMuted, fontSize: 11),
+                'ID: ${userId.substring(0, userId.length > 12 ? 12 : userId.length)}...',
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
               ),
               const SizedBox(height: 14),
               Row(
                 children: [
                   const Text('Dias:',
-                      style:
-                          TextStyle(color: Colors.white, fontSize: 13)),
+                      style: TextStyle(color: Colors.white, fontSize: 13)),
                   const SizedBox(width: 12),
                   ...[1, 3, 7, 30].map((d) => GestureDetector(
                         onTap: () => setS(() => days = d),
@@ -1033,23 +1063,20 @@ class _AdminCommentTile extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: reasonCtrl,
-                style:
-                    const TextStyle(color: Colors.white, fontSize: 13),
+                style: const TextStyle(color: Colors.white, fontSize: 13),
                 decoration: InputDecoration(
                   hintText: 'Motivo (opcional)',
                   hintStyle: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
-                      fontSize: 13),
+                      color: Colors.white.withOpacity(0.3), fontSize: 13),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(
-                        color:
-                            AppColors.primaryOrange.withOpacity(0.2)),
+                        color: AppColors.primaryOrange.withOpacity(0.2)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(
-                        color: AppColors.primaryOrange),
+                    borderSide:
+                        const BorderSide(color: AppColors.primaryOrange),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 8),
@@ -1066,24 +1093,9 @@ class _AdminCommentTile extends StatelessWidget {
             TextButton(
               onPressed: () async {
                 Navigator.pop(context);
-                await AdminService().suspendUser(
-                    userId, days, reasonCtrl.text.trim());
-
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                          'Usuário suspenso por $days dia(s)',
-                          style:
-                              const TextStyle(color: Colors.white)),
-                      backgroundColor: AppColors.backgroundElevated,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      margin: const EdgeInsets.all(16),
-                    ),
-                  );
-                }
+                await AdminService()
+                    .suspendUser(userId, days, reasonCtrl.text.trim());
+                if (mounted) _snack('Usuário suspenso por $days dia(s)');
               },
               child: const Text('Suspender',
                   style: TextStyle(color: Color(0xFFFFA726))),
@@ -1228,10 +1240,8 @@ class _AdminUserTile extends StatelessWidget {
               color: const Color(0xFFFFA726),
               onTap: () async {
                 Navigator.pop(context);
-
                 await service.suspendUser(
                     userId, 1, 'Suspenso pelo administrador');
-
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -1278,8 +1288,7 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           color: color.withOpacity(0.12),
@@ -1321,19 +1330,16 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = color ?? AppColors.primaryOrange;
-
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           color: active ? c.withOpacity(0.15) : Colors.transparent,
           border: Border.all(
-            color:
-                active ? c.withOpacity(0.5) : AppColors.borderDark,
+            color: active ? c.withOpacity(0.5) : AppColors.borderDark,
           ),
         ),
         child: Text(
@@ -1341,8 +1347,7 @@ class _FilterChip extends StatelessWidget {
           style: TextStyle(
             color: active ? c : AppColors.textSecondary,
             fontSize: 12,
-            fontWeight:
-                active ? FontWeight.w700 : FontWeight.w400,
+            fontWeight: active ? FontWeight.w700 : FontWeight.w400,
           ),
         ),
       ),
@@ -1370,8 +1375,7 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               message,
-              style: const TextStyle(
-                  color: AppColors.textMuted, fontSize: 14),
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 14),
               textAlign: TextAlign.center,
             ),
           ],
@@ -1401,8 +1405,7 @@ class _BottomSheetAction extends StatelessWidget {
       child: Container(
         width: double.infinity,
         margin: const EdgeInsets.only(bottom: 8),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           color: color.withOpacity(0.08),
