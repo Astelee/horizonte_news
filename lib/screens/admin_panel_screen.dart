@@ -17,7 +17,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final AdminService _service = AdminService();
-  String _commentFilter = 'all'; // all | reported | hidden
 
   @override
   void initState() {
@@ -35,7 +34,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Widget build(BuildContext context) {
     final admin = Provider.of<AdminProvider>(context);
 
-    // Segurança extra: bloqueia se não for ADM
     if (!admin.isAdmin) {
       return const Scaffold(
         backgroundColor: Colors.black,
@@ -65,9 +63,57 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Widget _buildAppBar() {
     return SliverAppBar(
       pinned: true,
-      expandedHeight: 150, // Aumentado um pouco para dar mais respiro
+      expandedHeight: 110,
       backgroundColor: Colors.black,
-      automaticallyImplyLeading: false, // Remove o botão padrão para usarmos o customizado com folga
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              gradient: AppColors.orangeGradient,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryOrange.withOpacity(0.3),
+                  blurRadius: 12,
+                ),
+              ],
+            ),
+            child: const Icon(Icons.shield_rounded,
+                color: Colors.white, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Text(
+                  'PAINEL ADMINISTRATIVO',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                SizedBox(height: 1),
+                Text(
+                  'Horizonte News',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           fit: StackFit.expand,
@@ -75,79 +121,21 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Color(0xFF1A0500), Colors.black],
+                  colors: [Color(0xFF160400), Colors.black],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
               ),
             ),
-            // Glow decorativo
             Positioned(
-              top: -30,
-              right: -30,
+              top: -50,
+              right: -50,
               child: Container(
-                width: 180,
-                height: 180,
+                width: 140,
+                height: 140,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: AppColors.glowOrange,
-                ),
-              ),
-            ),
-            // SafeArea adicionado aqui para empurrar os nomes para baixo da barra de status
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 20, 0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        gradient: AppColors.orangeGradient,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primaryOrange.withOpacity(0.4),
-                            blurRadius: 16,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(Icons.shield_rounded,
-                          color: Colors.white, size: 22),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Text(
-                            'PAINEL ADMINISTRATIVO',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Horizonte News',
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ),
@@ -163,7 +151,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         labelStyle: const TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w800,
-          letterSpacing: 1,
+          letterSpacing: 0.8,
         ),
         tabs: const [
           Tab(icon: Icon(Icons.dashboard_rounded, size: 18), text: 'PAINEL'),
@@ -190,6 +178,7 @@ class _DashboardTab extends StatefulWidget {
 class _DashboardTabState extends State<_DashboardTab> {
   Map<String, dynamic>? _stats;
   bool _loading = true;
+  bool _hasError = false;
 
   @override
   void initState() {
@@ -199,13 +188,30 @@ class _DashboardTabState extends State<_DashboardTab> {
 
   Future<void> _load() async {
     if (!mounted) return;
-    setState(() => _loading = true);
-    final stats = await widget.service.getStats();
-    if (mounted) {
-      setState(() {
-        _stats = stats;
-        _loading = false;
-      });
+
+    setState(() {
+      _loading = true;
+      _hasError = false;
+    });
+
+    try {
+      final stats = await widget.service.getStats();
+
+      if (mounted) {
+        setState(() {
+          _stats = stats;
+          _loading = false;
+          _hasError = stats == null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _stats = null;
+          _loading = false;
+          _hasError = true;
+        });
+      }
     }
   }
 
@@ -217,22 +223,69 @@ class _DashboardTabState extends State<_DashboardTab> {
       );
     }
 
-    if (_stats == null) {
-      return const _EmptyState(
-        icon: Icons.error_outline_rounded,
-        message: 'Erro ao carregar estatísticas.',
+    if (_hasError || _stats == null) {
+      return RefreshIndicator(
+        color: AppColors.primaryOrange,
+        backgroundColor: AppColors.backgroundElevated,
+        onRefresh: _load,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline_rounded,
+                      color: AppColors.primaryOrange.withOpacity(0.3),
+                      size: 48,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Erro ao carregar dados do painel.\nPuxe para baixo para atualizar.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    TextButton.icon(
+                      onPressed: _load,
+                      icon: const Icon(Icons.refresh_rounded,
+                          color: AppColors.primaryOrange),
+                      label: const Text(
+                        'Tentar novamente',
+                        style: TextStyle(color: AppColors.primaryOrange),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
     final stats = _stats!;
-    final logs = stats['recentLogs'] as List<QueryDocumentSnapshot>;
-    final topUsers = stats['topUsers'] as List<QueryDocumentSnapshot>;
+
+    final logs = stats['recentLogs'] != null
+        ? stats['recentLogs'] as List<QueryDocumentSnapshot>
+        : <QueryDocumentSnapshot>[];
+
+    final topUsers = stats['topUsers'] != null
+        ? stats['topUsers'] as List<QueryDocumentSnapshot>
+        : <QueryDocumentSnapshot>[];
 
     return RefreshIndicator(
       color: AppColors.primaryOrange,
       backgroundColor: AppColors.backgroundElevated,
       onRefresh: _load,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
           Row(
@@ -240,21 +293,21 @@ class _DashboardTabState extends State<_DashboardTab> {
               _StatCard(
                 icon: Icons.people_rounded,
                 label: 'Usuários',
-                value: '${stats['totalUsers']}',
+                value: '${stats['totalUsers'] ?? 0}',
                 color: const Color(0xFF4FC3F7),
               ),
               const SizedBox(width: 10),
               _StatCard(
                 icon: Icons.chat_bubble_rounded,
                 label: 'Comentários',
-                value: '${stats['totalComments']}',
+                value: '${stats['totalComments'] ?? 0}',
                 color: AppColors.primaryOrange,
               ),
               const SizedBox(width: 10),
               _StatCard(
                 icon: Icons.flag_rounded,
                 label: 'Denunciados',
-                value: '${stats['reportedComments']}',
+                value: '${stats['reportedComments'] ?? 0}',
                 color: const Color(0xFFEF5350),
               ),
             ],
@@ -264,8 +317,13 @@ class _DashboardTabState extends State<_DashboardTab> {
           const SizedBox(height: 10),
           if (topUsers.isEmpty)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 10),
-              child: Text('Nenhum usuário listado', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: Text(
+                  'Nenhum usuário listado',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                ),
+              ),
             )
           else
             ...topUsers.map((doc) {
@@ -284,9 +342,14 @@ class _DashboardTabState extends State<_DashboardTab> {
           const _SectionTitle(title: 'AÇÕES RECENTES'),
           const SizedBox(height: 10),
           if (logs.isEmpty)
-            const _EmptyState(
-              icon: Icons.history_rounded,
-              message: 'Nenhuma ação registrada ainda',
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: Text(
+                  'Nenhuma ação registrada ainda',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                ),
+              ),
             )
           else
             ...logs.map((doc) {
@@ -354,7 +417,8 @@ class _CommentsTabState extends State<_CommentsTab> {
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
-                  child: CircularProgressIndicator(color: AppColors.primaryOrange),
+                  child: CircularProgressIndicator(
+                      color: AppColors.primaryOrange),
                 );
               }
 
@@ -374,7 +438,8 @@ class _CommentsTabState extends State<_CommentsTab> {
                   final ref = doc.reference;
 
                   final pathParts = ref.path.split('/');
-                  final postId = pathParts.length >= 2 ? pathParts[1] : '';
+                  final postId =
+                      pathParts.length >= 2 ? pathParts[1] : '';
 
                   return _AdminCommentTile(
                     commentId: doc.id,
@@ -440,7 +505,7 @@ class _UsersTab extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// WIDGETS INTERNOS (Mantidos e limpos de consts incorretas)
+// WIDGETS INTERNOS
 // ═══════════════════════════════════════════════════════════════════
 
 class _StatCard extends StatelessWidget {
@@ -622,12 +687,12 @@ class _LogTile extends StatelessWidget {
 
   String _actionLabel(String action) {
     switch (action) {
-      case 'delete_comment': return '🗑 Comentário deletado';
-      case 'hide_comment':   return '👁 Comentário ocultado';
+      case 'delete_comment':  return '🗑 Comentário deletado';
+      case 'hide_comment':    return '👁 Comentário ocultado';
       case 'restore_comment': return '✅ Comentário restaurado';
-      case 'suspend_user':   return '🚫 Usuário suspenso';
-      case 'unsuspend_user': return '✅ Suspensão removida';
-      default:               return action;
+      case 'suspend_user':    return '🚫 Usuário suspenso';
+      case 'unsuspend_user':  return '✅ Suspensão removida';
+      default:                return action;
     }
   }
 
@@ -812,8 +877,7 @@ class _AdminCommentTile extends StatelessWidget {
                   ? AppColors.textMuted
                   : AppColors.textSecondaryDark,
               fontSize: 13,
-              fontStyle:
-                  isHidden ? FontStyle.italic : FontStyle.normal,
+              fontStyle: isHidden ? FontStyle.italic : FontStyle.normal,
             ),
           ),
           const SizedBox(height: 12),
@@ -827,7 +891,7 @@ class _AdminCommentTile extends StatelessWidget {
                   color: AppColors.textSecondary,
                   onTap: () async {
                     await service.hideComment(postId, commentId);
-                    if(context.mounted) _snack(context, 'Comentário ocultado');
+                    _snack(context, 'Comentário ocultado');
                   },
                 )
               else
@@ -837,7 +901,7 @@ class _AdminCommentTile extends StatelessWidget {
                   color: const Color(0xFF66BB6A),
                   onTap: () async {
                     await service.restoreComment(postId, commentId);
-                    if(context.mounted) _snack(context, 'Comentário restaurado');
+                    _snack(context, 'Comentário restaurado');
                   },
                 ),
               const SizedBox(width: 8),
@@ -868,7 +932,8 @@ class _AdminCommentTile extends StatelessWidget {
         content: Text(msg, style: const TextStyle(color: Colors.white)),
         backgroundColor: AppColors.backgroundElevated,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
       ),
     );
@@ -881,13 +946,15 @@ class _AdminCommentTile extends StatelessWidget {
         backgroundColor: const Color(0xFF0A0A0A),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: const Color(0xFFEF5350).withOpacity(0.3)),
+          side:
+              BorderSide(color: const Color(0xFFEF5350).withOpacity(0.3)),
         ),
         title: const Text('Excluir comentário?',
             style: TextStyle(color: Colors.white, fontSize: 16)),
         content: const Text(
           'Esta ação não pode ser desfeita.',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+          style:
+              TextStyle(color: AppColors.textSecondary, fontSize: 14),
         ),
         actions: [
           TextButton(
@@ -937,43 +1004,47 @@ class _AdminCommentTile extends StatelessWidget {
               Row(
                 children: [
                   const Text('Dias:',
-                      style: TextStyle(color: Colors.white, fontSize: 13)),
+                      style:
+                          TextStyle(color: Colors.white, fontSize: 13)),
                   const SizedBox(width: 12),
                   ...[1, 3, 7, 30].map((d) => GestureDetector(
-                    onTap: () => setS(() => days = d),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 6),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: days == d
-                            ? AppColors.primaryOrange
-                            : AppColors.backgroundElevated,
-                      ),
-                      child: Text(
-                        '$d',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  )),
+                        onTap: () => setS(() => days = d),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            color: days == d
+                                ? AppColors.primaryOrange
+                                : AppColors.backgroundElevated,
+                          ),
+                          child: Text(
+                            '$d',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      )),
                 ],
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: reasonCtrl,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style:
+                    const TextStyle(color: Colors.white, fontSize: 13),
                 decoration: InputDecoration(
                   hintText: 'Motivo (opcional)',
                   hintStyle: TextStyle(
-                      color: Colors.white.withOpacity(0.3), fontSize: 13),
+                      color: Colors.white.withOpacity(0.3),
+                      fontSize: 13),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(
-                        color: AppColors.primaryOrange.withOpacity(0.2)),
+                        color:
+                            AppColors.primaryOrange.withOpacity(0.2)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -997,12 +1068,14 @@ class _AdminCommentTile extends StatelessWidget {
                 Navigator.pop(context);
                 await AdminService().suspendUser(
                     userId, days, reasonCtrl.text.trim());
+
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
                           'Usuário suspenso por $days dia(s)',
-                          style: const TextStyle(color: Colors.white)),
+                          style:
+                              const TextStyle(color: Colors.white)),
                       backgroundColor: AppColors.backgroundElevated,
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(
@@ -1038,7 +1111,8 @@ class _AdminUserTile extends StatelessWidget {
     final name = data['displayName'] ?? userId.substring(0, 10);
     final xp = (data['totalXp'] as num?)?.toInt() ?? 0;
     final level = (data['level'] as num?)?.toInt() ?? 1;
-    final comments = (data['stats']?['commentsPosted'] as num?)?.toInt() ?? 0;
+    final comments =
+        (data['stats']?['commentsPosted'] as num?)?.toInt() ?? 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1154,7 +1228,10 @@ class _AdminUserTile extends StatelessWidget {
               color: const Color(0xFFFFA726),
               onTap: () async {
                 Navigator.pop(context);
-                await service.suspendUser(userId, 1, 'Suspenso pelo administrador');
+
+                await service.suspendUser(
+                    userId, 1, 'Suspenso pelo administrador');
+
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -1201,7 +1278,8 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           color: color.withOpacity(0.12),
@@ -1243,16 +1321,19 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = color ?? AppColors.primaryOrange;
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           color: active ? c.withOpacity(0.15) : Colors.transparent,
           border: Border.all(
-            color: active ? c.withOpacity(0.5) : AppColors.borderDark,
+            color:
+                active ? c.withOpacity(0.5) : AppColors.borderDark,
           ),
         ),
         child: Text(
@@ -1260,7 +1341,8 @@ class _FilterChip extends StatelessWidget {
           style: TextStyle(
             color: active ? c : AppColors.textSecondary,
             fontSize: 12,
-            fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+            fontWeight:
+                active ? FontWeight.w700 : FontWeight.w400,
           ),
         ),
       ),
@@ -1282,11 +1364,14 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: AppColors.primaryOrange.withOpacity(0.3)),
+            Icon(icon,
+                size: 48,
+                color: AppColors.primaryOrange.withOpacity(0.3)),
             const SizedBox(height: 12),
             Text(
               message,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+              style: const TextStyle(
+                  color: AppColors.textMuted, fontSize: 14),
               textAlign: TextAlign.center,
             ),
           ],
@@ -1316,7 +1401,8 @@ class _BottomSheetAction extends StatelessWidget {
       child: Container(
         width: double.infinity,
         margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           color: color.withOpacity(0.08),
