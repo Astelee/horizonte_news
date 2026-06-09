@@ -20,7 +20,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -56,6 +56,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             controller: _tabController,
             children: [
               _CommentsTab(service: _service),
+              _BannedUsersTab(service: _service),
               _UsersTab(service: _service),
             ],
           ),
@@ -155,17 +156,23 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         unselectedLabelColor: AppColors.textSecondary,
         dividerColor: Colors.transparent,
         labelStyle: const TextStyle(
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: FontWeight.w800,
-          letterSpacing: 0.8,
+          letterSpacing: 0.6,
         ),
         tabs: const [
           Tab(
-              icon: Icon(Icons.chat_bubble_rounded, size: 18),
-              text: 'COMENTÁRIOS'),
+            icon: Icon(Icons.chat_bubble_rounded, size: 18),
+            text: 'COMENTÁRIOS',
+          ),
           Tab(
-              icon: Icon(Icons.people_rounded, size: 18),
-              text: 'USUÁRIOS'),
+            icon: Icon(Icons.block_rounded, size: 18),
+            text: 'BANIDOS',
+          ),
+          Tab(
+            icon: Icon(Icons.people_rounded, size: 18),
+            text: 'USUÁRIOS',
+          ),
         ],
       ),
     );
@@ -176,126 +183,168 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 // ABA 1 — COMENTÁRIOS
 // ═══════════════════════════════════════════════════════════════════
 
-class _CommentsTab extends StatefulWidget {
+class _CommentsTab extends StatelessWidget {
   final AdminService service;
   const _CommentsTab({required this.service});
-
-  @override
-  State<_CommentsTab> createState() => _CommentsTabState();
-}
-
-class _CommentsTabState extends State<_CommentsTab> {
-  String _filter = 'all';
 
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
       color: AppColors.backgroundDark,
-      child: Column(
-        children: [
-          // ── Filtros ──────────────────────────────────────────────
-          Container(
-            color: Colors.black,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                _FilterChip(
-                  label: 'Todos',
-                  active: _filter == 'all',
-                  onTap: () => setState(() => _filter = 'all'),
+      child: StreamBuilder<QuerySnapshot>(
+        stream: service.allCommentsStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child:
+                  CircularProgressIndicator(color: AppColors.primaryOrange),
+            );
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(message: '${snapshot.error}');
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const _EmptyState(
+              icon: Icons.chat_bubble_outline_rounded,
+              message: 'Nenhum comentário encontrado',
+            );
+          }
+
+          final docs = snapshot.data!.docs;
+
+          return Column(
+            children: [
+              Container(
+                color: Colors.black,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+                child: Row(
+                  children: [
+                    const Icon(Icons.chat_bubble_rounded,
+                        color: AppColors.primaryOrange, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${docs.length} comentário${docs.length != 1 ? 's' : ''}',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'Denunciados',
-                  active: _filter == 'reported',
-                  color: const Color(0xFFEF5350),
-                  onTap: () => setState(() => _filter = 'reported'),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'Ocultos',
-                  active: _filter == 'hidden',
-                  color: AppColors.textSecondary,
-                  onTap: () => setState(() => _filter = 'hidden'),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Lista ────────────────────────────────────────────────
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: widget.service.allCommentsStream(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                        color: AppColors.primaryOrange),
-                  );
-                }
-
-                if (snapshot.hasError) {
-                  return _ErrorState(message: '${snapshot.error}');
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const _EmptyState(
-                    icon: Icons.chat_bubble_outline_rounded,
-                    message: 'Nenhum comentário encontrado',
-                  );
-                }
-
-                var docs = snapshot.data!.docs;
-
-                if (_filter == 'reported') {
-                  docs = docs.where((doc) {
-                    final d = doc.data() as Map<String, dynamic>;
-                    return ((d['reportCount'] as num?)?.toInt() ?? 0) > 0;
-                  }).toList();
-                } else if (_filter == 'hidden') {
-                  docs = docs.where((doc) {
-                    final d = doc.data() as Map<String, dynamic>;
-                    return d['hidden'] == true;
-                  }).toList();
-                }
-
-                if (docs.isEmpty) {
-                  return const _EmptyState(
-                    icon: Icons.chat_bubble_outline_rounded,
-                    message: 'Nenhum comentário encontrado',
-                  );
-                }
-
-                return ListView.builder(
+              ),
+              Expanded(
+                child: ListView.builder(
                   padding: const EdgeInsets.all(12),
                   itemCount: docs.length,
                   itemBuilder: (context, i) {
                     final doc = docs[i];
                     final data = doc.data() as Map<String, dynamic>;
+                    // Extrai o postId do caminho: comments/{postId}/postComments/{commentId}
                     final pathParts = doc.reference.path.split('/');
                     final postId =
-                        pathParts.length >= 4 ? pathParts[1] : '';
+                        pathParts.length >= 2 ? pathParts[1] : '';
 
                     return _AdminCommentTile(
                       commentId: doc.id,
                       postId: postId,
                       data: data,
-                      service: widget.service,
+                      service: service,
                     );
                   },
-                );
-              },
-            ),
-          ),
-        ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ABA 2 — USUÁRIOS
+// ABA 2 — USUÁRIOS BANIDOS
+// ═══════════════════════════════════════════════════════════════════
+
+class _BannedUsersTab extends StatelessWidget {
+  final AdminService service;
+  const _BannedUsersTab({required this.service});
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: AppColors.backgroundDark,
+      child: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('suspensions')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child:
+                  CircularProgressIndicator(color: AppColors.primaryOrange),
+            );
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(message: '${snapshot.error}');
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const _EmptyState(
+              icon: Icons.block_rounded,
+              message: 'Nenhum usuário banido',
+            );
+          }
+
+          final docs = snapshot.data!.docs;
+
+          return Column(
+            children: [
+              Container(
+                color: Colors.black,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+                child: Row(
+                  children: [
+                    const Icon(Icons.block_rounded,
+                        color: Color(0xFFEF5350), size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${docs.length} usuário${docs.length != 1 ? 's' : ''} banido${docs.length != 1 ? 's' : ''}',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: docs.length,
+                  itemBuilder: (context, i) {
+                    final doc = docs[i];
+                    final data = doc.data() as Map<String, dynamic>;
+                    return _BannedUserTile(
+                      userId: doc.id,
+                      data: data,
+                      service: service,
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ABA 3 — USUÁRIOS
 // ═══════════════════════════════════════════════════════════════════
 
 class _UsersTab extends StatelessWidget {
@@ -318,11 +367,9 @@ class _UsersTab extends StatelessWidget {
                   CircularProgressIndicator(color: AppColors.primaryOrange),
             );
           }
-
           if (snapshot.hasError) {
             return _ErrorState(message: '${snapshot.error}');
           }
-
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const _EmptyState(
               icon: Icons.people_outline_rounded,
@@ -334,7 +381,6 @@ class _UsersTab extends StatelessWidget {
 
           return Column(
             children: [
-              // ── Cabeçalho com contagem ──────────────────────────
               Container(
                 color: Colors.black,
                 padding: const EdgeInsets.symmetric(
@@ -355,7 +401,6 @@ class _UsersTab extends StatelessWidget {
                   ],
                 ),
               ),
-              // ── Lista ───────────────────────────────────────────
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.all(12),
@@ -396,15 +441,76 @@ class _AdminCommentTile extends StatelessWidget {
     required this.service,
   });
 
+  String _resolveAuthorName(Map<String, dynamic> d) {
+    for (final f in ['authorName', 'userName', 'displayName', 'name', 'author']) {
+      final v = d[f];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+    }
+    return 'Anônimo';
+  }
+
+  String? _resolveAuthorPhoto(Map<String, dynamic> d) {
+    for (final f in ['authorPhotoUrl', 'photoUrl', 'avatarUrl', 'photoURL']) {
+      final v = d[f];
+      if (v is String && v.trim().isNotEmpty) return v;
+    }
+    return null;
+  }
+
+  String? _resolveAuthorId(Map<String, dynamic> d) {
+    for (final f in ['authorId', 'userId', 'uid', 'user_id']) {
+      final v = d[f];
+      if (v is String && v.trim().isNotEmpty) return v;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isHidden = data['hidden'] == true;
-    final reportCount = (data['reportCount'] as num?)?.toInt() ?? 0;
-    final author = data['authorName'] ?? 'Anônimo';
-    final text = data['text'] ?? '';
-    final ts = (data['createdAt'] as Timestamp?)?.toDate();
+    final authorId = _resolveAuthorId(data);
+    final currentName = _resolveAuthorName(data);
+
+    // Se o nome ainda é Anônimo mas temos um ID, busca o perfil
+    if (currentName == 'Anônimo' && authorId != null) {
+      return FutureBuilder<DocumentSnapshot>(
+        future: _fetchProfile(authorId),
+        builder: (context, snap) {
+          final enriched = Map<String, dynamic>.from(data);
+          if (snap.hasData && snap.data!.exists) {
+            final ud = snap.data!.data() as Map<String, dynamic>;
+            enriched['authorName'] = ud['displayName'] ??
+                ud['name'] ??
+                ud['userName'] ??
+                'Anônimo';
+            enriched['authorPhotoUrl'] =
+                ud['photoUrl'] ?? ud['photoURL'] ?? ud['avatarUrl'];
+          }
+          return _buildTile(context, enriched);
+        },
+      );
+    }
+
+    return _buildTile(context, data);
+  }
+
+  Future<DocumentSnapshot> _fetchProfile(String uid) async {
+    final xp = await FirebaseFirestore.instance
+        .collection('users_xp')
+        .doc(uid)
+        .get();
+    if (xp.exists) return xp;
+    return FirebaseFirestore.instance.collection('users').doc(uid).get();
+  }
+
+  Widget _buildTile(BuildContext context, Map<String, dynamic> d) {
+    final isHidden = d['hidden'] == true;
+    final author = _resolveAuthorName(d);
+    final photoUrl = _resolveAuthorPhoto(d);
+    final text = (d['text'] ?? d['content'] ?? d['body'] ?? '').toString();
+    final ts = (d['createdAt'] as Timestamp?)?.toDate();
     final dateStr = ts != null
-        ? '${ts.day.toString().padLeft(2, '0')}/${ts.month.toString().padLeft(2, '0')}/${ts.year} ${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}'
+        ? '${ts.day.toString().padLeft(2, '0')}/${ts.month.toString().padLeft(2, '0')}/${ts.year}  '
+            '${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}'
         : '';
 
     return Container(
@@ -413,12 +519,9 @@ class _AdminCommentTile extends StatelessWidget {
         color: const Color(0xFF0A0A0A),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: reportCount > 0
-              ? const Color(0xFFEF5350).withOpacity(0.4)
-              : isHidden
-                  ? AppColors.textSecondary.withOpacity(0.2)
-                  : AppColors.borderDark,
-          width: 1,
+          color: isHidden
+              ? AppColors.textSecondary.withOpacity(0.2)
+              : AppColors.borderDark,
         ),
       ),
       child: Padding(
@@ -426,79 +529,64 @@ class _AdminCommentTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ───────────────────────────────────────────
             Row(
               children: [
                 CircleAvatar(
-                  radius: 16,
+                  radius: 18,
                   backgroundColor:
                       AppColors.primaryOrange.withOpacity(0.15),
-                  child: Text(
-                    author.isNotEmpty
-                        ? author[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      color: AppColors.primaryOrange,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  backgroundImage:
+                      (photoUrl != null && photoUrl.isNotEmpty)
+                          ? NetworkImage(photoUrl)
+                          : null,
+                  child: (photoUrl == null || photoUrl.isEmpty)
+                      ? Text(
+                          author.isNotEmpty
+                              ? author[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            color: AppColors.primaryOrange,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        )
+                      : null,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        author,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      if (dateStr.isNotEmpty)
-                        Text(
-                          dateStr,
+                      Text(author,
                           style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 11,
-                          ),
-                        ),
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700)),
+                      if (dateStr.isNotEmpty)
+                        Text(dateStr,
+                            style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11)),
                     ],
                   ),
                 ),
-                // Badges
-                if (reportCount > 0)
+                if (isHidden)
                   _Badge(
-                    label: '$reportCount denúncia${reportCount > 1 ? 's' : ''}',
-                    color: const Color(0xFFEF5350),
-                  ),
-                if (isHidden) ...[
-                  const SizedBox(width: 6),
-                  _Badge(
-                    label: 'Oculto',
-                    color: AppColors.textSecondary,
-                  ),
-                ],
+                      label: 'Oculto',
+                      color: AppColors.textSecondary),
               ],
             ),
             const SizedBox(height: 10),
-
-            // ── Texto ─────────────────────────────────────────────
             Text(
               text,
               style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-                height: 1.5,
-              ),
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.5),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 12),
-
-            // ── Ações ─────────────────────────────────────────────
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -526,12 +614,11 @@ class _AdminCommentTile extends StatelessWidget {
                   onTap: () async {
                     final confirm = await showDialog<bool>(
                       context: context,
-                      builder: (_) => _ConfirmDialog(
+                      builder: (_) => const _ConfirmDialog(
                         title: 'Excluir comentário?',
-                        message:
-                            'Esta ação não pode ser desfeita.',
+                        message: 'Esta ação não pode ser desfeita.',
                         confirmLabel: 'Excluir',
-                        confirmColor: const Color(0xFFEF5350),
+                        confirmColor: Color(0xFFEF5350),
                       ),
                     );
                     if (confirm == true) {
@@ -544,6 +631,202 @@ class _AdminCommentTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TILE DE USUÁRIO BANIDO
+// ═══════════════════════════════════════════════════════════════════
+
+class _BannedUserTile extends StatelessWidget {
+  final String userId;
+  final Map<String, dynamic> data;
+  final AdminService service;
+
+  const _BannedUserTile({
+    required this.userId,
+    required this.data,
+    required this.service,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = (data['reason'] as String?)?.trim() ?? '';
+    final bannedAt = (data['suspendedAt'] as Timestamp?)?.toDate();
+    final expiresAt = (data['until'] as Timestamp?)?.toDate();
+    final isPermanent = expiresAt == null;
+
+    final bannedStr = bannedAt != null
+        ? '${bannedAt.day.toString().padLeft(2, '0')}/'
+            '${bannedAt.month.toString().padLeft(2, '0')}/'
+            '${bannedAt.year}'
+        : 'Data desconhecida';
+
+    int? daysLeft;
+    bool isExpired = false;
+    if (!isPermanent && expiresAt != null) {
+      daysLeft = expiresAt.difference(DateTime.now()).inDays;
+      if (daysLeft < 0) {
+        isExpired = true;
+      } else if (daysLeft == 0) {
+        daysLeft = 1;
+      }
+    }
+
+    // Busca o nome do usuário em users_xp
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance
+          .collection('users_xp')
+          .doc(userId)
+          .get(),
+      builder: (context, snap) {
+        String name = 'Usuário desconhecido';
+        String email = '';
+
+        if (snap.hasData && snap.data!.exists) {
+          final ud = snap.data!.data() as Map<String, dynamic>;
+          name = ud['displayName'] ?? ud['name'] ?? ud['userName'] ?? name;
+          email = ud['email'] ?? '';
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0A0A0A),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isPermanent
+                  ? const Color(0xFFEF5350).withOpacity(0.4)
+                  : const Color(0xFFFF9800).withOpacity(0.35),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor:
+                          const Color(0xFFEF5350).withOpacity(0.15),
+                      child: Text(
+                        name[0].toUpperCase(),
+                        style: const TextStyle(
+                          color: Color(0xFFEF5350),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700)),
+                          if (email.isNotEmpty)
+                            Text(email,
+                                style: const TextStyle(
+                                    color: AppColors.textMuted,
+                                    fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                    _Badge(
+                      label: isPermanent ? 'Permanente' : 'Temporário',
+                      color: isPermanent
+                          ? const Color(0xFFEF5350)
+                          : const Color(0xFFFF9800),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Detalhes
+                _BanInfoRow(
+                  icon: Icons.event_rounded,
+                  label: 'Banido em',
+                  value: bannedStr,
+                ),
+                const SizedBox(height: 6),
+                if (reason.isNotEmpty) ...[
+                  _BanInfoRow(
+                    icon: Icons.info_outline_rounded,
+                    label: 'Motivo',
+                    value: reason,
+                  ),
+                  const SizedBox(height: 6),
+                ],
+                if (!isPermanent) ...[
+                  _BanInfoRow(
+                    icon: Icons.timer_rounded,
+                    label: isExpired ? 'Expirado há' : 'Dias restantes',
+                    value: isExpired
+                        ? '${daysLeft!.abs()} dia${daysLeft.abs() != 1 ? 's' : ''} (expirado)'
+                        : '$daysLeft dia${daysLeft != 1 ? 's' : ''}',
+                    valueColor: isExpired
+                        ? AppColors.textSecondary
+                        : (daysLeft! <= 3
+                            ? const Color(0xFFFF9800)
+                            : const Color(0xFF66BB6A)),
+                  ),
+                  const SizedBox(height: 6),
+                ],
+                _BanInfoRow(
+                  icon: isPermanent
+                      ? Icons.block_rounded
+                      : Icons.access_time_rounded,
+                  label: 'Status',
+                  value: isPermanent
+                      ? 'Banido permanentemente'
+                      : isExpired
+                          ? 'Banimento expirado'
+                          : 'Banido temporariamente',
+                  valueColor: isPermanent
+                      ? const Color(0xFFEF5350)
+                      : isExpired
+                          ? AppColors.textSecondary
+                          : const Color(0xFFFF9800),
+                ),
+                const SizedBox(height: 14),
+
+                // Ação
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _ActionButton(
+                    icon: Icons.lock_open_rounded,
+                    label: 'Remover banimento',
+                    color: const Color(0xFF66BB6A),
+                    onTap: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => _ConfirmDialog(
+                          title: 'Remover banimento?',
+                          message:
+                              '$name poderá acessar o aplicativo novamente.',
+                          confirmLabel: 'Remover',
+                          confirmColor: const Color(0xFF66BB6A),
+                        ),
+                      );
+                      if (confirm == true) {
+                        await service.unsuspendUser(userId);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -575,10 +858,11 @@ class _AdminUserTile extends StatelessWidget {
         (data['stats']?['commentsPosted'] as num?)?.toInt() ?? 0;
     final articles =
         (data['stats']?['articlesRead'] as num?)?.toInt() ?? 0;
-    final createdAt =
-        (data['createdAt'] as Timestamp?)?.toDate();
+    final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
     final createdStr = createdAt != null
-        ? 'Desde ${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}'
+        ? 'Desde ${createdAt.day.toString().padLeft(2, '0')}/'
+            '${createdAt.month.toString().padLeft(2, '0')}/'
+            '${createdAt.year}'
         : '';
 
     return Container(
@@ -592,7 +876,6 @@ class _AdminUserTile extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Row(
           children: [
-            // Avatar
             CircleAvatar(
               radius: 22,
               backgroundColor: AppColors.primaryOrange.withOpacity(0.15),
@@ -601,200 +884,54 @@ class _AdminUserTile extends StatelessWidget {
                 style: const TextStyle(
                   color: AppColors.primaryOrange,
                   fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
             const SizedBox(width: 12),
-
-            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (email.isNotEmpty)
-                    Text(
-                      email,
+                  Text(name,
                       style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700)),
+                  if (email.isNotEmpty)
+                    Text(email,
+                        style: const TextStyle(
+                            color: AppColors.textMuted, fontSize: 11)),
+                  if (createdStr.isNotEmpty)
+                    Text(createdStr,
+                        style: const TextStyle(
+                            color: AppColors.textMuted, fontSize: 11)),
                   const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
+                  Row(
                     children: [
-                      _InfoChip(
+                      _StatChip(
                           icon: Icons.star_rounded,
-                          label: 'Nv $level · $xp XP',
+                          label: 'Nv $level',
                           color: AppColors.primaryOrange),
-                      _InfoChip(
+                      const SizedBox(width: 6),
+                      _StatChip(
+                          icon: Icons.bolt_rounded,
+                          label: '$xp XP',
+                          color: const Color(0xFFFFD54F)),
+                      const SizedBox(width: 6),
+                      _StatChip(
                           icon: Icons.chat_bubble_rounded,
-                          label: '$comments comentários',
+                          label: '$comments',
                           color: const Color(0xFF4FC3F7)),
-                      _InfoChip(
+                      const SizedBox(width: 6),
+                      _StatChip(
                           icon: Icons.article_rounded,
-                          label: '$articles lidos',
-                          color: const Color(0xFF81C784)),
-                      if (createdStr.isNotEmpty)
-                        _InfoChip(
-                            icon: Icons.calendar_today_rounded,
-                            label: createdStr,
-                            color: AppColors.textSecondary),
+                          label: '$articles',
+                          color: const Color(0xFF66BB6A)),
                     ],
                   ),
                 ],
               ),
-            ),
-
-            // Menu
-            PopupMenuButton<String>(
-              color: AppColors.backgroundElevated,
-              icon: const Icon(Icons.more_vert_rounded,
-                  color: AppColors.textSecondary, size: 20),
-              onSelected: (value) async {
-                if (value == 'suspend') {
-                  _showSuspendDialog(context, userId);
-                } else if (value == 'unsuspend') {
-                  await service.unsuspendUser(userId);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Suspensão removida.'),
-                        backgroundColor: Color(0xFF81C784),
-                      ),
-                    );
-                  }
-                }
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(
-                  value: 'suspend',
-                  child: Row(
-                    children: [
-                      Icon(Icons.block_rounded,
-                          color: Color(0xFFEF5350), size: 18),
-                      SizedBox(width: 10),
-                      Text('Suspender',
-                          style: TextStyle(color: Colors.white)),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'unsuspend',
-                  child: Row(
-                    children: [
-                      Icon(Icons.check_circle_rounded,
-                          color: Color(0xFF81C784), size: 18),
-                      SizedBox(width: 10),
-                      Text('Remover suspensão',
-                          style: TextStyle(color: Colors.white)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showSuspendDialog(BuildContext context, String userId) {
-    int days = 1;
-    final reasonController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setStateDialog) => AlertDialog(
-          backgroundColor: AppColors.backgroundElevated,
-          title: const Text(
-            'Suspender usuário',
-            style: TextStyle(color: Colors.white, fontSize: 16),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  const Text('Dias:',
-                      style: TextStyle(color: AppColors.textSecondary)),
-                  const SizedBox(width: 12),
-                  IconButton(
-                    onPressed: () {
-                      if (days > 1) setStateDialog(() => days--);
-                    },
-                    icon: const Icon(Icons.remove_circle_outline_rounded,
-                        color: AppColors.primaryOrange),
-                  ),
-                  Text(
-                    '$days',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700),
-                  ),
-                  IconButton(
-                    onPressed: () => setStateDialog(() => days++),
-                    icon: const Icon(Icons.add_circle_outline_rounded,
-                        color: AppColors.primaryOrange),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: reasonController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Motivo (opcional)',
-                  hintStyle:
-                      const TextStyle(color: AppColors.textSecondary),
-                  filled: true,
-                  fillColor: AppColors.backgroundDark,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar',
-                  style: TextStyle(color: AppColors.textSecondary)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEF5350),
-              ),
-              onPressed: () async {
-                Navigator.pop(context);
-                await service.suspendUser(
-                    userId, days, reasonController.text);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content:
-                          Text('Usuário suspenso por $days dia(s).'),
-                      backgroundColor: const Color(0xFFEF5350),
-                    ),
-                  );
-                }
-              },
-              child: const Text('Suspender',
-                  style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -807,44 +944,41 @@ class _AdminUserTile extends StatelessWidget {
 // WIDGETS AUXILIARES
 // ═══════════════════════════════════════════════════════════════════
 
-class _FilterChip extends StatelessWidget {
+class _BanInfoRow extends StatelessWidget {
+  final IconData icon;
   final String label;
-  final bool active;
-  final Color color;
-  final VoidCallback onTap;
+  final String value;
+  final Color? valueColor;
 
-  const _FilterChip({
+  const _BanInfoRow({
+    required this.icon,
     required this.label,
-    required this.active,
-    this.color = AppColors.primaryOrange,
-    required this.onTap,
+    required this.value,
+    this.valueColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: active ? color.withOpacity(0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: active ? color : AppColors.borderDark,
-            width: 1,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 14, color: AppColors.textSecondary),
+        const SizedBox(width: 6),
+        Text('$label: ',
+            style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600)),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+                color: valueColor ?? AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500),
           ),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? color : AppColors.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
+      ],
     );
   }
 }
@@ -859,15 +993,13 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withOpacity(0.15),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.4), width: 1),
+        border: Border.all(color: color.withOpacity(0.4)),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-            color: color, fontSize: 10, fontWeight: FontWeight.w700),
-      ),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 10, fontWeight: FontWeight.w700)),
     );
   }
 }
@@ -890,25 +1022,22 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withOpacity(0.12),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.3), width: 1),
+          border: Border.all(color: color.withOpacity(0.35)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 14),
+            Icon(icon, size: 14, color: color),
             const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700),
-            ),
+            Text(label,
+                style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700)),
           ],
         ),
       ),
@@ -916,11 +1045,11 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-class _InfoChip extends StatelessWidget {
+class _StatChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  const _InfoChip(
+  const _StatChip(
       {required this.icon, required this.label, required this.color});
 
   @override
@@ -928,13 +1057,13 @@ class _InfoChip extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: color, size: 12),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(
-              color: color, fontSize: 11, fontWeight: FontWeight.w600),
-        ),
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 3),
+        Text(label,
+            style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -949,14 +1078,16 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon,
-              color: AppColors.primaryOrange.withOpacity(0.2), size: 48),
+              size: 48,
+              color: AppColors.textSecondary.withOpacity(0.4)),
           const SizedBox(height: 12),
           Text(message,
-              style: const TextStyle(
-                  color: AppColors.textMuted, fontSize: 13)),
+              style: TextStyle(
+                  color: AppColors.textSecondary.withOpacity(0.6),
+                  fontSize: 14)),
         ],
       ),
     );
@@ -975,16 +1106,19 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline_rounded,
-                color: AppColors.primaryOrange.withOpacity(0.4),
-                size: 48),
+            const Icon(Icons.error_outline_rounded,
+                size: 48, color: Color(0xFFEF5350)),
             const SizedBox(height: 12),
-            Text(
-              'Erro: $message',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: AppColors.textMuted, fontSize: 13),
-            ),
+            const Text('Erro ao carregar dados',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            Text(message,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12),
+                textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -1008,24 +1142,25 @@ class _ConfirmDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: AppColors.backgroundElevated,
+      backgroundColor: const Color(0xFF111111),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text(title,
-          style: const TextStyle(color: Colors.white, fontSize: 16)),
-      content: Text(message,
           style: const TextStyle(
-              color: AppColors.textSecondary, fontSize: 13)),
+              color: Colors.white, fontWeight: FontWeight.w800)),
+      content: Text(message,
+          style: const TextStyle(color: AppColors.textSecondary)),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
           child: const Text('Cancelar',
               style: TextStyle(color: AppColors.textSecondary)),
         ),
-        ElevatedButton(
-          style:
-              ElevatedButton.styleFrom(backgroundColor: confirmColor),
+        TextButton(
           onPressed: () => Navigator.pop(context, true),
           child: Text(confirmLabel,
-              style: const TextStyle(color: Colors.white)),
+              style: TextStyle(
+                  color: confirmColor, fontWeight: FontWeight.w700)),
         ),
       ],
     );
