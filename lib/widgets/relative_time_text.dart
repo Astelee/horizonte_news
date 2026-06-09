@@ -2,17 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 /// Exibe o tempo relativo de um [timestamp] e se atualiza automaticamente.
-///
-/// Regras:
-///   0s          → "Agora"
-///   < 60s       → "Há alguns segundos"
-///   1 min       → "Há 1 minuto"
-///   2–59 min    → "Há X minutos"
-///   1 h         → "Há 1 hora"
-///   2–23 h      → "Há X horas"
-///   1 dia       → "Há 1 dia"
-///   2–6 dias    → "Há X dias"
-///   ≥ 7 dias    → "08/06/2026 • 22:11"
 class RelativeTimeText extends StatefulWidget {
   final DateTime timestamp;
   final TextStyle? style;
@@ -54,7 +43,7 @@ class _RelativeTimeTextState extends State<RelativeTimeText> {
     super.dispose();
   }
 
-  // Intervalo de atualização baseado na antiguidade da notícia
+  // Define o tempo de espera antes da próxima atualização
   Duration _interval(Duration diff) {
     if (diff.inMinutes < 1) return const Duration(seconds: 5);
     if (diff.inHours < 1) return const Duration(seconds: 30);
@@ -67,19 +56,17 @@ class _RelativeTimeTextState extends State<RelativeTimeText> {
     _timer = Timer(_interval(diff), () {
       if (!mounted) return;
       setState(() => _label = _format(widget.timestamp));
-      _scheduleNext(); // agenda o próximo ciclo
+      _scheduleNext();
     });
   }
 
   static String _format(DateTime timestamp) {
-    // Garante comparação no horário local do dispositivo
     final now = DateTime.now();
     final local = timestamp.toLocal();
     final diff = now.difference(local);
 
-    // Publicações no futuro (clock skew de servidor) → "Agora"
+    // Ajuste de erro de sincronia (clock skew)
     if (diff.isNegative || diff.inSeconds < 5) return 'Agora';
-
     if (diff.inSeconds < 60) return 'Há alguns segundos';
 
     final minutes = diff.inMinutes;
@@ -94,7 +81,7 @@ class _RelativeTimeTextState extends State<RelativeTimeText> {
     if (days == 1) return 'Há 1 dia';
     if (days < 7) return 'Há $days dias';
 
-    // ≥ 7 dias → data completa
+    // Formato final: dd/mm/aaaa • hh:mm
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     final y = local.year;
@@ -107,10 +94,4 @@ class _RelativeTimeTextState extends State<RelativeTimeText> {
   Widget build(BuildContext context) {
     return Text(_label, style: widget.style);
   }
-}
-
-/// Função estática para usar fora de widgets (ex.: cards, tiles, etc.)
-/// Não se atualiza — use [RelativeTimeText] para exibição dinâmica.
-String formatRelativeTime(DateTime timestamp) {
-  return _RelativeTimeTextState._format(timestamp);
 }
