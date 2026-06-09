@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../providers/user_xp_provider.dart';
-import '../providers/admin_provider.dart'; // Importação adicionada
+import '../providers/admin_provider.dart';
 import '../services/xp_service.dart';
 
 class AppDrawer extends StatefulWidget {
@@ -18,25 +18,71 @@ class _AppDrawerState extends State<AppDrawer>
   late AnimationController _headerCtrl;
   late Animation<double> _headerFade;
 
+  // ── MENU PRINCIPAL ──────────────────────────────────────────────
   static const List<_NavItem> _mainItems = [
-    _NavItem(icon: Icons.home_rounded,        label: 'Início',               route: AppRoutes.home),
-    _NavItem(icon: Icons.person_rounded,      label: 'Meu Perfil',           route: AppRoutes.profile),
-    _NavItem(icon: Icons.bookmark_rounded,    label: 'Notícias Salvas',      route: AppRoutes.favorites),
-    _NavItem(icon: Icons.play_circle_rounded, label: 'Vídeos / Reportagens', route: AppRoutes.videos),
-    _NavItem(icon: Icons.search_rounded,      label: 'Pesquisar',            route: AppRoutes.search),
-    _NavItem(icon: Icons.category_rounded,    label: 'Categorias',           route: AppRoutes.category),
+    _NavItem(
+      icon: Icons.home_rounded,
+      label: 'Início',
+      route: AppRoutes.home,
+    ),
+    _NavItem(
+      icon: Icons.person_rounded,
+      label: 'Meu Perfil',
+      route: AppRoutes.profile,
+    ),
+    _NavItem(
+      icon: Icons.bookmark_rounded,
+      label: 'Notícias Salvas',
+      route: AppRoutes.favorites,
+    ),
+    _NavItem(
+      icon: Icons.play_circle_rounded,
+      label: 'Vídeos / Reportagens',
+      route: AppRoutes.videos,
+    ),
+    _NavItem(
+      icon: Icons.search_rounded,
+      label: 'Pesquisar',
+      route: AppRoutes.search,
+    ),
+    _NavItem(
+      icon: Icons.local_fire_department_rounded,
+      label: 'Mais Lidas',
+      route: AppRoutes.mostRead,
+    ),
+    _NavItem(
+      icon: Icons.location_on_rounded,
+      label: 'Horizonte Agora',
+      route: AppRoutes.horizonNow,
+    ),
+    _NavItem(
+      icon: Icons.event_rounded,
+      label: 'Eventos',
+      route: AppRoutes.events,
+    ),
   ];
 
-  static const List<_NavItem> _secondaryItems = [
-    _NavItem(icon: Icons.contact_mail_rounded, label: 'Fale Conosco / Denúncias', route: AppRoutes.contact),
-    _NavItem(icon: Icons.settings_rounded,     label: 'Configurações',            route: AppRoutes.settings),
+  // ── SUPORTE ─────────────────────────────────────────────────────
+  static const List<_NavItem> _supportItems = [
+    _NavItem(
+      icon: Icons.contact_mail_rounded,
+      label: 'Fale Conosco / Denúncias',
+      route: AppRoutes.contact,
+    ),
+    _NavItem(
+      icon: Icons.settings_rounded,
+      label: 'Configurações',
+      route: AppRoutes.settings,
+    ),
   ];
 
   @override
   void initState() {
     super.initState();
     _headerCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 500));
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
     _headerFade =
         CurvedAnimation(parent: _headerCtrl, curve: Curves.easeOut);
     _headerCtrl.forward();
@@ -70,6 +116,7 @@ class _AppDrawerState extends State<AppDrawer>
         decoration: const BoxDecoration(gradient: AppColors.drawerGradient),
         child: Stack(
           children: [
+            // Glow decorativo no canto superior esquerdo
             Positioned(
               top: -80,
               left: -80,
@@ -82,6 +129,7 @@ class _AppDrawerState extends State<AppDrawer>
                 ),
               ),
             ),
+            // Borda direita luminosa
             Positioned(
               top: 0,
               right: 0,
@@ -107,11 +155,14 @@ class _AppDrawerState extends State<AppDrawer>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Cabeçalho com fade-in
                   FadeTransition(
                     opacity: _headerFade,
                     child: _buildHeader(),
                   ),
                   _buildDivider(),
+
+                  // Lista rolável de itens
                   Expanded(
                     child: SingleChildScrollView(
                       physics: const BouncingScrollPhysics(),
@@ -120,58 +171,66 @@ class _AppDrawerState extends State<AppDrawer>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildSectionLabel('MENU PRINCIPAL'),
-                          ..._mainItems.asMap().entries.map((e) =>
-                              _DrawerTile(
-                                item: e.value,
-                                isActive: currentRoute == e.value.route,
-                                delay: e.key * 55,
-                                onTap: () =>
-                                    _navigate(context, e.value.route),
-                                badge: e.value.route == AppRoutes.profile
-                                    ? _XpBadge()
-                                    : null,
-                              )),
-                          const SizedBox(height: 12),
-                          _buildDivider(),
-                          _buildSectionLabel('OUTROS'),
+                          ..._mainItems.asMap().entries.map(
+                            (e) => _DrawerTile(
+                              item: e.value,
+                              isActive: currentRoute == e.value.route,
+                              delay: e.key * 45,
+                              onTap: () => _navigate(context, e.value.route),
+                              badge: e.value.route == AppRoutes.profile
+                                  ? _XpBadge()
+                                  : null,
+                            ),
+                          ),
 
-                          // ── ITEM ADM — adicionado logo após o divider da seção "OUTROS" ────
+                          const SizedBox(height: 10),
+                          _buildDivider(),
+                          _buildSectionLabel('SUPORTE'),
+
+                          ..._supportItems.asMap().entries.map(
+                            (e) => _DrawerTile(
+                              item: e.value,
+                              isActive: currentRoute == e.value.route,
+                              delay: (_mainItems.length + e.key) * 45,
+                              onTap: () => _navigate(context, e.value.route),
+                            ),
+                          ),
+
+                          // Painel ADM — visível apenas para administradores
                           Consumer<AdminProvider>(
                             builder: (context, admin, _) {
                               if (!admin.isAdmin) return const SizedBox.shrink();
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  const SizedBox(height: 10),
+                                  _buildDivider(),
+                                  _buildSectionLabel('ADMINISTRAÇÃO'),
                                   _DrawerTile(
                                     item: const _NavItem(
                                       icon: Icons.shield_rounded,
                                       label: 'Painel Administrativo',
                                       route: AppRoutes.adminPanel,
                                     ),
-                                    isActive: currentRoute == AppRoutes.adminPanel,
+                                    isActive:
+                                        currentRoute == AppRoutes.adminPanel,
                                     delay: 0,
-                                    onTap: () => _navigate(context, AppRoutes.adminPanel),
+                                    onTap: () => _navigate(
+                                        context, AppRoutes.adminPanel),
                                     badge: _AdminBadge(),
                                   ),
-                                  const SizedBox(height: 12),
-                                  _buildDivider(),
                                 ],
                               );
                             },
                           ),
 
-                          ..._secondaryItems.asMap().entries.map((e) =>
-                              _DrawerTile(
-                                item: e.value,
-                                isActive: currentRoute == e.value.route,
-                                delay: (_mainItems.length + e.key) * 55,
-                                onTap: () =>
-                                    _navigate(context, e.value.route),
-                              )),
+                          const SizedBox(height: 16),
                         ],
                       ),
                     ),
                   ),
+
+                  // Rodapé com botão de perfil
                   _buildFooter(context),
                 ],
               ),
@@ -182,137 +241,120 @@ class _AppDrawerState extends State<AppDrawer>
     );
   }
 
+  // ── CABEÇALHO ───────────────────────────────────────────────────
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
+          Stack(
+            alignment: Alignment.center,
             children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primaryOrange.withOpacity(0.55),
-                          blurRadius: 22,
-                          spreadRadius: 3,
-                        ),
-                      ],
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primaryOrange.withOpacity(0.55),
+                      blurRadius: 22,
+                      spreadRadius: 3,
                     ),
-                  ),
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [
-                          AppColors.primaryOrangeLight,
-                          AppColors.primaryOrangeDark,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border.all(
-                        color: AppColors.primaryOrange.withOpacity(0.55),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/images/logo.png',
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.newspaper_rounded,
-                          color: Colors.white,
-                          size: 26,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ShaderMask(
-                    shaderCallback: (b) =>
-                        AppColors.orangeGradient.createShader(b),
-                    child: const Text(
-                      'HORIZONTE',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2.5,
-                      ),
-                    ),
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [
+                      AppColors.primaryOrangeLight,
+                      AppColors.primaryOrangeDark,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  const Text(
-                    'N E W S',
-                    style: TextStyle(
+                  border: Border.all(
+                    color: AppColors.primaryOrange.withOpacity(0.55),
+                    width: 1.5,
+                  ),
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.newspaper_rounded,
                       color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w300,
-                      letterSpacing: 3.5,
+                      size: 26,
                     ),
                   ),
-                ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(5),
-              color: AppColors.primaryOrange.withOpacity(0.10),
-              border: Border.all(
-                color: AppColors.primaryOrange.withOpacity(0.30),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primaryOrange,
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ShaderMask(
+                shaderCallback: (b) =>
+                    AppColors.orangeGradient.createShader(b),
+                child: const Text(
+                  'HORIZONTE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2.5,
                   ),
                 ),
-                const SizedBox(width: 6),
-                const Text(
-                  'AO VIVO  •  JORNALISMO INDEPENDENTE',
+              ),
+              const Text(
+                'N E W S',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w300,
+                  letterSpacing: 3.5,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: AppColors.primaryOrange.withOpacity(0.12),
+                  border: Border.all(
+                    color: AppColors.primaryOrange.withOpacity(0.30),
+                    width: 1,
+                  ),
+                ),
+                child: const Text(
+                  'JORNALISMO INDEPENDENTE',
                   style: TextStyle(
                     color: AppColors.primaryOrange,
-                    fontSize: 9,
+                    fontSize: 8,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.8,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
+  // ── LABEL DE SEÇÃO ──────────────────────────────────────────────
   Widget _buildSectionLabel(String label) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+      padding: const EdgeInsets.fromLTRB(22, 14, 22, 4),
       child: Text(
         label,
         style: const TextStyle(
@@ -325,6 +367,7 @@ class _AppDrawerState extends State<AppDrawer>
     );
   }
 
+  // ── DIVISOR ─────────────────────────────────────────────────────
   Widget _buildDivider() {
     return Container(
       height: 1,
@@ -339,6 +382,7 @@ class _AppDrawerState extends State<AppDrawer>
     );
   }
 
+  // ── RODAPÉ ──────────────────────────────────────────────────────
   Widget _buildFooter(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 20),
@@ -419,7 +463,7 @@ class _AppDrawerState extends State<AppDrawer>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// BADGE DE XP — exibido ao lado do item "Meu Perfil" no menu
+// BADGE DE XP
 // ═══════════════════════════════════════════════════════════════════
 class _XpBadge extends StatelessWidget {
   @override
@@ -453,7 +497,7 @@ class _XpBadge extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// BADGE ADM — Atualizado com o gradiente e sombras customizadas
+// BADGE ADM
 // ═══════════════════════════════════════════════════════════════════
 class _AdminBadge extends StatelessWidget {
   @override
@@ -462,7 +506,7 @@ class _AdminBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        gradient: AppColors.orangeGradient, // Aplica o gradiente
+        gradient: AppColors.orangeGradient,
         boxShadow: [
           BoxShadow(
             color: AppColors.primaryOrange.withOpacity(0.4),
@@ -484,14 +528,17 @@ class _AdminBadge extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// MODELO
+// MODELO DE ITEM DE NAVEGAÇÃO
 // ═══════════════════════════════════════════════════════════════════
 class _NavItem {
   final IconData icon;
   final String label;
   final String route;
-  const _NavItem(
-      {required this.icon, required this.label, required this.route});
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.route,
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -528,13 +575,17 @@ class _DrawerTileState extends State<_DrawerTile>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 340));
-    _opacity = Tween<double>(begin: 0, end: 1)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-    _slide =
-        Tween<Offset>(begin: const Offset(-0.12, 0), end: Offset.zero)
-            .animate(
-                CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+      vsync: this,
+      duration: const Duration(milliseconds: 340),
+    );
+    _opacity = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+    );
+    _slide = Tween<Offset>(
+      begin: const Offset(-0.12, 0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+
     Future.delayed(Duration(milliseconds: widget.delay), () {
       if (mounted) _ctrl.forward();
     });
@@ -561,8 +612,10 @@ class _DrawerTileState extends State<_DrawerTile>
           onTapCancel: () => setState(() => _pressed = false),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+            margin:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 13, vertical: 11),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(11),
               color: widget.isActive
@@ -574,38 +627,27 @@ class _DrawerTileState extends State<_DrawerTile>
                 color: widget.isActive
                     ? AppColors.primaryOrange.withOpacity(0.35)
                     : Colors.transparent,
+                width: 1,
               ),
-              boxShadow: widget.isActive
-                  ? [
-                      BoxShadow(
-                        color: AppColors.primaryOrange.withOpacity(0.10),
-                        blurRadius: 10,
-                      ),
-                    ]
-                  : null,
             ),
             child: Row(
               children: [
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    if (widget.isActive)
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.primaryOrange.withOpacity(0.18),
-                        ),
-                      ),
-                    Icon(
-                      widget.item.icon,
-                      size: 20,
-                      color: widget.isActive
-                          ? AppColors.primaryOrange
-                          : AppColors.textSecondary,
-                    ),
-                  ],
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    color: widget.isActive
+                        ? AppColors.primaryOrange.withOpacity(0.20)
+                        : AppColors.primaryOrange.withOpacity(0.07),
+                  ),
+                  child: Icon(
+                    widget.item.icon,
+                    size: 18,
+                    color: widget.isActive
+                        ? AppColors.primaryOrange
+                        : AppColors.textMuted,
+                  ),
                 ),
                 const SizedBox(width: 13),
                 Expanded(
@@ -614,8 +656,8 @@ class _DrawerTileState extends State<_DrawerTile>
                     style: TextStyle(
                       color: widget.isActive
                           ? Colors.white
-                          : AppColors.textSecondary,
-                      fontSize: 14,
+                          : AppColors.textMuted,
+                      fontSize: 13,
                       fontWeight: widget.isActive
                           ? FontWeight.w700
                           : FontWeight.w400,
@@ -624,17 +666,8 @@ class _DrawerTileState extends State<_DrawerTile>
                   ),
                 ),
                 if (widget.badge != null) ...[
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   widget.badge!,
-                ] else if (widget.isActive) ...[
-                  Container(
-                    width: 5,
-                    height: 5,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.primaryOrange,
-                    ),
-                  ),
                 ],
               ],
             ),
