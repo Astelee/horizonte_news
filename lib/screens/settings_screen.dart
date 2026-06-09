@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../providers/user_xp_provider.dart';
+import '../services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -20,9 +21,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _notifHorizonte = true;
   bool _notifPolicia   = false;
   bool _notifEsportes  = false;
-  bool _notifGeral     = true;
+  bool _notifGeral     = false; // começa false; initState verifica
   bool _economiaDados  = false;
-  String _autoplayMode = 'wifi'; // 'always' | 'wifi' | 'never'
+  String _autoplayMode = 'wifi';
+
+  @override
+  void initState() {
+    super.initState();
+    // Verifica no Firestore se as notificações já estão ativas
+    NotificationService.isEnabled().then((enabled) {
+      if (mounted) setState(() => _notifGeral = enabled);
+    });
+  }
+
+  // ── TOGGLE NOTIFICAÇÕES ──────────────────────────────────────────
+  Future<void> _toggleNotifGeral(bool v) async {
+    if (v) {
+      final granted = await NotificationService.requestPermission();
+      if (granted) {
+        if (mounted) setState(() => _notifGeral = true);
+      } else {
+        if (mounted) {
+          _showSnack(
+            icon: Icons.notifications_off_rounded,
+            message: 'Permissão negada. Verifique as configurações do sistema.',
+            isError: true,
+          );
+        }
+      }
+    } else {
+      await NotificationService.removeToken();
+      if (mounted) setState(() => _notifGeral = false);
+    }
+  }
 
   // ── URL LAUNCHER ─────────────────────────────────────────────────
   Future<void> _launch(String url) async {
@@ -53,9 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ── ALTERAR NOME DE USUÁRIO ───────────────────────────────────────
   Future<void> _showChangeUsernameDialog() async {
     final user = FirebaseAuth.instance.currentUser;
-    final ctrl = TextEditingController(
-      text: user?.displayName ?? '',
-    );
+    final ctrl = TextEditingController(text: user?.displayName ?? '');
     final formKey = GlobalKey<FormState>();
     bool saving = false;
 
@@ -68,25 +97,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
             side: BorderSide(
-              color: AppColors.primaryOrange.withOpacity(0.3),
-              width: 1,
-            ),
+                color: AppColors.primaryOrange.withOpacity(0.3), width: 1),
           ),
-          title: const Text(
-            'Alterar nome',
-            style: TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w700),
-          ),
+          title: const Text('Alterar nome',
+              style: TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w700)),
           content: Form(
             key: formKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Este nome aparecerá no seu perfil e no menu.',
-                  style: TextStyle(color: Colors.white60, fontSize: 13),
-                ),
+                const Text('Este nome aparecerá no seu perfil e no menu.',
+                    style: TextStyle(color: Colors.white60, fontSize: 13)),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: ctrl,
@@ -94,12 +117,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: const TextStyle(color: Colors.white),
                   maxLength: 30,
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) {
+                    if (v == null || v.trim().isEmpty)
                       return 'O nome não pode ser vazio.';
-                    }
-                    if (v.trim().length < 3) {
-                      return 'Mínimo de 3 caracteres.';
-                    }
+                    if (v.trim().length < 3) return 'Mínimo de 3 caracteres.';
                     return null;
                   },
                   decoration: InputDecoration(
@@ -112,37 +132,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(
-                        color: AppColors.primaryOrange.withOpacity(0.3),
-                      ),
+                          color: AppColors.primaryOrange.withOpacity(0.3)),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(
-                        color: AppColors.primaryOrange.withOpacity(0.2),
-                      ),
+                          color: AppColors.primaryOrange.withOpacity(0.2)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(
-                        color: AppColors.primaryOrange,
-                      ),
+                      borderSide:
+                          const BorderSide(color: AppColors.primaryOrange),
                     ),
                     errorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(
-                        color: Colors.redAccent,
-                      ),
+                      borderSide: const BorderSide(color: Colors.redAccent),
                     ),
                     focusedErrorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(
-                        color: Colors.redAccent,
-                      ),
+                      borderSide: const BorderSide(color: Colors.redAccent),
                     ),
-                    errorStyle: const TextStyle(
-                      color: Colors.redAccent,
-                      fontSize: 11,
-                    ),
+                    errorStyle:
+                        const TextStyle(color: Colors.redAccent, fontSize: 11),
                   ),
                 ),
               ],
@@ -150,16 +161,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           actions: [
             TextButton(
-              onPressed:
-                  saving ? null : () => Navigator.pop(dialogContext),
-              child: Text(
-                'Cancelar',
-                style: TextStyle(
-                  color: saving
-                      ? Colors.white24
-                      : AppColors.primaryOrange.withOpacity(0.8),
-                ),
-              ),
+              onPressed: saving ? null : () => Navigator.pop(dialogContext),
+              child: Text('Cancelar',
+                  style: TextStyle(
+                      color: saving
+                          ? Colors.white24
+                          : AppColors.primaryOrange.withOpacity(0.8))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -173,54 +180,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ? null
                   : () async {
                       if (!formKey.currentState!.validate()) return;
-
                       setDialogState(() => saving = true);
-
                       try {
-                        // 1. Atualiza no Firebase Auth
                         await FirebaseAuth.instance.currentUser
                             ?.updateDisplayName(ctrl.text.trim());
-
-                        // 2. Força reload do currentUser para refletir
-                        await FirebaseAuth.instance.currentUser
-                            ?.reload();
-
-                        // 3. Atualiza o provider para a ProfileScreen
-                        //    reagir imediatamente
+                        await FirebaseAuth.instance.currentUser?.reload();
                         if (mounted) {
-                          await Provider.of<UserXpProvider>(
-                            context,
-                            listen: false,
-                          ).reload();
+                          await Provider.of<UserXpProvider>(context,
+                                  listen: false)
+                              .reload();
                         }
-
-                        if (dialogContext.mounted) {
-                          Navigator.pop(dialogContext);
-                        }
-
+                        if (dialogContext.mounted) Navigator.pop(dialogContext);
                         if (mounted) {
                           _showSnack(
-                            icon: Icons.check_circle_rounded,
-                            message: 'Nome atualizado com sucesso!',
-                          );
+                              icon: Icons.check_circle_rounded,
+                              message: 'Nome atualizado com sucesso!');
                         }
                       } on FirebaseAuthException catch (e) {
                         setDialogState(() => saving = false);
                         if (mounted) {
                           _showSnack(
-                            icon: Icons.error_outline_rounded,
-                            message: _authErrorMessage(e.code),
-                            isError: true,
-                          );
+                              icon: Icons.error_outline_rounded,
+                              message: _authErrorMessage(e.code),
+                              isError: true);
                         }
                       } catch (_) {
                         setDialogState(() => saving = false);
                         if (mounted) {
                           _showSnack(
-                            icon: Icons.error_outline_rounded,
-                            message: 'Erro inesperado. Tente novamente.',
-                            isError: true,
-                          );
+                              icon: Icons.error_outline_rounded,
+                              message: 'Erro inesperado. Tente novamente.',
+                              isError: true);
                         }
                       }
                     },
@@ -229,22 +219,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text(
-                      'Salvar',
+                          strokeWidth: 2, color: Colors.white))
+                  : const Text('Salvar',
                       style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700),
-                    ),
+                          color: Colors.white, fontWeight: FontWeight.w700)),
             ),
           ],
         ),
       ),
     );
-
     ctrl.dispose();
   }
 
@@ -262,22 +245,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
             side: BorderSide(
-              color: AppColors.primaryOrange.withOpacity(0.3),
-              width: 1,
-            ),
+                color: AppColors.primaryOrange.withOpacity(0.3), width: 1),
           ),
-          title: const Text(
-            'Alterar senha',
-            style: TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w700),
-          ),
+          title: const Text('Alterar senha',
+              style: TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w700)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Informe seu e-mail para receber o link de redefinição.',
-                style: TextStyle(color: Colors.white60, fontSize: 13),
-              ),
+                  'Informe seu e-mail para receber o link de redefinição.',
+                  style: TextStyle(color: Colors.white60, fontSize: 13)),
               const SizedBox(height: 14),
               TextField(
                 controller: ctrl,
@@ -291,20 +269,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(
-                      color: AppColors.primaryOrange.withOpacity(0.3),
-                    ),
+                        color: AppColors.primaryOrange.withOpacity(0.3)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(
-                      color: AppColors.primaryOrange.withOpacity(0.2),
-                    ),
+                        color: AppColors.primaryOrange.withOpacity(0.2)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(
-                      color: AppColors.primaryOrange,
-                    ),
+                    borderSide:
+                        const BorderSide(color: AppColors.primaryOrange),
                   ),
                 ),
               ),
@@ -312,16 +287,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           actions: [
             TextButton(
-              onPressed:
-                  sending ? null : () => Navigator.pop(dialogContext),
-              child: Text(
-                'Cancelar',
-                style: TextStyle(
-                  color: sending
-                      ? Colors.white24
-                      : AppColors.primaryOrange.withOpacity(0.8),
-                ),
-              ),
+              onPressed: sending ? null : () => Navigator.pop(dialogContext),
+              child: Text('Cancelar',
+                  style: TextStyle(
+                      color: sending
+                          ? Colors.white24
+                          : AppColors.primaryOrange.withOpacity(0.8))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -336,30 +307,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : () async {
                       final email = ctrl.text.trim();
                       if (email.isEmpty) return;
-
                       setDialogState(() => sending = true);
-
                       try {
                         await FirebaseAuth.instance
                             .sendPasswordResetEmail(email: email);
-
-                        if (dialogContext.mounted) {
-                          Navigator.pop(dialogContext);
-                        }
+                        if (dialogContext.mounted) Navigator.pop(dialogContext);
                         if (mounted) {
                           _showSnack(
-                            icon: Icons.mark_email_read_rounded,
-                            message: 'Link enviado para seu e-mail!',
-                          );
+                              icon: Icons.mark_email_read_rounded,
+                              message: 'Link enviado para seu e-mail!');
                         }
                       } on FirebaseAuthException catch (e) {
                         setDialogState(() => sending = false);
                         if (mounted) {
                           _showSnack(
-                            icon: Icons.error_outline_rounded,
-                            message: _authErrorMessage(e.code),
-                            isError: true,
-                          );
+                              icon: Icons.error_outline_rounded,
+                              message: _authErrorMessage(e.code),
+                              isError: true);
                         }
                       }
                     },
@@ -368,22 +332,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text(
-                      'Enviar',
+                          strokeWidth: 2, color: Colors.white))
+                  : const Text('Enviar',
                       style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700),
-                    ),
+                          color: Colors.white, fontWeight: FontWeight.w700)),
             ),
           ],
         ),
       ),
     );
-
     ctrl.dispose();
   }
 
@@ -401,18 +358,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         content: Row(
           children: [
-            Icon(
-              icon,
-              color: isError ? Colors.redAccent : AppColors.primaryOrange,
-              size: 18,
-            ),
+            Icon(icon,
+                color: isError ? Colors.redAccent : AppColors.primaryOrange,
+                size: 18),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
+                child: Text(message,
+                    style: const TextStyle(color: Colors.white))),
           ],
         ),
       ),
@@ -447,9 +399,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _showCacheClearedSnack() {
     _showSnack(
-      icon: Icons.check_circle_rounded,
-      message: 'Cache limpo com sucesso!',
-    );
+        icon: Icons.check_circle_rounded, message: 'Cache limpo com sucesso!');
+  }
+
+  String? _currentDisplayName() {
+    final name = FirebaseAuth.instance.currentUser?.displayName;
+    if (name == null || name.isEmpty) return null;
+    return name;
   }
 
   // ── BUILD ────────────────────────────────────────────────────────
@@ -469,11 +425,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: const Text(
           'Configurações',
           style: TextStyle(
-            color: Colors.white,
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
-          ),
+              color: Colors.white,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4),
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
@@ -522,7 +477,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.notifications_active_rounded,
             label: 'Ativar notificações',
             value: _notifGeral,
-            onChanged: (v) => setState(() => _notifGeral = v),
+            onChanged: _toggleNotifGeral, // ← agora funcional
           ),
           _SwitchTile(
             icon: Icons.flash_on_rounded,
@@ -620,8 +575,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             label: 'Política de Privacidade',
             trailing: const Icon(Icons.open_in_new_rounded,
                 color: Colors.white38, size: 15),
-            onTap: () => _launch(
-                'https://horizontenews.com.br/politica-de-privacidade'),
+            onTap: () =>
+                _launch('https://horizontenews.com.br/politica-de-privacidade'),
           ),
           _SettingsTile(
             icon: Icons.gavel_rounded,
@@ -659,17 +614,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-
-  // Exibe o nome atual como sublabel do tile
-  String? _currentDisplayName() {
-    final name = FirebaseAuth.instance.currentUser?.displayName;
-    if (name == null || name.isEmpty) return null;
-    return name;
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// DIALOG DE CONFIRMAÇÃO REUTILIZÁVEL
+// DIALOG DE CONFIRMAÇÃO
 // ═══════════════════════════════════════════════════════════════════
 class _ConfirmDialog extends StatelessWidget {
   final String title;
@@ -691,27 +639,19 @@ class _ConfirmDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(
-          color: AppColors.primaryOrange.withOpacity(0.3),
-          width: 1,
-        ),
+            color: AppColors.primaryOrange.withOpacity(0.3), width: 1),
       ),
-      title: Text(
-        title,
-        style: const TextStyle(
-            color: Colors.white, fontWeight: FontWeight.w700),
-      ),
-      content: Text(
-        message,
-        style: const TextStyle(color: Colors.white70),
-      ),
+      title: Text(title,
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w700)),
+      content: Text(message,
+          style: const TextStyle(color: Colors.white70)),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: Text(
-            'Cancelar',
-            style: TextStyle(
-                color: AppColors.primaryOrange.withOpacity(0.8)),
-          ),
+          child: Text('Cancelar',
+              style: TextStyle(
+                  color: AppColors.primaryOrange.withOpacity(0.8))),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
@@ -720,11 +660,9 @@ class _ConfirmDialog extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8)),
           ),
           onPressed: () => Navigator.pop(context, true),
-          child: Text(
-            confirmLabel,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w700),
-          ),
+          child: Text(confirmLabel,
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w700)),
         ),
       ],
     );
@@ -744,15 +682,12 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 6),
       child: Row(
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.primaryOrange,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2.0,
-            ),
-          ),
+          Text(label,
+              style: const TextStyle(
+                  color: AppColors.primaryOrange,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2.0)),
           const SizedBox(width: 12),
           Expanded(
             child: Container(
@@ -800,8 +735,7 @@ class _SettingsTile extends StatelessWidget {
       splashColor: AppColors.primaryOrange.withOpacity(0.06),
       highlightColor: AppColors.primaryOrange.withOpacity(0.04),
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
           children: [
             Container(
@@ -809,35 +743,26 @@ class _SettingsTile extends StatelessWidget {
               height: 36,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(9),
-                color: (iconColor ?? AppColors.primaryOrange)
-                    .withOpacity(0.10),
+                color: (iconColor ?? AppColors.primaryOrange).withOpacity(0.10),
               ),
-              child: Icon(
-                icon,
-                size: 18,
-                color: iconColor ?? AppColors.primaryOrange,
-              ),
+              child: Icon(icon,
+                  size: 18, color: iconColor ?? AppColors.primaryOrange),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: labelColor ?? Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  Text(label,
+                      style: TextStyle(
+                          color: labelColor ?? Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500)),
                   if (sublabel != null) ...[
                     const SizedBox(height: 2),
-                    Text(
-                      sublabel!,
-                      style: const TextStyle(
-                          color: Colors.white38, fontSize: 11),
-                    ),
+                    Text(sublabel!,
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 11)),
                   ],
                 ],
               ),
@@ -878,8 +803,7 @@ class _SwitchTile extends StatelessWidget {
     return Opacity(
       opacity: enabled ? 1.0 : 0.45,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Row(
           children: [
             Container(
@@ -889,21 +813,18 @@ class _SwitchTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(9),
                 color: AppColors.primaryOrange.withOpacity(0.10),
               ),
-              child: Icon(icon,
-                  size: 18, color: AppColors.primaryOrange),
+              child: Icon(icon, size: 18, color: AppColors.primaryOrange),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500),
-                  ),
+                  Text(label,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500)),
                   if (sublabel != null) ...[
                     const SizedBox(height: 2),
                     Text(sublabel!,
@@ -917,8 +838,7 @@ class _SwitchTile extends StatelessWidget {
               value: value,
               onChanged: onChanged,
               activeColor: AppColors.primaryOrange,
-              activeTrackColor:
-                  AppColors.primaryOrange.withOpacity(0.30),
+              activeTrackColor: AppColors.primaryOrange.withOpacity(0.30),
               inactiveThumbColor: Colors.white38,
               inactiveTrackColor: Colors.white12,
             ),
@@ -967,40 +887,32 @@ class _SliderTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(9),
                   color: AppColors.primaryOrange.withOpacity(0.10),
                 ),
-                child: Icon(icon,
-                    size: 18, color: AppColors.primaryOrange),
+                child: Icon(icon, size: 18, color: AppColors.primaryOrange),
               ),
               const SizedBox(width: 14),
               Expanded(
-                child: Text(
-                  label,
+                child: Text(label,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500)),
+              ),
+              Text(valueLabel,
                   style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500),
-                ),
-              ),
-              Text(
-                valueLabel,
-                style: const TextStyle(
-                  color: AppColors.primaryOrange,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+                      color: AppColors.primaryOrange,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700)),
             ],
           ),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
               activeTrackColor: AppColors.primaryOrange,
-              inactiveTrackColor:
-                  AppColors.primaryOrange.withOpacity(0.15),
+              inactiveTrackColor: AppColors.primaryOrange.withOpacity(0.15),
               thumbColor: AppColors.primaryOrange,
-              overlayColor:
-                  AppColors.primaryOrange.withOpacity(0.12),
+              overlayColor: AppColors.primaryOrange.withOpacity(0.12),
               trackHeight: 2.5,
-              thumbShape: const RoundSliderThumbShape(
-                  enabledThumbRadius: 7),
+              thumbShape:
+                  const RoundSliderThumbShape(enabledThumbRadius: 7),
             ),
             child: Slider(
               value: value,
@@ -1047,8 +959,8 @@ class _ExpandableTileState extends State<_ExpandableTile> {
           onTap: () => setState(() => _expanded = !_expanded),
           splashColor: AppColors.primaryOrange.withOpacity(0.06),
           child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 20, vertical: 14),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             child: Row(
               children: [
                 Container(
@@ -1056,8 +968,7 @@ class _ExpandableTileState extends State<_ExpandableTile> {
                   height: 36,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(9),
-                    color:
-                        AppColors.primaryOrange.withOpacity(0.10),
+                    color: AppColors.primaryOrange.withOpacity(0.10),
                   ),
                   child: Icon(widget.icon,
                       size: 18, color: AppColors.primaryOrange),
@@ -1067,29 +978,23 @@ class _ExpandableTileState extends State<_ExpandableTile> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        widget.label,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500),
-                      ),
+                      Text(widget.label,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500)),
                       const SizedBox(height: 2),
-                      Text(
-                        widget.sublabel,
-                        style: const TextStyle(
-                            color: Colors.white38, fontSize: 11),
-                      ),
+                      Text(widget.sublabel,
+                          style: const TextStyle(
+                              color: Colors.white38, fontSize: 11)),
                     ],
                   ),
                 ),
                 AnimatedRotation(
                   turns: _expanded ? 0.5 : 0,
                   duration: const Duration(milliseconds: 200),
-                  child: const Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: Colors.white38,
-                      size: 20),
+                  child: const Icon(Icons.keyboard_arrow_down_rounded,
+                      color: Colors.white38, size: 20),
                 ),
               ],
             ),
@@ -1104,15 +1009,12 @@ class _ExpandableTileState extends State<_ExpandableTile> {
               borderRadius: BorderRadius.circular(10),
               color: Colors.white.withOpacity(0.03),
               border: Border.all(
-                color: AppColors.primaryOrange.withOpacity(0.12),
-                width: 1,
-              ),
+                  color: AppColors.primaryOrange.withOpacity(0.12), width: 1),
             ),
             child: widget.child,
           ),
-          crossFadeState: _expanded
-              ? CrossFadeState.showSecond
-              : CrossFadeState.showFirst,
+          crossFadeState:
+              _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
           duration: const Duration(milliseconds: 220),
         ),
       ],
@@ -1142,8 +1044,7 @@ class _RadioOption extends StatelessWidget {
     return GestureDetector(
       onTap: () => onChanged(value),
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         child: Row(
           children: [
             AnimatedContainer(
@@ -1153,11 +1054,9 @@ class _RadioOption extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: selected
-                      ? AppColors.primaryOrange
-                      : Colors.white30,
-                  width: 2,
-                ),
+                    color:
+                        selected ? AppColors.primaryOrange : Colors.white30,
+                    width: 2),
               ),
               child: selected
                   ? Center(
@@ -1165,23 +1064,20 @@ class _RadioOption extends StatelessWidget {
                         width: 8,
                         height: 8,
                         decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.primaryOrange,
-                        ),
+                            shape: BoxShape.circle,
+                            color: AppColors.primaryOrange),
                       ),
                     )
                   : null,
             ),
             const SizedBox(width: 10),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.white : Colors.white60,
-                fontSize: 13,
-                fontWeight:
-                    selected ? FontWeight.w600 : FontWeight.w400,
-              ),
-            ),
+            Text(label,
+                style: TextStyle(
+                    color: selected ? Colors.white : Colors.white60,
+                    fontSize: 13,
+                    fontWeight: selected
+                        ? FontWeight.w600
+                        : FontWeight.w400)),
           ],
         ),
       ),
