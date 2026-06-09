@@ -10,6 +10,7 @@ import 'providers/theme_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/user_xp_provider.dart';
 import 'providers/admin_provider.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,9 @@ void main() async {
       storageBucket: 'horizontenews-6b48f.firebasestorage.app',
     ),
   );
+
+  // Inicializa o serviço de notificações
+  await NotificationService.init();
 
   runApp(
     MultiProvider(
@@ -88,15 +92,12 @@ class _AuthGate extends StatelessWidget {
 
         if (snapshot.hasData && snapshot.data != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            // Inicializa XP
             Provider.of<UserXpProvider>(context, listen: false).initialize();
-            // Inicializa verificação ADM
             Provider.of<AdminProvider>(context, listen: false).initialize();
           });
           return AppRoutes.routes[AppRoutes.home]!(context);
         }
 
-        // Reset ADM ao deslogar
         WidgetsBinding.instance.addPostFrameCallback((_) {
           Provider.of<AdminProvider>(context, listen: false).reset();
         });
@@ -108,7 +109,7 @@ class _AuthGate extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SPLASH LOADING — idêntico ao original
+// SPLASH LOADING
 // ═══════════════════════════════════════════════════════════════════
 class _SplashLoading extends StatefulWidget {
   const _SplashLoading();
