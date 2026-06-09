@@ -4,7 +4,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
-import '../providers/theme_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -15,15 +14,14 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   // ── ESTADO LOCAL DAS CONFIGURAÇÕES ──────────────────────────────
-  double _fontSize = 15.0;
-  bool _notifBreaking  = true;
-  bool _notifHorizonte = true;
-  bool _notifPolicia   = false;
-  bool _notifEsportes  = false;
-  bool _notifGeral     = true;
-  bool _economiadados  = false;
-  bool _autoplayVideo  = false;
-  String _autoplayMode = 'wifi'; // 'always' | 'wifi' | 'never'
+  double _fontSize      = 15.0;
+  bool _notifBreaking   = true;
+  bool _notifHorizonte  = true;
+  bool _notifPolicia    = false;
+  bool _notifEsportes   = false;
+  bool _notifGeral      = true;
+  bool _economiaDados   = false;
+  String _autoplayMode  = 'wifi'; // 'always' | 'wifi' | 'never'
 
   // ── LANÇADOR DE URL ─────────────────────────────────────────────
   Future<void> _launch(String url) async {
@@ -59,20 +57,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () => Navigator.pop(context, false),
             child: Text(
               'Cancelar',
-              style: TextStyle(color: AppColors.primaryOrange.withOpacity(0.8)),
+              style: TextStyle(
+                  color: AppColors.primaryOrange.withOpacity(0.8)),
             ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryOrange,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+                  borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text(
               'Sair',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w700),
             ),
           ),
         ],
@@ -91,6 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // ── BUILD ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -131,8 +131,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.symmetric(vertical: 12),
         children: [
 
-          // ── CONTA ────────────────────────────────────────────────
-          _SectionHeader(label: 'CONTA'),
+          // ── CONTA ─────────────────────────────────────────────────
+          const _SectionHeader(label: 'CONTA'),
           _SettingsTile(
             icon: Icons.badge_rounded,
             label: 'Alterar nome de usuário',
@@ -153,8 +153,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 8),
 
-          // ── NOTIFICAÇÕES ─────────────────────────────────────────
-          _SectionHeader(label: 'NOTIFICAÇÕES'),
+          // ── NOTIFICAÇÕES ──────────────────────────────────────────
+          const _SectionHeader(label: 'NOTIFICAÇÕES'),
           _SwitchTile(
             icon: Icons.notifications_active_rounded,
             label: 'Ativar notificações',
@@ -196,10 +196,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 8),
 
-          // ── APLICATIVO ───────────────────────────────────────────
-          _SectionHeader(label: 'APLICATIVO'),
+          // ── APLICATIVO ────────────────────────────────────────────
+          const _SectionHeader(label: 'APLICATIVO'),
 
-          // Tamanho da fonte
           _SliderTile(
             icon: Icons.text_fields_rounded,
             label: 'Tamanho da fonte',
@@ -210,7 +209,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (v) => setState(() => _fontSize = v),
           ),
 
-          // Reprodução automática
           _ExpandableTile(
             icon: Icons.play_circle_rounded,
             label: 'Reprodução automática de vídeos',
@@ -243,21 +241,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.data_saver_on_rounded,
             label: 'Economia de dados',
             sublabel: 'Reduz qualidade de imagens',
-            value: _economiaados,
-            onChanged: (v) => setState(() => _economiaados = v),
+            value: _economiaDados,
+            onChanged: (v) => setState(() => _economiaDados = v),
           ),
 
           _SettingsTile(
             icon: Icons.delete_sweep_rounded,
             label: 'Limpar cache',
             sublabel: 'Libera espaço de armazenamento',
-            onTap: () => _showCacheClearedSnack(),
+            onTap: _showCacheClearedSnack,
           ),
 
           const SizedBox(height: 8),
 
-          // ── PRIVACIDADE ──────────────────────────────────────────
-          _SectionHeader(label: 'PRIVACIDADE'),
+          // ── PRIVACIDADE ───────────────────────────────────────────
+          const _SectionHeader(label: 'PRIVACIDADE'),
           _SettingsTile(
             icon: Icons.privacy_tip_rounded,
             label: 'Política de Privacidade',
@@ -277,9 +275,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 8),
 
-          // ── SOBRE ────────────────────────────────────────────────
-          _SectionHeader(label: 'SOBRE'),
-          _SettingsTile(
+          // ── SOBRE ─────────────────────────────────────────────────
+          const _SectionHeader(label: 'SOBRE'),
+          const _SettingsTile(
             icon: Icons.info_outline_rounded,
             label: 'Versão do aplicativo',
             sublabel: '1.0.0 • Horizonte News 2026',
@@ -299,12 +297,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _launch('mailto:contato@horizontenews.com.br'),
           ),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
+  // ── HELPERS ──────────────────────────────────────────────────────
   String _autoplayLabelFor(String mode) {
     switch (mode) {
       case 'always':
@@ -321,7 +320,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       SnackBar(
         backgroundColor: const Color(0xFF1A1A1A),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         content: Row(
           children: [
             Icon(Icons.check_circle_rounded,
@@ -367,7 +367,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'Seu e-mail',
-                hintStyle: const TextStyle(color: Colors.white38),
+                hintStyle:
+                    const TextStyle(color: Colors.white38),
                 filled: true,
                 fillColor: Colors.white.withOpacity(0.05),
                 border: OutlineInputBorder(
@@ -384,7 +385,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
+                  borderSide: const BorderSide(
                     color: AppColors.primaryOrange,
                   ),
                 ),
@@ -410,31 +411,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () async {
               final email = ctrl.text.trim();
               if (email.isNotEmpty) {
-                await FirebaseAuth.instance
-                    .sendPasswordResetEmail(email: email);
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      backgroundColor: const Color(0xFF1A1A1A),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      content: Row(children: [
-                        Icon(Icons.mark_email_read_rounded,
-                            color: AppColors.primaryOrange, size: 18),
-                        const SizedBox(width: 10),
-                        const Text('Link enviado para seu e-mail!',
-                            style: TextStyle(color: Colors.white)),
-                      ]),
-                    ),
-                  );
+                try {
+                  await FirebaseAuth.instance
+                      .sendPasswordResetEmail(email: email);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: const Color(0xFF1A1A1A),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        content: Row(
+                          children: [
+                            Icon(Icons.mark_email_read_rounded,
+                                color: AppColors.primaryOrange,
+                                size: 18),
+                            const SizedBox(width: 10),
+                            const Text(
+                              'Link enviado para seu e-mail!',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: const Color(0xFF1A1A1A),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        content: Row(
+                          children: [
+                            const Icon(Icons.error_outline_rounded,
+                                color: Colors.redAccent, size: 18),
+                            const SizedBox(width: 10),
+                            const Text(
+                              'E-mail não encontrado.',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
                 }
               }
             },
-            child: const Text('Enviar',
-                style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w700)),
+            child: const Text(
+              'Enviar',
+              style: TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -443,10 +476,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// WIDGETS INTERNOS DE CONFIGURAÇÃO
+// CABEÇALHO DE SEÇÃO
 // ═══════════════════════════════════════════════════════════════════
-
-// ── CABEÇALHO DE SEÇÃO ───────────────────────────────────────────
 class _SectionHeader extends StatelessWidget {
   final String label;
   const _SectionHeader({required this.label});
@@ -484,7 +515,9 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ── TILE PADRÃO ──────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// TILE PADRÃO
+// ═══════════════════════════════════════════════════════════════════
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -565,7 +598,9 @@ class _SettingsTile extends StatelessWidget {
   }
 }
 
-// ── TILE COM SWITCH ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// TILE COM SWITCH
+// ═══════════════════════════════════════════════════════════════════
 class _SwitchTile extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -638,7 +673,9 @@ class _SwitchTile extends StatelessWidget {
   }
 }
 
-// ── TILE COM SLIDER ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// TILE COM SLIDER
+// ═══════════════════════════════════════════════════════════════════
 class _SliderTile extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -689,7 +726,7 @@ class _SliderTile extends StatelessWidget {
               ),
               Text(
                 valueLabel,
-                style: TextStyle(
+                style: const TextStyle(
                   color: AppColors.primaryOrange,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -723,7 +760,9 @@ class _SliderTile extends StatelessWidget {
   }
 }
 
-// ── TILE EXPANSÍVEL (radio options) ─────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// TILE EXPANSÍVEL
+// ═══════════════════════════════════════════════════════════════════
 class _ExpandableTile extends StatefulWidget {
   final IconData icon;
   final String label;
@@ -761,7 +800,8 @@ class _ExpandableTileState extends State<_ExpandableTile> {
                   height: 36,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(9),
-                    color: AppColors.primaryOrange.withOpacity(0.10),
+                    color:
+                        AppColors.primaryOrange.withOpacity(0.10),
                   ),
                   child: Icon(widget.icon,
                       size: 18, color: AppColors.primaryOrange),
@@ -790,8 +830,10 @@ class _ExpandableTileState extends State<_ExpandableTile> {
                 AnimatedRotation(
                   turns: _expanded ? 0.5 : 0,
                   duration: const Duration(milliseconds: 200),
-                  child: const Icon(Icons.keyboard_arrow_down_rounded,
-                      color: Colors.white38, size: 20),
+                  child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Colors.white38,
+                      size: 20),
                 ),
               ],
             ),
@@ -822,7 +864,9 @@ class _ExpandableTileState extends State<_ExpandableTile> {
   }
 }
 
-// ── OPÇÃO DE RADIO ───────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// OPÇÃO DE RADIO
+// ═══════════════════════════════════════════════════════════════════
 class _RadioOption extends StatelessWidget {
   final String label;
   final String value;
@@ -876,8 +920,7 @@ class _RadioOption extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color:
-                    selected ? Colors.white : Colors.white60,
+                color: selected ? Colors.white : Colors.white60,
                 fontSize: 13,
                 fontWeight: selected
                     ? FontWeight.w600
