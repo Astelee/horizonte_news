@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/app_colors.dart';
 import '../providers/admin_provider.dart';
 import '../services/admin_service.dart';
+import '../services/xp_service.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({Key? key}) : super(key: key);
@@ -531,7 +532,6 @@ class _AdminCommentTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ──────────────────────────────────────────
             Row(
               children: [
                 CircleAvatar(
@@ -574,8 +574,6 @@ class _AdminCommentTile extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-
-            // ── Texto ────────────────────────────────────────────
             Text(
               text,
               style: const TextStyle(
@@ -584,8 +582,6 @@ class _AdminCommentTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 12),
-
-            // ── Ações — linha 1: ocultar / restaurar + excluir ──
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -625,8 +621,6 @@ class _AdminCommentTile extends StatelessWidget {
                 ),
               ],
             ),
-
-            // ── Ação — linha 2: banir usuário ───────────────────
             if (authorId != null) ...[
               const SizedBox(height: 8),
               Row(
@@ -732,8 +726,6 @@ class _BanUserDialogState extends State<_BanUserDialog> {
                   color: AppColors.textSecondary, fontSize: 12),
             ),
             const SizedBox(height: 16),
-
-            // ── Motivo ────────────────────────────────────────────
             const Text('Motivo do banimento',
                 style: TextStyle(
                     color: Colors.white,
@@ -753,8 +745,7 @@ class _BanUserDialogState extends State<_BanUserDialog> {
                 fillColor: const Color(0xFF1A1A1A),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(
-                      color: AppColors.borderDark),
+                  borderSide: BorderSide(color: AppColors.borderDark),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -768,16 +759,12 @@ class _BanUserDialogState extends State<_BanUserDialog> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // ── Duração ────────────────────────────────────────────
             const Text('Duração',
                 style: TextStyle(
                     color: Colors.white,
                     fontSize: 12,
                     fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
-
-            // Chip permanente
             GestureDetector(
               onTap: () => setState(() => _permanent = !_permanent),
               child: AnimatedContainer(
@@ -819,8 +806,6 @@ class _BanUserDialogState extends State<_BanUserDialog> {
               ),
             ),
             const SizedBox(height: 8),
-
-            // Opções de dias (desabilitadas se permanente)
             if (!_permanent)
               Wrap(
                 spacing: 8,
@@ -1066,8 +1051,7 @@ class _BannedUserTile extends StatelessWidget {
                         context: context,
                         builder: (_) => _ConfirmDialog(
                           title: 'Remover banimento?',
-                          message:
-                              '$name poderá comentar novamente.',
+                          message: '$name poderá comentar novamente.',
                           confirmLabel: 'Remover',
                           confirmColor: const Color(0xFF66BB6A),
                         ),
@@ -1112,94 +1096,124 @@ class _AdminUserTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = (data['displayName'] as String?)?.isNotEmpty == true
-        ? data['displayName'] as String
-        : 'Sem nome';
-    final email = data['email'] as String? ?? '';
-    final xp = (data['totalXp'] as num?)?.toInt() ?? 0;
-    final level = (data['level'] as num?)?.toInt() ?? 1;
-    final comments =
-        (data['stats']?['commentsPosted'] as num?)?.toInt() ?? 0;
-    final articles =
-        (data['stats']?['articlesRead'] as num?)?.toInt() ?? 0;
-    final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
-    final createdStr = createdAt != null
-        ? 'Desde ${createdAt.day.toString().padLeft(2, '0')}/'
-          '${createdAt.month.toString().padLeft(2, '0')}/'
-          '${createdAt.year}'
-        : '';
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users_xp')
+          .doc(userId)
+          .snapshots(),
+      builder: (context, snap) {
+        final d = (snap.hasData && snap.data!.exists)
+            ? snap.data!.data() as Map<String, dynamic>
+            : data;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A0A0A),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderDark),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 22,
-              backgroundColor: AppColors.primaryOrange.withOpacity(0.15),
-              child: Text(
-                name[0].toUpperCase(),
-                style: const TextStyle(
-                  color: AppColors.primaryOrange,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+        final name =
+            (d['displayName'] as String?)?.isNotEmpty == true
+                ? d['displayName'] as String
+                : 'Sem nome';
+        final email = d['email'] as String? ?? '';
+        final xp = (d['totalXp'] as num?)?.toInt() ?? 0;
+        final level = XpService.levelFromXp(xp);
+        final comments =
+            (d['stats']?['commentsPosted'] as num?)?.toInt() ??
+            (d['commentsPosted'] as num?)?.toInt() ??
+            0;
+        final articles =
+            (d['stats']?['articlesRead'] as num?)?.toInt() ??
+            (d['articlesRead'] as num?)?.toInt() ??
+            0;
+        final createdAt = (d['createdAt'] as Timestamp?)?.toDate();
+        final createdStr = createdAt != null
+            ? 'Desde ${createdAt.day.toString().padLeft(2, '0')}/'
+              '${createdAt.month.toString().padLeft(2, '0')}/'
+              '${createdAt.year}'
+            : '';
+        final lvlTitle = XpService.levelTitle(level);
+        final lvlIcon = XpService.levelIcon(level);
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0A0A0A),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.borderDark),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor:
+                      AppColors.primaryOrange.withOpacity(0.15),
+                  child: Text(
+                    name[0].toUpperCase(),
+                    style: const TextStyle(
+                      color: AppColors.primaryOrange,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700)),
-                  if (email.isNotEmpty)
-                    Text(email,
-                        style: const TextStyle(
-                            color: AppColors.textMuted, fontSize: 11)),
-                  if (createdStr.isNotEmpty)
-                    Text(createdStr,
-                        style: const TextStyle(
-                            color: AppColors.textMuted, fontSize: 11)),
-                  const SizedBox(height: 6),
-                  Row(
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _StatChip(
-                          icon: Icons.star_rounded,
-                          label: 'Nv $level',
-                          color: AppColors.primaryOrange),
-                      const SizedBox(width: 6),
-                      _StatChip(
-                          icon: Icons.bolt_rounded,
-                          label: '$xp XP',
-                          color: const Color(0xFFFFD54F)),
-                      const SizedBox(width: 6),
-                      _StatChip(
-                          icon: Icons.chat_bubble_rounded,
-                          label: '$comments',
-                          color: const Color(0xFF4FC3F7)),
-                      const SizedBox(width: 6),
-                      _StatChip(
-                          icon: Icons.article_rounded,
-                          label: '$articles',
-                          color: const Color(0xFF66BB6A)),
+                      Text(name,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700)),
+                      if (email.isNotEmpty)
+                        Text(email,
+                            style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11)),
+                      if (createdStr.isNotEmpty)
+                        Text(createdStr,
+                            style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11)),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          _StatChip(
+                            icon: Icons.star_rounded,
+                            label: '$lvlIcon Nv $level · $lvlTitle',
+                            color: AppColors.primaryOrange,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          _StatChip(
+                            icon: Icons.bolt_rounded,
+                            label: '$xp XP',
+                            color: const Color(0xFFFFD54F),
+                          ),
+                          const SizedBox(width: 6),
+                          _StatChip(
+                            icon: Icons.chat_bubble_rounded,
+                            label: '$comments',
+                            color: const Color(0xFF4FC3F7),
+                          ),
+                          const SizedBox(width: 6),
+                          _StatChip(
+                            icon: Icons.article_rounded,
+                            label: '$articles',
+                            color: const Color(0xFF66BB6A),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
