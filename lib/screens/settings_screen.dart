@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../providers/user_xp_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -13,17 +14,17 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // ── ESTADO LOCAL DAS CONFIGURAÇÕES ──────────────────────────────
-  double _fontSize      = 15.0;
-  bool _notifBreaking   = true;
-  bool _notifHorizonte  = true;
-  bool _notifPolicia    = false;
-  bool _notifEsportes   = false;
-  bool _notifGeral      = true;
-  bool _economiaDados   = false;
-  String _autoplayMode  = 'wifi'; // 'always' | 'wifi' | 'never'
+  // ── ESTADO LOCAL ─────────────────────────────────────────────────
+  double _fontSize     = 15.0;
+  bool _notifBreaking  = true;
+  bool _notifHorizonte = true;
+  bool _notifPolicia   = false;
+  bool _notifEsportes  = false;
+  bool _notifGeral     = true;
+  bool _economiaDados  = false;
+  String _autoplayMode = 'wifi'; // 'always' | 'wifi' | 'never'
 
-  // ── LANÇADOR DE URL ─────────────────────────────────────────────
+  // ── URL LAUNCHER ─────────────────────────────────────────────────
   Future<void> _launch(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
@@ -31,63 +32,424 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // ── LOGOUT ──────────────────────────────────────────────────────
+  // ── LOGOUT ───────────────────────────────────────────────────────
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(
-            color: AppColors.primaryOrange.withOpacity(0.3),
-            width: 1,
-          ),
-        ),
-        title: const Text(
-          'Sair da conta',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-        ),
-        content: const Text(
-          'Tem certeza que deseja sair?',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Cancelar',
-              style: TextStyle(
-                  color: AppColors.primaryOrange.withOpacity(0.8)),
+      builder: (_) => _ConfirmDialog(
+        title: 'Sair da conta',
+        message: 'Tem certeza que deseja sair?',
+        confirmLabel: 'Sair',
+        confirmColor: Colors.redAccent,
+      ),
+    );
+    if (confirm == true && mounted) {
+      await FirebaseAuth.instance.signOut();
+      Navigator.pushNamedAndRemoveUntil(
+          context, AppRoutes.login, (_) => false);
+    }
+  }
+
+  // ── ALTERAR NOME DE USUÁRIO ───────────────────────────────────────
+  Future<void> _showChangeUsernameDialog() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final ctrl = TextEditingController(
+      text: user?.displayName ?? '',
+    );
+    final formKey = GlobalKey<FormState>();
+    bool saving = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(
+              color: AppColors.primaryOrange.withOpacity(0.3),
+              width: 1,
             ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Sair',
-              style: TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w700),
+          title: const Text(
+            'Alterar nome',
+            style: TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Este nome aparecerá no seu perfil e no menu.',
+                  style: TextStyle(color: Colors.white60, fontSize: 13),
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: ctrl,
+                  autofocus: true,
+                  style: const TextStyle(color: Colors.white),
+                  maxLength: 30,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'O nome não pode ser vazio.';
+                    }
+                    if (v.trim().length < 3) {
+                      return 'Mínimo de 3 caracteres.';
+                    }
+                    return null;
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Seu nome de usuário',
+                    hintStyle: const TextStyle(color: Colors.white38),
+                    counterStyle:
+                        const TextStyle(color: Colors.white38, fontSize: 11),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.05),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: AppColors.primaryOrange.withOpacity(0.3),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: AppColors.primaryOrange.withOpacity(0.2),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: AppColors.primaryOrange,
+                      ),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: Colors.redAccent,
+                      ),
+                    ),
+                    focusedErrorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: Colors.redAccent,
+                      ),
+                    ),
+                    errorStyle: const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed:
+                  saving ? null : () => Navigator.pop(dialogContext),
+              child: Text(
+                'Cancelar',
+                style: TextStyle(
+                  color: saving
+                      ? Colors.white24
+                      : AppColors.primaryOrange.withOpacity(0.8),
+                ),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                disabledBackgroundColor:
+                    AppColors.primaryOrange.withOpacity(0.4),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+
+                      setDialogState(() => saving = true);
+
+                      try {
+                        // 1. Atualiza no Firebase Auth
+                        await FirebaseAuth.instance.currentUser
+                            ?.updateDisplayName(ctrl.text.trim());
+
+                        // 2. Força reload do currentUser para refletir
+                        await FirebaseAuth.instance.currentUser
+                            ?.reload();
+
+                        // 3. Atualiza o provider para a ProfileScreen
+                        //    reagir imediatamente
+                        if (mounted) {
+                          await Provider.of<UserXpProvider>(
+                            context,
+                            listen: false,
+                          ).reload();
+                        }
+
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+
+                        if (mounted) {
+                          _showSnack(
+                            icon: Icons.check_circle_rounded,
+                            message: 'Nome atualizado com sucesso!',
+                          );
+                        }
+                      } on FirebaseAuthException catch (e) {
+                        setDialogState(() => saving = false);
+                        if (mounted) {
+                          _showSnack(
+                            icon: Icons.error_outline_rounded,
+                            message: _authErrorMessage(e.code),
+                            isError: true,
+                          );
+                        }
+                      } catch (_) {
+                        setDialogState(() => saving = false);
+                        if (mounted) {
+                          _showSnack(
+                            icon: Icons.error_outline_rounded,
+                            message: 'Erro inesperado. Tente novamente.',
+                            isError: true,
+                          );
+                        }
+                      }
+                    },
+              child: saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Salvar',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
 
-    if (confirm == true) {
-      await FirebaseAuth.instance.signOut();
-      if (mounted) {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          AppRoutes.login,
-          (_) => false,
-        );
-      }
+    ctrl.dispose();
+  }
+
+  // ── ALTERAR SENHA ────────────────────────────────────────────────
+  Future<void> _showChangePasswordDialog() async {
+    final ctrl = TextEditingController();
+    bool sending = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(
+              color: AppColors.primaryOrange.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+          title: const Text(
+            'Alterar senha',
+            style: TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Informe seu e-mail para receber o link de redefinição.',
+                style: TextStyle(color: Colors.white60, fontSize: 13),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: ctrl,
+                keyboardType: TextInputType.emailAddress,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Seu e-mail',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.05),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: AppColors.primaryOrange.withOpacity(0.3),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: AppColors.primaryOrange.withOpacity(0.2),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(
+                      color: AppColors.primaryOrange,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed:
+                  sending ? null : () => Navigator.pop(dialogContext),
+              child: Text(
+                'Cancelar',
+                style: TextStyle(
+                  color: sending
+                      ? Colors.white24
+                      : AppColors.primaryOrange.withOpacity(0.8),
+                ),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                disabledBackgroundColor:
+                    AppColors.primaryOrange.withOpacity(0.4),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: sending
+                  ? null
+                  : () async {
+                      final email = ctrl.text.trim();
+                      if (email.isEmpty) return;
+
+                      setDialogState(() => sending = true);
+
+                      try {
+                        await FirebaseAuth.instance
+                            .sendPasswordResetEmail(email: email);
+
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+                        if (mounted) {
+                          _showSnack(
+                            icon: Icons.mark_email_read_rounded,
+                            message: 'Link enviado para seu e-mail!',
+                          );
+                        }
+                      } on FirebaseAuthException catch (e) {
+                        setDialogState(() => sending = false);
+                        if (mounted) {
+                          _showSnack(
+                            icon: Icons.error_outline_rounded,
+                            message: _authErrorMessage(e.code),
+                            isError: true,
+                          );
+                        }
+                      }
+                    },
+              child: sending
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Enviar',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    ctrl.dispose();
+  }
+
+  // ── HELPERS ──────────────────────────────────────────────────────
+  void _showSnack({
+    required IconData icon,
+    required String message,
+    bool isError = false,
+  }) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF1A1A1A),
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        content: Row(
+          children: [
+            Icon(
+              icon,
+              color: isError ? Colors.redAccent : AppColors.primaryOrange,
+              size: 18,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _authErrorMessage(String code) {
+    switch (code) {
+      case 'user-not-found':
+        return 'E-mail não encontrado.';
+      case 'invalid-email':
+        return 'E-mail inválido.';
+      case 'requires-recent-login':
+        return 'Faça login novamente para continuar.';
+      case 'too-many-requests':
+        return 'Muitas tentativas. Tente mais tarde.';
+      default:
+        return 'Erro inesperado. Tente novamente.';
     }
+  }
+
+  String _autoplayLabelFor(String mode) {
+    switch (mode) {
+      case 'always':
+        return 'Sempre';
+      case 'never':
+        return 'Nunca';
+      default:
+        return 'Apenas Wi-Fi';
+    }
+  }
+
+  void _showCacheClearedSnack() {
+    _showSnack(
+      icon: Icons.check_circle_rounded,
+      message: 'Cache limpo com sucesso!',
+    );
   }
 
   // ── BUILD ────────────────────────────────────────────────────────
@@ -136,12 +498,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _SettingsTile(
             icon: Icons.badge_rounded,
             label: 'Alterar nome de usuário',
-            onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
+            sublabel: _currentDisplayName(),
+            onTap: _showChangeUsernameDialog,
           ),
           _SettingsTile(
             icon: Icons.lock_rounded,
             label: 'Alterar senha',
-            onTap: () => _showChangePasswordDialog(context),
+            onTap: _showChangePasswordDialog,
           ),
           _SettingsTile(
             icon: Icons.logout_rounded,
@@ -198,7 +561,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // ── APLICATIVO ────────────────────────────────────────────
           const _SectionHeader(label: 'APLICATIVO'),
-
           _SliderTile(
             icon: Icons.text_fields_rounded,
             label: 'Tamanho da fonte',
@@ -208,7 +570,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             valueLabel: '${_fontSize.round()}px',
             onChanged: (v) => setState(() => _fontSize = v),
           ),
-
           _ExpandableTile(
             icon: Icons.play_circle_rounded,
             label: 'Reprodução automática de vídeos',
@@ -236,7 +597,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-
           _SwitchTile(
             icon: Icons.data_saver_on_rounded,
             label: 'Economia de dados',
@@ -244,7 +604,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: _economiaDados,
             onChanged: (v) => setState(() => _economiaDados = v),
           ),
-
           _SettingsTile(
             icon: Icons.delete_sweep_rounded,
             label: 'Limpar cache',
@@ -286,15 +645,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _SettingsTile(
             icon: Icons.groups_rounded,
             label: 'Equipe Horizonte News',
-            onTap: () =>
-                _launch('https://horizontenews.com.br/equipe'),
+            onTap: () => _launch('https://horizontenews.com.br/equipe'),
           ),
           _SettingsTile(
             icon: Icons.alternate_email_rounded,
             label: 'Contato oficial',
             sublabel: 'contato@horizontenews.com.br',
-            onTap: () =>
-                _launch('mailto:contato@horizontenews.com.br'),
+            onTap: () => _launch('mailto:contato@horizontenews.com.br'),
           ),
 
           const SizedBox(height: 40),
@@ -303,174 +660,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // ── HELPERS ──────────────────────────────────────────────────────
-  String _autoplayLabelFor(String mode) {
-    switch (mode) {
-      case 'always':
-        return 'Sempre';
-      case 'never':
-        return 'Nunca';
-      default:
-        return 'Apenas Wi-Fi';
-    }
+  // Exibe o nome atual como sublabel do tile
+  String? _currentDisplayName() {
+    final name = FirebaseAuth.instance.currentUser?.displayName;
+    if (name == null || name.isEmpty) return null;
+    return name;
   }
+}
 
-  void _showCacheClearedSnack() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF1A1A1A),
-        behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        content: Row(
-          children: [
-            Icon(Icons.check_circle_rounded,
-                color: AppColors.primaryOrange, size: 18),
-            const SizedBox(width: 10),
-            const Text('Cache limpo com sucesso!',
-                style: TextStyle(color: Colors.white)),
-          ],
+// ═══════════════════════════════════════════════════════════════════
+// DIALOG DE CONFIRMAÇÃO REUTILIZÁVEL
+// ═══════════════════════════════════════════════════════════════════
+class _ConfirmDialog extends StatelessWidget {
+  final String title;
+  final String message;
+  final String confirmLabel;
+  final Color? confirmColor;
+
+  const _ConfirmDialog({
+    required this.title,
+    required this.message,
+    required this.confirmLabel,
+    this.confirmColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: AppColors.primaryOrange.withOpacity(0.3),
+          width: 1,
         ),
       ),
-    );
-  }
-
-  void _showChangePasswordDialog(BuildContext context) {
-    final ctrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(
-            color: AppColors.primaryOrange.withOpacity(0.3),
-            width: 1,
-          ),
-        ),
-        title: const Text(
-          'Alterar senha',
-          style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w700),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Informe seu e-mail para receber o link de redefinição.',
-              style: TextStyle(color: Colors.white60, fontSize: 13),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: ctrl,
-              keyboardType: TextInputType.emailAddress,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Seu e-mail',
-                hintStyle:
-                    const TextStyle(color: Colors.white38),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.05),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: AppColors.primaryOrange.withOpacity(0.3),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: AppColors.primaryOrange.withOpacity(0.2),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(
-                    color: AppColors.primaryOrange,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancelar',
-              style: TextStyle(
-                  color: AppColors.primaryOrange.withOpacity(0.8)),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () async {
-              final email = ctrl.text.trim();
-              if (email.isNotEmpty) {
-                try {
-                  await FirebaseAuth.instance
-                      .sendPasswordResetEmail(email: email);
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        backgroundColor: const Color(0xFF1A1A1A),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        content: Row(
-                          children: [
-                            Icon(Icons.mark_email_read_rounded,
-                                color: AppColors.primaryOrange,
-                                size: 18),
-                            const SizedBox(width: 10),
-                            const Text(
-                              'Link enviado para seu e-mail!',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        backgroundColor: const Color(0xFF1A1A1A),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        content: Row(
-                          children: [
-                            const Icon(Icons.error_outline_rounded,
-                                color: Colors.redAccent, size: 18),
-                            const SizedBox(width: 10),
-                            const Text(
-                              'E-mail não encontrado.',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-                }
-              }
-            },
-            child: const Text(
-              'Enviar',
-              style: TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
+      title: Text(
+        title,
+        style: const TextStyle(
+            color: Colors.white, fontWeight: FontWeight.w700),
       ),
+      content: Text(
+        message,
+        style: const TextStyle(color: Colors.white70),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(
+            'Cancelar',
+            style: TextStyle(
+                color: AppColors.primaryOrange.withOpacity(0.8)),
+          ),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: confirmColor ?? AppColors.primaryOrange,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8)),
+          ),
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(
+            confirmLabel,
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -922,9 +1178,8 @@ class _RadioOption extends StatelessWidget {
               style: TextStyle(
                 color: selected ? Colors.white : Colors.white60,
                 fontSize: 13,
-                fontWeight: selected
-                    ? FontWeight.w600
-                    : FontWeight.w400,
+                fontWeight:
+                    selected ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
           ],
