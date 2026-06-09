@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'xp_service.dart'; // ajuste o caminho se necessário
 
 class AdminService {
   final _db = FirebaseFirestore.instance;
@@ -56,7 +57,6 @@ class AdminService {
       'suspendedAt': FieldValue.serverTimestamp(),
     };
 
-    // days == 0 → permanente (sem campo 'until')
     if (days > 0) {
       data['until'] = Timestamp.fromDate(now.add(Duration(days: days)));
     }
@@ -71,24 +71,30 @@ class AdminService {
     await _logAction('unsuspend_user', userId);
   }
 
-  /// Verifica se o usuário está banido e retorna os dados do ban.
-  /// Retorna null se não estiver banido.
   Future<Map<String, dynamic>?> getBanData(String userId) async {
     final doc = await _db.collection('suspensions').doc(userId).get();
     if (!doc.exists) return null;
-
     final data = doc.data()!;
     final until = (data['until'] as Timestamp?)?.toDate();
-
-    // Se tem 'until' e já expirou, considera como não banido
     if (until != null && DateTime.now().isAfter(until)) return null;
-
     return data;
   }
 
-  /// Verifica apenas se está banido (bool simples).
   Future<bool> isUserSuspended(String userId) async {
     return (await getBanData(userId)) != null;
+  }
+
+  // ── Corrige o campo 'level' de todos os usuários no Firestore ────
+  // Útil para rodar uma vez e sincronizar tudo.
+  Future<void> syncAllUserLevels() async {
+    final snap = await _db.collection('users_xp').get();
+    final batch = _db.batch();
+    for (final doc in snap.docs) {
+      final xp = (doc.data()['totalXp'] as num?)?.toInt() ?? 0;
+      final correctLevel = XpService.levelFromXp(xp);
+      batch.update(doc.reference, {'level': correctLevel});
+    }
+    await batch.commit();
   }
 
   // ── Estatísticas ─────────────────────────────────────────────────
@@ -101,7 +107,6 @@ class AdminService {
           .orderBy('timestamp', descending: true)
           .limit(20)
           .get();
-
       final commentsSnap =
           await _db.collectionGroup('postComments').count().get();
       final reportedSnap = await _db
@@ -109,7 +114,6 @@ class AdminService {
           .where('reportCount', isGreaterThan: 0)
           .count()
           .get();
-
       final topUsersSnap = await _db
           .collection('users_xp')
           .orderBy('totalXp', descending: true)
