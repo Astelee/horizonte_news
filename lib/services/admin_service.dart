@@ -45,15 +45,23 @@ class AdminService {
 
   // ── Suspensões / Banimentos ──────────────────────────────────────
 
+  /// Bane um usuário de comentar.
+  /// [days] = 0 significa banimento permanente.
   Future<void> suspendUser(String userId, int days, String reason) async {
-    final until = DateTime.now().add(Duration(days: days));
-    await _db.collection('suspensions').doc(userId).set({
+    final now = DateTime.now();
+    final data = <String, dynamic>{
       'suspended': true,
-      'until': Timestamp.fromDate(until),
       'reason': reason,
       'suspendedBy': FirebaseAuth.instance.currentUser?.uid ?? '',
       'suspendedAt': FieldValue.serverTimestamp(),
-    });
+    };
+
+    // days == 0 → permanente (sem campo 'until')
+    if (days > 0) {
+      data['until'] = Timestamp.fromDate(now.add(Duration(days: days)));
+    }
+
+    await _db.collection('suspensions').doc(userId).set(data);
     await _logAction('suspend_user', userId,
         extra: {'days': days, 'reason': reason});
   }
@@ -63,12 +71,24 @@ class AdminService {
     await _logAction('unsuspend_user', userId);
   }
 
-  Future<bool> isUserSuspended(String userId) async {
+  /// Verifica se o usuário está banido e retorna os dados do ban.
+  /// Retorna null se não estiver banido.
+  Future<Map<String, dynamic>?> getBanData(String userId) async {
     final doc = await _db.collection('suspensions').doc(userId).get();
-    if (!doc.exists) return false;
-    final until = (doc.data()?['until'] as Timestamp?)?.toDate();
-    if (until == null) return false;
-    return DateTime.now().isBefore(until);
+    if (!doc.exists) return null;
+
+    final data = doc.data()!;
+    final until = (data['until'] as Timestamp?)?.toDate();
+
+    // Se tem 'until' e já expirou, considera como não banido
+    if (until != null && DateTime.now().isAfter(until)) return null;
+
+    return data;
+  }
+
+  /// Verifica apenas se está banido (bool simples).
+  Future<bool> isUserSuspended(String userId) async {
+    return (await getBanData(userId)) != null;
   }
 
   // ── Estatísticas ─────────────────────────────────────────────────
