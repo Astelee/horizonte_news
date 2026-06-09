@@ -25,8 +25,12 @@ void main() async {
     ),
   );
 
-  // Inicializa o serviço de notificações
-  await NotificationService.init();
+  // Inicializa notificações sem bloquear o app em caso de erro
+  try {
+    await NotificationService.init();
+  } catch (e) {
+    debugPrint('Aviso: erro ao inicializar notificações: $e');
+  }
 
   runApp(
     MultiProvider(
