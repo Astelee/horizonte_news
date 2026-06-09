@@ -9,34 +9,37 @@ class PostsProvider with ChangeNotifier {
   List<PostModel> _categoryPosts = [];
   List<PostModel> _searchResults = [];
   bool _isLoading = false;
+  bool _isLoadingMore = false; // ← proteção contra chamadas duplicadas
   String _nextPageToken = '';
   String _errorMessage = '';
 
-  // Getters para expor os estados de forma segura para as telas
   List<PostModel> get posts => _posts;
   List<PostModel> get categoryPosts => _categoryPosts;
   List<PostModel> get searchResults => _searchResults;
   bool get isLoading => _isLoading;
+  bool get isLoadingMore => _isLoadingMore;
   bool get hasMore => _nextPageToken.isNotEmpty;
   String get errorMessage => _errorMessage;
 
-  // Filtra as 3 postagens mais recentes para o Carrossel de Destaques
   List<PostModel> get featuredPosts {
     return _posts.take(3).toList();
   }
 
-  // Filtra o restante das postagens para a lista de Últimas Notícias
   List<PostModel> get recentPosts {
     return _posts.skip(3).toList();
   }
 
-  /// Carrega as notícias iniciais do feed principal do Horizonte News
   Future<void> loadInitialPosts() async {
     _setLoading(true);
     _errorMessage = '';
+    _nextPageToken = '';
     try {
-      final Map<String, dynamic> result = await _bloggerService.fetchPosts(maxResults: 12);
-      _posts = result['posts'];
+      final Map<String, dynamic> result =
+          await _bloggerService.fetchPosts(maxResults: 12);
+      // Deduplica por ID ao carregar inicial
+      final List<PostModel> incoming = result['posts'];
+      final seen = <String>{};
+      _posts = incoming.where((p) => seen.add(p.id)).toList();
       _nextPageToken = result['nextPageToken'];
     } catch (e) {
       _errorMessage = e.toString();
@@ -45,31 +48,43 @@ class PostsProvider with ChangeNotifier {
     }
   }
 
-  /// Carrega a próxima página de notícias do feed (Scroll Infinito)
   Future<void> loadMorePosts() async {
-    if (_isLoading || _nextPageToken.isEmpty) return;
+    // Bloqueia se já está carregando mais ou se não há próxima página
+    if (_isLoading || _isLoadingMore || _nextPageToken.isEmpty) return;
+
+    _isLoadingMore = true;
+    notifyListeners();
 
     try {
       final Map<String, dynamic> result = await _bloggerService.fetchPosts(
         pageToken: _nextPageToken,
         maxResults: 10,
       );
-      _posts.addAll(result['posts']);
+
+      final List<PostModel> incoming = result['posts'];
+
+      // Deduplica: só adiciona posts que ainda não existem na lista
+      final existingIds = _posts.map((p) => p.id).toSet();
+      final newPosts =
+          incoming.where((p) => !existingIds.contains(p.id)).toList();
+
+      _posts.addAll(newPosts);
       _nextPageToken = result['nextPageToken'];
-      notifyListeners();
     } catch (e) {
       _errorMessage = e.toString();
+    } finally {
+      _isLoadingMore = false;
       notifyListeners();
     }
   }
 
-  /// Carrega notícias associadas a uma categoria (marcador) específica
   Future<void> loadPostsByCategory(String categoryName) async {
     _setLoading(true);
     _errorMessage = '';
     _categoryPosts = [];
     try {
-      _categoryPosts = await _bloggerService.fetchPostsByCategory(categoryName);
+      _categoryPosts =
+          await _bloggerService.fetchPostsByCategory(categoryName);
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -77,7 +92,6 @@ class PostsProvider with ChangeNotifier {
     }
   }
 
-  /// Realiza pesquisa de notícias
   Future<void> search(String query) async {
     _setLoading(true);
     _errorMessage = '';
