@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../providers/admin_provider.dart';
 import '../services/admin_service.dart';
@@ -21,7 +20,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -56,18 +55,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           body: TabBarView(
             controller: _tabController,
             children: [
-              Container(
-                color: AppColors.backgroundDark,
-                child: _DashboardTab(service: _service),
-              ),
-              Container(
-                color: AppColors.backgroundDark,
-                child: _CommentsTab(service: _service),
-              ),
-              Container(
-                color: AppColors.backgroundDark,
-                child: _UsersTab(service: _service),
-              ),
+              _CommentsTab(service: _service),
+              _UsersTab(service: _service),
             ],
           ),
         ),
@@ -171,9 +160,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           letterSpacing: 0.8,
         ),
         tabs: const [
-          Tab(icon: Icon(Icons.dashboard_rounded, size: 18), text: 'PAINEL'),
-          Tab(icon: Icon(Icons.chat_bubble_rounded, size: 18), text: 'COMENTÁRIOS'),
-          Tab(icon: Icon(Icons.people_rounded, size: 18), text: 'USUÁRIOS'),
+          Tab(
+              icon: Icon(Icons.chat_bubble_rounded, size: 18),
+              text: 'COMENTÁRIOS'),
+          Tab(
+              icon: Icon(Icons.people_rounded, size: 18),
+              text: 'USUÁRIOS'),
         ],
       ),
     );
@@ -181,210 +173,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ABA 1 — DASHBOARD
-// ═══════════════════════════════════════════════════════════════════
-
-class _DashboardTab extends StatefulWidget {
-  final AdminService service;
-  const _DashboardTab({required this.service});
-
-  @override
-  State<_DashboardTab> createState() => _DashboardTabState();
-}
-
-class _DashboardTabState extends State<_DashboardTab> {
-  Map<String, dynamic>? _stats;
-  bool _loading = true;
-  bool _hasError = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    if (!mounted) return;
-    setState(() {
-      _loading = true;
-      _hasError = false;
-    });
-    try {
-      final stats = await widget.service.getStats();
-      if (mounted) {
-        setState(() {
-          _stats = stats;
-          _loading = false;
-          _hasError = stats == null;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _stats = null;
-          _loading = false;
-          _hasError = true;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) {
-      return const ColoredBox(
-        color: AppColors.backgroundDark,
-        child: Center(
-          child: CircularProgressIndicator(color: AppColors.primaryOrange),
-        ),
-      );
-    }
-
-    if (_hasError || _stats == null) {
-      return ColoredBox(
-        color: AppColors.backgroundDark,
-        child: RefreshIndicator(
-          color: AppColors.primaryOrange,
-          backgroundColor: AppColors.backgroundElevated,
-          onRefresh: _load,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline_rounded,
-                        color: AppColors.primaryOrange.withOpacity(0.3),
-                        size: 48,
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Erro ao carregar dados do painel.\nPuxe para baixo para atualizar.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      TextButton.icon(
-                        onPressed: _load,
-                        icon: const Icon(Icons.refresh_rounded,
-                            color: AppColors.primaryOrange),
-                        label: const Text(
-                          'Tentar novamente',
-                          style: TextStyle(color: AppColors.primaryOrange),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final stats = _stats!;
-    final logs = stats['recentLogs'] != null
-        ? stats['recentLogs'] as List<QueryDocumentSnapshot>
-        : <QueryDocumentSnapshot>[];
-    final topUsers = stats['topUsers'] != null
-        ? stats['topUsers'] as List<QueryDocumentSnapshot>
-        : <QueryDocumentSnapshot>[];
-
-    return ColoredBox(
-      color: AppColors.backgroundDark,
-      child: RefreshIndicator(
-        color: AppColors.primaryOrange,
-        backgroundColor: AppColors.backgroundElevated,
-        onRefresh: _load,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          children: [
-            Row(
-              children: [
-                _StatCard(
-                  icon: Icons.people_rounded,
-                  label: 'Usuários',
-                  value: '${stats['totalUsers'] ?? 0}',
-                  color: const Color(0xFF4FC3F7),
-                ),
-                const SizedBox(width: 10),
-                _StatCard(
-                  icon: Icons.chat_bubble_rounded,
-                  label: 'Comentários',
-                  value: '${stats['totalComments'] ?? 0}',
-                  color: AppColors.primaryOrange,
-                ),
-                const SizedBox(width: 10),
-                _StatCard(
-                  icon: Icons.flag_rounded,
-                  label: 'Denunciados',
-                  value: '${stats['reportedComments'] ?? 0}',
-                  color: const Color(0xFFEF5350),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            const _SectionTitle(title: 'TOP USUÁRIOS POR XP'),
-            const SizedBox(height: 10),
-            if (topUsers.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(
-                  child: Text(
-                    'Nenhum usuário listado',
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 13),
-                  ),
-                ),
-              )
-            else
-              ...topUsers.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                final name = data['displayName'] ?? doc.id.substring(0, 8);
-                final xp = (data['totalXp'] as num?)?.toInt() ?? 0;
-                final level = (data['level'] as num?)?.toInt() ?? 1;
-                return _TopUserTile(
-                  name: name,
-                  xp: xp,
-                  level: level,
-                  userId: doc.id,
-                );
-              }),
-            const SizedBox(height: 20),
-            const _SectionTitle(title: 'AÇÕES RECENTES'),
-            const SizedBox(height: 10),
-            if (logs.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(
-                  child: Text(
-                    'Nenhuma ação registrada ainda',
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 13),
-                  ),
-                ),
-              )
-            else
-              ...logs.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                return _LogTile(data: data);
-              }),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// ABA 2 — COMENTÁRIOS
+// ABA 1 — COMENTÁRIOS
 // ═══════════════════════════════════════════════════════════════════
 
 class _CommentsTab extends StatefulWidget {
@@ -404,9 +193,11 @@ class _CommentsTabState extends State<_CommentsTab> {
       color: AppColors.backgroundDark,
       child: Column(
         children: [
+          // ── Filtros ──────────────────────────────────────────────
           Container(
             color: Colors.black,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               children: [
                 _FilterChip(
@@ -431,101 +222,68 @@ class _CommentsTabState extends State<_CommentsTab> {
               ],
             ),
           ),
+
+          // ── Lista ────────────────────────────────────────────────
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: widget.service.allCommentsStream(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const ColoredBox(
-                    color: AppColors.backgroundDark,
-                    child: Center(
-                      child: CircularProgressIndicator(
-                          color: AppColors.primaryOrange),
-                    ),
+                  return const Center(
+                    child: CircularProgressIndicator(
+                        color: AppColors.primaryOrange),
                   );
                 }
 
                 if (snapshot.hasError) {
-                  return ColoredBox(
-                    color: AppColors.backgroundDark,
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.error_outline_rounded,
-                                color: AppColors.primaryOrange.withOpacity(0.4),
-                                size: 48),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Erro ao carregar comentários.\n${snapshot.error}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                  color: AppColors.textMuted, fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
+                  return _ErrorState(message: '${snapshot.error}');
                 }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const ColoredBox(
-                    color: AppColors.backgroundDark,
-                    child: _EmptyState(
-                      icon: Icons.chat_bubble_outline_rounded,
-                      message: 'Nenhum comentário encontrado',
-                    ),
+                  return const _EmptyState(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    message: 'Nenhum comentário encontrado',
                   );
                 }
 
-                // Filtro em memória — sem índice no Firestore
                 var docs = snapshot.data!.docs;
 
                 if (_filter == 'reported') {
                   docs = docs.where((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    return ((data['reportCount'] as num?)?.toInt() ?? 0) > 0;
+                    final d = doc.data() as Map<String, dynamic>;
+                    return ((d['reportCount'] as num?)?.toInt() ?? 0) > 0;
                   }).toList();
                 } else if (_filter == 'hidden') {
                   docs = docs.where((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    return data['hidden'] == true;
+                    final d = doc.data() as Map<String, dynamic>;
+                    return d['hidden'] == true;
                   }).toList();
                 }
 
                 if (docs.isEmpty) {
-                  return const ColoredBox(
-                    color: AppColors.backgroundDark,
-                    child: _EmptyState(
-                      icon: Icons.chat_bubble_outline_rounded,
-                      message: 'Nenhum comentário encontrado',
-                    ),
+                  return const _EmptyState(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    message: 'Nenhum comentário encontrado',
                   );
                 }
 
-                return ColoredBox(
-                  color: AppColors.backgroundDark,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: docs.length,
-                    itemBuilder: (context, i) {
-                      final doc = docs[i];
-                      final data = doc.data() as Map<String, dynamic>;
-                      final pathParts = doc.reference.path.split('/');
-                      final postId =
-                          pathParts.length >= 4 ? pathParts[1] : '';
+                return ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: docs.length,
+                  itemBuilder: (context, i) {
+                    final doc = docs[i];
+                    final data = doc.data() as Map<String, dynamic>;
+                    final pathParts = doc.reference.path.split('/');
+                    final postId =
+                        pathParts.length >= 4 ? pathParts[1] : '';
 
-                      return _AdminCommentTile(
-                        commentId: doc.id,
-                        postId: postId,
-                        data: data,
-                        service: widget.service,
-                      );
-                    },
-                  ),
+                    return _AdminCommentTile(
+                      commentId: doc.id,
+                      postId: postId,
+                      data: data,
+                      service: widget.service,
+                    );
+                  },
                 );
               },
             ),
@@ -537,7 +295,7 @@ class _CommentsTabState extends State<_CommentsTab> {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ABA 3 — USUÁRIOS
+// ABA 2 — USUÁRIOS
 // ═══════════════════════════════════════════════════════════════════
 
 class _UsersTab extends StatelessWidget {
@@ -556,8 +314,13 @@ class _UsersTab extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryOrange),
+              child:
+                  CircularProgressIndicator(color: AppColors.primaryOrange),
             );
+          }
+
+          if (snapshot.hasError) {
+            return _ErrorState(message: '${snapshot.error}');
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -567,18 +330,48 @@ class _UsersTab extends StatelessWidget {
             );
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: snapshot.data!.docs.length,
-            itemBuilder: (context, i) {
-              final doc = snapshot.data!.docs[i];
-              final data = doc.data() as Map<String, dynamic>;
-              return _AdminUserTile(
-                userId: doc.id,
-                data: data,
-                service: service,
-              );
-            },
+          final docs = snapshot.data!.docs;
+
+          return Column(
+            children: [
+              // ── Cabeçalho com contagem ──────────────────────────
+              Container(
+                color: Colors.black,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+                child: Row(
+                  children: [
+                    const Icon(Icons.people_rounded,
+                        color: AppColors.primaryOrange, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${docs.length} usuário${docs.length != 1 ? 's' : ''} cadastrado${docs.length != 1 ? 's' : ''}',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // ── Lista ───────────────────────────────────────────
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: docs.length,
+                  itemBuilder: (context, i) {
+                    final doc = docs[i];
+                    final data = doc.data() as Map<String, dynamic>;
+                    return _AdminUserTile(
+                      userId: doc.id,
+                      data: data,
+                      service: service,
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -587,254 +380,10 @@ class _UsersTab extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// WIDGETS INTERNOS
+// TILE DE COMENTÁRIO
 // ═══════════════════════════════════════════════════════════════════
 
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: const Color(0xFF0A0A0A),
-          border: Border.all(color: color.withOpacity(0.25)),
-          boxShadow: [
-            BoxShadow(color: color.withOpacity(0.06), blurRadius: 20),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: TextStyle(
-                color: color,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  const _SectionTitle({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 3,
-          height: 16,
-          decoration: BoxDecoration(
-            gradient: AppColors.orangeVertical,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.5,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _TopUserTile extends StatelessWidget {
-  final String name;
-  final int xp;
-  final int level;
-  final String userId;
-
-  const _TopUserTile({
-    required this.name,
-    required this.xp,
-    required this.level,
-    required this.userId,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: const Color(0xFF0A0A0A),
-        border: Border.all(color: AppColors.borderDark),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: AppColors.orangeGradient,
-            ),
-            child: Center(
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  'Nível $level  •  $xp XP',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              color: AppColors.primaryOrange.withOpacity(0.15),
-              border: Border.all(
-                  color: AppColors.primaryOrange.withOpacity(0.3)),
-            ),
-            child: Text(
-              'Nv. $level',
-              style: const TextStyle(
-                color: AppColors.primaryOrange,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LogTile extends StatelessWidget {
-  final Map<String, dynamic> data;
-  const _LogTile({required this.data});
-
-  String _actionLabel(String action) {
-    switch (action) {
-      case 'delete_comment':  return '🗑 Comentário deletado';
-      case 'hide_comment':    return '👁 Comentário ocultado';
-      case 'restore_comment': return '✅ Comentário restaurado';
-      case 'suspend_user':    return '🚫 Usuário suspenso';
-      case 'unsuspend_user':  return '✅ Suspensão removida';
-      default:                return action;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ts = (data['timestamp'] as Timestamp?)?.toDate();
-    final timeStr = ts != null
-        ? '${ts.day}/${ts.month} ${ts.hour}:${ts.minute.toString().padLeft(2, '0')}'
-        : '';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        color: const Color(0xFF0A0A0A),
-        border: Border.all(color: AppColors.borderDark),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _actionLabel(data['action'] ?? ''),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  'por ${data['adminName'] ?? 'Admin'}',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            timeStr,
-            style: const TextStyle(
-              color: AppColors.textMuted,
-              fontSize: 10,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// TILE DE COMENTÁRIO — StatefulWidget para mounted funcionar
-// ═══════════════════════════════════════════════════════════════════
-
-class _AdminCommentTile extends StatefulWidget {
+class _AdminCommentTile extends StatelessWidget {
   final String commentId;
   final String postId;
   final Map<String, dynamic> data;
@@ -848,309 +397,149 @@ class _AdminCommentTile extends StatefulWidget {
   });
 
   @override
-  State<_AdminCommentTile> createState() => _AdminCommentTileState();
-}
-
-class _AdminCommentTileState extends State<_AdminCommentTile> {
-  @override
   Widget build(BuildContext context) {
-    final isHidden = widget.data['hidden'] == true;
-    final reportCount = (widget.data['reportCount'] as num?)?.toInt() ?? 0;
+    final isHidden = data['hidden'] == true;
+    final reportCount = (data['reportCount'] as num?)?.toInt() ?? 0;
+    final author = data['authorName'] ?? 'Anônimo';
+    final text = data['text'] ?? '';
+    final ts = (data['createdAt'] as Timestamp?)?.toDate();
+    final dateStr = ts != null
+        ? '${ts.day.toString().padLeft(2, '0')}/${ts.month.toString().padLeft(2, '0')}/${ts.year} ${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}'
+        : '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
         color: const Color(0xFF0A0A0A),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isHidden
-              ? AppColors.textMuted.withOpacity(0.3)
-              : reportCount > 0
-                  ? const Color(0xFFEF5350).withOpacity(0.3)
+          color: reportCount > 0
+              ? const Color(0xFFEF5350).withOpacity(0.4)
+              : isHidden
+                  ? AppColors.textSecondary.withOpacity(0.2)
                   : AppColors.borderDark,
+          width: 1,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: AppColors.orangeGradient,
-                ),
-                child: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header ───────────────────────────────────────────
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor:
+                      AppColors.primaryOrange.withOpacity(0.15),
                   child: Text(
-                    (widget.data['userName'] as String? ?? '?')[0].toUpperCase(),
+                    author.isNotEmpty
+                        ? author[0].toUpperCase()
+                        : '?',
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
+                      color: AppColors.primaryOrange,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.data['userName'] ?? 'Anônimo',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        author,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    Text(
-                      widget.data['userId'] ?? '',
-                      style: const TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 9,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              if (reportCount > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    color: const Color(0xFFEF5350).withOpacity(0.15),
-                    border: Border.all(
-                        color: const Color(0xFFEF5350).withOpacity(0.4)),
-                  ),
-                  child: Text(
-                    '⚑ $reportCount',
-                    style: const TextStyle(
-                      color: Color(0xFFEF5350),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              if (isHidden)
-                Container(
-                  margin: const EdgeInsets.only(left: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    color: AppColors.textMuted.withOpacity(0.15),
-                    border: Border.all(
-                        color: AppColors.textMuted.withOpacity(0.4)),
-                  ),
-                  child: const Text(
-                    'OCULTO',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            widget.data['text'] ?? '',
-            style: TextStyle(
-              color: isHidden
-                  ? AppColors.textMuted
-                  : AppColors.textSecondaryDark,
-              fontSize: 13,
-              fontStyle: isHidden ? FontStyle.italic : FontStyle.normal,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (!isHidden)
-                _ActionButton(
-                  icon: Icons.visibility_off_rounded,
-                  label: 'Ocultar',
-                  color: AppColors.textSecondary,
-                  onTap: () async {
-                    await widget.service.hideComment(widget.postId, widget.commentId);
-                    if (mounted) _snack('Comentário ocultado');
-                  },
-                )
-              else
-                _ActionButton(
-                  icon: Icons.visibility_rounded,
-                  label: 'Restaurar',
-                  color: const Color(0xFF66BB6A),
-                  onTap: () async {
-                    await widget.service.restoreComment(widget.postId, widget.commentId);
-                    if (mounted) _snack('Comentário restaurado');
-                  },
-                ),
-              const SizedBox(width: 8),
-              _ActionButton(
-                icon: Icons.delete_rounded,
-                label: 'Excluir',
-                color: const Color(0xFFEF5350),
-                onTap: () => _confirmDelete(context),
-              ),
-              const SizedBox(width: 8),
-              _ActionButton(
-                icon: Icons.person_off_rounded,
-                label: 'Suspender',
-                color: const Color(0xFFFFA726),
-                onTap: () => _showSuspendDialog(context, widget.data['userId'] ?? ''),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _snack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: const TextStyle(color: Colors.white)),
-        backgroundColor: AppColors.backgroundElevated,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
-
-  void _confirmDelete(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF0A0A0A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: const Color(0xFFEF5350).withOpacity(0.3)),
-        ),
-        title: const Text('Excluir comentário?',
-            style: TextStyle(color: Colors.white, fontSize: 16)),
-        content: const Text(
-          'Esta ação não pode ser desfeita.',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar',
-                style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await widget.service.deleteComment(widget.postId, widget.commentId);
-              if (mounted) _snack('Comentário excluído');
-            },
-            child: const Text('Excluir',
-                style: TextStyle(color: Color(0xFFEF5350))),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSuspendDialog(BuildContext context, String userId) {
-    int days = 1;
-    final reasonCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          backgroundColor: const Color(0xFF0A0A0A),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: const Color(0xFFFFA726).withOpacity(0.3)),
-          ),
-          title: const Text('Suspender usuário',
-              style: TextStyle(color: Colors.white, fontSize: 16)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'ID: ${userId.substring(0, userId.length > 12 ? 12 : userId.length)}...',
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  const Text('Dias:',
-                      style: TextStyle(color: Colors.white, fontSize: 13)),
-                  const SizedBox(width: 12),
-                  ...[1, 3, 7, 30].map((d) => GestureDetector(
-                        onTap: () => setS(() => days = d),
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 6),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            color: days == d
-                                ? AppColors.primaryOrange
-                                : AppColors.backgroundElevated,
-                          ),
-                          child: Text(
-                            '$d',
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700),
+                      if (dateStr.isNotEmpty)
+                        Text(
+                          dateStr,
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 11,
                           ),
                         ),
-                      )),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: reasonCtrl,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
-                  hintText: 'Motivo (opcional)',
-                  hintStyle: TextStyle(
-                      color: Colors.white.withOpacity(0.3), fontSize: 13),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(
-                        color: AppColors.primaryOrange.withOpacity(0.2)),
+                    ],
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.primaryOrange),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
                 ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar',
-                  style: TextStyle(color: AppColors.textSecondary)),
+                // Badges
+                if (reportCount > 0)
+                  _Badge(
+                    label: '$reportCount denúncia${reportCount > 1 ? 's' : ''}',
+                    color: const Color(0xFFEF5350),
+                  ),
+                if (isHidden) ...[
+                  const SizedBox(width: 6),
+                  _Badge(
+                    label: 'Oculto',
+                    color: AppColors.textSecondary,
+                  ),
+                ],
+              ],
             ),
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                await AdminService()
-                    .suspendUser(userId, days, reasonCtrl.text.trim());
-                if (mounted) _snack('Usuário suspenso por $days dia(s)');
-              },
-              child: const Text('Suspender',
-                  style: TextStyle(color: Color(0xFFFFA726))),
+            const SizedBox(height: 10),
+
+            // ── Texto ─────────────────────────────────────────────
+            Text(
+              text,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                height: 1.5,
+              ),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 12),
+
+            // ── Ações ─────────────────────────────────────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (isHidden)
+                  _ActionButton(
+                    icon: Icons.visibility_rounded,
+                    label: 'Restaurar',
+                    color: const Color(0xFF4FC3F7),
+                    onTap: () =>
+                        service.restoreComment(postId, commentId),
+                  )
+                else
+                  _ActionButton(
+                    icon: Icons.visibility_off_rounded,
+                    label: 'Ocultar',
+                    color: AppColors.textSecondary,
+                    onTap: () =>
+                        service.hideComment(postId, commentId),
+                  ),
+                const SizedBox(width: 8),
+                _ActionButton(
+                  icon: Icons.delete_rounded,
+                  label: 'Excluir',
+                  color: const Color(0xFFEF5350),
+                  onTap: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => _ConfirmDialog(
+                        title: 'Excluir comentário?',
+                        message:
+                            'Esta ação não pode ser desfeita.',
+                        confirmLabel: 'Excluir',
+                        confirmColor: const Color(0xFFEF5350),
+                      ),
+                    );
+                    if (confirm == true) {
+                      service.deleteComment(postId, commentId);
+                    }
+                  },
+                ),
+              ],
             ),
           ],
         ),
@@ -1158,6 +547,10 @@ class _AdminCommentTileState extends State<_AdminCommentTile> {
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// TILE DE USUÁRIO
+// ═══════════════════════════════════════════════════════════════════
 
 class _AdminUserTile extends StatelessWidget {
   final String userId;
@@ -1172,151 +565,308 @@ class _AdminUserTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = data['displayName'] ?? userId.substring(0, 10);
+    final name = (data['displayName'] as String?)?.isNotEmpty == true
+        ? data['displayName'] as String
+        : 'Sem nome';
+    final email = data['email'] as String? ?? '';
     final xp = (data['totalXp'] as num?)?.toInt() ?? 0;
     final level = (data['level'] as num?)?.toInt() ?? 1;
     final comments =
         (data['stats']?['commentsPosted'] as num?)?.toInt() ?? 0;
+    final articles =
+        (data['stats']?['articlesRead'] as num?)?.toInt() ?? 0;
+    final createdAt =
+        (data['createdAt'] as Timestamp?)?.toDate();
+    final createdStr = createdAt != null
+        ? 'Desde ${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year}'
+        : '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
         color: const Color(0xFF0A0A0A),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.borderDark),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: AppColors.orangeGradient,
-            ),
-            child: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            // Avatar
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: AppColors.primaryOrange.withOpacity(0.15),
               child: Text(
                 name[0].toUpperCase(),
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
+                  color: AppColors.primaryOrange,
                   fontSize: 18,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+            const SizedBox(width: 12),
+
+            // Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (email.isNotEmpty)
+                    Text(
+                      email,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      _InfoChip(
+                          icon: Icons.star_rounded,
+                          label: 'Nv $level · $xp XP',
+                          color: AppColors.primaryOrange),
+                      _InfoChip(
+                          icon: Icons.chat_bubble_rounded,
+                          label: '$comments comentários',
+                          color: const Color(0xFF4FC3F7)),
+                      _InfoChip(
+                          icon: Icons.article_rounded,
+                          label: '$articles lidos',
+                          color: const Color(0xFF81C784)),
+                      if (createdStr.isNotEmpty)
+                        _InfoChip(
+                            icon: Icons.calendar_today_rounded,
+                            label: createdStr,
+                            color: AppColors.textSecondary),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Menu
+            PopupMenuButton<String>(
+              color: AppColors.backgroundElevated,
+              icon: const Icon(Icons.more_vert_rounded,
+                  color: AppColors.textSecondary, size: 20),
+              onSelected: (value) async {
+                if (value == 'suspend') {
+                  _showSuspendDialog(context, userId);
+                } else if (value == 'unsuspend') {
+                  await service.unsuspendUser(userId);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Suspensão removida.'),
+                        backgroundColor: Color(0xFF81C784),
+                      ),
+                    );
+                  }
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'suspend',
+                  child: Row(
+                    children: [
+                      Icon(Icons.block_rounded,
+                          color: Color(0xFFEF5350), size: 18),
+                      SizedBox(width: 10),
+                      Text('Suspender',
+                          style: TextStyle(color: Colors.white)),
+                    ],
                   ),
                 ),
-                Text(
-                  'Nível $level  •  $xp XP  •  $comments comentários',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11,
+                const PopupMenuItem(
+                  value: 'unsuspend',
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_circle_rounded,
+                          color: Color(0xFF81C784), size: 18),
+                      SizedBox(width: 10),
+                      Text('Remover suspensão',
+                          style: TextStyle(color: Colors.white)),
+                    ],
                   ),
-                ),
-                Text(
-                  userId,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 9,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () => _showUserActions(context),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: AppColors.backgroundElevated,
-              ),
-              child: const Icon(Icons.more_vert_rounded,
-                  color: Colors.white, size: 16),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  void _showUserActions(BuildContext context) {
-    showModalBottomSheet(
+  void _showSuspendDialog(BuildContext context, String userId) {
+    int days = 1;
+    final reasonController = TextEditingController();
+
+    showDialog(
       context: context,
-      backgroundColor: const Color(0xFF0A0A0A),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(2),
-                color: AppColors.textMuted,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setStateDialog) => AlertDialog(
+          backgroundColor: AppColors.backgroundElevated,
+          title: const Text(
+            'Suspender usuário',
+            style: TextStyle(color: Colors.white, fontSize: 16),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  const Text('Dias:',
+                      style: TextStyle(color: AppColors.textSecondary)),
+                  const SizedBox(width: 12),
+                  IconButton(
+                    onPressed: () {
+                      if (days > 1) setStateDialog(() => days--);
+                    },
+                    icon: const Icon(Icons.remove_circle_outline_rounded,
+                        color: AppColors.primaryOrange),
+                  ),
+                  Text(
+                    '$days',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700),
+                  ),
+                  IconButton(
+                    onPressed: () => setStateDialog(() => days++),
+                    icon: const Icon(Icons.add_circle_outline_rounded,
+                        color: AppColors.primaryOrange),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              data['displayName'] ?? userId.substring(0, 10),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Motivo (opcional)',
+                  hintStyle:
+                      const TextStyle(color: AppColors.textSecondary),
+                  filled: true,
+                  fillColor: AppColors.backgroundDark,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
               ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar',
+                  style: TextStyle(color: AppColors.textSecondary)),
             ),
-            const SizedBox(height: 16),
-            _BottomSheetAction(
-              icon: Icons.block_rounded,
-              label: 'Suspender 1 dia',
-              color: const Color(0xFFFFA726),
-              onTap: () async {
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF5350),
+              ),
+              onPressed: () async {
                 Navigator.pop(context);
                 await service.suspendUser(
-                    userId, 1, 'Suspenso pelo administrador');
+                    userId, days, reasonController.text);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Usuário suspenso por 1 dia',
-                          style: TextStyle(color: Colors.white)),
-                      backgroundColor: AppColors.backgroundElevated,
+                    SnackBar(
+                      content:
+                          Text('Usuário suspenso por $days dia(s).'),
+                      backgroundColor: const Color(0xFFEF5350),
                     ),
                   );
                 }
               },
+              child: const Text('Suspender',
+                  style: TextStyle(color: Colors.white)),
             ),
-            _BottomSheetAction(
-              icon: Icons.check_circle_rounded,
-              label: 'Remover suspensão',
-              color: const Color(0xFF66BB6A),
-              onTap: () async {
-                Navigator.pop(context);
-                await service.unsuspendUser(userId);
-              },
-            ),
-            const SizedBox(height: 8),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// WIDGETS AUXILIARES
+// ═══════════════════════════════════════════════════════════════════
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool active;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.active,
+    this.color = AppColors.primaryOrange,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? color.withOpacity(0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: active ? color : AppColors.borderDark,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: active ? color : AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _Badge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.4), width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+            color: color, fontSize: 10, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -1340,24 +890,24 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(8),
-          color: color.withOpacity(0.12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withOpacity(0.3), width: 1),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 13),
-            const SizedBox(width: 4),
+            Icon(icon, color: color, size: 14),
+            const SizedBox(width: 5),
             Text(
               label,
               style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700),
             ),
           ],
         ),
@@ -1366,43 +916,26 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-class _FilterChip extends StatelessWidget {
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
   final String label;
-  final bool active;
-  final Color? color;
-  final VoidCallback onTap;
-
-  const _FilterChip({
-    required this.label,
-    required this.active,
-    required this.onTap,
-    this.color,
-  });
+  final Color color;
+  const _InfoChip(
+      {required this.icon, required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? AppColors.primaryOrange;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: active ? c.withOpacity(0.15) : Colors.transparent,
-          border: Border.all(
-            color: active ? c.withOpacity(0.5) : AppColors.borderDark,
-          ),
-        ),
-        child: Text(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 12),
+        const SizedBox(width: 4),
+        Text(
           label,
           style: TextStyle(
-            color: active ? c : AppColors.textSecondary,
-            fontSize: 12,
-            fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-          ),
+              color: color, fontSize: 11, fontWeight: FontWeight.w600),
         ),
-      ),
+      ],
     );
   }
 }
@@ -1410,25 +943,47 @@ class _FilterChip extends StatelessWidget {
 class _EmptyState extends StatelessWidget {
   final IconData icon;
   final String message;
-
   const _EmptyState({required this.icon, required this.message});
 
   @override
   Widget build(BuildContext context) {
     return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon,
+              color: AppColors.primaryOrange.withOpacity(0.2), size: 48),
+          const SizedBox(height: 12),
+          Text(message,
+              style: const TextStyle(
+                  color: AppColors.textMuted, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String message;
+  const _ErrorState({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
       child: Padding(
-        padding: const EdgeInsets.all(40),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon,
-                size: 48,
-                color: AppColors.primaryOrange.withOpacity(0.3)),
+            Icon(Icons.error_outline_rounded,
+                color: AppColors.primaryOrange.withOpacity(0.4),
+                size: 48),
             const SizedBox(height: 12),
             Text(
-              message,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+              'Erro: $message',
               textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: AppColors.textMuted, fontSize: 13),
             ),
           ],
         ),
@@ -1437,47 +992,42 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _BottomSheetAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
+class _ConfirmDialog extends StatelessWidget {
+  final String title;
+  final String message;
+  final String confirmLabel;
+  final Color confirmColor;
 
-  const _BottomSheetAction({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
+  const _ConfirmDialog({
+    required this.title,
+    required this.message,
+    required this.confirmLabel,
+    required this.confirmColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: color.withOpacity(0.08),
-          border: Border.all(color: color.withOpacity(0.2)),
+    return AlertDialog(
+      backgroundColor: AppColors.backgroundElevated,
+      title: Text(title,
+          style: const TextStyle(color: Colors.white, fontSize: 16)),
+      content: Text(message,
+          style: const TextStyle(
+              color: AppColors.textSecondary, fontSize: 13)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancelar',
+              style: TextStyle(color: AppColors.textSecondary)),
         ),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+        ElevatedButton(
+          style:
+              ElevatedButton.styleFrom(backgroundColor: confirmColor),
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(confirmLabel,
+              style: const TextStyle(color: Colors.white)),
         ),
-      ),
+      ],
     );
   }
 }
