@@ -6,12 +6,7 @@ class AdminService {
 
   // ── Comentários ──────────────────────────────────────────────────
 
-  // CORRIGIDO: busca tudo sem filtro no Firestore, filtra em memória no widget
-  Stream<QuerySnapshot> allCommentsStream({
-    bool onlyReported = false,
-    bool onlyHidden = false,
-  }) {
-    // Sem where nem orderBy — evita qualquer exigência de índice
+  Stream<QuerySnapshot> allCommentsStream() {
     return _db
         .collectionGroup('postComments')
         .limit(200)
@@ -48,7 +43,7 @@ class AdminService {
     await _logAction('delete_comment', commentId, postId: postId);
   }
 
-  // ── Suspensões ───────────────────────────────────────────────────
+  // ── Suspensões / Banimentos ──────────────────────────────────────
 
   Future<void> suspendUser(String userId, int days, String reason) async {
     final until = DateTime.now().add(Duration(days: days));
@@ -118,6 +113,8 @@ class AdminService {
       };
     }
   }
+
+  // ── Log de ações ─────────────────────────────────────────────────
 
   Future<void> _logAction(
     String action,
