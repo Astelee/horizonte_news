@@ -9,6 +9,7 @@ import '../widgets/featured_carousel.dart';
 import '../widgets/breaking_news_banner.dart';
 import '../widgets/news_card.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/relative_time_text.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -159,8 +160,8 @@ class _HomeScreenState extends State<HomeScreen>
               : Colors.transparent,
           border: _isScrolled
               ? const Border(
-                  bottom:
-                      BorderSide(color: AppColors.borderGlow, width: 1))
+                  bottom: BorderSide(
+                      color: AppColors.borderGlow, width: 1))
               : null,
           boxShadow: _isScrolled
               ? [
@@ -354,7 +355,9 @@ class _HomeScreenState extends State<HomeScreen>
               'Não foi possível atualizar o feed.\nVerifique sua conexão.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: AppColors.textSecondary, fontSize: 14, height: 1.5),
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  height: 1.5),
             ),
             const SizedBox(height: 28),
             GestureDetector(
@@ -399,7 +402,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
-// ── Botão de ícone Neo UI ──────────────────────────────────────────────────
+// ── Botão de ícone Neo UI ────────────────────────────────────────────────────
 
 class _NeoIconButton extends StatefulWidget {
   final IconData icon;
@@ -446,7 +449,7 @@ class _NeoIconButtonState extends State<_NeoIconButton> {
   }
 }
 
-// ── Loader Neo UI ──────────────────────────────────────────────────────────
+// ── Loader Neo UI ────────────────────────────────────────────────────────────
 
 class _NeoLoader extends StatefulWidget {
   const _NeoLoader();
@@ -509,7 +512,7 @@ class _NeoLoaderState extends State<_NeoLoader>
   }
 }
 
-// ── Wrapper de animação dos cards ──────────────────────────────────────────
+// ── Wrapper de animação dos cards ────────────────────────────────────────────
 
 class _AnimatedCardWrapper extends StatefulWidget {
   final int index;
@@ -533,12 +536,11 @@ class _AnimatedCardWrapperState extends State<_AnimatedCardWrapper>
     super.initState();
     _ctrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 400));
-    _opacity = Tween<double>(begin: 0, end: 1)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _opacity = Tween<double>(begin: 0, end: 1).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
     _slide =
         Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
-            .animate(
-                CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+            .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
 
     final delay = (widget.index * 60).clamp(0, 300);
     Future.delayed(Duration(milliseconds: delay),
