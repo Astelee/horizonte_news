@@ -77,14 +77,12 @@ class XpService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // ── Configuração de XP por tempo ────────────────────────────────
-  // 10 XP a cada 60 segundos ativos = 10 XP/min
   static const int _xpPerInterval = 10;
   static const int _intervalSeconds = 60;
 
-  // ── Tabela de níveis (XP necessário TOTAL para atingir cada nível)
-  // Fórmula: xpParaNivel(n) = 100 * n * (n + 1) / 2
-  // Nível 1: 0 XP | Nível 2: 200 | Nível 3: 600 | Nível 4: 1200...
+  // ── Tabela de níveis ─────────────────────────────────────────────
+  // Fórmula: xpParaNivel(n) = 100 * (n-1) * n / 2
+  // Nível 1: 0 XP | Nível 2: 100 | Nível 3: 300 | Nível 4: 600...
   static int xpRequiredForLevel(int level) {
     if (level <= 1) return 0;
     return (100 * (level - 1) * level) ~/ 2;
@@ -154,18 +152,31 @@ class XpService {
 
       final data = snap.data()!;
       final totalXp = (data['totalXp'] as num?)?.toInt() ?? 0;
-      final totalSeconds = (data['totalSecondsOnline'] as num?)?.toInt() ?? 0;
+      final totalSeconds =
+          (data['totalSecondsOnline'] as num?)?.toInt() ?? 0;
       final achievements = List<String>.from(data['achievements'] ?? []);
       final stats = Map<String, dynamic>.from(data['stats'] ?? {});
-      final lastActivity = (data['lastActivity'] as Timestamp?)?.toDate();
+      final lastActivity =
+          (data['lastActivity'] as Timestamp?)?.toDate();
 
-      return buildXpData(
+      final xpData = buildXpData(
         totalXp: totalXp,
         totalSecondsOnline: totalSeconds,
         lastActivity: lastActivity,
         achievements: achievements,
         stats: stats,
       );
+
+      // ── CORREÇÃO: sempre mantém o campo 'level' sincronizado ─────
+      // Se o nível salvo no Firestore não bate com o calculado,
+      // corrige silenciosamente. Isso garante que o painel admin
+      // leia sempre o valor correto sem precisar recalcular.
+      final savedLevel = (data['level'] as num?)?.toInt() ?? 1;
+      if (savedLevel != xpData.level) {
+        doc.update({'level': xpData.level}).catchError((_) {});
+      }
+
+      return xpData;
     } catch (e) {
       return UserXpData.empty();
     }
@@ -197,27 +208,50 @@ class XpService {
     });
   }
 
-  // ── Adiciona XP e atualiza Firestore com transação ───────────────
-  // ANTI-FRAUDE: usa FieldValue.increment — o servidor controla o total.
-  // Nunca enviamos o valor absoluto, apenas o incremento.
-  Future<UserXpData> addXpForTime(int secondsActive) async {
+  // ── Helper: salva XP + level calculado de uma vez ────────────────
+  // Garante que o campo 'level' no Firestore fique sempre correto.
+  Future<UserXpData> _incrementXpAndSave({
+    required int xpGained,
+    int? extraSeconds,
+    Map<String, dynamic> extraFields = const {},
+  }) async {
     final doc = _userDoc;
     if (doc == null) return UserXpData.empty();
 
-    // Calcula XP ganho proporcional ao tempo ativo
+    final update = <String, dynamic>{
+      'totalXp': FieldValue.increment(xpGained),
+      'lastActivity': FieldValue.serverTimestamp(),
+      ...extraFields,
+    };
+
+    if (extraSeconds != null) {
+      update['totalSecondsOnline'] = FieldValue.increment(extraSeconds);
+    }
+
+    await doc.update(update);
+
+    // Lê o total atualizado para calcular o nível correto
+    final updated = await loadUserXpData();
+
+    // Salva o nível calculado de volta (loadUserXpData já faz isso
+    // automaticamente se houver divergência, mas garantimos aqui)
+    await doc.update({'level': updated.level}).catchError((_) {});
+
+    return updated;
+  }
+
+  // ── Adiciona XP por tempo ────────────────────────────────────────
+  Future<UserXpData> addXpForTime(int secondsActive) async {
     final intervals = secondsActive ~/ _intervalSeconds;
     if (intervals <= 0) return loadUserXpData();
 
     final xpGained = intervals * _xpPerInterval;
 
     try {
-      await doc.update({
-        'totalXp': FieldValue.increment(xpGained),
-        'totalSecondsOnline': FieldValue.increment(secondsActive),
-        'lastActivity': FieldValue.serverTimestamp(),
-      });
-
-      final updated = await loadUserXpData();
+      final updated = await _incrementXpAndSave(
+        xpGained: xpGained,
+        extraSeconds: secondsActive,
+      );
       await _checkAchievements(updated);
       return updated;
     } catch (e) {
@@ -227,41 +261,35 @@ class XpService {
 
   // ── Registra artigo lido ─────────────────────────────────────────
   Future<void> recordArticleRead() async {
-    final doc = _userDoc;
-    if (doc == null) return;
-    await doc.update({
-      'stats.articlesRead': FieldValue.increment(1),
-      'totalXp': FieldValue.increment(5),
-      'lastActivity': FieldValue.serverTimestamp(),
-    });
-    final data = await loadUserXpData();
-    await _checkAchievements(data);
+    try {
+      final updated = await _incrementXpAndSave(
+        xpGained: 5,
+        extraFields: {'stats.articlesRead': FieldValue.increment(1)},
+      );
+      await _checkAchievements(updated);
+    } catch (_) {}
   }
 
   // ── Registra compartilhamento ────────────────────────────────────
   Future<void> recordShare() async {
-    final doc = _userDoc;
-    if (doc == null) return;
-    await doc.update({
-      'stats.articlesShared': FieldValue.increment(1),
-      'totalXp': FieldValue.increment(15),
-      'lastActivity': FieldValue.serverTimestamp(),
-    });
-    final data = await loadUserXpData();
-    await _checkAchievements(data);
+    try {
+      final updated = await _incrementXpAndSave(
+        xpGained: 15,
+        extraFields: {'stats.articlesShared': FieldValue.increment(1)},
+      );
+      await _checkAchievements(updated);
+    } catch (_) {}
   }
 
   // ── Registra comentário ──────────────────────────────────────────
   Future<void> recordComment() async {
-    final doc = _userDoc;
-    if (doc == null) return;
-    await doc.update({
-      'stats.commentsPosted': FieldValue.increment(1),
-      'totalXp': FieldValue.increment(20),
-      'lastActivity': FieldValue.serverTimestamp(),
-    });
-    final data = await loadUserXpData();
-    await _checkAchievements(data);
+    try {
+      final updated = await _incrementXpAndSave(
+        xpGained: 20,
+        extraFields: {'stats.commentsPosted': FieldValue.increment(1)},
+      );
+      await _checkAchievements(updated);
+    } catch (_) {}
   }
 
   // ── Verifica e desbloqueia conquistas ────────────────────────────
@@ -272,49 +300,41 @@ class XpService {
     final current = data.achievements;
     final toUnlock = <String>[];
 
-    // 1 hora online (3600s)
     if (data.totalSecondsOnline >= 3600 && !current.contains('1h_online')) {
       toUnlock.add('1h_online');
     }
-    // 10 horas online (36000s)
-    if (data.totalSecondsOnline >= 36000 && !current.contains('10h_online')) {
+    if (data.totalSecondsOnline >= 36000 &&
+        !current.contains('10h_online')) {
       toUnlock.add('10h_online');
     }
-    // 100 artigos lidos
     final articlesRead =
         (data.stats['articlesRead'] as num?)?.toInt() ?? 0;
     if (articlesRead >= 100 && !current.contains('100_articles')) {
       toUnlock.add('100_articles');
     }
-    // Primeiro compartilhamento
     final shares = (data.stats['articlesShared'] as num?)?.toInt() ?? 0;
     if (shares >= 1 && !current.contains('first_share')) {
       toUnlock.add('first_share');
     }
-    // Primeiro comentário
     final comments = (data.stats['commentsPosted'] as num?)?.toInt() ?? 0;
     if (comments >= 1 && !current.contains('first_comment')) {
       toUnlock.add('first_comment');
     }
-    // Nível 5
     if (data.level >= 5 && !current.contains('level_5')) {
       toUnlock.add('level_5');
     }
-    // Nível 10
     if (data.level >= 10 && !current.contains('level_10')) {
       toUnlock.add('level_10');
     }
 
     if (toUnlock.isNotEmpty) {
-      await doc.update({
-        'achievements': FieldValue.arrayUnion(toUnlock),
-      });
+      await doc.update({'achievements': FieldValue.arrayUnion(toUnlock)});
     }
   }
 
   // ── Lista todas as conquistas possíveis com status ───────────────
   List<Achievement> getAllAchievements(List<String> unlocked) {
-    final all = [
+    return [
       Achievement(
         id: 'first_login',
         title: 'Primeiro Acesso',
@@ -372,7 +392,6 @@ class XpService {
         unlocked: unlocked.contains('level_10'),
       ),
     ];
-    return all;
   }
 
   // ── Nome e ícone do nível ────────────────────────────────────────
