@@ -255,7 +255,7 @@ class _ContactScreenState extends State<ContactScreen>
                           tag: 'COMERCIAL',
                           tagColor: AppColors.primaryOrange,
                           onTap: () => _launchIntent(context,
-                              'mailto:contato@horizontenews.com'),
+                              'mailto:diego.magno321@gmail.com'),
                         ),
 
                         const SizedBox(height: 32),
