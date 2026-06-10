@@ -19,19 +19,17 @@ class _MostReadScreenState extends State<MostReadScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<PostsProvider>();
-      // Só carrega se ainda não tiver posts
       if (provider.posts.isEmpty) {
         provider.loadInitialPosts();
       }
     });
   }
 
-  /// Ordena os posts pelos que têm mais comentários (proxy de "mais lidas")
   List<PostModel> _getSortedPosts(List<PostModel> posts) {
     final sorted = List<PostModel>.from(posts);
     sorted.sort((a, b) {
-      final aCount = int.tryParse(a.replyCount ?? '0') ?? 0;
-      final bCount = int.tryParse(b.replyCount ?? '0') ?? 0;
+      final aCount = int.tryParse(a.replyCount) ?? 0;
+      final bCount = int.tryParse(b.replyCount) ?? 0;
       return bCount.compareTo(aCount);
     });
     return sorted;
@@ -44,15 +42,15 @@ class _MostReadScreenState extends State<MostReadScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0F0F0F),
         elevation: 0,
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(
+            Icon(
               Icons.local_fire_department_rounded,
               color: AppColors.primaryOrange,
               size: 20,
             ),
-            const SizedBox(width: 8),
-            const Text(
+            SizedBox(width: 8),
+            Text(
               'Mais Lidas',
               style: TextStyle(
                 color: Colors.white,
@@ -136,9 +134,8 @@ class _MostReadScreenState extends State<MostReadScreen> {
             padding: const EdgeInsets.symmetric(vertical: 12),
             itemCount: sortedPosts.length,
             itemBuilder: (context, index) {
-              final post = sortedPosts[index];
               return _MostReadTile(
-                post: post,
+                post: sortedPosts[index],
                 rank: index + 1,
               );
             },
@@ -164,7 +161,6 @@ class _MostReadTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Destaque especial para o top 3
     final bool isTop3 = rank <= 3;
 
     return GestureDetector(
@@ -192,7 +188,7 @@ class _MostReadTile extends StatelessWidget {
                     color: AppColors.primaryOrange.withOpacity(0.07),
                     blurRadius: 12,
                     spreadRadius: 1,
-                  )
+                  ),
                 ]
               : null,
         ),
@@ -200,55 +196,50 @@ class _MostReadTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // ── Número do ranking ──────────────────────────────────
-            Container(
+            SizedBox(
               width: 52,
-              alignment: Alignment.center,
-              child: isTop3
-                  ? ShaderMask(
-                      shaderCallback: (b) =>
-                          AppColors.orangeGradient.createShader(b),
-                      child: Text(
+              child: Center(
+                child: isTop3
+                    ? ShaderMask(
+                        shaderCallback: (b) =>
+                            AppColors.orangeGradient.createShader(b),
+                        child: Text(
+                          '#$rank',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      )
+                    : Text(
                         '#$rank',
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.5,
+                          color: Colors.white24,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    )
-                  : Text(
-                      '#$rank',
-                      style: const TextStyle(
-                        color: Colors.white24,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+              ),
             ),
 
             // ── Imagem da notícia ──────────────────────────────────
-            if (post.imageUrl != null && post.imageUrl!.isNotEmpty)
-              ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(0),
-                  bottomLeft: Radius.circular(0),
-                  topRight: Radius.circular(0),
-                  bottomRight: Radius.circular(0),
-                ),
-                child: Image.network(
-                  post.imageUrl!,
+            ClipRRect(
+              borderRadius: BorderRadius.zero,
+              child: Image.network(
+                post.thumbnailUrl,
+                width: 72,
+                height: 72,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox(
                   width: 72,
                   height: 72,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox(
-                    width: 72,
-                    height: 72,
-                    child: Icon(Icons.broken_image_rounded,
-                        color: Colors.white12, size: 28),
-                  ),
+                  child: Icon(Icons.broken_image_rounded,
+                      color: Colors.white12, size: 28),
                 ),
               ),
+            ),
 
             // ── Conteúdo textual ───────────────────────────────────
             Expanded(
@@ -258,10 +249,10 @@ class _MostReadTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Categoria / label
-                    if (post.labels != null && post.labels!.isNotEmpty)
+                    // Categoria
+                    if (post.categories.isNotEmpty) ...[
                       Text(
-                        post.labels!.first.toUpperCase(),
+                        post.categories.first.name.toUpperCase(),
                         style: const TextStyle(
                           color: AppColors.primaryOrange,
                           fontSize: 9,
@@ -269,8 +260,8 @@ class _MostReadTile extends StatelessWidget {
                           letterSpacing: 1.2,
                         ),
                       ),
-                    if (post.labels != null && post.labels!.isNotEmpty)
                       const SizedBox(height: 4),
+                    ],
 
                     // Título
                     Text(
@@ -296,7 +287,7 @@ class _MostReadTile extends StatelessWidget {
                             color: Colors.white24, size: 11),
                         const SizedBox(width: 4),
                         Text(
-                          _formatDate(post.published),
+                          _formatDate(post.publishedAt),
                           style: const TextStyle(
                             color: Colors.white24,
                             fontSize: 10,
@@ -307,7 +298,7 @@ class _MostReadTile extends StatelessWidget {
                             color: Colors.white24, size: 11),
                         const SizedBox(width: 4),
                         Text(
-                          '${post.replyCount ?? '0'} comentários',
+                          '${post.replyCount} comentários',
                           style: const TextStyle(
                             color: Colors.white24,
                             fontSize: 10,
@@ -332,13 +323,9 @@ class _MostReadTile extends StatelessWidget {
     );
   }
 
-  String _formatDate(String? dateStr) {
-    if (dateStr == null) return '';
-    try {
-      final dt = DateTime.parse(dateStr);
-      return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
-    } catch (_) {
-      return '';
-    }
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
   }
 }
