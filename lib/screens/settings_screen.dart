@@ -594,7 +594,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const _SettingsTile(
             icon: Icons.info_outline_rounded,
             label: 'Versão do aplicativo',
-            sublabel: '1.0.0 • Horizonte News 2026',
+            sublabel: '1.0.0 • Horizonte News',
             onTap: null,
           ),
           _SettingsTile(
@@ -605,7 +605,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _SettingsTile(
             icon: Icons.alternate_email_rounded,
             label: 'Contato oficial',
-            sublabel: 'contato@horizontenews.com.br',
+            sublabel: 'diego.magno321@gmail.com',
             onTap: () => _launch('mailto:contato@horizontenews.com.br'),
           ),
 
