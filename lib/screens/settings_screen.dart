@@ -1,7 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../providers/user_xp_provider.dart';
@@ -15,26 +18,75 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // ── ESTADO LOCAL ─────────────────────────────────────────────────
   double _fontSize     = 15.0;
-  bool _notifBreaking  = true;
-  bool _notifHorizonte = true;
-  bool _notifPolicia   = false;
-  bool _notifEsportes  = false;
-  bool _notifGeral     = false; // começa false; initState verifica
-  bool _economiaDados  = false;
+  bool   _notifGeral   = false;
+  bool   _economiaDados = false;
   String _autoplayMode = 'wifi';
+  String _cacheSize    = '...';
 
   @override
   void initState() {
     super.initState();
-    // Verifica no Firestore se as notificações já estão ativas
+    _loadPrefs();
+    _calcCacheSize();
     NotificationService.isEnabled().then((enabled) {
       if (mounted) setState(() => _notifGeral = enabled);
     });
   }
 
-  // ── TOGGLE NOTIFICAÇÕES ──────────────────────────────────────────
+  Future<void> _loadPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _fontSize      = prefs.getDouble('fontSize') ?? 15.0;
+        _economiaDados = prefs.getBool('economiaDados') ?? false;
+        _autoplayMode  = prefs.getString('autoplayMode') ?? 'wifi';
+      });
+    }
+  }
+
+  Future<void> _calcCacheSize() async {
+    try {
+      final dir = await getTemporaryDirectory();
+      int total = 0;
+      if (dir.existsSync()) {
+        dir.listSync(recursive: true).forEach((f) {
+          if (f is File) total += f.lengthSync();
+        });
+      }
+      if (mounted) {
+        setState(() {
+          if (total < 1024 * 1024) {
+            _cacheSize = '${(total / 1024).toStringAsFixed(1)} KB';
+          } else {
+            _cacheSize = '${(total / (1024 * 1024)).toStringAsFixed(1)} MB';
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _cacheSize = '—');
+    }
+  }
+
+  Future<void> _clearCache() async {
+    try {
+      final dir = await getTemporaryDirectory();
+      if (dir.existsSync()) {
+        dir.listSync().forEach((f) {
+          try { f.deleteSync(recursive: true); } catch (_) {}
+        });
+      }
+      await _calcCacheSize();
+      if (mounted) {
+        _showSnack(icon: Icons.check_circle_rounded, message: 'Cache limpo com sucesso!');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showSnack(icon: Icons.error_outline_rounded, message: 'Erro ao limpar cache.', isError: true);
+      }
+    }
+  }
+
   Future<void> _toggleNotifGeral(bool v) async {
     if (v) {
       final granted = await NotificationService.requestPermission();
@@ -55,7 +107,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // ── URL LAUNCHER ─────────────────────────────────────────────────
   Future<void> _launch(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
@@ -63,7 +114,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // ── LOGOUT ───────────────────────────────────────────────────────
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -76,12 +126,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (confirm == true && mounted) {
       await FirebaseAuth.instance.signOut();
-      Navigator.pushNamedAndRemoveUntil(
-          context, AppRoutes.login, (_) => false);
+      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
     }
   }
 
-  // ── ALTERAR NOME DE USUÁRIO ───────────────────────────────────────
   Future<void> _showChangeUsernameDialog() async {
     final user = FirebaseAuth.instance.currentUser;
     final ctrl = TextEditingController(text: user?.displayName ?? '');
@@ -96,12 +144,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           backgroundColor: const Color(0xFF1A1A1A),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: BorderSide(
-                color: AppColors.primaryOrange.withOpacity(0.3), width: 1),
+            side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.3), width: 1),
           ),
           title: const Text('Alterar nome',
-              style: TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w700)),
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
           content: Form(
             key: formKey,
             child: Column(
@@ -117,32 +163,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: const TextStyle(color: Colors.white),
                   maxLength: 30,
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty)
-                      return 'O nome não pode ser vazio.';
+                    if (v == null || v.trim().isEmpty) return 'O nome não pode ser vazio.';
                     if (v.trim().length < 3) return 'Mínimo de 3 caracteres.';
                     return null;
                   },
                   decoration: InputDecoration(
                     hintText: 'Seu nome de usuário',
                     hintStyle: const TextStyle(color: Colors.white38),
-                    counterStyle:
-                        const TextStyle(color: Colors.white38, fontSize: 11),
+                    counterStyle: const TextStyle(color: Colors.white38, fontSize: 11),
                     filled: true,
                     fillColor: Colors.white.withOpacity(0.05),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                          color: AppColors.primaryOrange.withOpacity(0.3)),
+                      borderSide: BorderSide(color: AppColors.primaryOrange.withOpacity(0.3)),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                          color: AppColors.primaryOrange.withOpacity(0.2)),
+                      borderSide: BorderSide(color: AppColors.primaryOrange.withOpacity(0.2)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide:
-                          const BorderSide(color: AppColors.primaryOrange),
+                      borderSide: const BorderSide(color: AppColors.primaryOrange),
                     ),
                     errorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -152,8 +193,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(color: Colors.redAccent),
                     ),
-                    errorStyle:
-                        const TextStyle(color: Colors.redAccent, fontSize: 11),
+                    errorStyle: const TextStyle(color: Colors.redAccent, fontSize: 11),
                   ),
                 ),
               ],
@@ -164,17 +204,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: saving ? null : () => Navigator.pop(dialogContext),
               child: Text('Cancelar',
                   style: TextStyle(
-                      color: saving
-                          ? Colors.white24
-                          : AppColors.primaryOrange.withOpacity(0.8))),
+                      color: saving ? Colors.white24 : AppColors.primaryOrange.withOpacity(0.8))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryOrange,
-                disabledBackgroundColor:
-                    AppColors.primaryOrange.withOpacity(0.4),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                disabledBackgroundColor: AppColors.primaryOrange.withOpacity(0.4),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: saving
                   ? null
@@ -186,9 +222,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ?.updateDisplayName(ctrl.text.trim());
                         await FirebaseAuth.instance.currentUser?.reload();
                         if (mounted) {
-                          await Provider.of<UserXpProvider>(context,
-                                  listen: false)
-                              .reload();
+                          await Provider.of<UserXpProvider>(context, listen: false).reload();
                         }
                         if (dialogContext.mounted) Navigator.pop(dialogContext);
                         if (mounted) {
@@ -216,13 +250,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
               child: saving
                   ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Text('Salvar',
-                      style: TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w700)),
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
             ),
           ],
         ),
@@ -231,7 +262,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ctrl.dispose();
   }
 
-  // ── ALTERAR SENHA ────────────────────────────────────────────────
   Future<void> _showChangePasswordDialog() async {
     final ctrl = TextEditingController();
     bool sending = false;
@@ -244,17 +274,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           backgroundColor: const Color(0xFF1A1A1A),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: BorderSide(
-                color: AppColors.primaryOrange.withOpacity(0.3), width: 1),
+            side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.3), width: 1),
           ),
           title: const Text('Alterar senha',
-              style: TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w700)),
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                  'Informe seu e-mail para receber o link de redefinição.',
+              const Text('Informe seu e-mail para receber o link de redefinição.',
                   style: TextStyle(color: Colors.white60, fontSize: 13)),
               const SizedBox(height: 14),
               TextField(
@@ -268,18 +295,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   fillColor: Colors.white.withOpacity(0.05),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(
-                        color: AppColors.primaryOrange.withOpacity(0.3)),
+                    borderSide: BorderSide(color: AppColors.primaryOrange.withOpacity(0.3)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(
-                        color: AppColors.primaryOrange.withOpacity(0.2)),
+                    borderSide: BorderSide(color: AppColors.primaryOrange.withOpacity(0.2)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide:
-                        const BorderSide(color: AppColors.primaryOrange),
+                    borderSide: const BorderSide(color: AppColors.primaryOrange),
                   ),
                 ),
               ),
@@ -290,17 +314,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: sending ? null : () => Navigator.pop(dialogContext),
               child: Text('Cancelar',
                   style: TextStyle(
-                      color: sending
-                          ? Colors.white24
-                          : AppColors.primaryOrange.withOpacity(0.8))),
+                      color: sending ? Colors.white24 : AppColors.primaryOrange.withOpacity(0.8))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryOrange,
-                disabledBackgroundColor:
-                    AppColors.primaryOrange.withOpacity(0.4),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                disabledBackgroundColor: AppColors.primaryOrange.withOpacity(0.4),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: sending
                   ? null
@@ -309,8 +329,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (email.isEmpty) return;
                       setDialogState(() => sending = true);
                       try {
-                        await FirebaseAuth.instance
-                            .sendPasswordResetEmail(email: email);
+                        await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
                         if (dialogContext.mounted) Navigator.pop(dialogContext);
                         if (mounted) {
                           _showSnack(
@@ -329,13 +348,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
               child: sending
                   ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Text('Enviar',
-                      style: TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w700)),
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
             ),
           ],
         ),
@@ -344,27 +360,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ctrl.dispose();
   }
 
-  // ── HELPERS ──────────────────────────────────────────────────────
-  void _showSnack({
-    required IconData icon,
-    required String message,
-    bool isError = false,
-  }) {
+  void _showSnack({required IconData icon, required String message, bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: const Color(0xFF1A1A1A),
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         content: Row(
           children: [
-            Icon(icon,
-                color: isError ? Colors.redAccent : AppColors.primaryOrange,
-                size: 18),
+            Icon(icon, color: isError ? Colors.redAccent : AppColors.primaryOrange, size: 18),
             const SizedBox(width: 10),
-            Expanded(
-                child: Text(message,
-                    style: const TextStyle(color: Colors.white))),
+            Expanded(child: Text(message, style: const TextStyle(color: Colors.white))),
           ],
         ),
       ),
@@ -373,33 +379,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _authErrorMessage(String code) {
     switch (code) {
-      case 'user-not-found':
-        return 'E-mail não encontrado.';
-      case 'invalid-email':
-        return 'E-mail inválido.';
-      case 'requires-recent-login':
-        return 'Faça login novamente para continuar.';
-      case 'too-many-requests':
-        return 'Muitas tentativas. Tente mais tarde.';
-      default:
-        return 'Erro inesperado. Tente novamente.';
+      case 'user-not-found':     return 'E-mail não encontrado.';
+      case 'invalid-email':      return 'E-mail inválido.';
+      case 'requires-recent-login': return 'Faça login novamente para continuar.';
+      case 'too-many-requests':  return 'Muitas tentativas. Tente mais tarde.';
+      default:                   return 'Erro inesperado. Tente novamente.';
     }
   }
 
   String _autoplayLabelFor(String mode) {
     switch (mode) {
-      case 'always':
-        return 'Sempre';
-      case 'never':
-        return 'Nunca';
-      default:
-        return 'Apenas Wi-Fi';
+      case 'always': return 'Sempre';
+      case 'never':  return 'Nunca';
+      default:       return 'Apenas Wi-Fi';
     }
-  }
-
-  void _showCacheClearedSnack() {
-    _showSnack(
-        icon: Icons.check_circle_rounded, message: 'Cache limpo com sucesso!');
   }
 
   String? _currentDisplayName() {
@@ -408,7 +401,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return name;
   }
 
-  // ── BUILD ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -418,17 +410,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         elevation: 0,
         centerTitle: false,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: Colors.white, size: 18),
+          icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Configurações',
           style: TextStyle(
-              color: Colors.white,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.4),
+              color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: 0.4),
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
@@ -448,7 +436,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.symmetric(vertical: 12),
         children: [
 
-          // ── CONTA ─────────────────────────────────────────────────
+          // ── CONTA ────────────────────────────────────────────────
           const _SectionHeader(label: 'CONTA'),
           _SettingsTile(
             icon: Icons.badge_rounded,
@@ -471,50 +459,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 8),
 
-          // ── NOTIFICAÇÕES ──────────────────────────────────────────
+          // ── NOTIFICAÇÕES ─────────────────────────────────────────
           const _SectionHeader(label: 'NOTIFICAÇÕES'),
           _SwitchTile(
             icon: Icons.notifications_active_rounded,
             label: 'Ativar notificações',
+            sublabel: _notifGeral ? 'Você receberá alertas de notícias' : 'Notificações desativadas',
             value: _notifGeral,
-            onChanged: _toggleNotifGeral, // ← agora funcional
-          ),
-          _SwitchTile(
-            icon: Icons.flash_on_rounded,
-            label: 'Notícias de última hora',
-            value: _notifBreaking,
-            onChanged: _notifGeral
-                ? (v) => setState(() => _notifBreaking = v)
-                : null,
-          ),
-          _SwitchTile(
-            icon: Icons.location_city_rounded,
-            label: 'Notícias de Horizonte',
-            value: _notifHorizonte,
-            onChanged: _notifGeral
-                ? (v) => setState(() => _notifHorizonte = v)
-                : null,
-          ),
-          _SwitchTile(
-            icon: Icons.local_police_rounded,
-            label: 'Notícias policiais',
-            value: _notifPolicia,
-            onChanged: _notifGeral
-                ? (v) => setState(() => _notifPolicia = v)
-                : null,
-          ),
-          _SwitchTile(
-            icon: Icons.sports_soccer_rounded,
-            label: 'Notícias esportivas',
-            value: _notifEsportes,
-            onChanged: _notifGeral
-                ? (v) => setState(() => _notifEsportes = v)
-                : null,
+            onChanged: _toggleNotifGeral,
           ),
 
           const SizedBox(height: 8),
 
-          // ── APLICATIVO ────────────────────────────────────────────
+          // ── APLICATIVO ───────────────────────────────────────────
           const _SectionHeader(label: 'APLICATIVO'),
           _SliderTile(
             icon: Icons.text_fields_rounded,
@@ -523,7 +480,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             min: 12,
             max: 22,
             valueLabel: '${_fontSize.round()}px',
-            onChanged: (v) => setState(() => _fontSize = v),
+            onChanged: (v) async {
+              setState(() => _fontSize = v);
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setDouble('fontSize', v);
+            },
           ),
           _ExpandableTile(
             icon: Icons.play_circle_rounded,
@@ -535,19 +496,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: 'Sempre',
                   groupValue: _autoplayMode,
                   value: 'always',
-                  onChanged: (v) => setState(() => _autoplayMode = v!),
+                  onChanged: (v) async {
+                    setState(() => _autoplayMode = v!);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString('autoplayMode', v!);
+                  },
                 ),
                 _RadioOption(
                   label: 'Apenas Wi-Fi',
                   groupValue: _autoplayMode,
                   value: 'wifi',
-                  onChanged: (v) => setState(() => _autoplayMode = v!),
+                  onChanged: (v) async {
+                    setState(() => _autoplayMode = v!);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString('autoplayMode', v!);
+                  },
                 ),
                 _RadioOption(
                   label: 'Nunca',
                   groupValue: _autoplayMode,
                   value: 'never',
-                  onChanged: (v) => setState(() => _autoplayMode = v!),
+                  onChanged: (v) async {
+                    setState(() => _autoplayMode = v!);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString('autoplayMode', v!);
+                  },
                 ),
               ],
             ),
@@ -557,39 +530,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
             label: 'Economia de dados',
             sublabel: 'Reduz qualidade de imagens',
             value: _economiaDados,
-            onChanged: (v) => setState(() => _economiaDados = v),
+            onChanged: (v) async {
+              setState(() => _economiaDados = v);
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('economiaDados', v);
+            },
           ),
           _SettingsTile(
             icon: Icons.delete_sweep_rounded,
             label: 'Limpar cache',
-            sublabel: 'Libera espaço de armazenamento',
-            onTap: _showCacheClearedSnack,
+            sublabel: 'Ocupando $_cacheSize',
+            onTap: _clearCache,
           ),
 
           const SizedBox(height: 8),
 
-          // ── PRIVACIDADE ───────────────────────────────────────────
+          // ── PRIVACIDADE ──────────────────────────────────────────
           const _SectionHeader(label: 'PRIVACIDADE'),
           _SettingsTile(
             icon: Icons.privacy_tip_rounded,
             label: 'Política de Privacidade',
-            trailing: const Icon(Icons.open_in_new_rounded,
-                color: Colors.white38, size: 15),
-            onTap: () =>
-                _launch('https://horizontenews.com.br/politica-de-privacidade'),
+            trailing: const Icon(Icons.open_in_new_rounded, color: Colors.white38, size: 15),
+            onTap: () => _launch('https://horizontenews.com.br/politica-de-privacidade'),
           ),
           _SettingsTile(
             icon: Icons.gavel_rounded,
             label: 'Termos de Uso',
-            trailing: const Icon(Icons.open_in_new_rounded,
-                color: Colors.white38, size: 15),
-            onTap: () =>
-                _launch('https://horizontenews.com.br/termos-de-uso'),
+            trailing: const Icon(Icons.open_in_new_rounded, color: Colors.white38, size: 15),
+            onTap: () => _launch('https://horizontenews.com.br/termos-de-uso'),
           ),
 
           const SizedBox(height: 8),
 
-          // ── SOBRE ─────────────────────────────────────────────────
+          // ── SOBRE ────────────────────────────────────────────────
           const _SectionHeader(label: 'SOBRE'),
           const _SettingsTile(
             icon: Icons.info_outline_rounded,
@@ -605,7 +578,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _SettingsTile(
             icon: Icons.alternate_email_rounded,
             label: 'Contato oficial',
-            sublabel: 'diego.magno321@gmail.com',
+            sublabel: 'contato@horizontenews.com.br',
             onTap: () => _launch('mailto:contato@horizontenews.com.br'),
           ),
 
@@ -638,31 +611,25 @@ class _ConfirmDialog extends StatelessWidget {
       backgroundColor: const Color(0xFF1A1A1A),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-            color: AppColors.primaryOrange.withOpacity(0.3), width: 1),
+        side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.3), width: 1),
       ),
       title: Text(title,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w700)),
-      content: Text(message,
-          style: const TextStyle(color: Colors.white70)),
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+      content: Text(message, style: const TextStyle(color: Colors.white70)),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
           child: Text('Cancelar',
-              style: TextStyle(
-                  color: AppColors.primaryOrange.withOpacity(0.8))),
+              style: TextStyle(color: AppColors.primaryOrange.withOpacity(0.8))),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: confirmColor ?? AppColors.primaryOrange,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
           onPressed: () => Navigator.pop(context, true),
           child: Text(confirmLabel,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w700)),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
         ),
       ],
     );
@@ -745,8 +712,7 @@ class _SettingsTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(9),
                 color: (iconColor ?? AppColors.primaryOrange).withOpacity(0.10),
               ),
-              child: Icon(icon,
-                  size: 18, color: iconColor ?? AppColors.primaryOrange),
+              child: Icon(icon, size: 18, color: iconColor ?? AppColors.primaryOrange),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -760,9 +726,7 @@ class _SettingsTile extends StatelessWidget {
                           fontWeight: FontWeight.w500)),
                   if (sublabel != null) ...[
                     const SizedBox(height: 2),
-                    Text(sublabel!,
-                        style: const TextStyle(
-                            color: Colors.white38, fontSize: 11)),
+                    Text(sublabel!, style: const TextStyle(color: Colors.white38, fontSize: 11)),
                   ],
                 ],
               ),
@@ -770,8 +734,7 @@ class _SettingsTile extends StatelessWidget {
             if (trailing != null)
               trailing!
             else if (onTap != null)
-              const Icon(Icons.chevron_right_rounded,
-                  color: Colors.white24, size: 20),
+              const Icon(Icons.chevron_right_rounded, color: Colors.white24, size: 20),
           ],
         ),
       ),
@@ -822,14 +785,10 @@ class _SwitchTile extends StatelessWidget {
                 children: [
                   Text(label,
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500)),
+                          color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
                   if (sublabel != null) ...[
                     const SizedBox(height: 2),
-                    Text(sublabel!,
-                        style: const TextStyle(
-                            color: Colors.white38, fontSize: 11)),
+                    Text(sublabel!, style: const TextStyle(color: Colors.white38, fontSize: 11)),
                   ],
                 ],
               ),
@@ -893,15 +852,11 @@ class _SliderTile extends StatelessWidget {
               Expanded(
                 child: Text(label,
                     style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500)),
+                        color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
               ),
               Text(valueLabel,
                   style: const TextStyle(
-                      color: AppColors.primaryOrange,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700)),
+                      color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.w700)),
             ],
           ),
           SliderTheme(
@@ -911,8 +866,7 @@ class _SliderTile extends StatelessWidget {
               thumbColor: AppColors.primaryOrange,
               overlayColor: AppColors.primaryOrange.withOpacity(0.12),
               trackHeight: 2.5,
-              thumbShape:
-                  const RoundSliderThumbShape(enabledThumbRadius: 7),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
             ),
             child: Slider(
               value: value,
@@ -959,8 +913,7 @@ class _ExpandableTileState extends State<_ExpandableTile> {
           onTap: () => setState(() => _expanded = !_expanded),
           splashColor: AppColors.primaryOrange.withOpacity(0.06),
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             child: Row(
               children: [
                 Container(
@@ -970,8 +923,7 @@ class _ExpandableTileState extends State<_ExpandableTile> {
                     borderRadius: BorderRadius.circular(9),
                     color: AppColors.primaryOrange.withOpacity(0.10),
                   ),
-                  child: Icon(widget.icon,
-                      size: 18, color: AppColors.primaryOrange),
+                  child: Icon(widget.icon, size: 18, color: AppColors.primaryOrange),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -980,13 +932,10 @@ class _ExpandableTileState extends State<_ExpandableTile> {
                     children: [
                       Text(widget.label,
                           style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500)),
+                              color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
                       const SizedBox(height: 2),
                       Text(widget.sublabel,
-                          style: const TextStyle(
-                              color: Colors.white38, fontSize: 11)),
+                          style: const TextStyle(color: Colors.white38, fontSize: 11)),
                     ],
                   ),
                 ),
@@ -1013,8 +962,7 @@ class _ExpandableTileState extends State<_ExpandableTile> {
             ),
             child: widget.child,
           ),
-          crossFadeState:
-              _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
           duration: const Duration(milliseconds: 220),
         ),
       ],
@@ -1054,8 +1002,7 @@ class _RadioOption extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                    color:
-                        selected ? AppColors.primaryOrange : Colors.white30,
+                    color: selected ? AppColors.primaryOrange : Colors.white30,
                     width: 2),
               ),
               child: selected
@@ -1064,8 +1011,7 @@ class _RadioOption extends StatelessWidget {
                         width: 8,
                         height: 8,
                         decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.primaryOrange),
+                            shape: BoxShape.circle, color: AppColors.primaryOrange),
                       ),
                     )
                   : null,
@@ -1075,9 +1021,7 @@ class _RadioOption extends StatelessWidget {
                 style: TextStyle(
                     color: selected ? Colors.white : Colors.white60,
                     fontSize: 13,
-                    fontWeight: selected
-                        ? FontWeight.w600
-                        : FontWeight.w400)),
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
           ],
         ),
       ),
