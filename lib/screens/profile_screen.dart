@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../config/badge_config.dart';
 import '../providers/user_xp_provider.dart';
 import '../services/xp_service.dart';
+import '../widgets/badge_widgets.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -45,9 +48,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
     );
 
-    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    _fadeAnim =
+        CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
 
-    // Inicia a barra de progresso animada após o frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _barCtrl.forward();
     });
@@ -89,34 +92,20 @@ class _ProfileScreenState extends State<ProfileScreen>
             return CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                // ── AppBar customizada ─────────────────────────────
                 _buildSliverAppBar(user, data),
-
                 SliverToBoxAdapter(
                   child: isLoading
                       ? const _ProfileSkeleton()
                       : Column(
                           children: [
                             const SizedBox(height: 20),
-
-                            // ── Card de XP e Nível ─────────────────
                             _buildXpCard(data),
-
                             const SizedBox(height: 16),
-
-                            // ── Estatísticas ───────────────────────
                             _buildStatsRow(data),
-
                             const SizedBox(height: 16),
-
-                            // ── Conquistas ─────────────────────────
                             _buildAchievementsSection(data),
-
                             const SizedBox(height: 16),
-
-                            // ── Ações da conta ─────────────────────
                             _buildAccountActions(),
-
                             const SizedBox(height: 40),
                           ],
                         ),
@@ -220,7 +209,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                         ),
                         child: Center(
                           child: Text(
-                            _getInitials(user?.displayName ?? user?.email),
+                            _getInitials(
+                                user?.displayName ?? user?.email),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 26,
@@ -247,22 +237,34 @@ class _ProfileScreenState extends State<ProfileScreen>
 
                   const SizedBox(height: 4),
 
-                  // Badge de nível
+                  // ── Badge de nível com ícone FA ──────────────────
+                  // ATUALIZADO: substituído emoji por FaIcon
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 4),
+                        horizontal: 12, vertical: 5),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(20),
                       gradient: AppColors.orangeGradient,
                     ),
-                    child: Text(
-                      '${XpService.levelIcon(data.level)}  ${XpService.levelTitle(data.level)}  •  Nível ${data.level}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        FaIcon(
+                          BadgeConfig.levelIcon(data.level),
+                          size: 11,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${XpService.levelTitle(data.level)}  •  Nível ${data.level}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -298,7 +300,6 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header do card
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -343,7 +344,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ],
                 ),
 
-                // Círculo de nível
+                // Círculo de nível com glow animado
                 AnimatedBuilder(
                   animation: _glowAnim,
                   builder: (_, __) => Container(
@@ -394,7 +395,6 @@ class _ProfileScreenState extends State<ProfileScreen>
 
             const SizedBox(height: 20),
 
-            // Info de progresso
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -418,15 +418,14 @@ class _ProfileScreenState extends State<ProfileScreen>
 
             const SizedBox(height: 8),
 
-            // Barra de progresso animada
             _buildProgressBar(data.progressPercent),
 
             const SizedBox(height: 16),
 
             // Tempo online
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
                 color: AppColors.primaryOrange.withOpacity(0.08),
@@ -480,47 +479,37 @@ class _ProfileScreenState extends State<ProfileScreen>
       builder: (_, __) {
         final animatedProgress =
             Curves.easeOutCubic.transform(_barCtrl.value) * progress;
-        return Column(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Stack(
-                children: [
-                  // Track
-                  Container(
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A1A),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  // Fill
-                  FractionallySizedBox(
-                    widthFactor: animatedProgress,
-                    child: Container(
-                      height: 10,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFFFF6B00),
-                            Color(0xFFFFAA00),
-                          ],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primaryOrange.withOpacity(0.6),
-                            blurRadius: 8,
-                            spreadRadius: 0,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Stack(
+            children: [
+              Container(
+                height: 10,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-            ),
-          ],
+              FractionallySizedBox(
+                widthFactor: animatedProgress,
+                child: Container(
+                  height: 10,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF6B00), Color(0xFFFFAA00)],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primaryOrange.withOpacity(0.6),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -562,12 +551,11 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   // ── CONQUISTAS ────────────────────────────────────────────────────
+  // ATUALIZADO: _AchievementTile agora usa FaIcon via BadgeConfig
   Widget _buildAchievementsSection(UserXpData data) {
     final xpService = XpService();
-    final achievements =
-        xpService.getAllAchievements(data.achievements);
-    final unlocked =
-        achievements.where((a) => a.unlocked).length;
+    final achievements = xpService.getAllAchievements(data.achievements);
+    final unlocked = achievements.where((a) => a.unlocked).length;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -633,7 +621,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           _ActionButton(
             icon: Icons.settings_outlined,
             label: 'Configurações',
-            onTap: () => Navigator.pushNamed(context, AppRoutes.settings),
+            onTap: () =>
+                Navigator.pushNamed(context, AppRoutes.settings),
           ),
           const SizedBox(height: 10),
           _ActionButton(
@@ -676,7 +665,8 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        padding:
+            const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           color: const Color(0xFF0A0A0A),
@@ -714,6 +704,8 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+// ── TILE DE CONQUISTA ─────────────────────────────────────────────
+// ATUALIZADO: usa FaIcon + cor semântica por conquista via BadgeConfig
 class _AchievementTile extends StatelessWidget {
   final Achievement achievement;
   const _AchievementTile({required this.achievement});
@@ -721,32 +713,57 @@ class _AchievementTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final unlocked = achievement.unlocked;
+    final color = unlocked
+        ? BadgeConfig.achievementColor(achievement.icon)
+        : const Color(0xFF333333);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         color: unlocked
-            ? AppColors.primaryOrange.withOpacity(0.08)
+            ? color.withOpacity(0.07)
             : const Color(0xFF0F0F0F),
         border: Border.all(
           color: unlocked
-              ? AppColors.primaryOrange.withOpacity(0.3)
+              ? color.withOpacity(0.3)
               : const Color(0xFF1A1A1A),
           width: 1,
         ),
       ),
       child: Row(
         children: [
-          Text(
-            achievement.icon,
-            style: TextStyle(
-              fontSize: 24,
-              color: unlocked ? null : const Color(0xFF333333),
+          // ── Ícone FA com fundo circular ─────────────────────────
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: unlocked
+                  ? color.withOpacity(0.15)
+                  : const Color(0xFF1A1A1A),
+              border: Border.all(
+                color: unlocked
+                    ? color.withOpacity(0.4)
+                    : const Color(0xFF2A2A2A),
+                width: 1.5,
+              ),
+            ),
+            child: Center(
+              child: FaIcon(
+                // achievement.icon agora é o ID — BadgeConfig resolve o ícone
+                BadgeConfig.achievementIcon(achievement.icon),
+                size: 16,
+                color: unlocked ? color : const Color(0xFF3A3A3A),
+              ),
             ),
           ),
+
           const SizedBox(width: 12),
+
+          // ── Textos ───────────────────────────────────────────────
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -754,7 +771,9 @@ class _AchievementTile extends StatelessWidget {
                 Text(
                   achievement.title,
                   style: TextStyle(
-                    color: unlocked ? Colors.white : const Color(0xFF444444),
+                    color: unlocked
+                        ? Colors.white
+                        : const Color(0xFF444444),
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
@@ -772,18 +791,20 @@ class _AchievementTile extends StatelessWidget {
               ],
             ),
           ),
+
+          // ── Status: OBTIDA ou cadeado ────────────────────────────
           if (unlocked)
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                color: AppColors.primaryOrange.withOpacity(0.2),
+                color: color.withOpacity(0.15),
               ),
-              child: const Text(
+              child: Text(
                 'OBTIDA',
                 style: TextStyle(
-                  color: AppColors.primaryOrange,
+                  color: color,
                   fontSize: 9,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1,
@@ -791,8 +812,11 @@ class _AchievementTile extends StatelessWidget {
               ),
             )
           else
-            const Icon(Icons.lock_outline_rounded,
-                color: Color(0xFF333333), size: 16),
+            const FaIcon(
+              FontAwesomeIcons.lock,
+              color: Color(0xFF333333),
+              size: 14,
+            ),
         ],
       ),
     );
@@ -820,8 +844,8 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           color: const Color(0xFF0A0A0A),
@@ -863,7 +887,8 @@ class _ProfileSkeleton extends StatelessWidget {
       padding: EdgeInsets.all(16.0),
       child: Center(
         child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
+          valueColor: AlwaysStoppedAnimation<Color>(
+              AppColors.primaryOrange),
           strokeWidth: 2,
         ),
       ),
@@ -934,7 +959,8 @@ class _LogoutDialog extends StatelessWidget {
                       height: 46,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF2A2A2A)),
+                        border: Border.all(
+                            color: const Color(0xFF2A2A2A)),
                       ),
                       child: const Center(
                         child: Text(
@@ -958,9 +984,11 @@ class _LogoutDialog extends StatelessWidget {
                       height: 46,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        color: AppColors.emergencyRed.withOpacity(0.15),
+                        color:
+                            AppColors.emergencyRed.withOpacity(0.15),
                         border: Border.all(
-                          color: AppColors.emergencyRed.withOpacity(0.4),
+                          color:
+                              AppColors.emergencyRed.withOpacity(0.4),
                         ),
                       ),
                       child: const Center(
