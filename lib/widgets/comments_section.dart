@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../providers/user_xp_provider.dart';
+import 'badge_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────────
 // MODEL
@@ -14,6 +15,8 @@ class CommentModel {
   final String userName;
   final String text;
   final DateTime createdAt;
+  final int userLevel;
+  final List<String> userAchievements;
 
   CommentModel({
     required this.id,
@@ -21,6 +24,8 @@ class CommentModel {
     required this.userName,
     required this.text,
     required this.createdAt,
+    this.userLevel = 1,
+    this.userAchievements = const [],
   });
 
   factory CommentModel.fromDoc(DocumentSnapshot doc) {
@@ -32,6 +37,9 @@ class CommentModel {
       text: data['text'] ?? '',
       createdAt:
           (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      userLevel: (data['userLevel'] as num?)?.toInt() ?? 1,
+      userAchievements:
+          List<String>.from(data['userAchievements'] ?? []),
     );
   }
 }
@@ -120,7 +128,8 @@ class _CommentsSectionState extends State<CommentsSection>
         .get();
 
     if (suspension.exists) {
-      final until = (suspension.data()?['until'] as Timestamp?)?.toDate();
+      final until =
+          (suspension.data()?['until'] as Timestamp?)?.toDate();
       if (until != null && DateTime.now().isBefore(until)) {
         final fmt = '${until.day}/${until.month}/${until.year}';
         _showSnack('Você está suspenso até $fmt.');
@@ -143,19 +152,26 @@ class _CommentsSectionState extends State<CommentsSection>
           user.email?.split('@').first ??
           'Leitor';
 
+      // Lê o nível e conquistas atuais do provider para salvar no comentário
+      final xpProvider =
+          Provider.of<UserXpProvider>(context, listen: false);
+      final userLevel = xpProvider.data.level;
+      final userAchievements = xpProvider.data.achievements;
+
       await _commentsRef.add({
         'userId': user.uid,
         'userName': userName,
         'text': text,
         'createdAt': FieldValue.serverTimestamp(),
+        'userLevel': userLevel,
+        'userAchievements': userAchievements,
       });
 
       _controller.clear();
       _focusNode.unfocus();
 
       if (!_xpAwarded && mounted) {
-        await Provider.of<UserXpProvider>(context, listen: false)
-            .addXpForComment();
+        await xpProvider.addXpForComment();
         _xpAwarded = true;
         _showXpSnack();
       }
@@ -196,8 +212,8 @@ class _CommentsSectionState extends State<CommentsSection>
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg,
-            style: const TextStyle(color: Colors.white)),
+        content:
+            Text(msg, style: const TextStyle(color: Colors.white)),
         backgroundColor: AppColors.backgroundElevated,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
@@ -410,9 +426,8 @@ class _CommentsSectionState extends State<CommentsSection>
                           horizontal: 16, vertical: 9),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(10),
-                        gradient: _isSending
-                            ? null
-                            : AppColors.orangeGradient,
+                        gradient:
+                            _isSending ? null : AppColors.orangeGradient,
                         color: _isSending
                             ? AppColors.backgroundElevated
                             : null,
@@ -517,7 +532,7 @@ class _CommentsSectionState extends State<CommentsSection>
   }
 
   // ─────────────────────────────────────────────────────────────
-  // EMPTY STATE — corrigido para centralizar
+  // EMPTY STATE
   // ─────────────────────────────────────────────────────────────
   Widget _buildEmptyState() {
     return Padding(
@@ -547,7 +562,7 @@ class _CommentsSectionState extends State<CommentsSection>
   }
 
   // ─────────────────────────────────────────────────────────────
-  // AVATAR
+  // AVATAR (área de input)
   // ─────────────────────────────────────────────────────────────
   Widget _buildAvatar(String name, {double size = 40}) {
     final colorPairs = [
@@ -747,47 +762,75 @@ class _CommentTileState extends State<_CommentTile>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ── Linha do nome + badges ──────────────────
                     Row(
                       mainAxisAlignment:
                           MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            Text(
-                              widget.comment.userName,
-                              style: TextStyle(
-                                color: _isOwner
-                                    ? AppColors.primaryOrange
-                                    : Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            if (_isOwner) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding:
-                                    const EdgeInsets.symmetric(
-                                        horizontal: 5, vertical: 1),
-                                decoration: BoxDecoration(
-                                  borderRadius:
-                                      BorderRadius.circular(4),
-                                  color: AppColors.primaryOrange
-                                      .withOpacity(0.15),
-                                ),
-                                child: const Text(
-                                  'EU',
+                        // Nome + tag "EU" + nível + conquistas
+                        Expanded(
+                          child: Row(
+                            children: [
+                              // Nome do usuário
+                              Flexible(
+                                child: Text(
+                                  widget.comment.userName,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: AppColors.primaryOrange,
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.5,
+                                    color: _isOwner
+                                        ? AppColors.primaryOrange
+                                        : Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ),
+
+                              // Tag "EU" (somente dono)
+                              if (_isOwner) ...[
+                                const SizedBox(width: 5),
+                                Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(
+                                          horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    borderRadius:
+                                        BorderRadius.circular(4),
+                                    color: AppColors.primaryOrange
+                                        .withOpacity(0.15),
+                                  ),
+                                  child: const Text(
+                                    'EU',
+                                    style: TextStyle(
+                                      color: AppColors.primaryOrange,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+
+                              // Badge de nível
+                              const SizedBox(width: 5),
+                              LevelBadgeInline(
+                                level: widget.comment.userLevel,
+                              ),
+
+                              // Badges de conquistas (até 2)
+                              if (widget
+                                  .comment.userAchievements.isNotEmpty)
+                                UnlockedBadgesRow(
+                                  unlockedAchievements:
+                                      widget.comment.userAchievements,
+                                  maxVisible: 2,
+                                  badgeSize: 9,
+                                ),
                             ],
-                          ],
+                          ),
                         ),
+
+                        // Hora + botão de deletar
                         Row(
                           children: [
                             Text(
@@ -813,7 +856,10 @@ class _CommentTileState extends State<_CommentTile>
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 6),
+
+                    // Texto do comentário
                     Text(
                       widget.comment.text,
                       style: const TextStyle(
