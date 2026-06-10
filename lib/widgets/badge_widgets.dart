@@ -1,26 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../config/badge_config.dart';
-import '../config/app_colors.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // WIDGETS REUTILIZÁVEIS DE BADGE
 // ═══════════════════════════════════════════════════════════════════
 
-// ── Badge de Nível inline (ao lado do nome) ──────────────────────
-// Usado em: CommentsSection, perfil compacto, qualquer listagem
+// ── Badge de Nível inline (ao lado do nome) ───────────────────────
+// Usado em: _CommentTile, perfil compacto
 class LevelBadgeInline extends StatelessWidget {
   final int level;
   final double iconSize;
   final double fontSize;
-  final bool showLabel;
 
   const LevelBadgeInline({
     Key? key,
     required this.level,
-    this.iconSize = 10,
-    this.fontSize = 11,
-    this.showLabel = true,
+    this.iconSize = 9,
+    this.fontSize = 10,
   }) : super(key: key);
 
   @override
@@ -42,26 +39,24 @@ class LevelBadgeInline extends StatelessWidget {
             size: iconSize,
             color: color,
           ),
-          if (showLabel) ...[
-            const SizedBox(width: 4),
-            Text(
-              'Nv.$level',
-              style: TextStyle(
-                color: color,
-                fontSize: fontSize,
-                fontWeight: FontWeight.w700,
-                height: 1,
-              ),
+          const SizedBox(width: 3),
+          Text(
+            'Nv.$level',
+            style: TextStyle(
+              color: color,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+              height: 1,
             ),
-          ],
+          ),
         ],
       ),
     );
   }
 }
 
-// ── Badge de Conquista individual (card de conquistas) ───────────
-// Usado em: ProfileScreen → seção de conquistas
+// ── Badge de conquista individual (card na seção de conquistas) ───
+// Usado em: ProfileScreen → _buildAchievementsSection
 class AchievementBadgeCard extends StatelessWidget {
   final String achievementId;
   final String title;
@@ -100,7 +95,6 @@ class AchievementBadgeCard extends StatelessWidget {
                 BoxShadow(
                   color: color.withOpacity(0.12),
                   blurRadius: 12,
-                  spreadRadius: 0,
                 ),
               ]
             : null,
@@ -135,7 +129,6 @@ class AchievementBadgeCard extends StatelessWidget {
 
           const SizedBox(height: 8),
 
-          // Título
           Text(
             title,
             textAlign: TextAlign.center,
@@ -151,7 +144,6 @@ class AchievementBadgeCard extends StatelessWidget {
 
           const SizedBox(height: 3),
 
-          // Descrição
           Text(
             description,
             textAlign: TextAlign.center,
@@ -159,20 +151,19 @@ class AchievementBadgeCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: unlocked
-                  ? Colors.white.withOpacity(0.45)
+                  ? Colors.white.withOpacity(0.4)
                   : const Color(0xFF2E2E2E),
               fontSize: 9,
               height: 1.3,
             ),
           ),
 
-          // Indicador de bloqueado
           if (!unlocked) ...[
             const SizedBox(height: 6),
-            FaIcon(
+            const FaIcon(
               FontAwesomeIcons.lock,
               size: 10,
-              color: const Color(0xFF333333),
+              color: Color(0xFF333333),
             ),
           ],
         ],
@@ -181,8 +172,8 @@ class AchievementBadgeCard extends StatelessWidget {
   }
 }
 
-// ── Badge de conquista em linha (para usar ao lado do nome) ──────
-// Usado em: comentários, para mostrar o badge mais raro desbloqueado
+// ── Badge de conquista circular inline ────────────────────────────
+// Exibe um único ícone de conquista ao lado do nome
 class AchievementBadgeInline extends StatelessWidget {
   final String achievementId;
   final double size;
@@ -190,7 +181,7 @@ class AchievementBadgeInline extends StatelessWidget {
   const AchievementBadgeInline({
     Key? key,
     required this.achievementId,
-    this.size = 12,
+    this.size = 11,
   }) : super(key: key);
 
   @override
@@ -216,8 +207,8 @@ class AchievementBadgeInline extends StatelessWidget {
   }
 }
 
-// ── Linha de badges desbloqueados (até N badges em row) ──────────
-// Exibe os badges mais recentes/raros ao lado do nome
+// ── Linha dos badges mais raros desbloqueados ─────────────────────
+// Exibe até N badges ordenados por raridade ao lado do nome
 class UnlockedBadgesRow extends StatelessWidget {
   final List<String> unlockedAchievements;
   final int maxVisible;
@@ -227,10 +218,10 @@ class UnlockedBadgesRow extends StatelessWidget {
     Key? key,
     required this.unlockedAchievements,
     this.maxVisible = 3,
-    this.badgeSize = 12,
+    this.badgeSize = 11,
   }) : super(key: key);
 
-  // Prioridade de raridade (índice mais alto = mais raro)
+  // Mais raro = índice mais alto na lista
   static const _rarityOrder = [
     'first_login',
     '1h_online',
@@ -242,15 +233,12 @@ class UnlockedBadgesRow extends StatelessWidget {
     'level_10',
   ];
 
-  List<String> get _sortedByRarity {
+  List<String> get _topByRarity {
     final sorted = List<String>.from(unlockedAchievements);
     sorted.sort((a, b) {
-      final ia = _rarityOrder.indexOf(a);
-      final ib = _rarityOrder.indexOf(b);
-      // Desconhecidos vão para o fim
-      final ra = ia == -1 ? 0 : ia;
-      final rb = ib == -1 ? 0 : ib;
-      return rb.compareTo(ra); // mais raro primeiro
+      final ra = _rarityOrder.indexOf(a);
+      final rb = _rarityOrder.indexOf(b);
+      return (rb == -1 ? 0 : rb).compareTo(ra == -1 ? 0 : ra);
     });
     return sorted.take(maxVisible).toList();
   }
@@ -261,7 +249,7 @@ class UnlockedBadgesRow extends StatelessWidget {
 
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: _sortedByRarity
+      children: _topByRarity
           .map(
             (id) => Padding(
               padding: const EdgeInsets.only(left: 4),
