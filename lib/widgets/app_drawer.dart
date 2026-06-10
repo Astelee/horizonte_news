@@ -50,16 +50,6 @@ class _AppDrawerState extends State<AppDrawer>
       label: 'Mais Lidas',
       route: AppRoutes.mostRead,
     ),
-    _NavItem(
-      icon: Icons.location_on_rounded,
-      label: 'Horizonte Agora',
-      route: AppRoutes.horizonNow,
-    ),
-    _NavItem(
-      icon: Icons.event_rounded,
-      label: 'Eventos',
-      route: AppRoutes.events,
-    ),
   ];
 
   // ── SUPORTE ─────────────────────────────────────────────────────
@@ -599,6 +589,8 @@ class _DrawerTileState extends State<_DrawerTile>
 
   @override
   Widget build(BuildContext context) {
+    final bool isActive = widget.isActive;
+
     return FadeTransition(
       opacity: _opacity,
       child: SlideTransition(
@@ -612,41 +604,40 @@ class _DrawerTileState extends State<_DrawerTile>
           onTapCancel: () => setState(() => _pressed = false),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            margin:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-            padding: const EdgeInsets.symmetric(
-                horizontal: 13, vertical: 11),
+            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(11),
-              color: widget.isActive
-                  ? AppColors.primaryOrange.withOpacity(0.14)
+              color: isActive
+                  ? AppColors.primaryOrange.withOpacity(0.13)
                   : _pressed
-                      ? AppColors.primaryOrange.withOpacity(0.07)
+                      ? Colors.white.withOpacity(0.05)
                       : Colors.transparent,
-              border: Border.all(
-                color: widget.isActive
-                    ? AppColors.primaryOrange.withOpacity(0.35)
-                    : Colors.transparent,
-                width: 1,
-              ),
+              border: isActive
+                  ? Border.all(
+                      color: AppColors.primaryOrange.withOpacity(0.35),
+                      width: 1,
+                    )
+                  : null,
             ),
             child: Row(
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.all(7),
+                  width: 34,
+                  height: 34,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: widget.isActive
-                        ? AppColors.primaryOrange.withOpacity(0.20)
-                        : AppColors.primaryOrange.withOpacity(0.07),
+                    borderRadius: BorderRadius.circular(9),
+                    color: isActive
+                        ? AppColors.primaryOrange.withOpacity(0.18)
+                        : Colors.white.withOpacity(0.05),
                   ),
                   child: Icon(
                     widget.item.icon,
                     size: 18,
-                    color: widget.isActive
+                    color: isActive
                         ? AppColors.primaryOrange
-                        : AppColors.textMuted,
+                        : Colors.white60,
                   ),
                 ),
                 const SizedBox(width: 13),
@@ -654,11 +645,9 @@ class _DrawerTileState extends State<_DrawerTile>
                   child: Text(
                     widget.item.label,
                     style: TextStyle(
-                      color: widget.isActive
-                          ? Colors.white
-                          : AppColors.textMuted,
+                      color: isActive ? Colors.white : Colors.white70,
                       fontSize: 13,
-                      fontWeight: widget.isActive
+                      fontWeight: isActive
                           ? FontWeight.w700
                           : FontWeight.w400,
                       letterSpacing: 0.2,
@@ -669,6 +658,16 @@ class _DrawerTileState extends State<_DrawerTile>
                   const SizedBox(width: 8),
                   widget.badge!,
                 ],
+                if (isActive)
+                  Container(
+                    width: 4,
+                    height: 4,
+                    margin: const EdgeInsets.only(left: 6),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primaryOrange,
+                    ),
+                  ),
               ],
             ),
           ),
