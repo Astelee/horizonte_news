@@ -516,25 +516,32 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // EMPTY STATE — corrigido para centralizar
+  // ─────────────────────────────────────────────────────────────
   Widget _buildEmptyState() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Column(
-        children: [
-          Icon(
-            Icons.chat_bubble_outline_rounded,
-            size: 40,
-            color: AppColors.primaryOrange.withOpacity(0.3),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Seja o primeiro a comentar!',
-            style: TextStyle(
-              color: AppColors.textMuted,
-              fontSize: 14,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 40,
+              color: AppColors.primaryOrange.withOpacity(0.3),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            const Text(
+              'Seja o primeiro a comentar!',
+              style: TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
