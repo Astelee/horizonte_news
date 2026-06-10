@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 
@@ -10,14 +11,18 @@ class CategoryBar extends StatefulWidget {
 }
 
 class _CategoryBarState extends State<CategoryBar> {
+  // ── Categorias com ícones Font Awesome profissionais ──────────────
   static const List<Map<String, dynamic>> _categories = [
-    {'label': 'Horizonte',      'icon': Icons.location_city_rounded},
-    {'label': 'Ceará',          'icon': Icons.map_rounded},
-    {'label': 'Brasil',         'icon': Icons.flag_rounded},
-    {'label': 'Política',       'icon': Icons.account_balance_rounded},
-    {'label': 'Polícia',        'icon': Icons.local_police_rounded},
-    {'label': 'Esportes',       'icon': Icons.sports_soccer_rounded},
-    {'label': 'Entretenimento', 'icon': Icons.theater_comedy_rounded},
+    {'label': 'Horizonte',      'icon': FontAwesomeIcons.buildingColumns},
+    {'label': 'Pacajus',        'icon': FontAwesomeIcons.locationDot},
+    {'label': 'Itaitinga',      'icon': FontAwesomeIcons.locationDot},
+    {'label': 'Chorozinho',     'icon': FontAwesomeIcons.locationDot},
+    {'label': 'Ceará',          'icon': FontAwesomeIcons.mapLocationDot},
+    {'label': 'Brasil',         'icon': FontAwesomeIcons.flag},
+    {'label': 'Mundo',          'icon': FontAwesomeIcons.earthAmericas},
+    {'label': 'Esportes',       'icon': FontAwesomeIcons.futbol},
+    {'label': 'Saúde',          'icon': FontAwesomeIcons.heartPulse},
+    {'label': 'Entretenimento', 'icon': FontAwesomeIcons.film},
   ];
 
   String? _selected;
@@ -144,11 +149,14 @@ class _AnimatedChipState extends State<_AnimatedChip>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(widget.icon,
-                  size: 13,
-                  color: widget.isSelected
-                      ? Colors.white
-                      : AppColors.textSecondary),
+              // ── FaIcon no lugar do Icon ──────────────────────────
+              FaIcon(
+                widget.icon,
+                size: 11,
+                color: widget.isSelected
+                    ? Colors.white
+                    : AppColors.textSecondary,
+              ),
               const SizedBox(width: 6),
               Text(
                 widget.label,
