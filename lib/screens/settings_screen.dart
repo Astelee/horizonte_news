@@ -578,8 +578,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _SettingsTile(
             icon: Icons.alternate_email_rounded,
             label: 'Contato oficial',
-            sublabel: 'contato@horizontenews.com.br',
-            onTap: () => _launch('mailto:contato@horizontenews.com.br'),
+            sublabel: 'diego.magno321@gmail.com',
+            onTap: () => _launch('mailto: diego.magno321@gmail.com'),
           ),
 
           const SizedBox(height: 40),
