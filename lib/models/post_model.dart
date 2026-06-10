@@ -8,6 +8,7 @@ class PostModel {
   final DateTime publishedAt;
   final String thumbnailUrl;
   final List<CategoryModel> categories;
+  final String replyCount; // ← NOVO: total de comentários vindo do Blogger
 
   PostModel({
     required this.id,
@@ -17,11 +18,10 @@ class PostModel {
     required this.publishedAt,
     required this.thumbnailUrl,
     required this.categories,
+    this.replyCount = '0',
   });
 
-  // Mapeia o JSON nativo retornado pela Blogger API v3 para o nosso modelo Flutter
   factory PostModel.fromJson(Map<String, dynamic> json) {
-    // Processamento das categorias (labels) vindo do Blogger
     List<CategoryModel> parsedCategories = [];
     if (json['labels'] != null) {
       parsedCategories = (json['labels'] as List)
@@ -29,12 +29,10 @@ class PostModel {
           .toList();
     }
 
-    // Extração inteligente de imagem de destaque de dentro do conteúdo HTML ou mídia
     String extractedThumbnail = '';
     if (json['images'] != null && (json['images'] as List).isNotEmpty) {
       extractedThumbnail = json['images'][0]['url'];
     } else {
-      // Fallback: Tenta buscar a primeira tag <img> dentro do próprio HTML se a chave images falhar
       final RegExp regExp = RegExp(r'<img[^>]+src="([^">]+)"');
       final match = regExp.firstMatch(json['content'] ?? '');
       if (match != null && match.groupCount >= 1) {
@@ -42,18 +40,25 @@ class PostModel {
       }
     }
 
+    // Extrai o total de comentários de replies.totalItems
+    String replyCount = '0';
+    if (json['replies'] != null && json['replies']['totalItems'] != null) {
+      replyCount = json['replies']['totalItems'].toString();
+    }
+
     return PostModel(
       id: json['id'] ?? '',
       title: json['title'] ?? '',
       content: json['content'] ?? '',
       url: json['url'] ?? '',
-      publishedAt: json['published'] != null 
-          ? DateTime.parse(json['published']) 
+      publishedAt: json['published'] != null
+          ? DateTime.parse(json['published'])
           : DateTime.now(),
-      thumbnailUrl: extractedThumbnail.isNotEmpty 
-          ? extractedThumbnail 
-          : 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=600', // Imagem padrão caso o post seja apenas texto
+      thumbnailUrl: extractedThumbnail.isNotEmpty
+          ? extractedThumbnail
+          : 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=600',
       categories: parsedCategories,
+      replyCount: replyCount,
     );
   }
 }
