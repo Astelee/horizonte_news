@@ -37,23 +37,23 @@ class BadgeConfig {
   static Color achievementColor(String achievementId) {
     switch (achievementId) {
       case 'first_login':
-        return const Color(0xFF4FC3F7); // azul claro
+        return const Color(0xFF4FC3F7);
       case '1h_online':
-        return const Color(0xFFAED581); // verde claro
+        return const Color(0xFFAED581);
       case '10h_online':
-        return const Color(0xFFFFD54F); // dourado
+        return const Color(0xFFFFD54F);
       case '100_articles':
-        return const Color(0xFFFF8A65); // laranja suave
+        return const Color(0xFFFF8A65);
       case 'first_share':
-        return const Color(0xFF80CBC4); // teal
+        return const Color(0xFF80CBC4);
       case 'first_comment':
-        return const Color(0xFFCE93D8); // roxo claro
+        return const Color(0xFFCE93D8);
       case 'level_5':
-        return const Color(0xFFFFEB3B); // amarelo
+        return const Color(0xFFFFEB3B);
       case 'level_10':
-        return const Color(0xFFFFD700); // ouro
+        return const Color(0xFFFFD700);
       default:
-        return const Color(0xFFFF6B00); // laranja padrão
+        return const Color(0xFFFF6B00);
     }
   }
 
@@ -71,13 +71,13 @@ class BadgeConfig {
 
   // ── Cor do nível ─────────────────────────────────────────────────
   static Color levelColor(int level) {
-    if (level < 3) return const Color(0xFF81C784);  // verde
-    if (level < 5) return const Color(0xFF64B5F6);  // azul
-    if (level < 8) return const Color(0xFFFF8A65);  // laranja
-    if (level < 12) return const Color(0xFFBA68C8); // roxo
-    if (level < 17) return const Color(0xFF4DB6AC); // teal
-    if (level < 23) return const Color(0xFFFFD54F); // dourado
-    if (level < 30) return const Color(0xFFFFB74D); // ouro
-    return const Color(0xFFFFD700);                 // ouro real
+    if (level < 3) return const Color(0xFF81C784);
+    if (level < 5) return const Color(0xFF64B5F6);
+    if (level < 8) return const Color(0xFFFF8A65);
+    if (level < 12) return const Color(0xFFBA68C8);
+    if (level < 17) return const Color(0xFF4DB6AC);
+    if (level < 23) return const Color(0xFFFFD54F);
+    if (level < 30) return const Color(0xFFFFB74D);
+    return const Color(0xFFFFD700);
   }
 }
