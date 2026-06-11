@@ -7,9 +7,6 @@ import '../providers/user_xp_provider.dart';
 import '../providers/admin_provider.dart';
 import 'badge_widgets.dart';
 
-// ─────────────────────────────────────────────────────────────────
-// MODEL
-// ─────────────────────────────────────────────────────────────────
 class CommentModel {
   final String id;
   final String userId;
@@ -45,9 +42,6 @@ class CommentModel {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// WIDGET PRINCIPAL
-// ─────────────────────────────────────────────────────────────────
 class CommentsSection extends StatefulWidget {
   final String postId;
   final String postTitle;
@@ -122,21 +116,33 @@ class _CommentsSectionState extends State<CommentsSection>
       return;
     }
 
+    // ── VERIFICAÇÃO DE SUSPENSÃO CORRIGIDA ──────────────────────
     final suspension = await FirebaseFirestore.instance
         .collection('suspensions')
         .doc(user.uid)
         .get();
 
     if (suspension.exists) {
-      final until =
-          (suspension.data()?['until'] as Timestamp?)?.toDate();
-      if (until != null && DateTime.now().isBefore(until)) {
-        final fmt = '${until.day}/${until.month}/${until.year}';
-        _showSnack('Você está suspenso até $fmt.');
+      final data = suspension.data()!;
+      final until = (data['until'] as Timestamp?)?.toDate();
+      final isPermanent = until == null;
+      final isActive = isPermanent || DateTime.now().isBefore(until!);
+
+      if (isActive) {
+        final reason = (data['reason'] as String?)?.trim() ?? '';
+        final reasonText = reason.isNotEmpty ? '\nMotivo: $reason' : '';
+
+        if (isPermanent) {
+          _showSnack('Você foi banido permanentemente.$reasonText');
+        } else {
+          final fmt = '${until.day}/${until.month}/${until.year}';
+          _showSnack('Você está suspenso até $fmt.$reasonText');
+        }
         setState(() => _isSending = false);
         return;
       }
     }
+    // ────────────────────────────────────────────────────────────
 
     if (text.isEmpty) return;
     if (text.length < 3) {
@@ -222,6 +228,7 @@ class _CommentsSectionState extends State<CommentsSection>
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 5),
       ),
     );
   }
@@ -592,9 +599,6 @@ class _CommentsSectionState extends State<CommentsSection>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// TILE DE COMENTÁRIO
-// ─────────────────────────────────────────────────────────────────
 class _CommentTile extends StatefulWidget {
   final CommentModel comment;
   final String initials;
@@ -650,8 +654,6 @@ class _CommentTileState extends State<_CommentTile>
 
   bool get _canDelete => _isOwner || widget.isAdmin;
 
-  // ── rootNavigator garante que o pop fecha o dialog
-  // independente de onde o contexto está na árvore ──────────────
   void _confirmDelete(BuildContext context) {
     final rootNav = Navigator.of(context, rootNavigator: true);
 
@@ -820,7 +822,6 @@ class _CommentTileState extends State<_CommentTile>
                             ],
                           ),
                         ),
-
                         Row(
                           children: [
                             Text(
@@ -848,9 +849,7 @@ class _CommentTileState extends State<_CommentTile>
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 6),
-
                     Text(
                       widget.comment.text,
                       style: const TextStyle(
