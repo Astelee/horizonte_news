@@ -12,6 +12,7 @@ import '../providers/user_xp_provider.dart';
 import '../config/app_colors.dart';
 import '../utils/blogger_cleaner.dart';
 import '../widgets/comments_section.dart';
+import '../services/admin_service.dart';
 
 // ─────────────────────────────────────────────────────────────────
 // UTILITÁRIO DE DATA
@@ -49,7 +50,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     with SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   bool _showFloatingTitle = false;
-  bool _articleReadRegistered = false; // ← evita registrar mais de uma vez
+  bool _articleReadRegistered = false;
+  bool _viewRegistered = false;
   late AnimationController _animController;
   late Animation<double> _fadeIn;
 
@@ -73,9 +75,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         setState(() => _showFloatingTitle = show);
       }
 
-      // ── Registra "artigo lido" quando o usuário rolar 30% do conteúdo
-      if (!_articleReadRegistered &&
-          _scrollController.offset > 300) {
+      if (!_articleReadRegistered && _scrollController.offset > 300) {
         _articleReadRegistered = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
@@ -84,6 +84,11 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         });
       }
     });
+
+    // Registra visualização após o primeiro frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _registerView();
+    });
   }
 
   @override
@@ -91,6 +96,20 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     _scrollController.dispose();
     _animController.dispose();
     super.dispose();
+  }
+
+  Future<void> _registerView() async {
+    if (_viewRegistered) return;
+    _viewRegistered = true;
+
+    final post =
+        ModalRoute.of(context)?.settings.arguments as PostModel?;
+    if (post == null) return;
+
+    await AdminService().recordPostView(
+      postId: post.id,
+      postTitle: post.title,
+    );
   }
 
   String _readingTime(String content) {
@@ -120,7 +139,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     return html;
   }
 
-  // ── Compartilhar + registrar XP ──────────────────────────────────
   Future<void> _sharePost(PostModel post) async {
     await Share.share(
       '${post.title}\n\nLeia a matéria completa em: ${post.url}',
@@ -230,7 +248,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                           const SizedBox(width: 8),
                           _glassButton(
                             icon: Icons.share_rounded,
-                            onTap: () => _sharePost(post), // ← XP aqui
+                            onTap: () => _sharePost(post),
                           ),
                         ],
                       ),
@@ -389,7 +407,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             const SizedBox(width: 8),
             _glassButton(
               icon: Icons.share_rounded,
-              onTap: () => _sharePost(post), // ← XP aqui também
+              onTap: () => _sharePost(post),
             ),
           ],
         ),
