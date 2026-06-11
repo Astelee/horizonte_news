@@ -116,7 +116,6 @@ class _CommentsSectionState extends State<CommentsSection>
       return;
     }
 
-    // ── VERIFICAÇÃO DE SUSPENSÃO CORRIGIDA ──────────────────────
     final suspension = await FirebaseFirestore.instance
         .collection('suspensions')
         .doc(user.uid)
@@ -142,7 +141,6 @@ class _CommentsSectionState extends State<CommentsSection>
         return;
       }
     }
-    // ────────────────────────────────────────────────────────────
 
     if (text.isEmpty) return;
     if (text.length < 3) {
@@ -811,12 +809,12 @@ class _CommentTileState extends State<_CommentTile>
                               LevelBadgeInline(
                                 level: widget.comment.userLevel,
                               ),
-                              if (widget
-                                  .comment.userAchievements.isNotEmpty)
+                              // ── Mostra todas as conquistas ──
+                              if (widget.comment.userAchievements.isNotEmpty)
                                 UnlockedBadgesRow(
                                   unlockedAchievements:
                                       widget.comment.userAchievements,
-                                  maxVisible: 2,
+                                  maxVisible: widget.comment.userAchievements.length,
                                   badgeSize: 9,
                                 ),
                             ],
