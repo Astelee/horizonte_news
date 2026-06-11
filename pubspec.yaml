@@ -19,7 +19,7 @@ dependencies:
   google_nav_bar: ^5.0.6
   shimmer: ^3.0.0
   flutter_html: ^3.0.0-beta.2
-  font_awesome_flutter: 10.7.0
+  font_awesome_flutter: ^10.7.0
 
   # Rede e Imagem
   http: ^1.2.1
@@ -45,6 +45,9 @@ dependencies:
   # Notificações locais (foreground)
   flutter_local_notifications: ^17.0.0
 
+  # Som ambiente
+  audioplayers: ^6.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -56,6 +59,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/sounds/
 
 flutter_launcher_icons:
   android: "launcher_icon"
