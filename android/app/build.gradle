@@ -4,7 +4,6 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
-// Lê o arquivo key.properties gerado pelo workflow
 def keystoreProperties = new Properties()
 def keystorePropertiesFile = rootProject.file('key.properties')
 if (keystorePropertiesFile.exists()) {
@@ -13,7 +12,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "com.astelee.horizonte_news"
-    compileSdkVersion 35
+    compileSdkVersion 34
     ndkVersion flutter.ndkVersion
 
     compileOptions {
@@ -28,7 +27,7 @@ android {
     defaultConfig {
         applicationId "com.astelee.horizonte_news"
         minSdkVersion 23
-        targetSdkVersion 35
+        targetSdkVersion 34
         versionCode 1
         versionName "1.0"
     }
@@ -50,11 +49,17 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
+    // Força subprojetos (plugins) a usarem no máximo SDK 34
+    configurations.all {
+        resolutionStrategy {
+            force 'androidx.core:core:1.12.0'
+        }
+    }
 }
 
 flutter {
     source '../..'
 }
 
-// Plugin aplicado no final — compatível com o sistema de Gradle do projeto
 apply plugin: 'com.google.gms.google-services'
