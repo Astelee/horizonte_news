@@ -180,10 +180,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// ABA 1 — COMENTÁRIOS
-// ═══════════════════════════════════════════════════════════════════
-
 class _CommentsTab extends StatelessWidget {
   final AdminService service;
   const _CommentsTab({required this.service});
@@ -261,10 +257,6 @@ class _CommentsTab extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// ABA 2 — USUÁRIOS BANIDOS
-// ═══════════════════════════════════════════════════════════════════
-
 class _BannedUsersTab extends StatelessWidget {
   final AdminService service;
   const _BannedUsersTab({required this.service});
@@ -339,10 +331,6 @@ class _BannedUsersTab extends StatelessWidget {
     );
   }
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// ABA 3 — USUÁRIOS
-// ═══════════════════════════════════════════════════════════════════
 
 class _UsersTab extends StatelessWidget {
   final AdminService service;
@@ -419,10 +407,6 @@ class _UsersTab extends StatelessWidget {
     );
   }
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// TILE DE COMENTÁRIO
-// ═══════════════════════════════════════════════════════════════════
 
 class _AdminCommentTile extends StatelessWidget {
   final String commentId;
@@ -663,10 +647,6 @@ class _AdminCommentTile extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// DIALOG — BANIR USUÁRIO
-// ═══════════════════════════════════════════════════════════════════
-
 class _BanUserDialog extends StatefulWidget {
   final String authorName;
   const _BanUserDialog({required this.authorName});
@@ -882,10 +862,6 @@ class _BanUserDialogState extends State<_BanUserDialog> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// TILE DE USUÁRIO BANIDO
-// ═══════════════════════════════════════════════════════════════════
-
 class _BannedUserTile extends StatelessWidget {
   final String userId;
   final Map<String, dynamic> data;
@@ -921,12 +897,36 @@ class _BannedUserTile extends StatelessWidget {
       }
     }
 
+    // ── CORREÇÃO: loading state para evitar tela cinza ──────────
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance
           .collection('users_xp')
           .doc(userId)
           .get(),
       builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            height: 80,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0A0A0A),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.borderDark),
+            ),
+            child: const Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.primaryOrange,
+                ),
+              ),
+            ),
+          );
+        }
+        // ────────────────────────────────────────────────────────
+
         String name = 'Usuário desconhecido';
         String email = '';
 
@@ -1079,10 +1079,6 @@ class _BannedUserTile extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// TILE DE USUÁRIO
-// ═══════════════════════════════════════════════════════════════════
-
 class _AdminUserTile extends StatelessWidget {
   final String userId;
   final Map<String, dynamic> data;
@@ -1217,10 +1213,6 @@ class _AdminUserTile extends StatelessWidget {
     );
   }
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// WIDGETS AUXILIARES
-// ═══════════════════════════════════════════════════════════════════
 
 class _BanInfoRow extends StatelessWidget {
   final IconData icon;
