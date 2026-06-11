@@ -53,13 +53,20 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         backgroundColor: AppColors.backgroundDark,
         body: NestedScrollView(
           headerSliverBuilder: (context, _) => [_buildAppBar()],
-          body: TabBarView(
-            controller: _tabController,
-            children: [
-              _CommentsTab(service: _service),
-              _BannedUsersTab(service: _service),
-              _UsersTab(service: _service),
-            ],
+          body: MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: Container(
+              color: AppColors.backgroundDark,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _CommentsTab(service: _service),
+                  _BannedUsersTab(service: _service),
+                  _UsersTab(service: _service),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -162,23 +169,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           letterSpacing: 0.6,
         ),
         tabs: const [
-          Tab(
-            icon: Icon(Icons.chat_bubble_rounded, size: 18),
-            text: 'COMENTÁRIOS',
-          ),
-          Tab(
-            icon: Icon(Icons.block_rounded, size: 18),
-            text: 'BANIDOS',
-          ),
-          Tab(
-            icon: Icon(Icons.people_rounded, size: 18),
-            text: 'USUÁRIOS',
-          ),
+          Tab(icon: Icon(Icons.chat_bubble_rounded, size: 18), text: 'COMENTÁRIOS'),
+          Tab(icon: Icon(Icons.block_rounded, size: 18), text: 'BANIDOS'),
+          Tab(icon: Icon(Icons.people_rounded, size: 18), text: 'USUÁRIOS'),
         ],
       ),
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// ABA 1 — COMENTÁRIOS
+// ═══════════════════════════════════════════════════════════════════
 
 class _CommentsTab extends StatelessWidget {
   final AdminService service;
@@ -186,76 +188,90 @@ class _CommentsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
+    return Container(
       color: AppColors.backgroundDark,
       child: StreamBuilder<QuerySnapshot>(
         stream: service.allCommentsStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryOrange),
+            return Container(
+              color: AppColors.backgroundDark,
+              child: const Center(
+                child: CircularProgressIndicator(color: AppColors.primaryOrange),
+              ),
             );
           }
           if (snapshot.hasError) {
-            return _ErrorState(message: '${snapshot.error}');
+            return Container(
+              color: AppColors.backgroundDark,
+              child: _ErrorState(message: '${snapshot.error}'),
+            );
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const _EmptyState(
-              icon: Icons.chat_bubble_outline_rounded,
-              message: 'Nenhum comentário encontrado',
+            return Container(
+              color: AppColors.backgroundDark,
+              child: const _EmptyState(
+                icon: Icons.chat_bubble_outline_rounded,
+                message: 'Nenhum comentário encontrado',
+              ),
             );
           }
 
           final docs = snapshot.data!.docs;
 
-          return Column(
-            children: [
-              Container(
-                color: Colors.black,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
-                child: Row(
-                  children: [
-                    const Icon(Icons.chat_bubble_rounded,
-                        color: AppColors.primaryOrange, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${docs.length} comentário${docs.length != 1 ? 's' : ''}',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+          return Container(
+            color: AppColors.backgroundDark,
+            child: Column(
+              children: [
+                Container(
+                  color: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.chat_bubble_rounded,
+                          color: AppColors.primaryOrange, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${docs.length} comentário${docs.length != 1 ? 's' : ''}',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: docs.length,
-                  itemBuilder: (context, i) {
-                    final doc = docs[i];
-                    final data = doc.data() as Map<String, dynamic>;
-                    final pathParts = doc.reference.path.split('/');
-                    final postId =
-                        pathParts.length >= 2 ? pathParts[1] : '';
-                    return _AdminCommentTile(
-                      commentId: doc.id,
-                      postId: postId,
-                      data: data,
-                      service: service,
-                    );
-                  },
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: docs.length,
+                    itemBuilder: (context, i) {
+                      final doc = docs[i];
+                      final data = doc.data() as Map<String, dynamic>;
+                      final pathParts = doc.reference.path.split('/');
+                      final postId = pathParts.length >= 2 ? pathParts[1] : '';
+                      return _AdminCommentTile(
+                        commentId: doc.id,
+                        postId: postId,
+                        data: data,
+                        service: service,
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// ABA 2 — USUÁRIOS BANIDOS
+// ═══════════════════════════════════════════════════════════════════
 
 class _BannedUsersTab extends StatelessWidget {
   final AdminService service;
@@ -263,7 +279,7 @@ class _BannedUsersTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
+    return Container(
       color: AppColors.backgroundDark,
       child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -271,60 +287,71 @@ class _BannedUsersTab extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryOrange),
+            return Container(
+              color: AppColors.backgroundDark,
+              child: const Center(
+                child: CircularProgressIndicator(color: AppColors.primaryOrange),
+              ),
             );
           }
           if (snapshot.hasError) {
-            return _ErrorState(message: '${snapshot.error}');
+            return Container(
+              color: AppColors.backgroundDark,
+              child: _ErrorState(message: '${snapshot.error}'),
+            );
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const _EmptyState(
-              icon: Icons.block_rounded,
-              message: 'Nenhum usuário banido',
+            return Container(
+              color: AppColors.backgroundDark,
+              child: const _EmptyState(
+                icon: Icons.block_rounded,
+                message: 'Nenhum usuário banido',
+              ),
             );
           }
 
           final docs = snapshot.data!.docs;
 
-          return Column(
-            children: [
-              Container(
-                color: Colors.black,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
-                child: Row(
-                  children: [
-                    const Icon(Icons.block_rounded,
-                        color: Color(0xFFEF5350), size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${docs.length} usuário${docs.length != 1 ? 's' : ''} banido${docs.length != 1 ? 's' : ''}',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+          return Container(
+            color: AppColors.backgroundDark,
+            child: Column(
+              children: [
+                Container(
+                  color: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.block_rounded,
+                          color: Color(0xFFEF5350), size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${docs.length} usuário${docs.length != 1 ? 's' : ''} banido${docs.length != 1 ? 's' : ''}',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: docs.length,
-                  itemBuilder: (context, i) {
-                    final doc = docs[i];
-                    final data = doc.data() as Map<String, dynamic>;
-                    return _BannedUserTile(
-                      userId: doc.id,
-                      data: data,
-                      service: service,
-                    );
-                  },
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: docs.length,
+                    itemBuilder: (context, i) {
+                      final doc = docs[i];
+                      final data = doc.data() as Map<String, dynamic>;
+                      return _BannedUserTile(
+                        userId: doc.id,
+                        data: data,
+                        service: service,
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
@@ -332,13 +359,17 @@ class _BannedUsersTab extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// ABA 3 — USUÁRIOS
+// ═══════════════════════════════════════════════════════════════════
+
 class _UsersTab extends StatelessWidget {
   final AdminService service;
   const _UsersTab({required this.service});
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
+    return Container(
       color: AppColors.backgroundDark,
       child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -347,66 +378,81 @@ class _UsersTab extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryOrange),
+            return Container(
+              color: AppColors.backgroundDark,
+              child: const Center(
+                child: CircularProgressIndicator(color: AppColors.primaryOrange),
+              ),
             );
           }
           if (snapshot.hasError) {
-            return _ErrorState(message: '${snapshot.error}');
+            return Container(
+              color: AppColors.backgroundDark,
+              child: _ErrorState(message: '${snapshot.error}'),
+            );
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const _EmptyState(
-              icon: Icons.people_outline_rounded,
-              message: 'Nenhum usuário encontrado',
+            return Container(
+              color: AppColors.backgroundDark,
+              child: const _EmptyState(
+                icon: Icons.people_outline_rounded,
+                message: 'Nenhum usuário encontrado',
+              ),
             );
           }
 
           final docs = snapshot.data!.docs;
 
-          return Column(
-            children: [
-              Container(
-                color: Colors.black,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
-                child: Row(
-                  children: [
-                    const Icon(Icons.people_rounded,
-                        color: AppColors.primaryOrange, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${docs.length} usuário${docs.length != 1 ? 's' : ''} cadastrado${docs.length != 1 ? 's' : ''}',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+          return Container(
+            color: AppColors.backgroundDark,
+            child: Column(
+              children: [
+                Container(
+                  color: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.people_rounded,
+                          color: AppColors.primaryOrange, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${docs.length} usuário${docs.length != 1 ? 's' : ''} cadastrado${docs.length != 1 ? 's' : ''}',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: docs.length,
-                  itemBuilder: (context, i) {
-                    final doc = docs[i];
-                    final data = doc.data() as Map<String, dynamic>;
-                    return _AdminUserTile(
-                      userId: doc.id,
-                      data: data,
-                      service: service,
-                    );
-                  },
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: docs.length,
+                    itemBuilder: (context, i) {
+                      final doc = docs[i];
+                      final data = doc.data() as Map<String, dynamic>;
+                      return _AdminUserTile(
+                        userId: doc.id,
+                        data: data,
+                        service: service,
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// TILE DE COMENTÁRIO
+// ═══════════════════════════════════════════════════════════════════
 
 class _AdminCommentTile extends StatelessWidget {
   final String commentId;
@@ -422,9 +468,7 @@ class _AdminCommentTile extends StatelessWidget {
   });
 
   String _resolveAuthorName(Map<String, dynamic> d) {
-    for (final f in [
-      'authorName', 'userName', 'displayName', 'name', 'author'
-    ]) {
+    for (final f in ['authorName', 'userName', 'displayName', 'name', 'author']) {
       final v = d[f];
       if (v is String && v.trim().isNotEmpty) return v.trim();
     }
@@ -432,9 +476,7 @@ class _AdminCommentTile extends StatelessWidget {
   }
 
   String? _resolveAuthorPhoto(Map<String, dynamic> d) {
-    for (final f in [
-      'authorPhotoUrl', 'photoUrl', 'avatarUrl', 'photoURL'
-    ]) {
+    for (final f in ['authorPhotoUrl', 'photoUrl', 'avatarUrl', 'photoURL']) {
       final v = d[f];
       if (v is String && v.trim().isNotEmpty) return v;
     }
@@ -520,8 +562,7 @@ class _AdminCommentTile extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor:
-                      AppColors.primaryOrange.withOpacity(0.15),
+                  backgroundColor: AppColors.primaryOrange.withOpacity(0.15),
                   backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
                       ? NetworkImage(photoUrl)
                       : null,
@@ -629,7 +670,7 @@ class _AdminCommentTile extends StatelessWidget {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                '$author foi banido por ${result['days'] == 0 ? 'tempo indeterminado' : '${result['days']} dias'}.'),
+                                  '$author foi banido por ${result['days'] == 0 ? 'tempo indeterminado' : '${result['days']} dias'}.'),
                               backgroundColor: const Color(0xFFFF9800),
                             ),
                           );
@@ -646,6 +687,10 @@ class _AdminCommentTile extends StatelessWidget {
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// DIALOG — BANIR USUÁRIO
+// ═══════════════════════════════════════════════════════════════════
 
 class _BanUserDialog extends StatefulWidget {
   final String authorName;
@@ -681,16 +726,13 @@ class _BanUserDialogState extends State<_BanUserDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
         children: [
-          const Icon(Icons.person_off_rounded,
-              color: Color(0xFFFF9800), size: 20),
+          const Icon(Icons.person_off_rounded, color: Color(0xFFFF9800), size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Banir ${widget.authorName}',
               style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15),
+                  color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15),
             ),
           ),
         ],
@@ -702,15 +744,12 @@ class _BanUserDialogState extends State<_BanUserDialog> {
           children: [
             const Text(
               'O usuário ficará impedido de comentar.',
-              style: TextStyle(
-                  color: AppColors.textSecondary, fontSize: 12),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
             ),
             const SizedBox(height: 16),
             const Text('Motivo do banimento',
                 style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700)),
+                    color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             TextField(
               controller: _reasonController,
@@ -719,8 +758,7 @@ class _BanUserDialogState extends State<_BanUserDialog> {
               decoration: InputDecoration(
                 hintText: 'Ex: Spam, linguagem ofensiva...',
                 hintStyle: TextStyle(
-                    color: AppColors.textSecondary.withOpacity(0.5),
-                    fontSize: 12),
+                    color: AppColors.textSecondary.withOpacity(0.5), fontSize: 12),
                 filled: true,
                 fillColor: const Color(0xFF1A1A1A),
                 border: OutlineInputBorder(
@@ -733,25 +771,22 @@ class _BanUserDialogState extends State<_BanUserDialog> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(
-                      color: Color(0xFFFF9800), width: 1.5),
+                  borderSide:
+                      const BorderSide(color: Color(0xFFFF9800), width: 1.5),
                 ),
               ),
             ),
             const SizedBox(height: 16),
             const Text('Duração',
                 style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700)),
+                    color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             GestureDetector(
               onTap: () => setState(() => _permanent = !_permanent),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: _permanent
                       ? const Color(0xFFEF5350).withOpacity(0.15)
@@ -862,6 +897,10 @@ class _BanUserDialogState extends State<_BanUserDialog> {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// TILE DE USUÁRIO BANIDO — CORRIGIDO
+// ═══════════════════════════════════════════════════════════════════
+
 class _BannedUserTile extends StatelessWidget {
   final String userId;
   final Map<String, dynamic> data;
@@ -872,6 +911,17 @@ class _BannedUserTile extends StatelessWidget {
     required this.data,
     required this.service,
   });
+
+  // Resolve nome ignorando strings vazias, com fallback pro email
+  String _resolveName(Map<String, dynamic> ud) {
+    for (final f in ['displayName', 'name', 'userName']) {
+      final v = ud[f];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+    }
+    final email = (ud['email'] as String?) ?? '';
+    if (email.isNotEmpty) return email.split('@').first;
+    return 'Usuário $userId'.substring(0, 16);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -886,24 +936,27 @@ class _BannedUserTile extends StatelessWidget {
           '${bannedAt.year}'
         : 'Data desconhecida';
 
-    int? daysLeft;
+    // Calcula dias restantes com segurança
+    int daysLeft = 0;
     bool isExpired = false;
     if (!isPermanent && expiresAt != null) {
-      daysLeft = expiresAt.difference(DateTime.now()).inDays;
-      if (daysLeft < 0) {
+      final diff = expiresAt.difference(DateTime.now());
+      daysLeft = diff.inDays;
+      if (diff.inSeconds <= 0) {
         isExpired = true;
+        daysLeft = diff.inDays.abs();
       } else if (daysLeft == 0) {
         daysLeft = 1;
       }
     }
 
-    // ── CORREÇÃO: loading state para evitar tela cinza ──────────
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance
           .collection('users_xp')
           .doc(userId)
           .get(),
       builder: (context, snap) {
+        // Loading
         if (snap.connectionState == ConnectionState.waiting) {
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
@@ -925,15 +978,14 @@ class _BannedUserTile extends StatelessWidget {
             ),
           );
         }
-        // ────────────────────────────────────────────────────────
 
         String name = 'Usuário desconhecido';
         String email = '';
 
         if (snap.hasData && snap.data!.exists) {
           final ud = snap.data!.data() as Map<String, dynamic>;
-          name = ud['displayName'] ?? ud['name'] ?? ud['userName'] ?? name;
-          email = ud['email'] ?? '';
+          name = _resolveName(ud);
+          email = (ud['email'] as String?) ?? '';
         }
 
         return Container(
@@ -980,16 +1032,21 @@ class _BannedUserTile extends StatelessWidget {
                           if (email.isNotEmpty)
                             Text(email,
                                 style: const TextStyle(
-                                    color: AppColors.textMuted,
-                                    fontSize: 11)),
+                                    color: AppColors.textMuted, fontSize: 11)),
                         ],
                       ),
                     ),
                     _Badge(
-                      label: isPermanent ? 'Permanente' : 'Temporário',
+                      label: isPermanent
+                          ? 'Permanente'
+                          : isExpired
+                              ? 'Expirado'
+                              : 'Temporário',
                       color: isPermanent
                           ? const Color(0xFFEF5350)
-                          : const Color(0xFFFF9800),
+                          : isExpired
+                              ? AppColors.textSecondary
+                              : const Color(0xFFFF9800),
                     ),
                   ],
                 ),
@@ -1012,14 +1069,12 @@ class _BannedUserTile extends StatelessWidget {
                   _BanInfoRow(
                     icon: Icons.timer_rounded,
                     label: isExpired ? 'Expirado há' : 'Dias restantes',
-                    value: isExpired
-                        ? '${daysLeft!.abs()} dia${daysLeft.abs() != 1 ? 's' : ''} (expirado)'
-                        : '$daysLeft dia${daysLeft != 1 ? 's' : ''}',
+                    value: '$daysLeft dia${daysLeft != 1 ? 's' : ''}${isExpired ? ' (expirado)' : ''}',
                     valueColor: isExpired
                         ? AppColors.textSecondary
-                        : (daysLeft! <= 3
+                        : daysLeft <= 3
                             ? const Color(0xFFFF9800)
-                            : const Color(0xFF66BB6A)),
+                            : const Color(0xFF66BB6A),
                   ),
                   const SizedBox(height: 6),
                 ],
@@ -1079,6 +1134,10 @@ class _BannedUserTile extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// TILE DE USUÁRIO
+// ═══════════════════════════════════════════════════════════════════
+
 class _AdminUserTile extends StatelessWidget {
   final String userId;
   final Map<String, dynamic> data;
@@ -1102,19 +1161,28 @@ class _AdminUserTile extends StatelessWidget {
             ? snap.data!.data() as Map<String, dynamic>
             : data;
 
-        final name =
-            (d['displayName'] as String?)?.isNotEmpty == true
-                ? d['displayName'] as String
-                : 'Sem nome';
+        // Resolve nome ignorando vazio
+        String name = 'Sem nome';
+        for (final f in ['displayName', 'name', 'userName']) {
+          final v = d[f];
+          if (v is String && v.trim().isNotEmpty) {
+            name = v.trim();
+            break;
+          }
+        }
+        // Fallback pro email
+        if (name == 'Sem nome') {
+          final em = (d['email'] as String?) ?? '';
+          if (em.isNotEmpty) name = em.split('@').first;
+        }
+
         final email = d['email'] as String? ?? '';
         final xp = (d['totalXp'] as num?)?.toInt() ?? 0;
         final level = XpService.levelFromXp(xp);
-        final comments =
-            (d['stats']?['commentsPosted'] as num?)?.toInt() ??
+        final comments = (d['stats']?['commentsPosted'] as num?)?.toInt() ??
             (d['commentsPosted'] as num?)?.toInt() ??
             0;
-        final articles =
-            (d['stats']?['articlesRead'] as num?)?.toInt() ??
+        final articles = (d['stats']?['articlesRead'] as num?)?.toInt() ??
             (d['articlesRead'] as num?)?.toInt() ??
             0;
         final createdAt = (d['createdAt'] as Timestamp?)?.toDate();
@@ -1139,8 +1207,7 @@ class _AdminUserTile extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor:
-                      AppColors.primaryOrange.withOpacity(0.15),
+                  backgroundColor: AppColors.primaryOrange.withOpacity(0.15),
                   child: Text(
                     name[0].toUpperCase(),
                     style: const TextStyle(
@@ -1163,13 +1230,11 @@ class _AdminUserTile extends StatelessWidget {
                       if (email.isNotEmpty)
                         Text(email,
                             style: const TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 11)),
+                                color: AppColors.textMuted, fontSize: 11)),
                       if (createdStr.isNotEmpty)
                         Text(createdStr,
                             style: const TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 11)),
+                                color: AppColors.textMuted, fontSize: 11)),
                       const SizedBox(height: 6),
                       Row(
                         children: [
@@ -1213,6 +1278,10 @@ class _AdminUserTile extends StatelessWidget {
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// WIDGETS AUXILIARES
+// ═══════════════════════════════════════════════════════════════════
 
 class _BanInfoRow extends StatelessWidget {
   final IconData icon;
@@ -1303,9 +1372,7 @@ class _ActionButton extends StatelessWidget {
             const SizedBox(width: 5),
             Text(label,
                 style: TextStyle(
-                    color: color,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700)),
+                    color: color, fontSize: 12, fontWeight: FontWeight.w700)),
           ],
         ),
       ),
@@ -1317,8 +1384,7 @@ class _StatChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  const _StatChip(
-      {required this.icon, required this.label, required this.color});
+  const _StatChip({required this.icon, required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -1346,14 +1412,11 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon,
-              size: 48,
-              color: AppColors.textSecondary.withOpacity(0.4)),
+          Icon(icon, size: 48, color: AppColors.textSecondary.withOpacity(0.4)),
           const SizedBox(height: 12),
           Text(message,
               style: TextStyle(
-                  color: AppColors.textSecondary.withOpacity(0.6),
-                  fontSize: 14)),
+                  color: AppColors.textSecondary.withOpacity(0.6), fontSize: 14)),
         ],
       ),
     );
@@ -1377,9 +1440,7 @@ class _ErrorState extends StatelessWidget {
             const SizedBox(height: 12),
             const Text('Erro ao carregar dados',
                 style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700)),
+                    color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Text(message,
                 style: const TextStyle(
@@ -1409,8 +1470,7 @@ class _ConfirmDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: const Color(0xFF111111),
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text(title,
           style: const TextStyle(
               color: Colors.white, fontWeight: FontWeight.w800)),
