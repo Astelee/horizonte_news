@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../providers/user_xp_provider.dart';
+import '../providers/admin_provider.dart';
 import 'badge_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────────
@@ -121,7 +122,6 @@ class _CommentsSectionState extends State<CommentsSection>
       return;
     }
 
-    // Verifica suspensão antes de enviar
     final suspension = await FirebaseFirestore.instance
         .collection('suspensions')
         .doc(user.uid)
@@ -152,7 +152,6 @@ class _CommentsSectionState extends State<CommentsSection>
           user.email?.split('@').first ??
           'Leitor';
 
-      // Lê o nível e conquistas atuais do provider para salvar no comentário
       final xpProvider =
           Provider.of<UserXpProvider>(context, listen: false);
       final userLevel = xpProvider.data.level;
@@ -182,10 +181,15 @@ class _CommentsSectionState extends State<CommentsSection>
     }
   }
 
+  // ── Deleção com feedback de erro visível ──────────────────────
   Future<void> _deleteComment(String commentId) async {
     try {
       await _commentsRef.doc(commentId).delete();
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        _showSnack('Erro ao excluir comentário. Verifique as permissões.');
+      }
+    }
   }
 
   void _showLoginSnack() {
@@ -247,9 +251,6 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // BUILD
-  // ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -265,9 +266,6 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // HEADER
-  // ─────────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return StreamBuilder<QuerySnapshot>(
       stream: _commentsRef
@@ -330,9 +328,6 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // INPUT
-  // ─────────────────────────────────────────────────────────────
   Widget _buildInputArea(User? user) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -479,10 +474,11 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // LISTA
-  // ─────────────────────────────────────────────────────────────
   Widget _buildCommentsList() {
+    // ── Lê isAdmin do provider para passar ao tile ────────────────
+    final isAdmin =
+        Provider.of<AdminProvider>(context, listen: false).isAdmin;
+
     return StreamBuilder<QuerySnapshot>(
       stream: _commentsRef
           .orderBy('createdAt', descending: true)
@@ -524,6 +520,7 @@ class _CommentsSectionState extends State<CommentsSection>
             timeAgo: _timeAgo(comments[index].createdAt),
             currentUserId:
                 FirebaseAuth.instance.currentUser?.uid ?? '',
+            isAdmin: isAdmin, // ← NOVO
             onDelete: () => _deleteComment(comments[index].id),
           ),
         );
@@ -531,9 +528,6 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // EMPTY STATE
-  // ─────────────────────────────────────────────────────────────
   Widget _buildEmptyState() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 32),
@@ -561,9 +555,6 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // AVATAR (área de input)
-  // ─────────────────────────────────────────────────────────────
   Widget _buildAvatar(String name, {double size = 40}) {
     final colorPairs = [
       [const Color(0xFFFF6B00), const Color(0xFFCC4400)],
@@ -611,6 +602,7 @@ class _CommentTile extends StatefulWidget {
   final String initials;
   final String timeAgo;
   final String currentUserId;
+  final bool isAdmin; // ← NOVO
   final VoidCallback onDelete;
 
   const _CommentTile({
@@ -619,6 +611,7 @@ class _CommentTile extends StatefulWidget {
     required this.initials,
     required this.timeAgo,
     required this.currentUserId,
+    required this.isAdmin,
     required this.onDelete,
   }) : super(key: key);
 
@@ -657,6 +650,9 @@ class _CommentTileState extends State<_CommentTile>
   bool get _isOwner =>
       widget.comment.userId == widget.currentUserId;
 
+  // ── Pode deletar se for dono OU admin ────────────────────────
+  bool get _canDelete => _isOwner || widget.isAdmin;
+
   void _confirmDelete(BuildContext context) {
     showDialog(
       context: context,
@@ -671,9 +667,11 @@ class _CommentTileState extends State<_CommentTile>
           'Excluir comentário?',
           style: TextStyle(color: Colors.white, fontSize: 16),
         ),
-        content: const Text(
-          'Esta ação não pode ser desfeita.',
-          style: TextStyle(
+        content: Text(
+          widget.isAdmin && !_isOwner
+              ? 'Você está excluindo o comentário de ${widget.comment.userName} como administrador.'
+              : 'Esta ação não pode ser desfeita.',
+          style: const TextStyle(
               color: AppColors.textSecondary, fontSize: 14),
         ),
         actions: [
@@ -762,16 +760,13 @@ class _CommentTileState extends State<_CommentTile>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Linha do nome + badges ──────────────────
                     Row(
                       mainAxisAlignment:
                           MainAxisAlignment.spaceBetween,
                       children: [
-                        // Nome + tag "EU" + nível + conquistas
                         Expanded(
                           child: Row(
                             children: [
-                              // Nome do usuário
                               Flexible(
                                 child: Text(
                                   widget.comment.userName,
@@ -785,8 +780,6 @@ class _CommentTileState extends State<_CommentTile>
                                   ),
                                 ),
                               ),
-
-                              // Tag "EU" (somente dono)
                               if (_isOwner) ...[
                                 const SizedBox(width: 5),
                                 Container(
@@ -810,14 +803,10 @@ class _CommentTileState extends State<_CommentTile>
                                   ),
                                 ),
                               ],
-
-                              // Badge de nível
                               const SizedBox(width: 5),
                               LevelBadgeInline(
                                 level: widget.comment.userLevel,
                               ),
-
-                              // Badges de conquistas (até 2)
                               if (widget
                                   .comment.userAchievements.isNotEmpty)
                                 UnlockedBadgesRow(
@@ -830,7 +819,7 @@ class _CommentTileState extends State<_CommentTile>
                           ),
                         ),
 
-                        // Hora + botão de deletar
+                        // ── Hora + botão deletar ──────────────
                         Row(
                           children: [
                             Text(
@@ -840,15 +829,20 @@ class _CommentTileState extends State<_CommentTile>
                                 fontSize: 11,
                               ),
                             ),
-                            if (_isOwner) ...[
+                            // ── Visível para dono OU admin ────
+                            if (_canDelete) ...[
                               const SizedBox(width: 8),
                               GestureDetector(
                                 onTap: () =>
                                     _confirmDelete(context),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.delete_outline_rounded,
                                   size: 15,
-                                  color: AppColors.textMuted,
+                                  // Vermelho para admin deletando comentário alheio
+                                  color: widget.isAdmin && !_isOwner
+                                      ? AppColors.emergencyRed
+                                          .withOpacity(0.7)
+                                      : AppColors.textMuted,
                                 ),
                               ),
                             ],
@@ -859,7 +853,6 @@ class _CommentTileState extends State<_CommentTile>
 
                     const SizedBox(height: 6),
 
-                    // Texto do comentário
                     Text(
                       widget.comment.text,
                       style: const TextStyle(
