@@ -181,13 +181,12 @@ class _CommentsSectionState extends State<CommentsSection>
     }
   }
 
-  // ── Deleção com feedback de erro visível ──────────────────────
   Future<void> _deleteComment(String commentId) async {
     try {
       await _commentsRef.doc(commentId).delete();
     } catch (e) {
       if (mounted) {
-        _showSnack('Erro ao excluir comentário. Verifique as permissões.');
+        _showSnack('Erro ao excluir: $e');
       }
     }
   }
@@ -475,7 +474,6 @@ class _CommentsSectionState extends State<CommentsSection>
   }
 
   Widget _buildCommentsList() {
-    // ── Lê isAdmin do provider para passar ao tile ────────────────
     final isAdmin =
         Provider.of<AdminProvider>(context, listen: false).isAdmin;
 
@@ -520,7 +518,7 @@ class _CommentsSectionState extends State<CommentsSection>
             timeAgo: _timeAgo(comments[index].createdAt),
             currentUserId:
                 FirebaseAuth.instance.currentUser?.uid ?? '',
-            isAdmin: isAdmin, // ← NOVO
+            isAdmin: isAdmin,
             onDelete: () => _deleteComment(comments[index].id),
           ),
         );
@@ -602,7 +600,7 @@ class _CommentTile extends StatefulWidget {
   final String initials;
   final String timeAgo;
   final String currentUserId;
-  final bool isAdmin; // ← NOVO
+  final bool isAdmin;
   final VoidCallback onDelete;
 
   const _CommentTile({
@@ -650,12 +648,16 @@ class _CommentTileState extends State<_CommentTile>
   bool get _isOwner =>
       widget.comment.userId == widget.currentUserId;
 
-  // ── Pode deletar se for dono OU admin ────────────────────────
   bool get _canDelete => _isOwner || widget.isAdmin;
 
+  // ── rootNavigator garante que o pop fecha o dialog
+  // independente de onde o contexto está na árvore ──────────────
   void _confirmDelete(BuildContext context) {
+    final rootNav = Navigator.of(context, rootNavigator: true);
+
     showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF0A0A0A),
         shape: RoundedRectangleBorder(
@@ -676,7 +678,7 @@ class _CommentTileState extends State<_CommentTile>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => rootNav.pop(),
             child: const Text(
               'Cancelar',
               style: TextStyle(color: AppColors.textSecondary),
@@ -684,7 +686,7 @@ class _CommentTileState extends State<_CommentTile>
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
+              rootNav.pop();
               widget.onDelete();
             },
             child: const Text(
@@ -819,7 +821,6 @@ class _CommentTileState extends State<_CommentTile>
                           ),
                         ),
 
-                        // ── Hora + botão deletar ──────────────
                         Row(
                           children: [
                             Text(
@@ -829,16 +830,13 @@ class _CommentTileState extends State<_CommentTile>
                                 fontSize: 11,
                               ),
                             ),
-                            // ── Visível para dono OU admin ────
                             if (_canDelete) ...[
                               const SizedBox(width: 8),
                               GestureDetector(
-                                onTap: () =>
-                                    _confirmDelete(context),
+                                onTap: () => _confirmDelete(context),
                                 child: Icon(
                                   Icons.delete_outline_rounded,
                                   size: 15,
-                                  // Vermelho para admin deletando comentário alheio
                                   color: widget.isAdmin && !_isOwner
                                       ? AppColors.emergencyRed
                                           .withOpacity(0.7)
