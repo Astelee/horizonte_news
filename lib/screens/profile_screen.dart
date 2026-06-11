@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -24,6 +25,8 @@ class _ProfileScreenState extends State<ProfileScreen>
   late Animation<double> _glowAnim;
   late Animation<double> _barAnim;
   late Animation<double> _fadeAnim;
+
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
@@ -54,6 +57,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _barCtrl.forward();
     });
+
+    // ── Som ambiente estilo Minecraft ─────────────────────────────
+    _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    _audioPlayer.setVolume(0.4);
+    _audioPlayer.play(AssetSource('sounds/ambient.mp3'));
   }
 
   @override
@@ -61,6 +69,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     _glowCtrl.dispose();
     _barCtrl.dispose();
     _fadeCtrl.dispose();
+    _audioPlayer.stop();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -237,8 +247,6 @@ class _ProfileScreenState extends State<ProfileScreen>
 
                   const SizedBox(height: 4),
 
-                  // ── Badge de nível com ícone FA ──────────────────
-                  // ATUALIZADO: substituído emoji por FaIcon
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 5),
@@ -551,7 +559,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   // ── CONQUISTAS ────────────────────────────────────────────────────
-  // ATUALIZADO: _AchievementTile agora usa FaIcon via BadgeConfig
   Widget _buildAchievementsSection(UserXpData data) {
     final xpService = XpService();
     final achievements = xpService.getAllAchievements(data.achievements);
@@ -705,7 +712,6 @@ class _StatCard extends StatelessWidget {
 }
 
 // ── TILE DE CONQUISTA ─────────────────────────────────────────────
-// ATUALIZADO: usa FaIcon + cor semântica por conquista via BadgeConfig
 class _AchievementTile extends StatelessWidget {
   final Achievement achievement;
   const _AchievementTile({required this.achievement});
@@ -735,7 +741,6 @@ class _AchievementTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // ── Ícone FA com fundo circular ─────────────────────────
           Container(
             width: 42,
             height: 42,
@@ -753,7 +758,6 @@ class _AchievementTile extends StatelessWidget {
             ),
             child: Center(
               child: FaIcon(
-                // achievement.icon agora é o ID — BadgeConfig resolve o ícone
                 BadgeConfig.achievementIcon(achievement.icon),
                 size: 16,
                 color: unlocked ? color : const Color(0xFF3A3A3A),
@@ -763,7 +767,6 @@ class _AchievementTile extends StatelessWidget {
 
           const SizedBox(width: 12),
 
-          // ── Textos ───────────────────────────────────────────────
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -792,7 +795,6 @@ class _AchievementTile extends StatelessWidget {
             ),
           ),
 
-          // ── Status: OBTIDA ou cadeado ────────────────────────────
           if (unlocked)
             Container(
               padding: const EdgeInsets.symmetric(
