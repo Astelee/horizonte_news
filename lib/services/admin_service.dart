@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'xp_service.dart'; // ajuste o caminho se necessário
+import 'xp_service.dart';
 
 class AdminService {
   final _db = FirebaseFirestore.instance;
@@ -46,8 +46,6 @@ class AdminService {
 
   // ── Suspensões / Banimentos ──────────────────────────────────────
 
-  /// Bane um usuário de comentar.
-  /// [days] = 0 significa banimento permanente.
   Future<void> suspendUser(String userId, int days, String reason) async {
     final now = DateTime.now();
     final data = <String, dynamic>{
@@ -84,8 +82,6 @@ class AdminService {
     return (await getBanData(userId)) != null;
   }
 
-  // ── Corrige o campo 'level' de todos os usuários no Firestore ────
-  // Útil para rodar uma vez e sincronizar tudo.
   Future<void> syncAllUserLevels() async {
     final snap = await _db.collection('users_xp').get();
     final batch = _db.batch();
@@ -95,6 +91,89 @@ class AdminService {
       batch.update(doc.reference, {'level': correctLevel});
     }
     await batch.commit();
+  }
+
+  // ── Visualizações ────────────────────────────────────────────────
+
+  /// Registra que um usuário visualizou uma matéria.
+  /// Salva em: post_views/{postId}/viewers/{userId}
+  Future<void> recordPostView({
+    required String postId,
+    required String postTitle,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final viewRef = _db
+          .collection('post_views')
+          .doc(postId)
+          .collection('viewers')
+          .doc(user.uid);
+
+      final existing = await viewRef.get();
+
+      if (existing.exists) {
+        // Já visualizou antes — apenas atualiza o contador e timestamp
+        await viewRef.update({
+          'viewCount': FieldValue.increment(1),
+          'lastViewedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Primeira visualização deste usuário nesta matéria
+        await viewRef.set({
+          'userId': user.uid,
+          'userName': user.displayName ?? user.email?.split('@').first ?? 'Leitor',
+          'userEmail': user.email ?? '',
+          'postId': postId,
+          'postTitle': postTitle,
+          'viewCount': 1,
+          'firstViewedAt': FieldValue.serverTimestamp(),
+          'lastViewedAt': FieldValue.serverTimestamp(),
+        });
+
+        // Incrementa contador total da matéria
+        await _db.collection('post_views').doc(postId).set({
+          'postId': postId,
+          'postTitle': postTitle,
+          'totalViews': FieldValue.increment(1),
+          'uniqueViewers': FieldValue.increment(1),
+          'lastViewedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      // Sempre incrementa o total de views (mesmo visitante voltando)
+      await _db.collection('post_views').doc(postId).update({
+        'totalViews': FieldValue.increment(1),
+        'lastViewedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {}
+  }
+
+  /// Busca todos os visualizadores de uma matéria específica.
+  Stream<QuerySnapshot> postViewersStream(String postId) {
+    return _db
+        .collection('post_views')
+        .doc(postId)
+        .collection('viewers')
+        .orderBy('lastViewedAt', descending: true)
+        .snapshots();
+  }
+
+  /// Busca as matérias mais visualizadas (para o painel admin).
+  Stream<QuerySnapshot> mostViewedPostsStream() {
+    return _db
+        .collection('post_views')
+        .orderBy('totalViews', descending: true)
+        .limit(50)
+        .snapshots();
+  }
+
+  /// Busca total de visualizações de uma matéria.
+  Future<Map<String, dynamic>?> getPostViewStats(String postId) async {
+    final doc = await _db.collection('post_views').doc(postId).get();
+    if (!doc.exists) return null;
+    return doc.data();
   }
 
   // ── Estatísticas ─────────────────────────────────────────────────
