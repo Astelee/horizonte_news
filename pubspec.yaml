@@ -30,7 +30,7 @@ dependencies:
   share_plus: ^9.0.0
   shared_preferences: ^2.2.3
   path_provider: ^2.1.2
-  intl: ^0.19.0
+  intl: ^0.18.1
 
   # Armazenamento seguro
   flutter_secure_storage: ^9.0.0
@@ -42,18 +42,11 @@ dependencies:
   firebase_analytics: ^11.1.1
   cloud_firestore: ^5.1.0
 
-  # Notificações OneSignal
-  onesignal_flutter: ^5.2.4
-
   # Notificações locais (foreground)
   flutter_local_notifications: ^17.0.0
 
   # Som ambiente
   audioplayers: ^6.1.0
-
-  # Conta de serviço Google (postagem no Blogger)
-  googleapis_auth: ^1.6.0
-  googleapis: ^13.1.0
 
 dev_dependencies:
   flutter_test:
@@ -67,7 +60,6 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/sounds/
-    - assets/credentials/
 
 flutter_launcher_icons:
   android: "launcher_icon"
