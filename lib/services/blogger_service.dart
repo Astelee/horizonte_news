@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/blogger_config.dart';
 import '../models/post_model.dart';
+import '../services/notification_service.dart'; // Import necessário para disparar a notificação
 
 class BloggerService {
   final http.Client _client = http.Client();
 
   /// Busca as notícias mais recentes do blog de forma paginada.
-  /// O parâmetro [pageToken] é utilizado para carregar mais postagens (infinite scroll).
   Future<Map<String, dynamic>> fetchPosts({String pageToken = '', int maxResults = 10}) async {
     try {
       final String tokenQuery = pageToken.isNotEmpty ? '&pageToken=$pageToken' : '';
@@ -36,7 +36,7 @@ class BloggerService {
     }
   }
 
-  /// Busca postagens filtradas por uma categoria específica (Labels/Marcadores do Blogger).
+  /// Busca postagens filtradas por uma categoria específica.
   Future<List<PostModel>> fetchPostsByCategory(String categoryName) async {
     try {
       final Uri url = Uri.parse(
@@ -50,7 +50,6 @@ class BloggerService {
         final List<dynamic> items = data['items'] ?? [];
         return items.map((item) => PostModel.fromJson(item)).toList();
       } else if (response.statusCode == 404) {
-        // Retorna lista vazia caso a categoria/marcador não possua posts
         return [];
       } else {
         throw Exception('Erro ao filtrar categoria. Código: ${response.statusCode}');
@@ -60,7 +59,7 @@ class BloggerService {
     }
   }
 
-  /// Realiza uma busca textual por palavras-chave dentro dos títulos e conteúdos do Blogger.
+  /// Realiza uma busca textual por palavras-chave.
   Future<List<PostModel>> searchPosts(String query) async {
     try {
       if (query.isEmpty) return [];
