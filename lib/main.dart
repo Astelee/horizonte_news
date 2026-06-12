@@ -3,6 +3,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+// Importação do OneSignal
+import 'package:onesignal_flutter/onesignal_flutter.dart'; 
+
 import 'config/app_theme.dart';
 import 'config/app_routes.dart';
 import 'providers/posts_provider.dart';
@@ -24,6 +27,11 @@ void main() async {
       storageBucket: 'horizontenews-6b48f.firebasestorage.app',
     ),
   );
+
+  // Inicialização do OneSignal
+  OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+  OneSignal.initialize("999de6a2-1965-4cb0-9558-a0cc8ed39828");
+  OneSignal.Notifications.requestPermission(true);
 
   // Inicializa notificações sem bloquear o app em caso de erro
   try {
