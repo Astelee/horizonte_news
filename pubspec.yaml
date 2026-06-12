@@ -51,6 +51,10 @@ dependencies:
   # Som ambiente
   audioplayers: ^6.1.0
 
+  # Conta de serviço Google (postagem no Blogger)
+  googleapis_auth: ^1.6.0
+  googleapis: ^13.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -63,6 +67,7 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/sounds/
+    - assets/credentials/
 
 flutter_launcher_icons:
   android: "launcher_icon"
