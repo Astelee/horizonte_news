@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/app_colors.dart';
+import '../config/app_routes.dart';
 import '../providers/admin_provider.dart';
 import '../services/admin_service.dart';
 import '../services/xp_service.dart';
@@ -84,6 +85,44 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
         onPressed: () => Navigator.pop(context),
       ),
+      // ── Botão Nova Notícia ─────────────────────────────────────
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: GestureDetector(
+            onTap: () => Navigator.pushNamed(context, AppRoutes.postEditor),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                gradient: AppColors.orangeGradient,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryOrange.withOpacity(0.35),
+                    blurRadius: 10,
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.add_rounded, color: Colors.white, size: 16),
+                  SizedBox(width: 5),
+                  Text(
+                    'NOTÍCIA',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
       title: Row(
         children: [
           Container(
@@ -229,7 +268,8 @@ class _CommentsTab extends StatelessWidget {
               children: [
                 Container(
                   color: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
                   child: Row(
                     children: [
                       const Icon(Icons.chat_bubble_rounded,
@@ -254,7 +294,8 @@ class _CommentsTab extends StatelessWidget {
                       final doc = docs[i];
                       final data = doc.data() as Map<String, dynamic>;
                       final pathParts = doc.reference.path.split('/');
-                      final postId = pathParts.length >= 2 ? pathParts[1] : '';
+                      final postId =
+                          pathParts.length >= 2 ? pathParts[1] : '';
                       return _AdminCommentTile(
                         commentId: doc.id,
                         postId: postId,
@@ -294,7 +335,8 @@ class _BannedUsersTab extends StatelessWidget {
             return Container(
               color: AppColors.backgroundDark,
               child: const Center(
-                child: CircularProgressIndicator(color: AppColors.primaryOrange),
+                child: CircularProgressIndicator(
+                    color: AppColors.primaryOrange),
               ),
             );
           }
@@ -322,7 +364,8 @@ class _BannedUsersTab extends StatelessWidget {
               children: [
                 Container(
                   color: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
                   child: Row(
                     children: [
                       const Icon(Icons.block_rounded,
@@ -385,7 +428,8 @@ class _UsersTab extends StatelessWidget {
             return Container(
               color: AppColors.backgroundDark,
               child: const Center(
-                child: CircularProgressIndicator(color: AppColors.primaryOrange),
+                child: CircularProgressIndicator(
+                    color: AppColors.primaryOrange),
               ),
             );
           }
@@ -413,7 +457,8 @@ class _UsersTab extends StatelessWidget {
               children: [
                 Container(
                   color: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
                   child: Row(
                     children: [
                       const Icon(Icons.people_rounded,
@@ -486,7 +531,8 @@ class _ViewsTabState extends State<_ViewsTab> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryOrange),
+              child: CircularProgressIndicator(
+                  color: AppColors.primaryOrange),
             );
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -501,7 +547,8 @@ class _ViewsTabState extends State<_ViewsTab> {
             0,
             (sum, d) =>
                 sum +
-                ((d.data() as Map<String, dynamic>)['totalViews'] as num? ?? 0)
+                ((d.data() as Map<String, dynamic>)['totalViews'] as num? ??
+                        0)
                     .toInt(),
           );
 
@@ -509,7 +556,8 @@ class _ViewsTabState extends State<_ViewsTab> {
             children: [
               Container(
                 color: Colors.black,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
                 child: Row(
                   children: [
                     const Icon(Icons.bar_chart_rounded,
@@ -531,12 +579,17 @@ class _ViewsTabState extends State<_ViewsTab> {
                   padding: const EdgeInsets.all(12),
                   itemCount: docs.length,
                   itemBuilder: (context, i) {
-                    final data = docs[i].data() as Map<String, dynamic>;
+                    final data =
+                        docs[i].data() as Map<String, dynamic>;
                     final postId = docs[i].id;
-                    final title = (data['postTitle'] as String?) ?? 'Sem título';
-                    final total = (data['totalViews'] as num?)?.toInt() ?? 0;
-                    final unique = (data['uniqueViewers'] as num?)?.toInt() ?? 0;
-                    final lastViewed = (data['lastViewedAt'] as Timestamp?)?.toDate();
+                    final title =
+                        (data['postTitle'] as String?) ?? 'Sem título';
+                    final total =
+                        (data['totalViews'] as num?)?.toInt() ?? 0;
+                    final unique =
+                        (data['uniqueViewers'] as num?)?.toInt() ?? 0;
+                    final lastViewed =
+                        (data['lastViewedAt'] as Timestamp?)?.toDate();
                     final lastStr = lastViewed != null
                         ? '${lastViewed.day.toString().padLeft(2, '0')}/${lastViewed.month.toString().padLeft(2, '0')}/${lastViewed.year}  ${lastViewed.hour.toString().padLeft(2, '0')}:${lastViewed.minute.toString().padLeft(2, '0')}'
                         : '';
@@ -589,7 +642,8 @@ class _ViewsTabState extends State<_ViewsTab> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       title,
@@ -614,7 +668,8 @@ class _ViewsTabState extends State<_ViewsTab> {
                                         _ViewStat(
                                           icon: Icons.person_rounded,
                                           label: '$unique únicos',
-                                          color: const Color(0xFF4FC3F7),
+                                          color:
+                                              const Color(0xFF4FC3F7),
                                         ),
                                       ],
                                     ),
@@ -657,7 +712,8 @@ class _ViewsTabState extends State<_ViewsTab> {
         children: [
           Container(
             color: Colors.black,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
                 GestureDetector(
@@ -670,7 +726,8 @@ class _ViewsTabState extends State<_ViewsTab> {
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.05),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                      border: Border.all(
+                          color: Colors.white.withOpacity(0.1)),
                     ),
                     child: const Icon(
                       Icons.arrow_back_ios_new_rounded,
@@ -697,14 +754,18 @@ class _ViewsTabState extends State<_ViewsTab> {
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: widget.service.postViewersStream(_selectedPostId!),
+              stream: widget.service
+                  .postViewersStream(_selectedPostId!),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(color: AppColors.primaryOrange),
+                    child: CircularProgressIndicator(
+                        color: AppColors.primaryOrange),
                   );
                 }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                if (!snapshot.hasData ||
+                    snapshot.data!.docs.isEmpty) {
                   return const _EmptyState(
                     icon: Icons.visibility_off_rounded,
                     message: 'Nenhum visualizador registrado',
@@ -722,7 +783,8 @@ class _ViewsTabState extends State<_ViewsTab> {
                       child: Row(
                         children: [
                           const Icon(Icons.people_rounded,
-                              color: AppColors.primaryOrange, size: 14),
+                              color: AppColors.primaryOrange,
+                              size: 14),
                           const SizedBox(width: 6),
                           Text(
                             '${docs.length} leitor${docs.length != 1 ? 'es' : ''} únicos',
@@ -740,12 +802,22 @@ class _ViewsTabState extends State<_ViewsTab> {
                         padding: const EdgeInsets.all(12),
                         itemCount: docs.length,
                         itemBuilder: (context, i) {
-                          final data = docs[i].data() as Map<String, dynamic>;
-                          final name = (data['userName'] as String?) ?? 'Leitor';
-                          final email = (data['userEmail'] as String?) ?? '';
-                          final viewCount = (data['viewCount'] as num?)?.toInt() ?? 1;
-                          final firstView = (data['firstViewedAt'] as Timestamp?)?.toDate();
-                          final lastView = (data['lastViewedAt'] as Timestamp?)?.toDate();
+                          final data = docs[i].data()
+                              as Map<String, dynamic>;
+                          final name =
+                              (data['userName'] as String?) ??
+                                  'Leitor';
+                          final email =
+                              (data['userEmail'] as String?) ?? '';
+                          final viewCount =
+                              (data['viewCount'] as num?)?.toInt() ??
+                                  1;
+                          final firstView =
+                              (data['firstViewedAt'] as Timestamp?)
+                                  ?.toDate();
+                          final lastView =
+                              (data['lastViewedAt'] as Timestamp?)
+                                  ?.toDate();
 
                           String fmt(DateTime? d) {
                             if (d == null) return '';
@@ -756,8 +828,10 @@ class _ViewsTabState extends State<_ViewsTab> {
                             margin: const EdgeInsets.only(bottom: 8),
                             decoration: BoxDecoration(
                               color: const Color(0xFF0A0A0A),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.borderDark),
+                              borderRadius:
+                                  BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: AppColors.borderDark),
                             ),
                             child: Padding(
                               padding: const EdgeInsets.all(12),
@@ -765,10 +839,13 @@ class _ViewsTabState extends State<_ViewsTab> {
                                 children: [
                                   CircleAvatar(
                                     radius: 18,
-                                    backgroundColor:
-                                        AppColors.primaryOrange.withOpacity(0.15),
+                                    backgroundColor: AppColors
+                                        .primaryOrange
+                                        .withOpacity(0.15),
                                     child: Text(
-                                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                      name.isNotEmpty
+                                          ? name[0].toUpperCase()
+                                          : '?',
                                       style: const TextStyle(
                                         color: AppColors.primaryOrange,
                                         fontSize: 14,
@@ -779,36 +856,44 @@ class _ViewsTabState extends State<_ViewsTab> {
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(name,
                                             style: const TextStyle(
                                               color: Colors.white,
                                               fontSize: 13,
-                                              fontWeight: FontWeight.w700,
+                                              fontWeight:
+                                                  FontWeight.w700,
                                             )),
                                         if (email.isNotEmpty)
                                           Text(email,
                                               style: const TextStyle(
-                                                color: AppColors.textMuted,
+                                                color:
+                                                    AppColors.textMuted,
                                                 fontSize: 11,
                                               )),
                                         const SizedBox(height: 4),
                                         _ViewStat(
-                                          icon: Icons.visibility_rounded,
-                                          label: '$viewCount vez${viewCount != 1 ? 'es' : ''}',
+                                          icon:
+                                              Icons.visibility_rounded,
+                                          label:
+                                              '$viewCount vez${viewCount != 1 ? 'es' : ''}',
                                           color: AppColors.primaryOrange,
                                         ),
                                         if (fmt(firstView).isNotEmpty)
                                           _ViewStat(
                                             icon: Icons.login_rounded,
-                                            label: '1ª vez: ${fmt(firstView)}',
+                                            label:
+                                                '1ª vez: ${fmt(firstView)}',
                                             color: AppColors.textMuted,
                                           ),
                                         if (fmt(lastView).isNotEmpty)
                                           _ViewStat(
-                                            icon: Icons.schedule_rounded,
-                                            label: 'Última: ${fmt(lastView)}',
+                                            icon:
+                                                Icons.schedule_rounded,
+                                            label:
+                                                'Última: ${fmt(lastView)}',
                                             color: AppColors.textMuted,
                                           ),
                                       ],
@@ -816,13 +901,18 @@ class _ViewsTabState extends State<_ViewsTab> {
                                   ),
                                   if (viewCount > 1)
                                     Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
+                                      padding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: AppColors.primaryOrange.withOpacity(0.15),
-                                        borderRadius: BorderRadius.circular(20),
+                                        color: AppColors.primaryOrange
+                                            .withOpacity(0.15),
+                                        borderRadius:
+                                            BorderRadius.circular(20),
                                         border: Border.all(
-                                          color: AppColors.primaryOrange.withOpacity(0.4),
+                                          color: AppColors.primaryOrange
+                                              .withOpacity(0.4),
                                         ),
                                       ),
                                       child: Text(
@@ -860,7 +950,8 @@ class _ViewStat extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  const _ViewStat({required this.icon, required this.label, required this.color});
+  const _ViewStat(
+      {required this.icon, required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -871,7 +962,9 @@ class _ViewStat extends StatelessWidget {
         const SizedBox(width: 4),
         Text(label,
             style: TextStyle(
-                color: color, fontSize: 11, fontWeight: FontWeight.w500)),
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w500)),
       ],
     );
   }
@@ -895,7 +988,13 @@ class _AdminCommentTile extends StatelessWidget {
   });
 
   String _resolveAuthorName(Map<String, dynamic> d) {
-    for (final f in ['authorName', 'userName', 'displayName', 'name', 'author']) {
+    for (final f in [
+      'authorName',
+      'userName',
+      'displayName',
+      'name',
+      'author'
+    ]) {
       final v = d[f];
       if (v is String && v.trim().isNotEmpty) return v.trim();
     }
@@ -903,7 +1002,12 @@ class _AdminCommentTile extends StatelessWidget {
   }
 
   String? _resolveAuthorPhoto(Map<String, dynamic> d) {
-    for (final f in ['authorPhotoUrl', 'photoUrl', 'avatarUrl', 'photoURL']) {
+    for (final f in [
+      'authorPhotoUrl',
+      'photoUrl',
+      'avatarUrl',
+      'photoURL'
+    ]) {
       final v = d[f];
       if (v is String && v.trim().isNotEmpty) return v;
     }
@@ -951,7 +1055,10 @@ class _AdminCommentTile extends StatelessWidget {
         .doc(uid)
         .get();
     if (xp.exists) return xp;
-    return FirebaseFirestore.instance.collection('users').doc(uid).get();
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
   }
 
   Widget _buildTile(BuildContext context, Map<String, dynamic> d) {
@@ -959,14 +1066,15 @@ class _AdminCommentTile extends StatelessWidget {
     final author = _resolveAuthorName(d);
     final photoUrl = _resolveAuthorPhoto(d);
     final authorId = _resolveAuthorId(d);
-    final text = (d['text'] ?? d['content'] ?? d['body'] ?? '').toString();
+    final text =
+        (d['text'] ?? d['content'] ?? d['body'] ?? '').toString();
     final ts = (d['createdAt'] as Timestamp?)?.toDate();
     final dateStr = ts != null
         ? '${ts.day.toString().padLeft(2, '0')}/'
-          '${ts.month.toString().padLeft(2, '0')}/'
-          '${ts.year}  '
-          '${ts.hour.toString().padLeft(2, '0')}:'
-          '${ts.minute.toString().padLeft(2, '0')}'
+            '${ts.month.toString().padLeft(2, '0')}/'
+            '${ts.year}  '
+            '${ts.hour.toString().padLeft(2, '0')}:'
+            '${ts.minute.toString().padLeft(2, '0')}'
         : '';
 
     return Container(
@@ -989,13 +1097,17 @@ class _AdminCommentTile extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor: AppColors.primaryOrange.withOpacity(0.15),
-                  backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
-                      ? NetworkImage(photoUrl)
-                      : null,
+                  backgroundColor:
+                      AppColors.primaryOrange.withOpacity(0.15),
+                  backgroundImage:
+                      (photoUrl != null && photoUrl.isNotEmpty)
+                          ? NetworkImage(photoUrl)
+                          : null,
                   child: (photoUrl == null || photoUrl.isEmpty)
                       ? Text(
-                          author.isNotEmpty ? author[0].toUpperCase() : '?',
+                          author.isNotEmpty
+                              ? author[0].toUpperCase()
+                              : '?',
                           style: const TextStyle(
                             color: AppColors.primaryOrange,
                             fontSize: 13,
@@ -1017,19 +1129,24 @@ class _AdminCommentTile extends StatelessWidget {
                       if (dateStr.isNotEmpty)
                         Text(dateStr,
                             style: const TextStyle(
-                                color: AppColors.textMuted, fontSize: 11)),
+                                color: AppColors.textMuted,
+                                fontSize: 11)),
                     ],
                   ),
                 ),
                 if (isHidden)
-                  _Badge(label: 'Oculto', color: AppColors.textSecondary),
+                  _Badge(
+                      label: 'Oculto',
+                      color: AppColors.textSecondary),
               ],
             ),
             const SizedBox(height: 10),
             Text(
               text,
               style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 13, height: 1.5),
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.5),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1042,14 +1159,16 @@ class _AdminCommentTile extends StatelessWidget {
                     icon: Icons.visibility_rounded,
                     label: 'Restaurar',
                     color: const Color(0xFF4FC3F7),
-                    onTap: () => service.restoreComment(postId, commentId),
+                    onTap: () =>
+                        service.restoreComment(postId, commentId),
                   )
                 else
                   _ActionButton(
                     icon: Icons.visibility_off_rounded,
                     label: 'Ocultar',
                     color: AppColors.textSecondary,
-                    onTap: () => service.hideComment(postId, commentId),
+                    onTap: () =>
+                        service.hideComment(postId, commentId),
                   ),
                 const SizedBox(width: 8),
                 _ActionButton(
@@ -1083,9 +1202,11 @@ class _AdminCommentTile extends StatelessWidget {
                     label: 'Banir usuário',
                     color: const Color(0xFFFF9800),
                     onTap: () async {
-                      final result = await showDialog<Map<String, dynamic>>(
+                      final result =
+                          await showDialog<Map<String, dynamic>>(
                         context: context,
-                        builder: (_) => _BanUserDialog(authorName: author),
+                        builder: (_) =>
+                            _BanUserDialog(authorName: author),
                       );
                       if (result != null) {
                         await service.suspendUser(
@@ -1098,7 +1219,8 @@ class _AdminCommentTile extends StatelessWidget {
                             SnackBar(
                               content: Text(
                                   '$author foi banido por ${result['days'] == 0 ? 'tempo indeterminado' : '${result['days']} dias'}.'),
-                              backgroundColor: const Color(0xFFFF9800),
+                              backgroundColor:
+                                  const Color(0xFFFF9800),
                             ),
                           );
                         }
@@ -1150,16 +1272,20 @@ class _BanUserDialogState extends State<_BanUserDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: const Color(0xFF111111),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16)),
       title: Row(
         children: [
-          const Icon(Icons.person_off_rounded, color: Color(0xFFFF9800), size: 20),
+          const Icon(Icons.person_off_rounded,
+              color: Color(0xFFFF9800), size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Banir ${widget.authorName}',
               style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15),
             ),
           ),
         ],
@@ -1171,49 +1297,60 @@ class _BanUserDialogState extends State<_BanUserDialog> {
           children: [
             const Text(
               'O usuário ficará impedido de comentar.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              style: TextStyle(
+                  color: AppColors.textSecondary, fontSize: 12),
             ),
             const SizedBox(height: 16),
             const Text('Motivo do banimento',
                 style: TextStyle(
-                    color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             TextField(
               controller: _reasonController,
               maxLines: 3,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
+              style:
+                  const TextStyle(color: Colors.white, fontSize: 13),
               decoration: InputDecoration(
                 hintText: 'Ex: Spam, linguagem ofensiva...',
                 hintStyle: TextStyle(
-                    color: AppColors.textSecondary.withOpacity(0.5), fontSize: 12),
+                    color: AppColors.textSecondary.withOpacity(0.5),
+                    fontSize: 12),
                 filled: true,
                 fillColor: const Color(0xFF1A1A1A),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.borderDark),
+                  borderSide:
+                      const BorderSide(color: AppColors.borderDark),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.borderDark),
+                  borderSide:
+                      const BorderSide(color: AppColors.borderDark),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: Color(0xFFFF9800), width: 1.5),
+                  borderSide: const BorderSide(
+                      color: Color(0xFFFF9800), width: 1.5),
                 ),
               ),
             ),
             const SizedBox(height: 16),
             const Text('Duração',
                 style: TextStyle(
-                    color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             GestureDetector(
-              onTap: () => setState(() => _permanent = !_permanent),
+              onTap: () =>
+                  setState(() => _permanent = !_permanent),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: _permanent
                       ? const Color(0xFFEF5350).withOpacity(0.15)
@@ -1256,14 +1393,16 @@ class _BanUserDialogState extends State<_BanUserDialog> {
                   final days = opt['days'] as int;
                   final selected = _selectedDays == days;
                   return GestureDetector(
-                    onTap: () => setState(() => _selectedDays = days),
+                    onTap: () =>
+                        setState(() => _selectedDays = days),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
                         color: selected
-                            ? const Color(0xFFFF9800).withOpacity(0.15)
+                            ? const Color(0xFFFF9800)
+                                .withOpacity(0.15)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
@@ -1316,7 +1455,8 @@ class _BanUserDialogState extends State<_BanUserDialog> {
           child: const Text(
             'Banir',
             style: TextStyle(
-                color: Color(0xFFFF9800), fontWeight: FontWeight.w800),
+                color: Color(0xFFFF9800),
+                fontWeight: FontWeight.w800),
           ),
         ),
       ],
@@ -1352,14 +1492,15 @@ class _BannedUserTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reason = (data['reason'] as String?)?.trim() ?? '';
-    final bannedAt = (data['suspendedAt'] as Timestamp?)?.toDate();
+    final bannedAt =
+        (data['suspendedAt'] as Timestamp?)?.toDate();
     final expiresAt = (data['until'] as Timestamp?)?.toDate();
     final isPermanent = expiresAt == null;
 
     final bannedStr = bannedAt != null
         ? '${bannedAt.day.toString().padLeft(2, '0')}/'
-          '${bannedAt.month.toString().padLeft(2, '0')}/'
-          '${bannedAt.year}'
+            '${bannedAt.month.toString().padLeft(2, '0')}/'
+            '${bannedAt.year}'
         : 'Data desconhecida';
 
     int daysLeft = 0;
@@ -1456,7 +1597,8 @@ class _BannedUserTile extends StatelessWidget {
                           if (email.isNotEmpty)
                             Text(email,
                                 style: const TextStyle(
-                                    color: AppColors.textMuted, fontSize: 11)),
+                                    color: AppColors.textMuted,
+                                    fontSize: 11)),
                         ],
                       ),
                     ),
@@ -1492,8 +1634,11 @@ class _BannedUserTile extends StatelessWidget {
                 if (!isPermanent) ...[
                   _BanInfoRow(
                     icon: Icons.timer_rounded,
-                    label: isExpired ? 'Expirado há' : 'Dias restantes',
-                    value: '$daysLeft dia${daysLeft != 1 ? 's' : ''}${isExpired ? ' (expirado)' : ''}',
+                    label: isExpired
+                        ? 'Expirado há'
+                        : 'Dias restantes',
+                    value:
+                        '$daysLeft dia${daysLeft != 1 ? 's' : ''}${isExpired ? ' (expirado)' : ''}',
                     valueColor: isExpired
                         ? AppColors.textSecondary
                         : daysLeft <= 3
@@ -1530,7 +1675,8 @@ class _BannedUserTile extends StatelessWidget {
                         context: context,
                         builder: (_) => _ConfirmDialog(
                           title: 'Remover banimento?',
-                          message: '$name poderá comentar novamente.',
+                          message:
+                              '$name poderá comentar novamente.',
                           confirmLabel: 'Remover',
                           confirmColor: const Color(0xFF66BB6A),
                         ),
@@ -1538,10 +1684,13 @@ class _BannedUserTile extends StatelessWidget {
                       if (confirm == true) {
                         await service.unsuspendUser(userId);
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(
                             SnackBar(
-                              content: Text('Banimento de $name removido.'),
-                              backgroundColor: const Color(0xFF66BB6A),
+                              content: Text(
+                                  'Banimento de $name removido.'),
+                              backgroundColor:
+                                  const Color(0xFF66BB6A),
                             ),
                           );
                         }
@@ -1601,17 +1750,20 @@ class _AdminUserTile extends StatelessWidget {
         final email = d['email'] as String? ?? '';
         final xp = (d['totalXp'] as num?)?.toInt() ?? 0;
         final level = XpService.levelFromXp(xp);
-        final comments = (d['stats']?['commentsPosted'] as num?)?.toInt() ??
-            (d['commentsPosted'] as num?)?.toInt() ??
-            0;
-        final articles = (d['stats']?['articlesRead'] as num?)?.toInt() ??
-            (d['articlesRead'] as num?)?.toInt() ??
-            0;
-        final createdAt = (d['createdAt'] as Timestamp?)?.toDate();
+        final comments =
+            (d['stats']?['commentsPosted'] as num?)?.toInt() ??
+                (d['commentsPosted'] as num?)?.toInt() ??
+                0;
+        final articles =
+            (d['stats']?['articlesRead'] as num?)?.toInt() ??
+                (d['articlesRead'] as num?)?.toInt() ??
+                0;
+        final createdAt =
+            (d['createdAt'] as Timestamp?)?.toDate();
         final createdStr = createdAt != null
             ? 'Desde ${createdAt.day.toString().padLeft(2, '0')}/'
-              '${createdAt.month.toString().padLeft(2, '0')}/'
-              '${createdAt.year}'
+                '${createdAt.month.toString().padLeft(2, '0')}/'
+                '${createdAt.year}'
             : '';
         final lvlTitle = XpService.levelTitle(level);
         final lvlIcon = XpService.levelIcon(level);
@@ -1629,7 +1781,8 @@ class _AdminUserTile extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor: AppColors.primaryOrange.withOpacity(0.15),
+                  backgroundColor:
+                      AppColors.primaryOrange.withOpacity(0.15),
                   child: Text(
                     name[0].toUpperCase(),
                     style: const TextStyle(
@@ -1652,11 +1805,13 @@ class _AdminUserTile extends StatelessWidget {
                       if (email.isNotEmpty)
                         Text(email,
                             style: const TextStyle(
-                                color: AppColors.textMuted, fontSize: 11)),
+                                color: AppColors.textMuted,
+                                fontSize: 11)),
                       if (createdStr.isNotEmpty)
                         Text(createdStr,
                             style: const TextStyle(
-                                color: AppColors.textMuted, fontSize: 11)),
+                                color: AppColors.textMuted,
+                                fontSize: 11)),
                       const SizedBox(height: 6),
                       Row(
                         children: [
@@ -1750,7 +1905,8 @@ class _Badge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withOpacity(0.15),
         borderRadius: BorderRadius.circular(6),
@@ -1758,7 +1914,9 @@ class _Badge extends StatelessWidget {
       ),
       child: Text(label,
           style: TextStyle(
-              color: color, fontSize: 10, fontWeight: FontWeight.w700)),
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w700)),
     );
   }
 }
@@ -1781,7 +1939,8 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: color.withOpacity(0.12),
           borderRadius: BorderRadius.circular(8),
@@ -1794,7 +1953,9 @@ class _ActionButton extends StatelessWidget {
             const SizedBox(width: 5),
             Text(label,
                 style: TextStyle(
-                    color: color, fontSize: 12, fontWeight: FontWeight.w700)),
+                    color: color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700)),
           ],
         ),
       ),
@@ -1806,7 +1967,10 @@ class _StatChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  const _StatChip({required this.icon, required this.label, required this.color});
+  const _StatChip(
+      {required this.icon,
+      required this.label,
+      required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -1817,7 +1981,9 @@ class _StatChip extends StatelessWidget {
         const SizedBox(width: 3),
         Text(label,
             style: TextStyle(
-                color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -1826,7 +1992,8 @@ class _StatChip extends StatelessWidget {
 class _EmptyState extends StatelessWidget {
   final IconData icon;
   final String message;
-  const _EmptyState({required this.icon, required this.message});
+  const _EmptyState(
+      {required this.icon, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -1834,11 +2001,14 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 48, color: AppColors.textSecondary.withOpacity(0.4)),
+          Icon(icon,
+              size: 48,
+              color: AppColors.textSecondary.withOpacity(0.4)),
           const SizedBox(height: 12),
           Text(message,
               style: TextStyle(
-                  color: AppColors.textSecondary.withOpacity(0.6), fontSize: 14)),
+                  color: AppColors.textSecondary.withOpacity(0.6),
+                  fontSize: 14)),
         ],
       ),
     );
@@ -1862,11 +2032,14 @@ class _ErrorState extends StatelessWidget {
             const SizedBox(height: 12),
             const Text('Erro ao carregar dados',
                 style: TextStyle(
-                    color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Text(message,
                 style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12),
+                    color: AppColors.textSecondary,
+                    fontSize: 12),
                 textAlign: TextAlign.center),
           ],
         ),
@@ -1892,23 +2065,27 @@ class _ConfirmDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: const Color(0xFF111111),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16)),
       title: Text(title,
           style: const TextStyle(
               color: Colors.white, fontWeight: FontWeight.w800)),
       content: Text(message,
-          style: const TextStyle(color: AppColors.textSecondary)),
+          style:
+              const TextStyle(color: AppColors.textSecondary)),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
           child: const Text('Cancelar',
-              style: TextStyle(color: AppColors.textSecondary)),
+              style:
+                  TextStyle(color: AppColors.textSecondary)),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, true),
           child: Text(confirmLabel,
               style: TextStyle(
-                  color: confirmColor, fontWeight: FontWeight.w700)),
+                  color: confirmColor,
+                  fontWeight: FontWeight.w700)),
         ),
       ],
     );
