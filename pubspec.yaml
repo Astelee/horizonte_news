@@ -51,11 +51,9 @@ dependencies:
   # Vídeos YouTube
   youtube_player_iframe: ^2.3.0
 
-# Força versão do inappwebview compatível com AGP 8+
+# Força versão do inappwebview compatível com Dart 3.3.x e AGP 8+
 dependency_overrides:
-  flutter_inappwebview: ^6.1.5
-  flutter_inappwebview_android: ^1.0.14
-  flutter_inappwebview_ios: ^1.0.14
+  flutter_inappwebview: 6.0.0+6
 
 dev_dependencies:
   flutter_test:
