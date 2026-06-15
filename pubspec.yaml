@@ -48,7 +48,7 @@ dependencies:
   # Som ambiente
   audioplayers: ^6.1.0
 
-  # Vídeos YouTube (Reels) — sem dependência de inappwebview
+  # Vídeos YouTube
   youtube_player_iframe: ^2.3.0
 
 dev_dependencies:
