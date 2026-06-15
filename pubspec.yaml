@@ -48,12 +48,8 @@ dependencies:
   # Som ambiente
   audioplayers: ^6.1.0
 
-  # Vídeos YouTube
-  youtube_player_iframe: ^2.3.0
-
-# Força versão do inappwebview compatível com Dart 3.3.x e AGP 8+
-dependency_overrides:
-  flutter_inappwebview: 6.0.0+6
+  # Vídeos YouTube — versão anterior que não puxa inappwebview problemático
+  youtube_player_flutter: ^2.3.0
 
 dev_dependencies:
   flutter_test:
