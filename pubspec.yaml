@@ -48,8 +48,8 @@ dependencies:
   # Som ambiente
   audioplayers: ^6.1.0
 
-  # Vídeos YouTube — versão anterior que não puxa inappwebview problemático
-  youtube_player_flutter: ^2.3.0
+  # Vídeos YouTube
+  youtube_player_flutter: ^9.0.4
 
 dev_dependencies:
   flutter_test:
