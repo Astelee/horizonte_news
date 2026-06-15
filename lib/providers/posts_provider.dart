@@ -8,16 +8,20 @@ class PostsProvider with ChangeNotifier {
   List<PostModel> _posts = [];
   List<PostModel> _categoryPosts = [];
   List<PostModel> _searchResults = [];
+  List<PostModel> _videoPosts = [];
   bool _isLoading = false;
-  bool _isLoadingMore = false; // ← proteção contra chamadas duplicadas
+  bool _isLoadingMore = false;
+  bool _isLoadingVideos = false;
   String _nextPageToken = '';
   String _errorMessage = '';
 
   List<PostModel> get posts => _posts;
   List<PostModel> get categoryPosts => _categoryPosts;
   List<PostModel> get searchResults => _searchResults;
+  List<PostModel> get videoPosts => _videoPosts;
   bool get isLoading => _isLoading;
   bool get isLoadingMore => _isLoadingMore;
+  bool get isLoadingVideos => _isLoadingVideos;
   bool get hasMore => _nextPageToken.isNotEmpty;
   String get errorMessage => _errorMessage;
 
@@ -36,7 +40,6 @@ class PostsProvider with ChangeNotifier {
     try {
       final Map<String, dynamic> result =
           await _bloggerService.fetchPosts(maxResults: 12);
-      // Deduplica por ID ao carregar inicial
       final List<PostModel> incoming = result['posts'];
       final seen = <String>{};
       _posts = incoming.where((p) => seen.add(p.id)).toList();
@@ -49,7 +52,6 @@ class PostsProvider with ChangeNotifier {
   }
 
   Future<void> loadMorePosts() async {
-    // Bloqueia se já está carregando mais ou se não há próxima página
     if (_isLoading || _isLoadingMore || _nextPageToken.isEmpty) return;
 
     _isLoadingMore = true;
@@ -62,8 +64,6 @@ class PostsProvider with ChangeNotifier {
       );
 
       final List<PostModel> incoming = result['posts'];
-
-      // Deduplica: só adiciona posts que ainda não existem na lista
       final existingIds = _posts.map((p) => p.id).toSet();
       final newPosts =
           incoming.where((p) => !existingIds.contains(p.id)).toList();
@@ -90,6 +90,39 @@ class PostsProvider with ChangeNotifier {
     } finally {
       _setLoading(false);
     }
+  }
+
+  // ── NOVO: carrega posts pelo label (usado pela tela de Vídeos/Reels) ──
+  Future<void> loadPostsByLabel(String label) async {
+    if (_isLoadingVideos) return;
+
+    _isLoadingVideos = true;
+    _errorMessage = '';
+    notifyListeners();
+
+    try {
+      // Reutiliza fetchPostsByCategory pois o Blogger usa o mesmo
+      // endpoint /posts?labels= para labels e categorias
+      final results =
+          await _bloggerService.fetchPostsByCategory(label);
+
+      // Deduplica por ID
+      final seen = <String>{};
+      _videoPosts =
+          results.where((p) => seen.add(p.id)).toList();
+    } catch (e) {
+      _errorMessage = e.toString();
+      _videoPosts = [];
+    } finally {
+      _isLoadingVideos = false;
+      notifyListeners();
+    }
+  }
+
+  // ── NOVO: força recarregar os vídeos (pull to refresh) ──────────
+  Future<void> refreshVideos() async {
+    _videoPosts = [];
+    await loadPostsByLabel('Vídeo');
   }
 
   Future<void> search(String query) async {
