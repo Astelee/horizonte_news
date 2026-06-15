@@ -12,7 +12,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "com.astelee.horizonte_news"
-    compileSdkVersion 34
+    compileSdkVersion 35
     ndkVersion flutter.ndkVersion
 
     compileOptions {
@@ -27,7 +27,7 @@ android {
     defaultConfig {
         applicationId "com.astelee.horizonte_news"
         minSdkVersion 23
-        targetSdkVersion 34
+        targetSdkVersion 35
         versionCode 1
         versionName "1.0"
     }
@@ -50,10 +50,9 @@ android {
         }
     }
 
-    // Força subprojetos (plugins) a usarem no máximo SDK 34
     configurations.all {
         resolutionStrategy {
-            force 'androidx.core:core:1.12.0'
+            force 'androidx.core:core:1.13.1'
         }
     }
 }
