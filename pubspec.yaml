@@ -49,7 +49,7 @@ dependencies:
   audioplayers: ^6.1.0
 
   # Vídeos YouTube (Reels)
-  youtube_player_flutter: ^9.1.1
+  youtube_player_flutter: ^9.0.4
 
 dev_dependencies:
   flutter_test:
