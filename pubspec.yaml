@@ -48,9 +48,8 @@ dependencies:
   # Som ambiente
   audioplayers: ^6.1.0
 
-  # Vídeos YouTube (Reels)
-  # Versão fixada para compatibilidade com Flutter 3.19 / Dart 3.3
-  youtube_player_flutter: 8.1.2
+  # Vídeos YouTube (Reels) — sem dependência de inappwebview
+  youtube_player_iframe: ^2.3.0
 
 dev_dependencies:
   flutter_test:
