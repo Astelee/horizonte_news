@@ -49,7 +49,8 @@ dependencies:
   audioplayers: ^6.1.0
 
   # Vídeos YouTube (Reels)
-  youtube_player_flutter: ^9.0.4
+  # Versão fixada para compatibilidade com Flutter 3.19 / Dart 3.3
+  youtube_player_flutter: 8.1.2
 
 dev_dependencies:
   flutter_test:
