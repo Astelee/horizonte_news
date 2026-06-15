@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import '../config/app_colors.dart';
 import '../models/post_model.dart';
 import '../providers/posts_provider.dart';
 
 // ─────────────────────────────────────────────────────────────────
-// UTILITÁRIO: extrai ID do YouTube do conteúdo HTML do post
+// UTILITÁRIO: extrai ID do YouTube do HTML do post
 // ─────────────────────────────────────────────────────────────────
 class _YtHelper {
   static String? extractId(String content) {
@@ -26,8 +26,9 @@ class _YtHelper {
 
   static bool hasVideo(PostModel post) {
     final hasLabel = post.categories.any(
-      (c) => c.name.toLowerCase() == 'vídeo' ||
-             c.name.toLowerCase() == 'video',
+      (c) =>
+          c.name.toLowerCase() == 'vídeo' ||
+          c.name.toLowerCase() == 'video',
     );
     return hasLabel && extractId(post.content) != null;
   }
@@ -47,6 +48,7 @@ class _VideosScreenState extends State<VideosScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
   List<PostModel> _videoPosts = [];
+  bool _loaded = false;
 
   @override
   void initState() {
@@ -60,9 +62,11 @@ class _VideosScreenState extends State<VideosScreen> {
     final provider = Provider.of<PostsProvider>(context, listen: false);
     await provider.loadPostsByLabel('Vídeo');
     if (!mounted) return;
-    final all = provider.posts;
     setState(() {
-      _videoPosts = all.where((p) => _YtHelper.hasVideo(p)).toList();
+      _videoPosts = provider.videoPosts
+          .where((p) => _YtHelper.hasVideo(p))
+          .toList();
+      _loaded = true;
     });
   }
 
@@ -93,7 +97,8 @@ class _VideosScreenState extends State<VideosScreen> {
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 gradient: AppColors.orangeGradient,
                 borderRadius: BorderRadius.circular(20),
@@ -134,20 +139,28 @@ class _VideosScreenState extends State<VideosScreen> {
           ],
         ),
       ),
-      body: _videoPosts.isEmpty
+      body: !_loaded
           ? _buildLoading()
-          : PageView.builder(
-              controller: _pageController,
-              scrollDirection: Axis.vertical,
-              itemCount: _videoPosts.length,
-              onPageChanged: (i) => setState(() => _currentPage = i),
-              itemBuilder: (context, i) {
-                return _VideoReelItem(
-                  post: _videoPosts[i],
-                  isActive: i == _currentPage,
-                );
-              },
-            ),
+          : _videoPosts.isEmpty
+              ? _buildEmpty()
+              : RefreshIndicator(
+                  color: AppColors.primaryOrange,
+                  backgroundColor: Colors.black,
+                  onRefresh: _loadVideos,
+                  child: PageView.builder(
+                    controller: _pageController,
+                    scrollDirection: Axis.vertical,
+                    itemCount: _videoPosts.length,
+                    onPageChanged: (i) =>
+                        setState(() => _currentPage = i),
+                    itemBuilder: (context, i) {
+                      return _VideoReelItem(
+                        post: _videoPosts[i],
+                        isActive: i == _currentPage,
+                      );
+                    },
+                  ),
+                ),
     );
   }
 
@@ -156,13 +169,9 @@ class _VideosScreenState extends State<VideosScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            width: 48,
-            height: 48,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: AppColors.primaryOrange,
-            ),
+          CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.primaryOrange,
           ),
           const SizedBox(height: 16),
           Text(
@@ -176,10 +185,42 @@ class _VideosScreenState extends State<VideosScreen> {
       ),
     );
   }
+
+  Widget _buildEmpty() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.videocam_off_rounded,
+            size: 56,
+            color: Colors.white.withOpacity(0.2),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Nenhum vídeo publicado ainda',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.4),
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Publique um vídeo no editor\ncom o label "Vídeo"',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.25),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
-// ITEM DO REEL — cada página do PageView
+// ITEM DO REEL
 // ─────────────────────────────────────────────────────────────────
 class _VideoReelItem extends StatefulWidget {
   final PostModel post;
@@ -195,66 +236,64 @@ class _VideoReelItem extends StatefulWidget {
 }
 
 class _VideoReelItemState extends State<_VideoReelItem> {
-  YoutubePlayerController? _controller;
+  late YoutubePlayerController _controller;
   bool _showCaption = true;
   bool _isMuted = false;
+  bool _ready = false;
 
   @override
   void initState() {
     super.initState();
-    _initController();
-  }
-
-  void _initController() {
-    final videoId = _YtHelper.extractId(widget.post.content);
-    if (videoId == null) return;
-
-    _controller = YoutubePlayerController(
-      initialVideoId: videoId,
-      flags: const YoutubePlayerFlags(
-        autoPlay: true,
+    final videoId = _YtHelper.extractId(widget.post.content) ?? '';
+    _controller = YoutubePlayerController.fromVideoId(
+      videoId: videoId,
+      autoPlay: widget.isActive,
+      params: const YoutubePlayerParams(
         mute: false,
         loop: true,
+        showControls: false,
+        showFullscreenButton: false,
         enableCaption: false,
-        controlsVisibleAtStart: false,
-        hideControls: true,
-        disableDragSeek: false,
+        strictRelatedVideos: true,
       ),
     );
+
+    _controller.listen((state) {
+      if (!_ready && state.playerState == PlayerState.playing) {
+        if (mounted) setState(() => _ready = true);
+      }
+    });
   }
 
   @override
   void didUpdateWidget(_VideoReelItem old) {
     super.didUpdateWidget(old);
-    if (!widget.isActive) {
-      _controller?.pause();
-    } else {
-      _controller?.play();
+    if (widget.isActive && !old.isActive) {
+      _controller.playVideo();
+    } else if (!widget.isActive && old.isActive) {
+      _controller.pauseVideo();
     }
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _controller.close();
     super.dispose();
   }
 
   void _toggleMute() {
     setState(() => _isMuted = !_isMuted);
     if (_isMuted) {
-      _controller?.mute();
+      _controller.mute();
     } else {
-      _controller?.unMute();
+      _controller.unMute();
     }
   }
 
-  void _toggleCaption() {
-    setState(() => _showCaption = !_showCaption);
-  }
-
-  String _cleanCaption(String html) {
+  String _cleanText(String html) {
     return html
         .replaceAll(RegExp(r'<[^>]*>'), '')
+        .replaceAll(RegExp(r'https?://[^\s]+'), '')
         .replaceAll('&nbsp;', ' ')
         .replaceAll('&amp;', '&')
         .replaceAll('&lt;', '<')
@@ -262,28 +301,18 @@ class _VideoReelItemState extends State<_VideoReelItem> {
         .trim();
   }
 
-  // Remove a URL do YouTube da legenda
-  String _buildCaption() {
-    final raw = _cleanCaption(widget.post.content);
-    final cleaned = raw
-        .replaceAll(RegExp(r'https?://[^\s]+'), '')
-        .trim();
-    return cleaned.isEmpty ? widget.post.title : cleaned;
+  String _timeAgo(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}min atrás';
+    if (diff.inHours < 24) return '${diff.inHours}h atrás';
+    if (diff.inDays < 7) return '${diff.inDays}d atrás';
+    return '${date.day}/${date.month}/${date.year}';
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_controller == null) {
-      return const Center(
-        child: Text(
-          'Vídeo indisponível',
-          style: TextStyle(color: Colors.white54),
-        ),
-      );
-    }
-
     final size = MediaQuery.of(context).size;
-    final caption = _buildCaption();
+    final caption = _cleanText(widget.post.content);
     final category = widget.post.categories.isNotEmpty
         ? widget.post.categories
             .firstWhere(
@@ -295,245 +324,195 @@ class _VideoReelItemState extends State<_VideoReelItem> {
             .name
         : '';
 
-    return YoutubePlayerBuilder(
-      player: YoutubePlayer(
-        controller: _controller!,
-        showVideoProgressIndicator: true,
-        progressIndicatorColor: AppColors.primaryOrange,
-        progressColors: const ProgressBarColors(
-          playedColor: AppColors.primaryOrange,
-          handleColor: AppColors.primaryOrangeLight,
-          bufferedColor: Colors.white24,
-          backgroundColor: Colors.white12,
+    return Stack(
+      children: [
+        // ── Vídeo em tela cheia ──────────────────────────────────
+        SizedBox(
+          width: size.width,
+          height: size.height,
+          child: YoutubePlayer(
+            controller: _controller,
+            aspectRatio: 9 / 16,
+          ),
         ),
-      ),
-      builder: (context, player) {
-        return Stack(
-          children: [
-            // ── Vídeo em tela cheia ──
-            SizedBox(
-              width: size.width,
-              height: size.height,
-              child: FittedBox(
-                fit: BoxFit.cover,
-                child: SizedBox(
-                  width: size.width,
-                  height: size.width * 16 / 9,
-                  child: player,
-                ),
-              ),
-            ),
 
-            // ── Gradiente inferior para legenda ──
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: size.height * 0.45,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Color(0xCC000000),
-                      Colors.black,
-                    ],
-                    stops: [0.0, 0.5, 1.0],
-                  ),
-                ),
-              ),
-            ),
-
-            // ── Botões laterais ──
-            Positioned(
-              right: 12,
-              bottom: 120,
-              child: Column(
-                children: [
-                  _SideButton(
-                    icon: _isMuted
-                        ? Icons.volume_off_rounded
-                        : Icons.volume_up_rounded,
-                    label: _isMuted ? 'Mudo' : 'Som',
-                    onTap: _toggleMute,
-                    active: !_isMuted,
-                  ),
-                  const SizedBox(height: 20),
-                  _SideButton(
-                    icon: _showCaption
-                        ? Icons.subtitles_rounded
-                        : Icons.subtitles_off_rounded,
-                    label: 'Legenda',
-                    onTap: _toggleCaption,
-                    active: _showCaption,
-                  ),
-                  const SizedBox(height: 20),
-                  _SideButton(
-                    icon: Icons.open_in_new_rounded,
-                    label: 'YouTube',
-                    onTap: () {
-                      final id = _YtHelper.extractId(widget.post.content);
-                      if (id != null) {
-                        _controller?.pause();
-                      }
-                    },
-                  ),
+        // ── Gradiente inferior ───────────────────────────────────
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            height: size.height * 0.5,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Color(0xBB000000),
+                  Colors.black,
                 ],
+                stops: [0.0, 0.5, 1.0],
               ),
             ),
+          ),
+        ),
 
-            // ── Legenda + título ──
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-              bottom: _showCaption ? 24 : -200,
-              left: 16,
-              right: 72,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 250),
-                opacity: _showCaption ? 1.0 : 0.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Badge categoria
-                    if (category.isNotEmpty)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          gradient: AppColors.orangeGradient,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primaryOrange.withOpacity(0.4),
-                              blurRadius: 10,
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          category.toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ),
+        // ── Botões laterais ──────────────────────────────────────
+        Positioned(
+          right: 12,
+          bottom: 130,
+          child: Column(
+            children: [
+              _SideButton(
+                icon: _isMuted
+                    ? Icons.volume_off_rounded
+                    : Icons.volume_up_rounded,
+                label: _isMuted ? 'Mudo' : 'Som',
+                onTap: _toggleMute,
+                active: !_isMuted,
+              ),
+              const SizedBox(height: 20),
+              _SideButton(
+                icon: _showCaption
+                    ? Icons.subtitles_rounded
+                    : Icons.subtitles_off_rounded,
+                label: 'Legenda',
+                onTap: () =>
+                    setState(() => _showCaption = !_showCaption),
+                active: _showCaption,
+              ),
+            ],
+          ),
+        ),
 
-                    // Título
-                    Text(
-                      widget.post.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        height: 1.3,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black87,
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-
-                    // Legenda (texto do post sem HTML e sem URL)
-                    if (caption != widget.post.title &&
-                        caption.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        caption,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 13,
-                          height: 1.5,
-                          shadows: const [
-                            Shadow(
-                              color: Colors.black87,
-                              blurRadius: 6,
-                            ),
-                          ],
-                        ),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-
-                    const SizedBox(height: 8),
-
-                    // Data
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.schedule_rounded,
-                          size: 12,
-                          color: AppColors.primaryOrange.withOpacity(0.8),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _timeAgo(widget.post.publishedAt),
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.55),
-                            fontSize: 11,
-                          ),
+        // ── Legenda ──────────────────────────────────────────────
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          bottom: _showCaption ? 28 : -220,
+          left: 16,
+          right: 72,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 250),
+            opacity: _showCaption ? 1.0 : 0.0,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (category.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: AppColors.orangeGradient,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color:
+                              AppColors.primaryOrange.withOpacity(0.4),
+                          blurRadius: 10,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 32),
-                  ],
-                ),
-              ),
-            ),
-
-            // ── Indicador de scroll ──
-            Positioned(
-              right: 0,
-              left: 0,
-              bottom: 8,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.keyboard_arrow_up_rounded,
-                    color: Colors.white.withOpacity(0.3),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Arraste para o próximo',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
-                      fontSize: 11,
+                    child: Text(
+                      category.toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
                     ),
                   ),
+                Text(
+                  widget.post.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    height: 1.3,
+                    shadows: [
+                      Shadow(
+                          color: Colors.black87,
+                          blurRadius: 8,
+                          offset: Offset(0, 2)),
+                    ],
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (caption.isNotEmpty &&
+                    caption != widget.post.title) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    caption,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 13,
+                      height: 1.5,
+                      shadows: const [
+                        Shadow(
+                            color: Colors.black87, blurRadius: 6),
+                      ],
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
-              ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.schedule_rounded,
+                      size: 12,
+                      color: AppColors.primaryOrange.withOpacity(0.8),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _timeAgo(widget.post.publishedAt),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.55),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 36),
+              ],
             ),
-          ],
-        );
-      },
-    );
-  }
+          ),
+        ),
 
-  String _timeAgo(DateTime date) {
-    final diff = DateTime.now().difference(date);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}min atrás';
-    if (diff.inHours < 24) return '${diff.inHours}h atrás';
-    if (diff.inDays < 7) return '${diff.inDays}d atrás';
-    return '${date.day}/${date.month}/${date.year}';
+        // ── Indicador scroll ─────────────────────────────────────
+        Positioned(
+          bottom: 8,
+          left: 0,
+          right: 0,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.keyboard_arrow_up_rounded,
+                  color: Colors.white.withOpacity(0.3), size: 18),
+              const SizedBox(width: 4),
+              Text(
+                'Arraste para o próximo',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.3),
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────
-// BOTÃO LATERAL ESTILO REELS
+// BOTÃO LATERAL
 // ─────────────────────────────────────────────────────────────────
 class _SideButton extends StatelessWidget {
   final IconData icon;
@@ -577,7 +556,8 @@ class _SideButton extends StatelessWidget {
             ),
             child: Icon(
               icon,
-              color: active ? AppColors.primaryOrange : Colors.white54,
+              color:
+                  active ? AppColors.primaryOrange : Colors.white54,
               size: 22,
             ),
           ),
