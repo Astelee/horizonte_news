@@ -9,7 +9,6 @@ import '../widgets/featured_carousel.dart';
 import '../widgets/breaking_news_banner.dart';
 import '../widgets/news_card.dart';
 import '../widgets/app_drawer.dart';
-import '../widgets/relative_time_text.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -67,6 +66,15 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  // Filtra posts que são vídeos para não aparecerem no feed
+  bool _isVideoPost(post) {
+    return post.categories.any(
+      (c) =>
+          c.name.toLowerCase() == 'vídeo' ||
+          c.name.toLowerCase() == 'video',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -74,6 +82,13 @@ class _HomeScreenState extends State<HomeScreen>
       extendBodyBehindAppBar: true,
       appBar: _buildAppBar(context),
       drawer: const AppDrawer(),
+
+      // ── Botão flutuante de Reels ──────────────────────────────
+      floatingActionButton: _ReelsFloatingButton(
+        onTap: () => Navigator.pushNamed(context, AppRoutes.videos),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
+
       body: FadeTransition(
         opacity: _fadeAnimation,
         child: RefreshIndicator(
@@ -94,11 +109,20 @@ class _HomeScreenState extends State<HomeScreen>
                 return _buildErrorState(context, provider);
               }
 
-              final urgentPost = provider.posts.any((p) => p.categories.any(
+              // ── Filtra vídeos fora do feed ──────────────────
+              final feedPosts = provider.posts
+                  .where((p) => !_isVideoPost(p))
+                  .toList();
+
+              final featuredPosts = feedPosts.take(3).toList();
+              final recentPosts =
+                  feedPosts.length > 3 ? feedPosts.skip(3).toList() : [];
+
+              final urgentPost = feedPosts.any((p) => p.categories.any(
                       (c) =>
                           c.name.toLowerCase() == 'urgente' ||
                           c.name.toLowerCase() == 'plantão'))
-                  ? provider.posts.firstWhere((p) => p.categories.any((c) =>
+                  ? feedPosts.firstWhere((p) => p.categories.any((c) =>
                       c.name.toLowerCase() == 'urgente' ||
                       c.name.toLowerCase() == 'plantão'))
                   : null;
@@ -112,10 +136,10 @@ class _HomeScreenState extends State<HomeScreen>
                   const SliverToBoxAdapter(child: CategoryBar()),
                   if (urgentPost != null)
                     SliverToBoxAdapter(
-                        child: BreakingNewsBanner(urgentPost: urgentPost)),
+                        child:
+                            BreakingNewsBanner(urgentPost: urgentPost)),
                   SliverToBoxAdapter(
-                    child: FeaturedCarousel(
-                        featuredPosts: provider.featuredPosts),
+                    child: FeaturedCarousel(featuredPosts: featuredPosts),
                   ),
                   SliverToBoxAdapter(
                     child: _buildSectionTitle('ÚLTIMAS NOTÍCIAS'),
@@ -123,13 +147,13 @@ class _HomeScreenState extends State<HomeScreen>
                   SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
-                        final post = provider.recentPosts[index];
+                        final post = recentPosts[index];
                         return _AnimatedCardWrapper(
                           index: index,
                           child: NewsCard(post: post),
                         );
                       },
-                      childCount: provider.recentPosts.length,
+                      childCount: recentPosts.length,
                     ),
                   ),
                   if (provider.hasMore)
@@ -139,7 +163,8 @@ class _HomeScreenState extends State<HomeScreen>
                         child: Center(child: _NeoLoader()),
                       ),
                     ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                  // Espaço extra para o botão flutuante não cobrir conteúdo
+                  const SliverToBoxAdapter(child: SizedBox(height: 80)),
                 ],
               );
             },
@@ -402,6 +427,88 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
+// ── Botão flutuante de Reels ─────────────────────────────────────────────────
+
+class _ReelsFloatingButton extends StatefulWidget {
+  final VoidCallback onTap;
+  const _ReelsFloatingButton({required this.onTap});
+
+  @override
+  State<_ReelsFloatingButton> createState() => _ReelsFloatingButtonState();
+}
+
+class _ReelsFloatingButtonState extends State<_ReelsFloatingButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _glowCtrl;
+  late Animation<double> _glowAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _glowCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _glowAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _glowCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFBF360C), Color(0xFFE65100), Color(0xFFF57C00)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primaryOrange
+                    .withOpacity(0.5 * _glowAnim.value),
+                blurRadius: 20,
+                spreadRadius: 0,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.play_circle_filled_rounded,
+                  color: Colors.white, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'REELS',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Botão de ícone Neo UI ────────────────────────────────────────────────────
 
 class _NeoIconButton extends StatefulWidget {
@@ -540,7 +647,8 @@ class _AnimatedCardWrapperState extends State<_AnimatedCardWrapper>
         CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
     _slide =
         Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
-            .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+            .animate(
+                CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
 
     final delay = (widget.index * 60).clamp(0, 300);
     Future.delayed(Duration(milliseconds: delay),
