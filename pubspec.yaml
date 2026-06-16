@@ -48,8 +48,8 @@ dependencies:
   # Som ambiente
   audioplayers: ^6.1.0
 
-  # Vídeos YouTube
-  youtube_player_flutter: 8.1.2
+  # WebView para vídeos YouTube (sem dependência de inappwebview)
+  webview_flutter: ^4.7.0
 
 dependency_overrides:
   font_awesome_flutter: 10.6.0
