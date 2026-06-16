@@ -6,9 +6,6 @@ import '../config/app_colors.dart';
 import '../models/post_model.dart';
 import '../providers/posts_provider.dart';
 
-// ─────────────────────────────────────────────────────────────────
-// UTILITÁRIO: extrai ID do Vimeo do conteúdo do post
-// ─────────────────────────────────────────────────────────────────
 class _VimeoHelper {
   static String? extractId(String content) {
     final patterns = [
@@ -63,50 +60,31 @@ class _VimeoHelper {
       min-width: 177.77vh;
       transform: translate(-50%, -50%);
       border: none;
-      pointer-events: none;
-    }
-    .touch-overlay {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      z-index: 10;
-      background: transparent;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <iframe id="vimeo"
-      src="https://player.vimeo.com/video/$videoId?autoplay=$auto&loop=1&controls=0&byline=0&title=0&portrait=0&muted=0&playsinline=1&transparent=0&background=1"
+      src="https://player.vimeo.com/video/$videoId?autoplay=$auto&loop=1&controls=0&byline=0&title=0&portrait=0&muted=0&playsinline=1&transparent=0&background=0"
       allow="autoplay; fullscreen; picture-in-picture"
       allowfullscreen>
     </iframe>
   </div>
 
-  <div class="touch-overlay" id="overlay"></div>
-
   <script src="https://player.vimeo.com/api/player.js"></script>
   <script>
     var player = new Vimeo.Player(document.getElementById('vimeo'));
-    var overlay = document.getElementById('overlay');
-    var soundActivated = false;
 
     player.ready().then(function() {
-      player.setVolume(1).catch(function(){});
-      ${autoplay ? 'player.play().catch(function(){});' : ''}
-    });
-
-    overlay.addEventListener('click', function() {
-      if (!soundActivated) {
-        player.setVolume(1).then(function() {
-          return player.play();
-        }).then(function() {
-          soundActivated = true;
-          overlay.style.display = 'none';
-        }).catch(function(){
-          overlay.style.display = 'none';
-        });
-      }
+      player.setVolume(1);
+      player.play().catch(function(e) {
+        // Tenta novamente após 500ms se falhar
+        setTimeout(function() {
+          player.setVolume(1);
+          player.play();
+        }, 500);
+      });
     });
   </script>
 </body>
@@ -115,9 +93,6 @@ class _VimeoHelper {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// TELA PRINCIPAL — REELS
-// ─────────────────────────────────────────────────────────────────
 class VideosScreen extends StatefulWidget {
   const VideosScreen({Key? key}) : super(key: key);
 
@@ -179,8 +154,8 @@ class _VideosScreenState extends State<VideosScreen> {
         title: Row(
           children: [
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 gradient: AppColors.orangeGradient,
                 borderRadius: BorderRadius.circular(20),
@@ -294,9 +269,6 @@ class _VideosScreenState extends State<VideosScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// ITEM DO REEL
-// ─────────────────────────────────────────────────────────────────
 class _VideoReelItem extends StatefulWidget {
   final PostModel post;
   final bool isActive;
@@ -342,10 +314,7 @@ class _VideoReelItemState extends State<_VideoReelItem> {
         _VimeoHelper.buildEmbedHtml(videoId, autoplay: true),
       );
     } else if (!widget.isActive && old.isActive) {
-      final videoId = _VimeoHelper.extractId(widget.post.content) ?? '';
-      _webController.loadHtmlString(
-        _VimeoHelper.buildEmbedHtml(videoId, autoplay: false),
-      );
+      _webController.runJavaScript('player.pause();');
     }
   }
 
@@ -385,45 +354,32 @@ class _VideoReelItemState extends State<_VideoReelItem> {
 
     return Stack(
       children: [
-        // ── Vídeo em tela cheia ────────────────────────────────
+        // ── Vídeo em tela cheia ──────────────────────────────
         SizedBox(
           width: size.width,
           height: size.height,
           child: WebViewWidget(controller: _webController),
         ),
 
-        // ── Loading enquanto carrega ───────────────────────────
+        // ── Loading enquanto carrega ─────────────────────────
         if (!_videoReady)
           Container(
             color: Colors.black,
             child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.primaryOrange,
-                      ),
-                    ),
+              child: SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.primaryOrange,
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Carregando vídeo...',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
 
-        // ── Gradiente inferior ─────────────────────────────────
+        // ── Gradiente inferior ───────────────────────────────
         Positioned(
           bottom: 0,
           left: 0,
@@ -445,7 +401,7 @@ class _VideoReelItemState extends State<_VideoReelItem> {
           ),
         ),
 
-        // ── Botão legenda ──────────────────────────────────────
+        // ── Botão legenda ────────────────────────────────────
         Positioned(
           right: 12,
           bottom: 130,
@@ -454,12 +410,13 @@ class _VideoReelItemState extends State<_VideoReelItem> {
                 ? Icons.subtitles_rounded
                 : Icons.subtitles_off_rounded,
             label: 'Legenda',
-            onTap: () => setState(() => _showCaption = !_showCaption),
+            onTap: () =>
+                setState(() => _showCaption = !_showCaption),
             active: _showCaption,
           ),
         ),
 
-        // ── Legenda ────────────────────────────────────────────
+        // ── Legenda ──────────────────────────────────────────
         AnimatedPositioned(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
@@ -515,7 +472,8 @@ class _VideoReelItemState extends State<_VideoReelItem> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (caption.isNotEmpty && caption != widget.post.title) ...[
+                if (caption.isNotEmpty &&
+                    caption != widget.post.title) ...[
                   const SizedBox(height: 8),
                   Text(
                     caption,
@@ -552,7 +510,7 @@ class _VideoReelItemState extends State<_VideoReelItem> {
           ),
         ),
 
-        // ── Indicador scroll ───────────────────────────────────
+        // ── Indicador scroll ─────────────────────────────────
         Positioned(
           bottom: 8,
           left: 0,
@@ -576,9 +534,6 @@ class _VideoReelItemState extends State<_VideoReelItem> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// BOTÃO LATERAL
-// ─────────────────────────────────────────────────────────────────
 class _SideButton extends StatelessWidget {
   final IconData icon;
   final String label;
