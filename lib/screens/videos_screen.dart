@@ -46,11 +46,20 @@ class _VimeoHelper {
   </style>
 </head>
 <body>
-  <iframe
-    src="https://player.vimeo.com/video/$videoId?autoplay=$auto&loop=1&controls=0&byline=0&title=0&portrait=0&muted=0&playsinline=1"
+  <iframe id="vimeo"
+    src="https://player.vimeo.com/video/$videoId?autoplay=$auto&loop=1&controls=1&byline=0&title=0&portrait=0&muted=0&playsinline=1&transparent=0"
     allow="autoplay; fullscreen; picture-in-picture"
     allowfullscreen>
   </iframe>
+  <script src="https://player.vimeo.com/api/player.js"></script>
+  <script>
+    var iframe = document.getElementById('vimeo');
+    var player = new Vimeo.Player(iframe);
+    player.ready().then(function() {
+      player.setVolume(1);
+      ${autoplay ? 'player.play();' : ''}
+    });
+  </script>
 </body>
 </html>
 ''';
@@ -272,13 +281,11 @@ class _VideoReelItemState extends State<_VideoReelItem> {
   void didUpdateWidget(_VideoReelItem old) {
     super.didUpdateWidget(old);
     if (widget.isActive && !old.isActive) {
-      // Reativa o vídeo quando o usuário chega nesse reel
       final videoId = _VimeoHelper.extractId(widget.post.content) ?? '';
       _webController.loadHtmlString(
         _VimeoHelper.buildEmbedHtml(videoId, autoplay: true),
       );
     } else if (!widget.isActive && old.isActive) {
-      // Para o vídeo quando o usuário sai desse reel
       final videoId = _VimeoHelper.extractId(widget.post.content) ?? '';
       _webController.loadHtmlString(
         _VimeoHelper.buildEmbedHtml(videoId, autoplay: false),
