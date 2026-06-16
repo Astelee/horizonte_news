@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../providers/user_xp_provider.dart';
@@ -18,52 +20,19 @@ class _AppDrawerState extends State<AppDrawer>
   late AnimationController _headerCtrl;
   late Animation<double> _headerFade;
 
-  // ── MENU PRINCIPAL ──────────────────────────────────────────────
   static const List<_NavItem> _mainItems = [
-    _NavItem(
-      icon: Icons.home_rounded,
-      label: 'Início',
-      route: AppRoutes.home,
-    ),
-    _NavItem(
-      icon: Icons.person_rounded,
-      label: 'Meu Perfil',
-      route: AppRoutes.profile,
-    ),
-    _NavItem(
-      icon: Icons.bookmark_rounded,
-      label: 'Notícias Salvas',
-      route: AppRoutes.favorites,
-    ),
-    _NavItem(
-      icon: Icons.play_circle_rounded,
-      label: 'Vídeos / Reportagens',
-      route: AppRoutes.videos,
-    ),
-    _NavItem(
-      icon: Icons.search_rounded,
-      label: 'Pesquisar',
-      route: AppRoutes.search,
-    ),
-    _NavItem(
-      icon: Icons.local_fire_department_rounded,
-      label: 'Mais Lidas',
-      route: AppRoutes.mostRead,
-    ),
+    _NavItem(icon: Icons.home_rounded, label: 'Início', route: AppRoutes.home),
+    _NavItem(icon: Icons.person_rounded, label: 'Meu Perfil', route: AppRoutes.profile),
+    _NavItem(icon: Icons.people_rounded, label: 'Amigos', route: AppRoutes.friends),
+    _NavItem(icon: Icons.bookmark_rounded, label: 'Notícias Salvas', route: AppRoutes.favorites),
+    _NavItem(icon: Icons.play_circle_rounded, label: 'Vídeos / Reportagens', route: AppRoutes.videos),
+    _NavItem(icon: Icons.search_rounded, label: 'Pesquisar', route: AppRoutes.search),
+    _NavItem(icon: Icons.local_fire_department_rounded, label: 'Mais Lidas', route: AppRoutes.mostRead),
   ];
 
-  // ── SUPORTE ─────────────────────────────────────────────────────
   static const List<_NavItem> _supportItems = [
-    _NavItem(
-      icon: Icons.contact_mail_rounded,
-      label: 'Fale Conosco / Denúncias',
-      route: AppRoutes.contact,
-    ),
-    _NavItem(
-      icon: Icons.settings_rounded,
-      label: 'Configurações',
-      route: AppRoutes.settings,
-    ),
+    _NavItem(icon: Icons.contact_mail_rounded, label: 'Fale Conosco / Denúncias', route: AppRoutes.contact),
+    _NavItem(icon: Icons.settings_rounded, label: 'Configurações', route: AppRoutes.settings),
   ];
 
   @override
@@ -73,8 +42,7 @@ class _AppDrawerState extends State<AppDrawer>
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
-    _headerFade =
-        CurvedAnimation(parent: _headerCtrl, curve: Curves.easeOut);
+    _headerFade = CurvedAnimation(parent: _headerCtrl, curve: Curves.easeOut);
     _headerCtrl.forward();
   }
 
@@ -106,7 +74,6 @@ class _AppDrawerState extends State<AppDrawer>
         decoration: const BoxDecoration(gradient: AppColors.drawerGradient),
         child: Stack(
           children: [
-            // Glow decorativo no canto superior esquerdo
             Positioned(
               top: -80,
               left: -80,
@@ -119,7 +86,6 @@ class _AppDrawerState extends State<AppDrawer>
                 ),
               ),
             ),
-            // Borda direita luminosa
             Positioned(
               top: 0,
               right: 0,
@@ -145,14 +111,11 @@ class _AppDrawerState extends State<AppDrawer>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Cabeçalho com fade-in
                   FadeTransition(
                     opacity: _headerFade,
                     child: _buildHeader(),
                   ),
                   _buildDivider(),
-
-                  // Lista rolável de itens
                   Expanded(
                     child: SingleChildScrollView(
                       physics: const BouncingScrollPhysics(),
@@ -169,14 +132,14 @@ class _AppDrawerState extends State<AppDrawer>
                               onTap: () => _navigate(context, e.value.route),
                               badge: e.value.route == AppRoutes.profile
                                   ? _XpBadge()
-                                  : null,
+                                  : e.value.route == AppRoutes.friends
+                                      ? _FriendRequestBadge()
+                                      : null,
                             ),
                           ),
-
                           const SizedBox(height: 10),
                           _buildDivider(),
                           _buildSectionLabel('SUPORTE'),
-
                           ..._supportItems.asMap().entries.map(
                             (e) => _DrawerTile(
                               item: e.value,
@@ -185,8 +148,6 @@ class _AppDrawerState extends State<AppDrawer>
                               onTap: () => _navigate(context, e.value.route),
                             ),
                           ),
-
-                          // Painel ADM — visível apenas para administradores
                           Consumer<AdminProvider>(
                             builder: (context, admin, _) {
                               if (!admin.isAdmin) return const SizedBox.shrink();
@@ -202,25 +163,20 @@ class _AppDrawerState extends State<AppDrawer>
                                       label: 'Painel Administrativo',
                                       route: AppRoutes.adminPanel,
                                     ),
-                                    isActive:
-                                        currentRoute == AppRoutes.adminPanel,
+                                    isActive: currentRoute == AppRoutes.adminPanel,
                                     delay: 0,
-                                    onTap: () => _navigate(
-                                        context, AppRoutes.adminPanel),
+                                    onTap: () => _navigate(context, AppRoutes.adminPanel),
                                     badge: _AdminBadge(),
                                   ),
                                 ],
                               );
                             },
                           ),
-
                           const SizedBox(height: 16),
                         ],
                       ),
                     ),
                   ),
-
-                  // Rodapé com botão de perfil
                   _buildFooter(context),
                 ],
               ),
@@ -231,7 +187,6 @@ class _AppDrawerState extends State<AppDrawer>
     );
   }
 
-  // ── CABEÇALHO ───────────────────────────────────────────────────
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
@@ -260,10 +215,7 @@ class _AppDrawerState extends State<AppDrawer>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: const LinearGradient(
-                    colors: [
-                      AppColors.primaryOrangeLight,
-                      AppColors.primaryOrangeDark,
-                    ],
+                    colors: [AppColors.primaryOrangeLight, AppColors.primaryOrangeDark],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -291,8 +243,7 @@ class _AppDrawerState extends State<AppDrawer>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ShaderMask(
-                shaderCallback: (b) =>
-                    AppColors.orangeGradient.createShader(b),
+                shaderCallback: (b) => AppColors.orangeGradient.createShader(b),
                 child: const Text(
                   'HORIZONTE',
                   style: TextStyle(
@@ -314,8 +265,7 @@ class _AppDrawerState extends State<AppDrawer>
               ),
               const SizedBox(height: 6),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(4),
                   color: AppColors.primaryOrange.withOpacity(0.12),
@@ -341,7 +291,6 @@ class _AppDrawerState extends State<AppDrawer>
     );
   }
 
-  // ── LABEL DE SEÇÃO ──────────────────────────────────────────────
   Widget _buildSectionLabel(String label) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 14, 22, 4),
@@ -357,7 +306,6 @@ class _AppDrawerState extends State<AppDrawer>
     );
   }
 
-  // ── DIVISOR ─────────────────────────────────────────────────────
   Widget _buildDivider() {
     return Container(
       height: 1,
@@ -372,7 +320,6 @@ class _AppDrawerState extends State<AppDrawer>
     );
   }
 
-  // ── RODAPÉ ──────────────────────────────────────────────────────
   Widget _buildFooter(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 20),
@@ -452,9 +399,49 @@ class _AppDrawerState extends State<AppDrawer>
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// BADGE DE XP
-// ═══════════════════════════════════════════════════════════════════
+// ── BADGE DE PEDIDOS PENDENTES ────────────────────────────────────
+class _FriendRequestBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (uid.isEmpty) return const SizedBox.shrink();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('friend_requests')
+          .where('toUid', isEqualTo: uid)
+          .where('status', isEqualTo: 'pending')
+          .snapshots(),
+      builder: (context, snap) {
+        final count = snap.data?.docs.length ?? 0;
+        if (count == 0) return const SizedBox.shrink();
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: AppColors.emergencyRed,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.emergencyRed.withOpacity(0.4),
+                blurRadius: 8,
+              ),
+            ],
+          ),
+          child: Text(
+            '$count',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── BADGE DE XP ───────────────────────────────────────────────────
 class _XpBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -486,9 +473,7 @@ class _XpBadge extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// BADGE ADM
-// ═══════════════════════════════════════════════════════════════════
+// ── BADGE ADM ─────────────────────────────────────────────────────
 class _AdminBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -517,23 +502,13 @@ class _AdminBadge extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// MODELO DE ITEM DE NAVEGAÇÃO
-// ═══════════════════════════════════════════════════════════════════
 class _NavItem {
   final IconData icon;
   final String label;
   final String route;
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.route,
-  });
+  const _NavItem({required this.icon, required this.label, required this.route});
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// TILE ANIMADO
-// ═══════════════════════════════════════════════════════════════════
 class _DrawerTile extends StatefulWidget {
   final _NavItem item;
   final bool isActive;
@@ -635,9 +610,7 @@ class _DrawerTileState extends State<_DrawerTile>
                   child: Icon(
                     widget.item.icon,
                     size: 18,
-                    color: isActive
-                        ? AppColors.primaryOrange
-                        : Colors.white60,
+                    color: isActive ? AppColors.primaryOrange : Colors.white60,
                   ),
                 ),
                 const SizedBox(width: 13),
@@ -647,9 +620,7 @@ class _DrawerTileState extends State<_DrawerTile>
                     style: TextStyle(
                       color: isActive ? Colors.white : Colors.white70,
                       fontSize: 13,
-                      fontWeight: isActive
-                          ? FontWeight.w700
-                          : FontWeight.w400,
+                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
                       letterSpacing: 0.2,
                     ),
                   ),
