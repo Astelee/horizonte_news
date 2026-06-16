@@ -71,33 +71,6 @@ class _VimeoHelper {
       width: 100%; height: 100%;
       z-index: 10;
       background: transparent;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .sound-hint {
-      background: rgba(0,0,0,0.7);
-      border: 1px solid rgba(230,81,0,0.5);
-      border-radius: 32px;
-      padding: 10px 20px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      opacity: 0;
-      animation: fadeIn 0.8s ease 1.5s forwards;
-    }
-    .sound-hint svg {
-      width: 18px; height: 18px; fill: #E65100;
-    }
-    .sound-hint span {
-      color: #fff;
-      font-family: sans-serif;
-      font-size: 13px;
-      font-weight: 600;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
@@ -110,18 +83,12 @@ class _VimeoHelper {
     </iframe>
   </div>
 
-  <div class="touch-overlay" id="overlay">
-    <div class="sound-hint" id="hint">
-      <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
-      <span>Toque para ativar o som</span>
-    </div>
-  </div>
+  <div class="touch-overlay" id="overlay"></div>
 
   <script src="https://player.vimeo.com/api/player.js"></script>
   <script>
     var player = new Vimeo.Player(document.getElementById('vimeo'));
     var overlay = document.getElementById('overlay');
-    var hint = document.getElementById('hint');
     var soundActivated = false;
 
     player.ready().then(function() {
@@ -425,7 +392,7 @@ class _VideoReelItemState extends State<_VideoReelItem> {
           child: WebViewWidget(controller: _webController),
         ),
 
-        // ── Loading enquanto o vídeo não carregou ──────────────
+        // ── Loading enquanto carrega ───────────────────────────
         if (!_videoReady)
           Container(
             color: Colors.black,
