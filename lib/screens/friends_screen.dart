@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/app_colors.dart';
+import 'chat_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // MODELO
@@ -258,7 +259,6 @@ class _FriendsTab extends StatelessWidget {
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final data = docs[i].data() as Map<String, dynamic>;
-            // Pega o UID do amigo (o que não é o meu)
             final friendUid = (data['fromUid'] as String) == myUid
                 ? data['toUid'] as String
                 : data['fromUid'] as String;
@@ -347,7 +347,7 @@ class _RequestsTab extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// TILE DE AMIGO CONFIRMADO
+// TILE DE AMIGO CONFIRMADO — com botão de chat
 // ═══════════════════════════════════════════════════════════════════
 class _FriendTile extends StatelessWidget {
   final FriendModel friend;
@@ -367,10 +367,11 @@ class _FriendTile extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF0A0A0A),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
         title: const Text('Remover amigo?',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+            style: TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w800)),
         content: Text(
           'Você tem certeza que quer remover @${friend.username}?',
           style: const TextStyle(color: AppColors.textSecondary),
@@ -453,7 +454,6 @@ class _FriendTile extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Indicador online
                 Positioned(
                   right: 0,
                   bottom: 0,
@@ -502,10 +502,11 @@ class _FriendTile extends StatelessWidget {
                             horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(20),
-                          color: AppColors.primaryOrange.withOpacity(0.1),
+                          color:
+                              AppColors.primaryOrange.withOpacity(0.1),
                           border: Border.all(
-                              color:
-                                  AppColors.primaryOrange.withOpacity(0.3)),
+                              color: AppColors.primaryOrange
+                                  .withOpacity(0.3)),
                         ),
                         child: Text(
                           'Nv. ${friend.level}  •  ${friend.totalXp} XP',
@@ -532,7 +533,28 @@ class _FriendTile extends StatelessWidget {
                 ],
               ),
             ),
-            // Botão remover
+            // ── Botão Chat ──────────────────────────────────────
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChatScreen(friend: friend),
+                ),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryOrange.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: AppColors.primaryOrange.withOpacity(0.25)),
+                ),
+                child: const Icon(Icons.chat_rounded,
+                    color: AppColors.primaryOrange, size: 18),
+              ),
+            ),
+            // ── Botão Remover ───────────────────────────────────
             GestureDetector(
               onTap: () => _confirmRemove(context),
               child: Container(
@@ -690,7 +712,6 @@ class _RequestTileState extends State<_RequestTile> {
                 )
               : Row(
                   children: [
-                    // Aceitar
                     Expanded(
                       child: GestureDetector(
                         onTap: _accept,
@@ -729,7 +750,6 @@ class _RequestTileState extends State<_RequestTile> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    // Recusar
                     Expanded(
                       child: GestureDetector(
                         onTap: _reject,
@@ -737,7 +757,8 @@ class _RequestTileState extends State<_RequestTile> {
                           height: 40,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(10),
-                            color: AppColors.emergencyRed.withOpacity(0.1),
+                            color:
+                                AppColors.emergencyRed.withOpacity(0.1),
                             border: Border.all(
                               color:
                                   AppColors.emergencyRed.withOpacity(0.4),
@@ -747,7 +768,8 @@ class _RequestTileState extends State<_RequestTile> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(Icons.close_rounded,
-                                  color: AppColors.emergencyRed, size: 16),
+                                  color: AppColors.emergencyRed,
+                                  size: 16),
                               SizedBox(width: 6),
                               Text(
                                 'RECUSAR',
@@ -785,7 +807,8 @@ class _AddFriendButton extends StatelessWidget {
     return GestureDetector(
       onTap: () => _showAddFriendSheet(context),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),
           gradient: AppColors.orangeGradient,
@@ -871,7 +894,6 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
     HapticFeedback.lightImpact();
 
     try {
-      // Busca por username
       final snap = await widget.db
           .collection('users_xp')
           .where('username', isEqualTo: query)
@@ -898,7 +920,6 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
         return;
       }
 
-      // Verifica se já existe solicitação ou amizade
       final existing = await widget.db
           .collection('friend_requests')
           .where('participants', arrayContains: widget.myUid)
@@ -909,7 +930,8 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
 
       for (final doc in existing.docs) {
         final d = doc.data();
-        final participants = List<String>.from(d['participants'] ?? []);
+        final participants =
+            List<String>.from(d['participants'] ?? []);
         if (participants.contains(user.uid)) {
           existingId = doc.id;
           existingStatus = d['status'] as String?;
@@ -947,7 +969,8 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
       });
 
       setState(() {
-        _message = 'Solicitação enviada para @${_foundUser!.username}!';
+        _message =
+            'Solicitação enviada para @${_foundUser!.username}!';
         _isError = false;
         _foundUser = null;
         _controller.clear();
@@ -983,7 +1006,6 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Handle
           Center(
             child: Container(
               width: 40,
@@ -995,8 +1017,6 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               ),
             ),
           ),
-
-          // Título
           Row(
             children: [
               Container(
@@ -1032,10 +1052,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               ),
             ],
           ),
-
           const SizedBox(height: 24),
-
-          // Campo de busca
           Row(
             children: [
               Expanded(
@@ -1043,7 +1060,8 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF141414),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF212121)),
+                    border:
+                        Border.all(color: const Color(0xFF212121)),
                   ),
                   child: TextField(
                     controller: _controller,
@@ -1111,10 +1129,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               ),
             ],
           ),
-
           const SizedBox(height: 16),
-
-          // Mensagem de feedback
           if (_message != null)
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
@@ -1158,8 +1173,6 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                 ],
               ),
             ),
-
-          // Card do usuário encontrado
           if (_foundUser != null) ...[
             const SizedBox(height: 16),
             Container(
@@ -1189,8 +1202,8 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color:
-                                  AppColors.primaryOrange.withOpacity(0.4),
+                              color: AppColors.primaryOrange
+                                  .withOpacity(0.4),
                               blurRadius: 12,
                             ),
                           ],
@@ -1198,7 +1211,8 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                         child: Center(
                           child: Text(
                             _foundUser!.displayName.isNotEmpty
-                                ? _foundUser!.displayName[0].toUpperCase()
+                                ? _foundUser!.displayName[0]
+                                    .toUpperCase()
                                 : '?',
                             style: const TextStyle(
                               color: Colors.white,
@@ -1224,8 +1238,8 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                             Text(
                               '@${_foundUser!.username}',
                               style: TextStyle(
-                                color:
-                                    AppColors.primaryOrange.withOpacity(0.8),
+                                color: AppColors.primaryOrange
+                                    .withOpacity(0.8),
                                 fontSize: 13,
                               ),
                             ),
@@ -1256,13 +1270,9 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                     ],
                   ),
                   const SizedBox(height: 14),
-
-                  // Botão de ação
                   if (_requestStatus == 'accepted')
-                    _statusBanner(
-                        Icons.people_rounded,
-                        'Vocês já são amigos!',
-                        AppColors.primaryOrange)
+                    _statusBanner(Icons.people_rounded,
+                        'Vocês já são amigos!', AppColors.primaryOrange)
                   else if (_requestStatus == 'pending')
                     _statusBanner(
                         Icons.hourglass_top_rounded,
@@ -1279,8 +1289,8 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                           gradient: AppColors.orangeGradient,
                           boxShadow: [
                             BoxShadow(
-                              color:
-                                  AppColors.primaryOrange.withOpacity(0.4),
+                              color: AppColors.primaryOrange
+                                  .withOpacity(0.4),
                               blurRadius: 14,
                               offset: const Offset(0, 4),
                             ),
@@ -1320,7 +1330,6 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               ),
             ),
           ],
-
           const SizedBox(height: 8),
         ],
       ),
@@ -1472,7 +1481,6 @@ class FriendProfileScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // Status
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 10),
@@ -1519,8 +1527,49 @@ class FriendProfileScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Stats XP
+                  // Botão abrir chat direto do perfil do amigo
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChatScreen(friend: friend),
+                      ),
+                    ),
+                    child: Container(
+                      width: double.infinity,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        gradient: AppColors.orangeGradient,
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                AppColors.primaryOrange.withOpacity(0.35),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.chat_rounded,
+                              color: Colors.white, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            'ENVIAR MENSAGEM',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -1610,7 +1659,6 @@ class _StatItem extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════
 // WIDGETS AUXILIARES
 // ═══════════════════════════════════════════════════════════════════
-
 class _LoadingState extends StatelessWidget {
   const _LoadingState();
 
