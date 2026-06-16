@@ -7,15 +7,14 @@ import '../models/post_model.dart';
 import '../providers/posts_provider.dart';
 
 // ─────────────────────────────────────────────────────────────────
-// UTILITÁRIO: extrai ID do YouTube do HTML do post
+// UTILITÁRIO: extrai ID do Vimeo do conteúdo do post
 // ─────────────────────────────────────────────────────────────────
-class _YtHelper {
+class _VimeoHelper {
   static String? extractId(String content) {
     final patterns = [
-      RegExp(r'youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})'),
-      RegExp(r'youtu\.be/([a-zA-Z0-9_-]{11})'),
-      RegExp(r'youtube\.com/embed/([a-zA-Z0-9_-]{11})'),
-      RegExp(r'youtube\.com/shorts/([a-zA-Z0-9_-]{11})'),
+      RegExp(r'vimeo\.com/(\d+)'),
+      RegExp(r'player\.vimeo\.com/video/(\d+)'),
+      RegExp(r'vimeo\.com/video/(\d+)'),
     ];
     for (final p in patterns) {
       final m = p.firstMatch(content);
@@ -33,7 +32,6 @@ class _YtHelper {
     return hasLabel && extractId(post.content) != null;
   }
 
-  // Gera HTML com embed do YouTube em modo shorts/reel
   static String buildEmbedHtml(String videoId, {bool autoplay = true}) {
     final auto = autoplay ? 1 : 0;
     return '''
@@ -49,8 +47,8 @@ class _YtHelper {
 </head>
 <body>
   <iframe
-    src="https://www.youtube.com/embed/$videoId?autoplay=$auto&loop=1&playlist=$videoId&controls=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1"
-    allow="autoplay; encrypted-media"
+    src="https://player.vimeo.com/video/$videoId?autoplay=$auto&loop=1&controls=0&byline=0&title=0&portrait=0&muted=0&playsinline=1"
+    allow="autoplay; fullscreen; picture-in-picture"
     allowfullscreen>
   </iframe>
 </body>
@@ -84,12 +82,13 @@ class _VideosScreenState extends State<VideosScreen> {
   }
 
   Future<void> _loadVideos() async {
+    setState(() => _loaded = false);
     final provider = Provider.of<PostsProvider>(context, listen: false);
     await provider.loadPostsByCategory('Vídeo');
     if (!mounted) return;
     setState(() {
       _videoPosts = provider.categoryPosts
-          .where((p) => _YtHelper.hasVideo(p))
+          .where((p) => _VimeoHelper.hasVideo(p))
           .toList();
       _loaded = true;
     });
@@ -122,8 +121,8 @@ class _VideosScreenState extends State<VideosScreen> {
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 gradient: AppColors.orangeGradient,
                 borderRadius: BorderRadius.circular(20),
@@ -226,7 +225,7 @@ class _VideosScreenState extends State<VideosScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Publique um vídeo no editor\ncom o label "Vídeo"',
+            'Publique um post no Blogger com\no link do Vimeo e o label "Vídeo"',
             textAlign: TextAlign.center,
             style: TextStyle(
                 color: Colors.white.withOpacity(0.25), fontSize: 12),
@@ -260,12 +259,12 @@ class _VideoReelItemState extends State<_VideoReelItem> {
   @override
   void initState() {
     super.initState();
-    final videoId = _YtHelper.extractId(widget.post.content) ?? '';
+    final videoId = _VimeoHelper.extractId(widget.post.content) ?? '';
     _webController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.black)
       ..loadHtmlString(
-        _YtHelper.buildEmbedHtml(videoId, autoplay: widget.isActive),
+        _VimeoHelper.buildEmbedHtml(videoId, autoplay: widget.isActive),
       );
   }
 
@@ -273,14 +272,16 @@ class _VideoReelItemState extends State<_VideoReelItem> {
   void didUpdateWidget(_VideoReelItem old) {
     super.didUpdateWidget(old);
     if (widget.isActive && !old.isActive) {
-      _webController.runJavaScript(
-        'document.querySelector("iframe").src += "";',
+      // Reativa o vídeo quando o usuário chega nesse reel
+      final videoId = _VimeoHelper.extractId(widget.post.content) ?? '';
+      _webController.loadHtmlString(
+        _VimeoHelper.buildEmbedHtml(videoId, autoplay: true),
       );
     } else if (!widget.isActive && old.isActive) {
-      // Para o vídeo recarregando sem autoplay
-      final videoId = _YtHelper.extractId(widget.post.content) ?? '';
+      // Para o vídeo quando o usuário sai desse reel
+      final videoId = _VimeoHelper.extractId(widget.post.content) ?? '';
       _webController.loadHtmlString(
-        _YtHelper.buildEmbedHtml(videoId, autoplay: false),
+        _VimeoHelper.buildEmbedHtml(videoId, autoplay: false),
       );
     }
   }
@@ -321,14 +322,14 @@ class _VideoReelItemState extends State<_VideoReelItem> {
 
     return Stack(
       children: [
-        // ── Vídeo em tela cheia ──────────────────────────────────
+        // ── Vídeo em tela cheia ────────────────────────────────
         SizedBox(
           width: size.width,
           height: size.height,
           child: WebViewWidget(controller: _webController),
         ),
 
-        // ── Gradiente inferior ───────────────────────────────────
+        // ── Gradiente inferior ─────────────────────────────────
         Positioned(
           bottom: 0,
           left: 0,
@@ -350,7 +351,7 @@ class _VideoReelItemState extends State<_VideoReelItem> {
           ),
         ),
 
-        // ── Botão legenda ────────────────────────────────────────
+        // ── Botão legenda ──────────────────────────────────────
         Positioned(
           right: 12,
           bottom: 130,
@@ -364,7 +365,7 @@ class _VideoReelItemState extends State<_VideoReelItem> {
           ),
         ),
 
-        // ── Legenda ──────────────────────────────────────────────
+        // ── Legenda ────────────────────────────────────────────
         AnimatedPositioned(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
@@ -420,8 +421,7 @@ class _VideoReelItemState extends State<_VideoReelItem> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (caption.isNotEmpty &&
-                    caption != widget.post.title) ...[
+                if (caption.isNotEmpty && caption != widget.post.title) ...[
                   const SizedBox(height: 8),
                   Text(
                     caption,
@@ -458,7 +458,7 @@ class _VideoReelItemState extends State<_VideoReelItem> {
           ),
         ),
 
-        // ── Indicador scroll ─────────────────────────────────────
+        // ── Indicador scroll ───────────────────────────────────
         Positioned(
           bottom: 8,
           left: 0,
