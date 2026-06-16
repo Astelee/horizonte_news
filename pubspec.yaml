@@ -49,11 +49,10 @@ dependencies:
   audioplayers: ^6.1.0
 
   # Vídeos YouTube
-  youtube_player_flutter: ^8.1.2
+  youtube_player_flutter: 8.1.2
 
 dependency_overrides:
-  font_awesome_flutter: ^10.6.0
-  youtube_player_flutter: 8.1.2
+  font_awesome_flutter: 10.6.0
 
 dev_dependencies:
   flutter_test:
