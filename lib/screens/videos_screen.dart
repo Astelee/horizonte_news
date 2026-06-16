@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../config/app_colors.dart';
 import '../models/post_model.dart';
 import '../providers/posts_provider.dart';
@@ -31,6 +31,31 @@ class _YtHelper {
           c.name.toLowerCase() == 'video',
     );
     return hasLabel && extractId(post.content) != null;
+  }
+
+  // Gera HTML com embed do YouTube em modo shorts/reel
+  static String buildEmbedHtml(String videoId, {bool autoplay = true}) {
+    final auto = autoplay ? 1 : 0;
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin: 0; padding: 0; background: #000; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    iframe { width: 100%; height: 100%; border: none; }
+  </style>
+</head>
+<body>
+  <iframe
+    src="https://www.youtube.com/embed/$videoId?autoplay=$auto&loop=1&playlist=$videoId&controls=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1"
+    allow="autoplay; encrypted-media"
+    allowfullscreen>
+  </iframe>
+</body>
+</html>
+''';
   }
 }
 
@@ -191,27 +216,20 @@ class _VideosScreenState extends State<VideosScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.videocam_off_rounded,
-            size: 56,
-            color: Colors.white.withOpacity(0.2),
-          ),
+          Icon(Icons.videocam_off_rounded,
+              size: 56, color: Colors.white.withOpacity(0.2)),
           const SizedBox(height: 16),
           Text(
             'Nenhum vídeo publicado ainda',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.4),
-              fontSize: 15,
-            ),
+                color: Colors.white.withOpacity(0.4), fontSize: 15),
           ),
           const SizedBox(height: 8),
           Text(
             'Publique um vídeo no editor\ncom o label "Vídeo"',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.25),
-              fontSize: 12,
-            ),
+                color: Colors.white.withOpacity(0.25), fontSize: 12),
           ),
         ],
       ),
@@ -236,58 +254,34 @@ class _VideoReelItem extends StatefulWidget {
 }
 
 class _VideoReelItemState extends State<_VideoReelItem> {
-  late YoutubePlayerController _controller;
+  late final WebViewController _webController;
   bool _showCaption = true;
-  bool _isMuted = false;
-  bool _ready = false;
 
   @override
   void initState() {
     super.initState();
     final videoId = _YtHelper.extractId(widget.post.content) ?? '';
-
-    _controller = YoutubePlayerController(
-      initialVideoId: videoId,
-      flags: YoutubePlayerFlags(
-        autoPlay: widget.isActive,
-        mute: false,
-        loop: true,
-        hideControls: true,
-        disableDragSeek: true,
-        enableCaption: false,
-      ),
-    );
-
-    _controller.addListener(() {
-      if (!_ready &&
-          _controller.value.playerState == PlayerState.playing) {
-        if (mounted) setState(() => _ready = true);
-      }
-    });
+    _webController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.black)
+      ..loadHtmlString(
+        _YtHelper.buildEmbedHtml(videoId, autoplay: widget.isActive),
+      );
   }
 
   @override
   void didUpdateWidget(_VideoReelItem old) {
     super.didUpdateWidget(old);
     if (widget.isActive && !old.isActive) {
-      _controller.play();
+      _webController.runJavaScript(
+        'document.querySelector("iframe").src += "";',
+      );
     } else if (!widget.isActive && old.isActive) {
-      _controller.pause();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _toggleMute() {
-    setState(() => _isMuted = !_isMuted);
-    if (_isMuted) {
-      _controller.mute();
-    } else {
-      _controller.unMute();
+      // Para o vídeo recarregando sem autoplay
+      final videoId = _YtHelper.extractId(widget.post.content) ?? '';
+      _webController.loadHtmlString(
+        _YtHelper.buildEmbedHtml(videoId, autoplay: false),
+      );
     }
   }
 
@@ -331,14 +325,7 @@ class _VideoReelItemState extends State<_VideoReelItem> {
         SizedBox(
           width: size.width,
           height: size.height,
-          child: YoutubePlayer(
-            controller: _controller,
-            showVideoProgressIndicator: false,
-            onReady: () {
-              if (mounted) setState(() => _ready = true);
-              if (widget.isActive) _controller.play();
-            },
-          ),
+          child: WebViewWidget(controller: _webController),
         ),
 
         // ── Gradiente inferior ───────────────────────────────────
@@ -363,31 +350,17 @@ class _VideoReelItemState extends State<_VideoReelItem> {
           ),
         ),
 
-        // ── Botões laterais ──────────────────────────────────────
+        // ── Botão legenda ────────────────────────────────────────
         Positioned(
           right: 12,
           bottom: 130,
-          child: Column(
-            children: [
-              _SideButton(
-                icon: _isMuted
-                    ? Icons.volume_off_rounded
-                    : Icons.volume_up_rounded,
-                label: _isMuted ? 'Mudo' : 'Som',
-                onTap: _toggleMute,
-                active: !_isMuted,
-              ),
-              const SizedBox(height: 20),
-              _SideButton(
-                icon: _showCaption
-                    ? Icons.subtitles_rounded
-                    : Icons.subtitles_off_rounded,
-                label: 'Legenda',
-                onTap: () =>
-                    setState(() => _showCaption = !_showCaption),
-                active: _showCaption,
-              ),
-            ],
+          child: _SideButton(
+            icon: _showCaption
+                ? Icons.subtitles_rounded
+                : Icons.subtitles_off_rounded,
+            label: 'Legenda',
+            onTap: () => setState(() => _showCaption = !_showCaption),
+            active: _showCaption,
           ),
         ),
 
@@ -415,8 +388,7 @@ class _VideoReelItemState extends State<_VideoReelItem> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primaryOrange
-                              .withOpacity(0.4),
+                          color: AppColors.primaryOrange.withOpacity(0.4),
                           blurRadius: 10,
                         ),
                       ],
@@ -458,8 +430,7 @@ class _VideoReelItemState extends State<_VideoReelItem> {
                       fontSize: 13,
                       height: 1.5,
                       shadows: const [
-                        Shadow(
-                            color: Colors.black87, blurRadius: 6),
+                        Shadow(color: Colors.black87, blurRadius: 6),
                       ],
                     ),
                     maxLines: 3,
@@ -469,19 +440,15 @@ class _VideoReelItemState extends State<_VideoReelItem> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Icon(
-                      Icons.schedule_rounded,
-                      size: 12,
-                      color:
-                          AppColors.primaryOrange.withOpacity(0.8),
-                    ),
+                    Icon(Icons.schedule_rounded,
+                        size: 12,
+                        color: AppColors.primaryOrange.withOpacity(0.8)),
                     const SizedBox(width: 4),
                     Text(
                       _timeAgo(widget.post.publishedAt),
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.55),
-                        fontSize: 11,
-                      ),
+                          color: Colors.white.withOpacity(0.55),
+                          fontSize: 11),
                     ),
                   ],
                 ),
@@ -505,9 +472,7 @@ class _VideoReelItemState extends State<_VideoReelItem> {
               Text(
                 'Arraste para o próximo',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.3),
-                  fontSize: 11,
-                ),
+                    color: Colors.white.withOpacity(0.3), fontSize: 11),
               ),
             ],
           ),
@@ -554,8 +519,7 @@ class _SideButton extends StatelessWidget {
               boxShadow: active
                   ? [
                       BoxShadow(
-                        color:
-                            AppColors.primaryOrange.withOpacity(0.3),
+                        color: AppColors.primaryOrange.withOpacity(0.3),
                         blurRadius: 10,
                       ),
                     ]
@@ -563,9 +527,7 @@ class _SideButton extends StatelessWidget {
             ),
             child: Icon(
               icon,
-              color: active
-                  ? AppColors.primaryOrange
-                  : Colors.white54,
+              color: active ? AppColors.primaryOrange : Colors.white54,
               size: 22,
             ),
           ),
