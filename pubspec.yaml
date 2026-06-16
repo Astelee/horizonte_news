@@ -19,7 +19,7 @@ dependencies:
   google_nav_bar: ^5.0.6
   shimmer: ^3.0.0
   flutter_html: ^3.0.0-beta.2
-  font_awesome_flutter: ^10.7.0
+  font_awesome_flutter: ^10.6.0
 
   # Rede e Imagem
   http: ^1.2.1
@@ -49,7 +49,11 @@ dependencies:
   audioplayers: ^6.1.0
 
   # Vídeos YouTube
-  youtube_player_flutter: ^9.0.4
+  youtube_player_flutter: ^8.1.2
+
+dependency_overrides:
+  font_awesome_flutter: ^10.6.0
+  youtube_player_flutter: 8.1.2
 
 dev_dependencies:
   flutter_test:
