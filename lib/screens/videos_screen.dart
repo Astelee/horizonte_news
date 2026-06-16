@@ -38,26 +38,108 @@ class _VimeoHelper {
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
-    * { margin: 0; padding: 0; background: #000; }
-    html, body { width: 100%; height: 100%; overflow: hidden; }
-    iframe { width: 100%; height: 100%; border: none; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+      overflow: hidden;
+    }
+    .container {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: #000;
+    }
+    iframe {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 100vw;
+      height: 56.25vw;
+      min-height: 100vh;
+      min-width: 177.77vh;
+      transform: translate(-50%, -50%);
+      border: none;
+      pointer-events: none;
+    }
+    .touch-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 10;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sound-hint {
+      background: rgba(0,0,0,0.7);
+      border: 1px solid rgba(230,81,0,0.5);
+      border-radius: 32px;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      animation: fadeIn 0.8s ease 1.5s forwards;
+    }
+    .sound-hint svg {
+      width: 18px; height: 18px; fill: #E65100;
+    }
+    .sound-hint span {
+      color: #fff;
+      font-family: sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
   </style>
 </head>
 <body>
-  <iframe id="vimeo"
-    src="https://player.vimeo.com/video/$videoId?autoplay=$auto&loop=1&controls=1&byline=0&title=0&portrait=0&muted=0&playsinline=1&transparent=0"
-    allow="autoplay; fullscreen; picture-in-picture"
-    allowfullscreen>
-  </iframe>
+  <div class="container">
+    <iframe id="vimeo"
+      src="https://player.vimeo.com/video/$videoId?autoplay=$auto&loop=1&controls=0&byline=0&title=0&portrait=0&muted=0&playsinline=1&transparent=0&background=1"
+      allow="autoplay; fullscreen; picture-in-picture"
+      allowfullscreen>
+    </iframe>
+  </div>
+
+  <div class="touch-overlay" id="overlay">
+    <div class="sound-hint" id="hint">
+      <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+      <span>Toque para ativar o som</span>
+    </div>
+  </div>
+
   <script src="https://player.vimeo.com/api/player.js"></script>
   <script>
-    var iframe = document.getElementById('vimeo');
-    var player = new Vimeo.Player(iframe);
+    var player = new Vimeo.Player(document.getElementById('vimeo'));
+    var overlay = document.getElementById('overlay');
+    var hint = document.getElementById('hint');
+    var soundActivated = false;
+
     player.ready().then(function() {
-      player.setVolume(1);
-      ${autoplay ? 'player.play();' : ''}
+      player.setVolume(1).catch(function(){});
+      ${autoplay ? 'player.play().catch(function(){});' : ''}
+    });
+
+    overlay.addEventListener('click', function() {
+      if (!soundActivated) {
+        player.setVolume(1).then(function() {
+          return player.play();
+        }).then(function() {
+          soundActivated = true;
+          overlay.style.display = 'none';
+        }).catch(function(){
+          overlay.style.display = 'none';
+        });
+      }
     });
   </script>
 </body>
@@ -264,6 +346,7 @@ class _VideoReelItem extends StatefulWidget {
 class _VideoReelItemState extends State<_VideoReelItem> {
   late final WebViewController _webController;
   bool _showCaption = true;
+  bool _videoReady = false;
 
   @override
   void initState() {
@@ -272,6 +355,11 @@ class _VideoReelItemState extends State<_VideoReelItem> {
     _webController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.black)
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageFinished: (_) {
+          if (mounted) setState(() => _videoReady = true);
+        },
+      ))
       ..loadHtmlString(
         _VimeoHelper.buildEmbedHtml(videoId, autoplay: widget.isActive),
       );
@@ -281,6 +369,7 @@ class _VideoReelItemState extends State<_VideoReelItem> {
   void didUpdateWidget(_VideoReelItem old) {
     super.didUpdateWidget(old);
     if (widget.isActive && !old.isActive) {
+      setState(() => _videoReady = false);
       final videoId = _VimeoHelper.extractId(widget.post.content) ?? '';
       _webController.loadHtmlString(
         _VimeoHelper.buildEmbedHtml(videoId, autoplay: true),
@@ -335,6 +424,37 @@ class _VideoReelItemState extends State<_VideoReelItem> {
           height: size.height,
           child: WebViewWidget(controller: _webController),
         ),
+
+        // ── Loading enquanto o vídeo não carregou ──────────────
+        if (!_videoReady)
+          Container(
+            color: Colors.black,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.primaryOrange,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Carregando vídeo...',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.4),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
         // ── Gradiente inferior ─────────────────────────────────
         Positioned(
