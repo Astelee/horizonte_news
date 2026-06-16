@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../config/app_colors.dart';
 import '../models/post_model.dart';
 import '../providers/posts_provider.dart';
@@ -60,10 +60,10 @@ class _VideosScreenState extends State<VideosScreen> {
 
   Future<void> _loadVideos() async {
     final provider = Provider.of<PostsProvider>(context, listen: false);
-    await provider.loadPostsByLabel('Vídeo');
+    await provider.loadPostsByCategory('Vídeo');
     if (!mounted) return;
     setState(() {
-      _videoPosts = provider.videoPosts
+      _videoPosts = provider.categoryPosts
           .where((p) => _YtHelper.hasVideo(p))
           .toList();
       _loaded = true;
@@ -169,7 +169,7 @@ class _VideosScreenState extends State<VideosScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircularProgressIndicator(
+          const CircularProgressIndicator(
             strokeWidth: 2,
             color: AppColors.primaryOrange,
           ),
@@ -245,21 +245,22 @@ class _VideoReelItemState extends State<_VideoReelItem> {
   void initState() {
     super.initState();
     final videoId = _YtHelper.extractId(widget.post.content) ?? '';
-    _controller = YoutubePlayerController.fromVideoId(
-      videoId: videoId,
-      autoPlay: widget.isActive,
-      params: const YoutubePlayerParams(
+
+    _controller = YoutubePlayerController(
+      initialVideoId: videoId,
+      flags: YoutubePlayerFlags(
+        autoPlay: widget.isActive,
         mute: false,
         loop: true,
-        showControls: false,
-        showFullscreenButton: false,
+        hideControls: true,
+        disableDragSeek: true,
         enableCaption: false,
-        strictRelatedVideos: true,
       ),
     );
 
-    _controller.listen((state) {
-      if (!_ready && state.playerState == PlayerState.playing) {
+    _controller.addListener(() {
+      if (!_ready &&
+          _controller.value.playerState == PlayerState.playing) {
         if (mounted) setState(() => _ready = true);
       }
     });
@@ -269,15 +270,15 @@ class _VideoReelItemState extends State<_VideoReelItem> {
   void didUpdateWidget(_VideoReelItem old) {
     super.didUpdateWidget(old);
     if (widget.isActive && !old.isActive) {
-      _controller.playVideo();
+      _controller.play();
     } else if (!widget.isActive && old.isActive) {
-      _controller.pauseVideo();
+      _controller.pause();
     }
   }
 
   @override
   void dispose() {
-    _controller.close();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -332,7 +333,11 @@ class _VideoReelItemState extends State<_VideoReelItem> {
           height: size.height,
           child: YoutubePlayer(
             controller: _controller,
-            aspectRatio: 9 / 16,
+            showVideoProgressIndicator: false,
+            onReady: () {
+              if (mounted) setState(() => _ready = true);
+              if (widget.isActive) _controller.play();
+            },
           ),
         ),
 
@@ -410,8 +415,8 @@ class _VideoReelItemState extends State<_VideoReelItem> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color:
-                              AppColors.primaryOrange.withOpacity(0.4),
+                          color: AppColors.primaryOrange
+                              .withOpacity(0.4),
                           blurRadius: 10,
                         ),
                       ],
@@ -467,7 +472,8 @@ class _VideoReelItemState extends State<_VideoReelItem> {
                     Icon(
                       Icons.schedule_rounded,
                       size: 12,
-                      color: AppColors.primaryOrange.withOpacity(0.8),
+                      color:
+                          AppColors.primaryOrange.withOpacity(0.8),
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -548,7 +554,8 @@ class _SideButton extends StatelessWidget {
               boxShadow: active
                   ? [
                       BoxShadow(
-                        color: AppColors.primaryOrange.withOpacity(0.3),
+                        color:
+                            AppColors.primaryOrange.withOpacity(0.3),
                         blurRadius: 10,
                       ),
                     ]
@@ -556,8 +563,9 @@ class _SideButton extends StatelessWidget {
             ),
             child: Icon(
               icon,
-              color:
-                  active ? AppColors.primaryOrange : Colors.white54,
+              color: active
+                  ? AppColors.primaryOrange
+                  : Colors.white54,
               size: 22,
             ),
           ),
