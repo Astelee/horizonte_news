@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/post_model.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/posts_provider.dart';
@@ -24,13 +25,13 @@ class DateFormatter {
 
     if (difference.inSeconds < 60) return 'Agora';
     if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minuto' : 'minutos'} atrás';
+      return 'Há ${difference.inMinutes} ${difference.inMinutes == 1 ? 'minuto' : 'minutos'}';
     }
     if (difference.inHours < 24) {
-      return '${difference.inHours} ${difference.inHours == 1 ? 'hora' : 'horas'} atrás';
+      return 'Há ${difference.inHours} ${difference.inHours == 1 ? 'hora' : 'horas'}';
     }
     if (difference.inDays < 7) {
-      return '${difference.inDays} ${difference.inDays == 1 ? 'dia' : 'dias'} atrás';
+      return 'Há ${difference.inDays} ${difference.inDays == 1 ? 'dia' : 'dias'}';
     }
     return DateFormat('dd/MM/yyyy · HH:mm').format(postDate);
   }
@@ -63,10 +64,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
-    _fadeIn = CurvedAnimation(
-      parent: _animController,
-      curve: Curves.easeOut,
-    );
+    _fadeIn = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _animController.forward();
 
     _scrollController.addListener(() {
@@ -74,18 +72,15 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       if (show != _showFloatingTitle) {
         setState(() => _showFloatingTitle = show);
       }
-
       if (!_articleReadRegistered && _scrollController.offset > 300) {
         _articleReadRegistered = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          Provider.of<UserXpProvider>(context, listen: false)
-              .onArticleRead();
+          Provider.of<UserXpProvider>(context, listen: false).onArticleRead();
         });
       }
     });
 
-    // Registra visualização após o primeiro frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _registerView();
     });
@@ -102,8 +97,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     if (_viewRegistered) return;
     _viewRegistered = true;
 
-    final post =
-        ModalRoute.of(context)?.settings.arguments as PostModel?;
+    final post = ModalRoute.of(context)?.settings.arguments as PostModel?;
     if (post == null) return;
 
     await AdminService().recordPostView(
@@ -112,37 +106,23 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     );
   }
 
-  String _readingTime(String content) {
-    final text = content.replaceAll(RegExp(r'<[^>]*>'), '');
-    final words = text.trim().split(RegExp(r'\s+'));
-    final minutes = (words.length / 200).ceil();
-    return '$minutes min de leitura';
-  }
-
   String _normalizeContent(String raw) {
     String html = raw;
-
     html = html.replaceAllMapped(
       RegExp(r'(<br\s*/?>){1,}', caseSensitive: false),
       (m) => '</p><p>',
     );
-
     html = html.replaceAll(
       RegExp(r'<p>\s*(&nbsp;)?\s*</p>', caseSensitive: false),
       '',
     );
-
-    if (!html.contains('<p')) {
-      html = '<p>$html</p>';
-    }
-
+    if (!html.contains('<p')) html = '<p>$html</p>';
     return html;
   }
 
   Future<void> _sharePost(PostModel post) async {
     await Share.share(
-      '${post.title}\n\nLeia a matéria completa em: ${post.url}',
-    );
+        '${post.title}\n\nLeia a matéria completa em: ${post.url}');
     if (!mounted) return;
     Provider.of<UserXpProvider>(context, listen: false).onShare();
   }
@@ -156,9 +136,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final String cleanedContent = BloggerCleaner.clean(post.content);
     final String normalizedContent = _normalizeContent(cleanedContent);
-    final String category = post.categories.isNotEmpty
-        ? post.categories.first.name
-        : 'Notícia';
+    final String category =
+        post.categories.isNotEmpty ? post.categories.first.name : 'Notícia';
     final topPadding = MediaQuery.of(context).padding.top;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -173,12 +152,10 @@ class _PostDetailScreenState extends State<PostDetailScreen>
           opacity: _fadeIn,
           child: Stack(
             children: [
-              // ── CONTEÚDO SCROLLÁVEL ────────────────────────────
               RefreshIndicator(
                 color: AppColors.primaryOrange,
-                backgroundColor: isDark
-                    ? AppColors.backgroundElevated
-                    : Colors.white,
+                backgroundColor:
+                    isDark ? AppColors.backgroundElevated : Colors.white,
                 onRefresh: () async {
                   await Provider.of<PostsProvider>(context, listen: false)
                       .loadInitialPosts();
@@ -187,8 +164,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                   child: CustomScrollView(
                     controller: _scrollController,
                     physics: const BouncingScrollPhysics(
-                      parent: AlwaysScrollableScrollPhysics(),
-                    ),
+                        parent: AlwaysScrollableScrollPhysics()),
                     slivers: [
                       _buildSliverAppBar(post),
                       SliverToBoxAdapter(
@@ -203,7 +179,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                             children: [
                               _buildCategoryBadge(category),
                               _buildTitle(context, post),
-                              _buildMeta(context, post, normalizedContent),
+                              _buildMeta(context, post),
                               _buildGlowDivider(),
                               _buildHtmlContent(
                                   context, normalizedContent, isDark),
@@ -222,7 +198,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                 ),
               ),
 
-              // ── BOTÕES GLASS ───────────────────────────────────
+              // Botões glass (visíveis quando imagem está expandida)
               if (!_showFloatingTitle)
                 Positioned(
                   top: topPadding + 8,
@@ -256,7 +232,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                   ),
                 ),
 
-              // ── BARRA COLAPSADA ────────────────────────────────
+              // Barra colapsada (aparece ao rolar)
               _buildCollapsedBar(context, post, isFav, favoritesProvider),
             ],
           ),
@@ -298,9 +274,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                 width: 28,
                 height: 28,
                 child: CircularProgressIndicator(
-                  color: AppColors.primaryOrange,
-                  strokeWidth: 2,
-                ),
+                    color: AppColors.primaryOrange, strokeWidth: 2),
               ),
             ),
           ),
@@ -351,7 +325,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     FavoritesProvider favoritesProvider,
   ) {
     final topPadding = MediaQuery.of(context).padding.top;
-
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 200),
       top: _showFloatingTitle ? 0 : -(topPadding + 80),
@@ -359,16 +332,11 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       right: 0,
       child: Container(
         padding: EdgeInsets.only(
-          top: topPadding + 8,
-          bottom: 8,
-          left: 8,
-          right: 8,
-        ),
+            top: topPadding + 8, bottom: 8, left: 8, right: 8),
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.95),
           border: const Border(
-            bottom: BorderSide(color: AppColors.borderDark, width: 1),
-          ),
+              bottom: BorderSide(color: AppColors.borderDark, width: 1)),
           boxShadow: [
             BoxShadow(
               color: AppColors.primaryOrange.withOpacity(0.08),
@@ -390,10 +358,9 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(width: 8),
@@ -461,53 +428,106 @@ class _PostDetailScreenState extends State<PostDetailScreen>
           fontWeight: FontWeight.w800,
           height: 1.3,
           letterSpacing: -0.3,
-          color: isDark
-              ? AppColors.textPrimaryDark
-              : AppColors.textPrimaryLight,
+          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
         ),
       ),
     );
   }
 
   // ─────────────────────────────────────────────────────────────
-  // METADADOS
+  // METADADOS — sem "tempo de leitura", com views únicas e comentários
   // ─────────────────────────────────────────────────────────────
-  Widget _buildMeta(BuildContext context, PostModel post, String content) {
+  Widget _buildMeta(BuildContext context, PostModel post) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-      child: Row(
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 8,
         children: [
-          const Icon(Icons.schedule_rounded,
-              size: 15, color: AppColors.primaryOrange),
-          const SizedBox(width: 5),
-          Text(
-            DateFormatter.formatTimeAgo(post.publishedAt),
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
+          // 📅 Há X horas
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.schedule_rounded,
+                  size: 14, color: AppColors.primaryOrange),
+              const SizedBox(width: 5),
+              Text(
+                DateFormatter.formatTimeAgo(post.publishedAt),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Text('·',
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 16)),
+
+          // 👁️ Visualizações únicas via Firestore
+          StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('post_views')
+                .doc(post.id)
+                .snapshots(),
+            builder: (context, snap) {
+              final views =
+                  (snap.data?.data() as Map<String, dynamic>?)?['uniqueViews']
+                      as int? ??
+                  0;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.visibility_rounded,
+                      size: 14, color: AppColors.primaryOrange),
+                  const SizedBox(width: 5),
+                  Text(
+                    _formatCount(views),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
-          const Icon(Icons.menu_book_rounded,
-              size: 15, color: AppColors.primaryOrange),
-          const SizedBox(width: 5),
-          Text(
-            _readingTime(content),
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
+
+          // 💬 Comentários via Firestore
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('comments')
+                .doc(post.id)
+                .collection('postComments')
+                .snapshots(),
+            builder: (context, snap) {
+              final count = snap.data?.docs.length ?? 0;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.chat_bubble_rounded,
+                      size: 14, color: AppColors.primaryOrange),
+                  const SizedBox(width: 5),
+                  Text(
+                    _formatCount(count),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
+  }
+
+  String _formatCount(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return '$n';
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -547,14 +567,10 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         data: content,
         style: {
           '*': Style(
-            margin: Margins.zero,
-            padding: HtmlPaddings.zero,
-            fontFamily: 'Roboto',
-          ),
-          'body': Style(
-            margin: Margins.zero,
-            padding: HtmlPaddings.zero,
-          ),
+              margin: Margins.zero,
+              padding: HtmlPaddings.zero,
+              fontFamily: 'Roboto'),
+          'body': Style(margin: Margins.zero, padding: HtmlPaddings.zero),
           'p': Style(
             fontSize: FontSize(17),
             lineHeight: LineHeight(1.85),
@@ -591,28 +607,14 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             display: Display.block,
           ),
           'a': Style(
-            color: AppColors.primaryOrange,
-            textDecoration: TextDecoration.underline,
-          ),
-          'strong': Style(
-            fontWeight: FontWeight.w700,
-            color: textColor,
-          ),
-          'b': Style(
-            fontWeight: FontWeight.w700,
-            color: textColor,
-          ),
-          'em': Style(
-            fontStyle: FontStyle.italic,
-            color: secondaryColor,
-          ),
+              color: AppColors.primaryOrange,
+              textDecoration: TextDecoration.underline),
+          'strong': Style(fontWeight: FontWeight.w700, color: textColor),
+          'b': Style(fontWeight: FontWeight.w700, color: textColor),
+          'em': Style(fontStyle: FontStyle.italic, color: secondaryColor),
           'blockquote': Style(
             border: Border(
-              left: BorderSide(
-                color: AppColors.primaryOrange,
-                width: 3,
-              ),
-            ),
+                left: BorderSide(color: AppColors.primaryOrange, width: 3)),
             padding: HtmlPaddings.only(left: 16),
             margin: Margins.only(left: 0, right: 0, top: 16, bottom: 20),
             fontStyle: FontStyle.italic,
@@ -620,13 +622,11 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             fontSize: FontSize(16),
           ),
           'ul': Style(
-            margin: Margins.only(bottom: 16, left: 4),
-            padding: HtmlPaddings.zero,
-          ),
+              margin: Margins.only(bottom: 16, left: 4),
+              padding: HtmlPaddings.zero),
           'ol': Style(
-            margin: Margins.only(bottom: 16, left: 4),
-            padding: HtmlPaddings.zero,
-          ),
+              margin: Margins.only(bottom: 16, left: 4),
+              padding: HtmlPaddings.zero),
           'li': Style(
             fontSize: FontSize(17),
             lineHeight: LineHeight(1.8),
@@ -638,14 +638,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             padding: HtmlPaddings.zero,
             display: Display.block,
           ),
-          'div': Style(
-            margin: Margins.zero,
-            padding: HtmlPaddings.zero,
-          ),
-          'span': Style(
-            margin: Margins.zero,
-            padding: HtmlPaddings.zero,
-          ),
+          'div': Style(margin: Margins.zero, padding: HtmlPaddings.zero),
+          'span': Style(margin: Margins.zero, padding: HtmlPaddings.zero),
         },
       ),
     );
