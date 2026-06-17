@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../providers/user_xp_provider.dart';
 import '../providers/admin_provider.dart';
+import '../screens/friends_screen.dart';
 import 'badge_widgets.dart';
 
 class CommentModel {
@@ -33,15 +35,447 @@ class CommentModel {
       userId: data['userId'] ?? '',
       userName: data['userName'] ?? 'Anônimo',
       text: data['text'] ?? '',
-      createdAt:
-          (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       userLevel: (data['userLevel'] as num?)?.toInt() ?? 1,
-      userAchievements:
-          List<String>.from(data['userAchievements'] ?? []),
+      userAchievements: List<String>.from(data['userAchievements'] ?? []),
     );
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// BOTTOM SHEET — PERFIL DO COMENTARISTA
+// ═══════════════════════════════════════════════════════════════════
+class _CommentUserProfileSheet extends StatefulWidget {
+  final String userId;
+  final String userName;
+  final int userLevel;
+  final List<String> userAchievements;
+  final String initials;
+
+  const _CommentUserProfileSheet({
+    Key? key,
+    required this.userId,
+    required this.userName,
+    required this.userLevel,
+    required this.userAchievements,
+    required this.initials,
+  }) : super(key: key);
+
+  @override
+  State<_CommentUserProfileSheet> createState() =>
+      _CommentUserProfileSheetState();
+}
+
+class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
+  final _db = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
+
+  String? _friendRequestStatus; // null, 'pending', 'accepted'
+  bool _loadingStatus = true;
+  bool _sendingRequest = false;
+  Map<String, dynamic>? _userData;
+
+  String get _myUid => _auth.currentUser?.uid ?? '';
+
+  bool get _isMe => widget.userId == _myUid;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    // Carrega dados do usuário e status de amizade em paralelo
+    await Future.wait([
+      _loadUserData(),
+      _loadFriendStatus(),
+    ]);
+    if (mounted) setState(() => _loadingStatus = false);
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final doc = await _db.collection('users_xp').doc(widget.userId).get();
+      if (doc.exists && mounted) {
+        setState(() => _userData = doc.data());
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadFriendStatus() async {
+    if (_myUid.isEmpty || _isMe) return;
+    try {
+      final snap = await _db
+          .collection('friend_requests')
+          .where('participants', arrayContains: _myUid)
+          .get();
+
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final participants =
+            List<String>.from(data['participants'] ?? []);
+        if (participants.contains(widget.userId)) {
+          if (mounted) {
+            setState(
+                () => _friendRequestStatus = data['status'] as String?);
+          }
+          return;
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _sendFriendRequest() async {
+    if (_myUid.isEmpty) return;
+    setState(() => _sendingRequest = true);
+    HapticFeedback.mediumImpact();
+    try {
+      await _db.collection('friend_requests').add({
+        'fromUid': _myUid,
+        'toUid': widget.userId,
+        'participants': [_myUid, widget.userId],
+        'status': 'pending',
+        'sentAt': FieldValue.serverTimestamp(),
+      });
+      if (mounted) {
+        setState(() {
+          _friendRequestStatus = 'pending';
+          _sendingRequest = false;
+        });
+        HapticFeedback.heavyImpact();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _sendingRequest = false);
+    }
+  }
+
+  Future<void> _openFullProfile() async {
+    Navigator.pop(context);
+    if (_userData == null) return;
+
+    // Constrói FriendModel a partir dos dados carregados
+    final doc = await _db.collection('users_xp').doc(widget.userId).get();
+    if (!doc.exists) return;
+
+    final friend = FriendModel.fromDoc(doc);
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FriendProfileScreen(friend: friend),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorPairs = [
+      [const Color(0xFFFF6B00), const Color(0xFFCC4400)],
+      [const Color(0xFFFF8C3A), const Color(0xFFFF6B00)],
+      [const Color(0xFFE65100), const Color(0xFF8D3200)],
+    ];
+    final pair = colorPairs[
+        widget.userName.isNotEmpty
+            ? widget.userName.codeUnitAt(0) % colorPairs.length
+            : 0];
+
+    final username = (_userData?['username'] as String?) ?? '';
+    final totalXp = (_userData?['totalXp'] as num?)?.toInt() ?? 0;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF080808),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border(
+          top: BorderSide(color: Color(0xFF1A1A1A)),
+          left: BorderSide(color: Color(0xFF111111)),
+          right: BorderSide(color: Color(0xFF111111)),
+        ),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        24,
+        16,
+        24,
+        24 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF222222),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+
+          // Avatar + info
+          Row(
+            children: [
+              // Avatar grande
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: pair,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primaryOrange.withOpacity(0.4),
+                      blurRadius: 16,
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    widget.initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.userName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (username.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '@$username',
+                        style: TextStyle(
+                          color: AppColors.primaryOrange.withOpacity(0.8),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        LevelBadgeInline(level: widget.userLevel),
+                        if (totalXp > 0) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            '$totalXp XP',
+                            style: const TextStyle(
+                              color: Color(0xFF666666),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // Conquistas
+          if (widget.userAchievements.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: UnlockedBadgesRow(
+                unlockedAchievements: widget.userAchievements,
+                maxVisible: widget.userAchievements.length,
+                badgeSize: 13,
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 20),
+
+          // Botões de ação
+          if (_isMe)
+            _InfoBanner(
+              icon: Icons.person_rounded,
+              text: 'Este é o seu perfil',
+              color: AppColors.primaryOrange,
+            )
+          else if (_loadingStatus)
+            const SizedBox(
+              height: 44,
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primaryOrange,
+                  ),
+                ),
+              ),
+            )
+          else ...[
+            // Botão adicionar amigo / status
+            if (_friendRequestStatus == 'accepted')
+              _InfoBanner(
+                icon: Icons.people_rounded,
+                text: 'Vocês já são amigos!',
+                color: const Color(0xFF43B581),
+              )
+            else if (_friendRequestStatus == 'pending')
+              _InfoBanner(
+                icon: Icons.hourglass_top_rounded,
+                text: 'Solicitação enviada',
+                color: const Color(0xFFFAA61A),
+              )
+            else
+              GestureDetector(
+                onTap: _sendingRequest ? null : _sendFriendRequest,
+                child: Container(
+                  width: double.infinity,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primaryOrange.withOpacity(0.4),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: _sendingRequest
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.person_add_rounded,
+                                  color: Colors.white, size: 18),
+                              SizedBox(width: 8),
+                              Text(
+                                'ADICIONAR AMIGO',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
+
+            const SizedBox(height: 10),
+
+            // Botão ver perfil completo
+            GestureDetector(
+              onTap: _openFullProfile,
+              child: Container(
+                width: double.infinity,
+                height: 44,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  color: const Color(0xFF111111),
+                  border: Border.all(
+                    color: AppColors.primaryOrange.withOpacity(0.2),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.person_rounded,
+                        color: AppColors.primaryOrange, size: 16),
+                    SizedBox(width: 8),
+                    Text(
+                      'VER PERFIL COMPLETO',
+                      style: TextStyle(
+                        color: AppColors.primaryOrange,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoBanner extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color color;
+
+  const _InfoBanner({
+    required this.icon,
+    required this.text,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: color.withOpacity(0.08),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SEÇÃO PRINCIPAL DE COMENTÁRIOS
+// ═══════════════════════════════════════════════════════════════════
 class CommentsSection extends StatefulWidget {
   final String postId;
   final String postTitle;
@@ -130,7 +564,6 @@ class _CommentsSectionState extends State<CommentsSection>
       if (isActive) {
         final reason = (data['reason'] as String?)?.trim() ?? '';
         final reasonText = reason.isNotEmpty ? '\nMotivo: $reason' : '';
-
         if (isPermanent) {
           _showSnack('Você foi banido permanentemente.$reasonText');
         } else {
@@ -152,10 +585,8 @@ class _CommentsSectionState extends State<CommentsSection>
     _sendAnim.reverse().then((_) => _sendAnim.forward());
 
     try {
-      final userName = user.displayName ??
-          user.email?.split('@').first ??
-          'Leitor';
-
+      final userName =
+          user.displayName ?? user.email?.split('@').first ?? 'Leitor';
       final xpProvider =
           Provider.of<UserXpProvider>(context, listen: false);
       final userLevel = xpProvider.data.level;
@@ -189,28 +620,39 @@ class _CommentsSectionState extends State<CommentsSection>
     try {
       await _commentsRef.doc(commentId).delete();
     } catch (e) {
-      if (mounted) {
-        _showSnack('Erro ao excluir: $e');
-      }
+      if (mounted) _showSnack('Erro ao excluir: $e');
     }
+  }
+
+  void _openUserProfile(CommentModel comment) {
+    final initials = _initials(comment.userName);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _CommentUserProfileSheet(
+        userId: comment.userId,
+        userName: comment.userName,
+        userLevel: comment.userLevel,
+        userAchievements: comment.userAchievements,
+        initials: initials,
+      ),
+    );
   }
 
   void _showLoginSnack() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.lock_outline_rounded,
-                color: Colors.white, size: 16),
-            SizedBox(width: 10),
-            Text('Faça login para comentar.',
-                style: TextStyle(color: Colors.white)),
-          ],
-        ),
+        content: const Row(children: [
+          Icon(Icons.lock_outline_rounded, color: Colors.white, size: 16),
+          SizedBox(width: 10),
+          Text('Faça login para comentar.',
+              style: TextStyle(color: Colors.white)),
+        ]),
         backgroundColor: AppColors.backgroundElevated,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
       ),
     );
@@ -219,12 +661,11 @@ class _CommentsSectionState extends State<CommentsSection>
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content:
-            Text(msg, style: const TextStyle(color: Colors.white)),
+        content: Text(msg, style: const TextStyle(color: Colors.white)),
         backgroundColor: AppColors.backgroundElevated,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
         duration: const Duration(seconds: 5),
       ),
@@ -234,21 +675,17 @@ class _CommentsSectionState extends State<CommentsSection>
   void _showXpSnack() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.star_rounded,
-                color: AppColors.primaryOrange, size: 18),
-            SizedBox(width: 10),
-            Text('+XP por comentar!',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600)),
-          ],
-        ),
+        content: const Row(children: [
+          Icon(Icons.star_rounded, color: AppColors.primaryOrange, size: 18),
+          SizedBox(width: 10),
+          Text('+XP por comentar!',
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        ]),
         backgroundColor: const Color(0xFF1A0800),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
         duration: const Duration(seconds: 2),
       ),
@@ -258,7 +695,6 @@ class _CommentsSectionState extends State<CommentsSection>
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -272,9 +708,7 @@ class _CommentsSectionState extends State<CommentsSection>
 
   Widget _buildHeader() {
     return StreamBuilder<QuerySnapshot>(
-      stream: _commentsRef
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+      stream: _commentsRef.orderBy('createdAt', descending: true).snapshots(),
       builder: (context, snapshot) {
         final count = snapshot.data?.docs.length ?? 0;
         return Padding(
@@ -307,14 +741,13 @@ class _CommentsSectionState extends State<CommentsSection>
               ),
               const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 3),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   color: AppColors.primaryOrange.withOpacity(0.15),
                   border: Border.all(
-                    color: AppColors.primaryOrange.withOpacity(0.3),
-                  ),
+                      color: AppColors.primaryOrange.withOpacity(0.3)),
                 ),
                 child: Text(
                   '$count',
@@ -340,9 +773,8 @@ class _CommentsSectionState extends State<CommentsSection>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           color: const Color(0xFF0A0A0A),
-          border: Border.all(
-            color: AppColors.primaryOrange.withOpacity(0.2),
-          ),
+          border:
+              Border.all(color: AppColors.primaryOrange.withOpacity(0.2)),
           boxShadow: [
             BoxShadow(
               color: AppColors.primaryOrange.withOpacity(0.05),
@@ -370,23 +802,17 @@ class _CommentsSectionState extends State<CommentsSection>
                     minLines: 1,
                     maxLength: 500,
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      height: 1.5,
-                    ),
+                        color: Colors.white, fontSize: 14, height: 1.5),
                     decoration: InputDecoration(
                       hintText: user != null
-                          ? 'Deixe seu comentário...'
+                          ? '💭 O que você achou desta notícia?'
                           : 'Faça login para comentar',
                       hintStyle: TextStyle(
-                        color: Colors.white.withOpacity(0.25),
-                        fontSize: 14,
-                      ),
+                          color: Colors.white.withOpacity(0.25),
+                          fontSize: 14),
                       border: InputBorder.none,
                       counterStyle: const TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 10,
-                      ),
+                          color: AppColors.textMuted, fontSize: 10),
                       contentPadding: EdgeInsets.zero,
                     ),
                     enabled: user != null,
@@ -400,18 +826,14 @@ class _CommentsSectionState extends State<CommentsSection>
               children: [
                 Row(
                   children: [
-                    Icon(
-                      Icons.star_rounded,
-                      size: 13,
-                      color: AppColors.primaryOrange.withOpacity(0.7),
-                    ),
+                    Icon(Icons.star_rounded,
+                        size: 13,
+                        color: AppColors.primaryOrange.withOpacity(0.7)),
                     const SizedBox(width: 4),
                     const Text(
                       'Ganhe XP ao comentar',
                       style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 11,
-                      ),
+                          color: AppColors.textMuted, fontSize: 11),
                     ),
                   ],
                 ),
@@ -446,9 +868,8 @@ class _CommentsSectionState extends State<CommentsSection>
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.primaryOrange,
-                              ),
+                                  strokeWidth: 2,
+                                  color: AppColors.primaryOrange),
                             )
                           : const Row(
                               mainAxisSize: MainAxisSize.min,
@@ -496,9 +917,7 @@ class _CommentsSectionState extends State<CommentsSection>
                 width: 24,
                 height: 24,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.primaryOrange,
-                ),
+                    strokeWidth: 2, color: AppColors.primaryOrange),
               ),
             ),
           );
@@ -525,6 +944,7 @@ class _CommentsSectionState extends State<CommentsSection>
                 FirebaseAuth.instance.currentUser?.uid ?? '',
             isAdmin: isAdmin,
             onDelete: () => _deleteComment(comments[index].id),
+            onTapUser: () => _openUserProfile(comments[index]),
           ),
         );
       },
@@ -537,20 +957,13 @@ class _CommentsSectionState extends State<CommentsSection>
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(
-              Icons.chat_bubble_outline_rounded,
-              size: 40,
-              color: AppColors.primaryOrange.withOpacity(0.3),
-            ),
+            Icon(Icons.chat_bubble_outline_rounded,
+                size: 40, color: AppColors.primaryOrange.withOpacity(0.3)),
             const SizedBox(height: 12),
             const Text(
               'Seja o primeiro a comentar!',
-              style: TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: AppColors.textMuted, fontSize: 14),
             ),
           ],
         ),
@@ -564,7 +977,9 @@ class _CommentsSectionState extends State<CommentsSection>
       [const Color(0xFFFF8C3A), const Color(0xFFFF6B00)],
       [const Color(0xFFE65100), const Color(0xFF8D3200)],
     ];
-    final pair = colorPairs[name.codeUnitAt(0) % colorPairs.length];
+    final pair = colorPairs[name.isNotEmpty
+        ? name.codeUnitAt(0) % colorPairs.length
+        : 0];
 
     return Container(
       width: size,
@@ -572,31 +987,31 @@ class _CommentsSectionState extends State<CommentsSection>
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
-          colors: pair,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+            colors: pair,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryOrange.withOpacity(0.3),
-            blurRadius: 8,
-          ),
+              color: AppColors.primaryOrange.withOpacity(0.3),
+              blurRadius: 8),
         ],
       ),
       child: Center(
         child: Text(
           _initials(name),
           style: TextStyle(
-            color: Colors.white,
-            fontSize: size * 0.35,
-            fontWeight: FontWeight.w800,
-          ),
+              color: Colors.white,
+              fontSize: size * 0.35,
+              fontWeight: FontWeight.w800),
         ),
       ),
     );
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// COMMENT TILE — com toque no avatar/nome para ver perfil
+// ═══════════════════════════════════════════════════════════════════
 class _CommentTile extends StatefulWidget {
   final CommentModel comment;
   final String initials;
@@ -604,6 +1019,7 @@ class _CommentTile extends StatefulWidget {
   final String currentUserId;
   final bool isAdmin;
   final VoidCallback onDelete;
+  final VoidCallback onTapUser;
 
   const _CommentTile({
     Key? key,
@@ -613,6 +1029,7 @@ class _CommentTile extends StatefulWidget {
     required this.currentUserId,
     required this.isAdmin,
     required this.onDelete,
+    required this.onTapUser,
   }) : super(key: key);
 
   @override
@@ -629,11 +1046,8 @@ class _CommentTileState extends State<_CommentTile>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 350),
-    );
-    _opacity =
-        CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+        vsync: this, duration: const Duration(milliseconds: 350));
+    _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
     _slide =
         Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero)
             .animate(
@@ -647,14 +1061,11 @@ class _CommentTileState extends State<_CommentTile>
     super.dispose();
   }
 
-  bool get _isOwner =>
-      widget.comment.userId == widget.currentUserId;
-
+  bool get _isOwner => widget.comment.userId == widget.currentUserId;
   bool get _canDelete => _isOwner || widget.isAdmin;
 
   void _confirmDelete(BuildContext context) {
     final rootNav = Navigator.of(context, rootNavigator: true);
-
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -665,10 +1076,8 @@ class _CommentTileState extends State<_CommentTile>
           side: BorderSide(
               color: AppColors.primaryOrange.withOpacity(0.2)),
         ),
-        title: const Text(
-          'Excluir comentário?',
-          style: TextStyle(color: Colors.white, fontSize: 16),
-        ),
+        title: const Text('Excluir comentário?',
+            style: TextStyle(color: Colors.white, fontSize: 16)),
         content: Text(
           widget.isAdmin && !_isOwner
               ? 'Você está excluindo o comentário de ${widget.comment.userName} como administrador.'
@@ -679,23 +1088,18 @@ class _CommentTileState extends State<_CommentTile>
         actions: [
           TextButton(
             onPressed: () => rootNav.pop(),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
+            child: const Text('Cancelar',
+                style: TextStyle(color: AppColors.textSecondary)),
           ),
           TextButton(
             onPressed: () {
               rootNav.pop();
               widget.onDelete();
             },
-            child: const Text(
-              'Excluir',
-              style: TextStyle(
-                color: AppColors.emergencyRed,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            child: const Text('Excluir',
+                style: TextStyle(
+                    color: AppColors.emergencyRed,
+                    fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -709,26 +1113,33 @@ class _CommentTileState extends State<_CommentTile>
       [const Color(0xFFE65100), const Color(0xFF8D3200)],
     ];
     final name = widget.comment.userName;
-    final pair = colorPairs[name.codeUnitAt(0) % colorPairs.length];
+    final pair = colorPairs[
+        name.isNotEmpty ? name.codeUnitAt(0) % colorPairs.length : 0];
 
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: pair,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return GestureDetector(
+      onTap: widget.onTapUser,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+              colors: pair,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight),
+          boxShadow: [
+            BoxShadow(
+                color: AppColors.primaryOrange.withOpacity(0.2),
+                blurRadius: 6),
+          ],
         ),
-      ),
-      child: Center(
-        child: Text(
-          widget.initials,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
+        child: Center(
+          child: Text(
+            widget.initials,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w800),
           ),
         ),
       ),
@@ -763,31 +1174,42 @@ class _CommentTileState extends State<_CommentTile>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
                           child: Row(
                             children: [
+                              // Nome clicável
                               Flexible(
-                                child: Text(
-                                  widget.comment.userName,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: _isOwner
-                                        ? AppColors.primaryOrange
-                                        : Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
+                                child: GestureDetector(
+                                  onTap: widget.onTapUser,
+                                  child: Text(
+                                    widget.comment.userName,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: _isOwner
+                                          ? AppColors.primaryOrange
+                                          : Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      decoration:
+                                          TextDecoration.underline,
+                                      decorationColor: _isOwner
+                                          ? AppColors.primaryOrange
+                                              .withOpacity(0.4)
+                                          : Colors.white
+                                              .withOpacity(0.2),
+                                      decorationStyle:
+                                          TextDecorationStyle.dotted,
+                                    ),
                                   ),
                                 ),
                               ),
                               if (_isOwner) ...[
                                 const SizedBox(width: 5),
                                 Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 1),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 5, vertical: 1),
                                   decoration: BoxDecoration(
                                     borderRadius:
                                         BorderRadius.circular(4),
@@ -807,14 +1229,14 @@ class _CommentTileState extends State<_CommentTile>
                               ],
                               const SizedBox(width: 5),
                               LevelBadgeInline(
-                                level: widget.comment.userLevel,
-                              ),
-                              // ── Mostra todas as conquistas ──
-                              if (widget.comment.userAchievements.isNotEmpty)
+                                  level: widget.comment.userLevel),
+                              if (widget
+                                  .comment.userAchievements.isNotEmpty)
                                 UnlockedBadgesRow(
                                   unlockedAchievements:
                                       widget.comment.userAchievements,
-                                  maxVisible: widget.comment.userAchievements.length,
+                                  maxVisible: widget
+                                      .comment.userAchievements.length,
                                   badgeSize: 9,
                                 ),
                             ],
@@ -825,9 +1247,8 @@ class _CommentTileState extends State<_CommentTile>
                             Text(
                               widget.timeAgo,
                               style: const TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 11,
-                              ),
+                                  color: AppColors.textMuted,
+                                  fontSize: 11),
                             ),
                             if (_canDelete) ...[
                               const SizedBox(width: 8),
