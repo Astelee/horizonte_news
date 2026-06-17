@@ -53,11 +53,11 @@ jobs:
 
       - name: Renomear APK
         run: |
-          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Horizonte-News-Universal.apk
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Horizonte-News.apk
 
       - name: Disponibilizar APK para Download
         uses: actions/upload-artifact@v4
         with:
           name: Horizonte-News-APK
-          path: build/app/outputs/flutter-apk/Horizonte-News-Universal.apk
+          path: build/app/outputs/flutter-apk/Horizonte-News.apk
           retention-days: 7
