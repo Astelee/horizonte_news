@@ -23,7 +23,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   late AnimationController _barCtrl;
   late AnimationController _fadeCtrl;
   late Animation<double> _glowAnim;
-  late Animation<double> _barAnim;
   late Animation<double> _fadeAnim;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -51,8 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
     );
 
-    _fadeAnim =
-        CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _barCtrl.forward();
@@ -253,7 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          '${XpService.levelTitle(data.level)}  •  Nível ${data.level}',
+                          '${BadgeConfig.levelTitle(data.level)}  •  Nível ${data.level}',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
@@ -538,7 +536,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ── EMBLEMAS (GRADE) ──────────────────────────────────────────────
+  // ── EMBLEMAS ──────────────────────────────────────────────────────
   Widget _buildAchievementsSection(UserXpData data) {
     final xpService = XpService();
     final achievements = xpService.getAllAchievements(data.achievements);
@@ -561,25 +559,38 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Cabeçalho
+            // ── Cabeçalho ─────────────────────────────────────────
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'EMBLEMAS',
-                  style: TextStyle(
-                    color: AppColors.primaryOrange,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 2,
-                  ),
+                Row(
+                  children: [
+                    const FaIcon(
+                      FontAwesomeIcons.medal,
+                      color: AppColors.primaryOrange,
+                      size: 13,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'EMBLEMAS',
+                      style: TextStyle(
+                        color: AppColors.primaryOrange,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ],
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    color: AppColors.primaryOrange.withOpacity(0.15),
+                    color: AppColors.primaryOrange.withOpacity(0.12),
+                    border: Border.all(
+                      color: AppColors.primaryOrange.withOpacity(0.3),
+                    ),
                   ),
                   child: Text(
                     '$unlockedCount / ${achievements.length}',
@@ -593,17 +604,30 @@ class _ProfileScreenState extends State<ProfileScreen>
               ],
             ),
 
-            // Grade de emblemas desbloqueados
+            // ── Desbloqueados ──────────────────────────────────────
             if (unlocked.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              const Text(
-                'OBTIDOS',
-                style: TextStyle(
-                  color: Color(0xFF555555),
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFF43B581),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'OBTIDOS',
+                    style: TextStyle(
+                      color: Color(0xFF43B581),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               GridView.builder(
@@ -614,25 +638,40 @@ class _ProfileScreenState extends State<ProfileScreen>
                   crossAxisCount: 4,
                   mainAxisSpacing: 10,
                   crossAxisSpacing: 10,
-                  childAspectRatio: 0.85,
+                  childAspectRatio: 0.82,
                 ),
                 itemCount: unlocked.length,
-                itemBuilder: (context, i) =>
-                    _EmblemCard(achievement: unlocked[i], unlocked: true),
+                itemBuilder: (context, i) => _EmblemCard(
+                  achievement: unlocked[i],
+                  unlocked: true,
+                ),
               ),
             ],
 
-            // Grade de emblemas bloqueados
+            // ── Bloqueados ─────────────────────────────────────────
             if (locked.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              const Text(
-                'BLOQUEADOS',
-                style: TextStyle(
-                  color: Color(0xFF333333),
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFF333333),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'BLOQUEADOS',
+                    style: TextStyle(
+                      color: Color(0xFF333333),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               GridView.builder(
@@ -643,11 +682,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                   crossAxisCount: 4,
                   mainAxisSpacing: 10,
                   crossAxisSpacing: 10,
-                  childAspectRatio: 0.85,
+                  childAspectRatio: 0.82,
                 ),
                 itemCount: locked.length,
-                itemBuilder: (context, i) =>
-                    _EmblemCard(achievement: locked[i], unlocked: false),
+                itemBuilder: (context, i) => _EmblemCard(
+                  achievement: locked[i],
+                  unlocked: false,
+                ),
               ),
             ],
           ],
@@ -691,7 +732,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// WIDGETS AUXILIARES
+// STAT CARD
 // ═══════════════════════════════════════════════════════════════════
 
 class _StatCard extends StatelessWidget {
@@ -748,115 +789,9 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _AchievementTile extends StatelessWidget {
-  final Achievement achievement;
-  const _AchievementTile({required this.achievement});
-
-  @override
-  Widget build(BuildContext context) {
-    final unlocked = achievement.unlocked;
-    final color = unlocked
-        ? BadgeConfig.achievementColor(achievement.icon)
-        : const Color(0xFF333333);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: unlocked
-            ? color.withOpacity(0.07)
-            : const Color(0xFF0F0F0F),
-        border: Border.all(
-          color: unlocked
-              ? color.withOpacity(0.3)
-              : const Color(0xFF1A1A1A),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: unlocked
-                  ? color.withOpacity(0.15)
-                  : const Color(0xFF1A1A1A),
-              border: Border.all(
-                color: unlocked
-                    ? color.withOpacity(0.4)
-                    : const Color(0xFF2A2A2A),
-                width: 1.5,
-              ),
-            ),
-            child: Center(
-              child: FaIcon(
-                BadgeConfig.achievementIcon(achievement.icon),
-                size: 16,
-                color: unlocked ? color : const Color(0xFF3A3A3A),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  achievement.title,
-                  style: TextStyle(
-                    color: unlocked
-                        ? Colors.white
-                        : const Color(0xFF444444),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  achievement.description,
-                  style: TextStyle(
-                    color: unlocked
-                        ? const Color(0xFF9E9E9E)
-                        : const Color(0xFF333333),
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (unlocked)
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: color.withOpacity(0.15),
-              ),
-              child: Text(
-                'OBTIDA',
-                style: TextStyle(
-                  color: color,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1,
-                ),
-              ),
-            )
-          else
-            const FaIcon(
-              FontAwesomeIcons.lock,
-              color: Color(0xFF333333),
-              size: 14,
-            ),
-        ],
-      ),
-    );
-  }
-}
+// ═══════════════════════════════════════════════════════════════════
+// ACTION BUTTON
+// ═══════════════════════════════════════════════════════════════════
 
 class _ActionButton extends StatelessWidget {
   final IconData icon;
@@ -873,14 +808,12 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        isDestructive ? AppColors.emergencyRed : Colors.white;
+    final color = isDestructive ? AppColors.emergencyRed : Colors.white;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           color: const Color(0xFF0A0A0A),
@@ -913,6 +846,10 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// PROFILE SKELETON
+// ═══════════════════════════════════════════════════════════════════
+
 class _ProfileSkeleton extends StatelessWidget {
   const _ProfileSkeleton();
 
@@ -922,8 +859,8 @@ class _ProfileSkeleton extends StatelessWidget {
       padding: EdgeInsets.all(16.0),
       child: Center(
         child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(
-              AppColors.primaryOrange),
+          valueColor:
+              AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
           strokeWidth: 2,
         ),
       ),
@@ -932,7 +869,7 @@ class _ProfileSkeleton extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// DIALOG DE LOGOUT
+// LOGOUT DIALOG
 // ═══════════════════════════════════════════════════════════════════
 
 class _LogoutDialog extends StatelessWidget {
@@ -994,8 +931,8 @@ class _LogoutDialog extends StatelessWidget {
                       height: 46,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: const Color(0xFF2A2A2A)),
+                        border:
+                            Border.all(color: const Color(0xFF2A2A2A)),
                       ),
                       child: const Center(
                         child: Text(
@@ -1019,11 +956,9 @@ class _LogoutDialog extends StatelessWidget {
                       height: 46,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        color:
-                            AppColors.emergencyRed.withOpacity(0.15),
+                        color: AppColors.emergencyRed.withOpacity(0.15),
                         border: Border.all(
-                          color:
-                              AppColors.emergencyRed.withOpacity(0.4),
+                          color: AppColors.emergencyRed.withOpacity(0.4),
                         ),
                       ),
                       child: const Center(
@@ -1050,10 +985,10 @@ class _LogoutDialog extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// CARD DE EMBLEMA EM GRADE
+// EMBLEM CARD — versão premium com gradiente e animação
 // ═══════════════════════════════════════════════════════════════════
 
-class _EmblemCard extends StatelessWidget {
+class _EmblemCard extends StatefulWidget {
   final Achievement achievement;
   final bool unlocked;
 
@@ -1063,163 +998,335 @@ class _EmblemCard extends StatelessWidget {
   });
 
   @override
+  State<_EmblemCard> createState() => _EmblemCardState();
+}
+
+class _EmblemCardState extends State<_EmblemCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _shimmerCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    );
+    if (widget.unlocked) {
+      _shimmerCtrl.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _shimmerCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final color = unlocked
-        ? BadgeConfig.achievementColor(achievement.icon)
-        : const Color(0xFF2A2A2A);
+    final color = widget.unlocked
+        ? BadgeConfig.achievementColor(widget.achievement.icon)
+        : const Color(0xFF1E1E1E);
+
+    final gradient = widget.unlocked
+        ? BadgeConfig.achievementGradient(widget.achievement.icon)
+        : [const Color(0xFF111111), const Color(0xFF111111)];
 
     return GestureDetector(
-      onTap: () {
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            backgroundColor: const Color(0xFF0A0A0A),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
+      onTap: () => _showDetail(context, color, gradient),
+      child: AnimatedBuilder(
+        animation: _shimmerCtrl,
+        builder: (_, __) {
+          return Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: widget.unlocked
+                  ? LinearGradient(
+                      colors: [
+                        gradient[0].withOpacity(0.18),
+                        gradient[1].withOpacity(0.07),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              color: widget.unlocked ? null : const Color(0xFF0D0D0D),
+              border: Border.all(
+                color: widget.unlocked
+                    ? color.withOpacity(
+                        0.28 + 0.22 * _shimmerCtrl.value)
+                    : const Color(0xFF1A1A1A),
+                width: widget.unlocked ? 1.5 : 1,
+              ),
+              boxShadow: widget.unlocked
+                  ? [
+                      BoxShadow(
+                        color: color.withOpacity(
+                            0.10 + 0.10 * _shimmerCtrl.value),
+                        blurRadius: 14,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // ── Ícone com ShaderMask (gradiente real no ícone) ──
                 Container(
-                  width: 64,
-                  height: 64,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: color.withOpacity(0.15),
+                    gradient: widget.unlocked
+                        ? LinearGradient(
+                            colors: [
+                              gradient[0].withOpacity(0.28),
+                              gradient[1].withOpacity(0.12),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: widget.unlocked
+                        ? null
+                        : const Color(0xFF161616),
                     border: Border.all(
-                        color: color.withOpacity(0.4), width: 2),
+                      color: widget.unlocked
+                          ? color.withOpacity(0.5)
+                          : const Color(0xFF222222),
+                      width: 1.5,
+                    ),
                   ),
                   child: Center(
-                    child: FaIcon(
-                      BadgeConfig.achievementIcon(achievement.icon),
-                      size: 26,
-                      color: unlocked ? color : const Color(0xFF3A3A3A),
-                    ),
+                    child: widget.unlocked
+                        ? ShaderMask(
+                            shaderCallback: (bounds) => LinearGradient(
+                              colors: gradient,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ).createShader(bounds),
+                            child: FaIcon(
+                              BadgeConfig.achievementIcon(
+                                  widget.achievement.icon),
+                              size: 17,
+                              color: Colors.white,
+                            ),
+                          )
+                        : FaIcon(
+                            BadgeConfig.achievementIcon(
+                                widget.achievement.icon),
+                            size: 17,
+                            color: const Color(0xFF2A2A2A),
+                          ),
                   ),
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  achievement.title,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: unlocked
-                        ? Colors.white
-                        : const Color(0xFF444444),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  achievement.description,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    color: unlocked
-                        ? color.withOpacity(0.15)
-                        : const Color(0xFF1A1A1A),
-                  ),
+                const SizedBox(height: 7),
+                // ── Nome ───────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Text(
-                    unlocked ? 'OBTIDO' : 'BLOQUEADO',
+                    widget.achievement.title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: unlocked
-                          ? color
-                          : const Color(0xFF444444),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1,
+                      color: widget.unlocked
+                          ? Colors.white
+                          : const Color(0xFF2E2E2E),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      height: 1.3,
                     ),
                   ),
                 ),
+                const SizedBox(height: 4),
+                // ── Indicador desbloqueado / cadeado ───────────────
+                if (widget.unlocked)
+                  Container(
+                    width: 5,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color,
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withOpacity(0.9),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  const FaIcon(
+                    FontAwesomeIcons.lock,
+                    size: 8,
+                    color: Color(0xFF2A2A2A),
+                  ),
               ],
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Dialog de detalhe do emblema ──────────────────────────────────
+  void _showDetail(
+      BuildContext context, Color color, List<Color> gradient) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            color: const Color(0xFF0C0C0C),
+            border: Border.all(
+              color: widget.unlocked
+                  ? color.withOpacity(0.45)
+                  : const Color(0xFF1A1A1A),
+              width: 1.5,
+            ),
+            boxShadow: widget.unlocked
+                ? [
+                    BoxShadow(
+                      color: color.withOpacity(0.22),
+                      blurRadius: 48,
+                      spreadRadius: 0,
+                    ),
+                  ]
+                : null,
           ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: unlocked
-              ? color.withOpacity(0.08)
-              : const Color(0xFF0F0F0F),
-          border: Border.all(
-            color: unlocked
-                ? color.withOpacity(0.3)
-                : const Color(0xFF1A1A1A),
-            width: 1,
-          ),
-          boxShadow: unlocked
-              ? [
-                  BoxShadow(
-                    color: color.withOpacity(0.1),
-                    blurRadius: 8,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Ícone grande ──────────────────────────────────────
+              Container(
+                width: 84,
+                height: 84,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: widget.unlocked
+                      ? LinearGradient(
+                          colors: [
+                            gradient[0].withOpacity(0.3),
+                            gradient[1].withOpacity(0.1),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                  color: widget.unlocked
+                      ? null
+                      : const Color(0xFF161616),
+                  border: Border.all(
+                    color: widget.unlocked
+                        ? color.withOpacity(0.6)
+                        : const Color(0xFF222222),
+                    width: 2,
                   ),
-                ]
-              : null,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: unlocked
-                    ? color.withOpacity(0.15)
-                    : const Color(0xFF1A1A1A),
-                border: Border.all(
-                  color: unlocked
-                      ? color.withOpacity(0.4)
-                      : const Color(0xFF2A2A2A),
-                  width: 1.5,
+                  boxShadow: widget.unlocked
+                      ? [
+                          BoxShadow(
+                            color: color.withOpacity(0.35),
+                            blurRadius: 28,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Center(
+                  child: widget.unlocked
+                      ? ShaderMask(
+                          shaderCallback: (b) => LinearGradient(
+                            colors: gradient,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ).createShader(b),
+                          child: FaIcon(
+                            BadgeConfig.achievementIcon(
+                                widget.achievement.icon),
+                            size: 34,
+                            color: Colors.white,
+                          ),
+                        )
+                      : FaIcon(
+                          BadgeConfig.achievementIcon(
+                              widget.achievement.icon),
+                          size: 34,
+                          color: const Color(0xFF2A2A2A),
+                        ),
                 ),
               ),
-              child: Center(
-                child: FaIcon(
-                  BadgeConfig.achievementIcon(achievement.icon),
-                  size: 16,
-                  color: unlocked ? color : const Color(0xFF3A3A3A),
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                achievement.title,
+              const SizedBox(height: 18),
+              Text(
+                widget.achievement.title,
                 textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: unlocked
+                  color: widget.unlocked
                       ? Colors.white
-                      : const Color(0xFF333333),
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  height: 1.3,
+                      : const Color(0xFF3A3A3A),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
-            if (!unlocked)
-              const Padding(
-                padding: EdgeInsets.only(top: 3),
-                child: FaIcon(
-                  FontAwesomeIcons.lock,
-                  size: 8,
-                  color: Color(0xFF333333),
+              const SizedBox(height: 8),
+              Text(
+                widget.achievement.description,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF666666),
+                  fontSize: 13,
+                  height: 1.5,
                 ),
               ),
-          ],
+              const SizedBox(height: 18),
+              // ── Badge de status ───────────────────────────────────
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 18, vertical: 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: widget.unlocked
+                      ? LinearGradient(colors: gradient)
+                      : null,
+                  color: widget.unlocked
+                      ? null
+                      : const Color(0xFF161616),
+                  border: widget.unlocked
+                      ? null
+                      : Border.all(color: const Color(0xFF2A2A2A)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      widget.unlocked
+                          ? Icons.check_circle_rounded
+                          : Icons.lock_rounded,
+                      color: widget.unlocked
+                          ? Colors.white
+                          : const Color(0xFF444444),
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      widget.unlocked ? 'OBTIDO' : 'BLOQUEADO',
+                      style: TextStyle(
+                        color: widget.unlocked
+                            ? Colors.white
+                            : const Color(0xFF444444),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
