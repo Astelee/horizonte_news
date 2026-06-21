@@ -473,7 +473,7 @@ class MenuContextoAmigo extends StatelessWidget {
   final String? requestId;
 
   /// Se a conversa já tem chatId calculado (vindo da aba Conversas),
-  /// passe aqui para "Limpar Conversa" funcionar sem recalcular.
+  /// passe aqui para "Excluir Conversa" funcionar sem recalcular.
   final String? chatId;
 
   /// Callback opcional chamado depois de qualquer ação que exija recarregar
@@ -522,30 +522,24 @@ class MenuContextoAmigo extends StatelessWidget {
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // CORREÇÃO DO BUG "Limpar Conversa":
-  // O bottom sheet era fechado com Navigator.pop(context) ANTES de abrir
-  // o showDialog, reutilizando o mesmo context. Como esse context pertence
-  // à árvore do bottom sheet (que já estava sendo desmontada), o diálogo
-  // de confirmação podia abrir "preso" a um contexto morto, fazendo os
-  // botões Cancelar/Limpar não responderem ao toque.
+  // EXCLUIR CONVERSA (substitui o antigo "Limpar Conversa" deste menu):
+  // - Adiciona meu uid a `hiddenFor` no doc do chat, então a query da
+  //   aba Conversas (AbaConversas) filtra esse chat fora da minha lista.
+  // - NÃO apaga nenhuma mensagem — a outra pessoa continua vendo a
+  //   conversa normalmente, com o histórico intacto.
+  // - Quando a outra pessoa enviar uma mensagem nova, o chat_screen.dart
+  //   remove automaticamente meu uid de `hiddenFor`, e a conversa volta
+  //   a aparecer na minha lista.
   //
-  // A correção: guardamos a referência do Navigator RAIZ (do app) antes de
-  // fechar o bottom sheet, usamos o context do widget raiz (via
-  // navigatorKey implícito do MaterialApp através de rootNavigator) para
-  // abrir o diálogo, e usamos a mesma referência salva (rootNav) para
-  // fechar o diálogo depois — nunca dependendo do context do bottom sheet
-  // já fechado.
+  // Mantém a mesma correção de Navigator/contexto usada antes: captura o
+  // Navigator raiz e seu context ANTES de fechar o bottom sheet, evitando
+  // o bug de diálogo "preso" a um contexto já desmontado.
   // ─────────────────────────────────────────────────────────────────
-  Future<void> _limparConversa(BuildContext context) async {
+  Future<void> _excluirConversa(BuildContext context) async {
     final rootNav = Navigator.of(context, rootNavigator: true);
     final rootContext = rootNav.context;
 
-    // Fecha o bottom sheet primeiro.
     rootNav.pop();
-
-    // Pequeno delay para garantir que a animação de fechamento do bottom
-    // sheet termine antes de empilhar o novo diálogo — evita conflito de
-    // animações simultâneas no Navigator, que também pode travar o toque.
     await Future.delayed(const Duration(milliseconds: 150));
 
     final confirma = await showDialog<bool>(
@@ -556,11 +550,14 @@ class MenuContextoAmigo extends StatelessWidget {
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
-          'Limpar conversa?',
+          'Excluir conversa?',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
         content: const Text(
-          'Todas as mensagens serão apagadas apenas para você. O contato permanece na sua lista de amigos.',
+          'A conversa será removida apenas da sua lista. @${''}'
+          'O contato e o histórico de mensagens permanecem intactos para '
+          'a outra pessoa, e a conversa volta a aparecer aqui se ela '
+          'enviar uma nova mensagem.',
           style: TextStyle(color: Color(0xFF999999), height: 1.5),
         ),
         actions: [
@@ -572,7 +569,7 @@ class MenuContextoAmigo extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text(
-              'Limpar',
+              'Excluir',
               style: TextStyle(
                   color: Color(0xFFED4245), fontWeight: FontWeight.w700),
             ),
@@ -583,22 +580,8 @@ class MenuContextoAmigo extends StatelessWidget {
 
     if (confirma != true) return;
 
-    final messagesRef = db
-        .collection('chats')
-        .doc(_chatIdResolvido)
-        .collection('messages');
-
-    final snap = await messagesRef.get();
-    final batch = db.batch();
-    for (final doc in snap.docs) {
-      batch.update(doc.reference, {
-        'deletedFor': FieldValue.arrayUnion([myUid]),
-      });
-    }
-    await batch.commit();
-
-    // Zera o resumo da última mensagem mostrado no card da lista
     await db.collection('chats').doc(_chatIdResolvido).set({
+      'hiddenFor': FieldValue.arrayUnion([myUid]),
       'unreadCount_$myUid': 0,
     }, SetOptions(merge: true));
 
@@ -751,10 +734,10 @@ class MenuContextoAmigo extends StatelessWidget {
             onTap: () => Navigator.of(context, rootNavigator: true).pop(),
           ),
           _ItemMenu(
-            icon: Icons.delete_sweep_rounded,
-            label: 'Limpar Conversa',
+            icon: Icons.delete_outline_rounded,
+            label: 'Excluir Conversa',
             color: const Color(0xFF747F8D),
-            onTap: () => _limparConversa(context),
+            onTap: () => _excluirConversa(context),
           ),
           const Divider(color: Color(0xFF1A1A1A), height: 20),
           _ItemMenu(
