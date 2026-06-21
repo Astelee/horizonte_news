@@ -40,9 +40,8 @@ class AbaConversas extends StatelessWidget {
 
         // ── Filtra fora chats que EU excluí (hiddenFor contém meu uid) ──
         // A conversa volta a aparecer automaticamente assim que:
-        // - uma nova mensagem remover meu uid de hiddenFor (chat_screen.dart
-        //   no momento do envio, agora removendo AMBOS os participantes), ou
-        // - eu abrir o chat novamente pelo perfil do amigo (_unhideForMe).
+        // - uma nova mensagem remover meu uid de hiddenFor, ou
+        // - eu abrir o chat novamente pelo perfil do amigo.
         final allDocs = snap.data?.docs ?? [];
         final docs = allDocs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
