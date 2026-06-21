@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/app_colors.dart';
-import 'friends_screen.dart';
+import 'amigos_modelos.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // MODELO DE MENSAGEM
@@ -56,7 +56,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String get _myUid => _auth.currentUser?.uid ?? '';
 
-  // chatId = UIDs ordenados para garantir consistência
   String get _chatId {
     final ids = [_myUid, widget.friend.uid]..sort();
     return '${ids[0]}_${ids[1]}';
@@ -93,7 +92,6 @@ class _ChatScreenState extends State<ChatScreen> {
     HapticFeedback.lightImpact();
 
     try {
-      // Garante que o documento do chat existe
       await _db.collection('chats').doc(_chatId).set({
         'participants': [_myUid, widget.friend.uid],
         'lastMessage': text,
@@ -101,7 +99,6 @@ class _ChatScreenState extends State<ChatScreen> {
         'lastMessageBy': _myUid,
       }, SetOptions(merge: true));
 
-      // Adiciona a mensagem
       await _messagesRef.add({
         'text': text,
         'senderUid': _myUid,
@@ -128,7 +125,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _deleteMessage(MessageModel msg) async {
-    // Apaga só para mim — adiciona meu UID no array deletedFor
     await _messagesRef.doc(msg.id).update({
       'deletedFor': FieldValue.arrayUnion([_myUid]),
     });
@@ -171,7 +167,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (confirm != true) return;
 
-    // Busca todas as mensagens e adiciona meu UID em deletedFor
     final snap = await _messagesRef.get();
     final batch = _db.batch();
     for (final doc in snap.docs) {
@@ -210,7 +205,6 @@ class _ChatScreenState extends State<ChatScreen> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            // Copiar
             _OptionTile(
               icon: Icons.copy_rounded,
               label: 'Copiar mensagem',
@@ -230,7 +224,6 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
             const SizedBox(height: 8),
-            // Apagar
             _OptionTile(
               icon: Icons.delete_outline_rounded,
               label: 'Apagar mensagem (para mim)',
@@ -260,7 +253,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ── APP BAR ──────────────────────────────────────────────────────
   Widget _buildAppBar() {
     return Container(
       color: Colors.black,
@@ -276,7 +268,6 @@ class _ChatScreenState extends State<ChatScreen> {
             icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
-          // Avatar
           Stack(
             children: [
               Container(
@@ -322,7 +313,6 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           ),
           const SizedBox(width: 12),
-          // Nome e status
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -347,7 +337,6 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             ),
           ),
-          // Menu de opções
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
             color: const Color(0xFF0A0A0A),
@@ -380,7 +369,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ── LISTA DE MENSAGENS ────────────────────────────────────────────
   Widget _buildMessageList() {
     return StreamBuilder<QuerySnapshot>(
       stream: _messagesRef
@@ -398,7 +386,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
         final allDocs = snap.data?.docs ?? [];
 
-        // Filtra mensagens apagadas para mim
         final docs = allDocs.where((doc) {
           final d = doc.data() as Map<String, dynamic>;
           final deletedFor =
@@ -438,7 +425,6 @@ class _ChatScreenState extends State<ChatScreen> {
           );
         }
 
-        // Rola para o final ao receber novas mensagens
         _scrollToBottom();
 
         return ListView.builder(
@@ -449,7 +435,6 @@ class _ChatScreenState extends State<ChatScreen> {
             final msg = MessageModel.fromDoc(docs[i]);
             final isMe = msg.senderUid == _myUid;
 
-            // Verifica se mostra separador de data
             final showDate = i == 0 ||
                 !_isSameDay(
                   MessageModel.fromDoc(docs[i - 1]).sentAt,
@@ -472,7 +457,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ── BARRA DE INPUT ────────────────────────────────────────────────
   Widget _buildInputBar() {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
 
@@ -484,7 +468,6 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       child: Row(
         children: [
-          // Campo de texto
           Expanded(
             child: Container(
               decoration: BoxDecoration(
@@ -513,7 +496,6 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           const SizedBox(width: 10),
-          // Botão enviar
           GestureDetector(
             onTap: _sending ? null : _sendMessage,
             child: AnimatedContainer(
