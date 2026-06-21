@@ -144,6 +144,13 @@ class _ChatScreenState extends State<ChatScreen> {
         'lastMessageBy': _myUid,
         'lastMessageStatus': 'sent',
         'unreadCount_${widget.friend.uid}': FieldValue.increment(1),
+        // Ao enviar uma mensagem, removo o destinatário de hiddenFor:
+        // se ele tinha "excluído" essa conversa da própria lista, ela
+        // volta a aparecer para ele agora que chegou algo novo.
+        // Meu próprio uid não é tocado aqui — se eu mesmo tiver
+        // escondido essa conversa, ela só volta para mim quando EU
+        // mandar ou receber mensagem nova, nunca antes disso.
+        'hiddenFor': FieldValue.arrayRemove([widget.friend.uid]),
       }, SetOptions(merge: true));
 
       final docRef = await _messagesRef.add({
@@ -185,6 +192,14 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  // ─────────────────────────────────────────────────────────────────
+  // LIMPAR CONVERSA (continua só dentro do chat):
+  // Apaga as mensagens (para mim) e agora também limpa o resumo
+  // (lastMessage/lastMessageAt/lastMessageBy/lastMessageStatus) do doc
+  // do chat — corrigindo o bug em que o card da lista de conversas
+  // continuava mostrando a última mensagem antiga mesmo depois de
+  // limpar tudo dentro do chat.
+  // ─────────────────────────────────────────────────────────────────
   Future<void> _clearConversation() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -230,6 +245,17 @@ class _ChatScreenState extends State<ChatScreen> {
       });
     }
     await batch.commit();
+
+    // Limpa o resumo da última mensagem mostrado no card da lista de
+    // conversas, evitando o card "fantasma" com texto antigo.
+    await _db.collection('chats').doc(_chatId).set({
+      'lastMessage': '',
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageBy': '',
+      'lastMessageStatus': '',
+      'unreadCount_$_myUid': 0,
+    }, SetOptions(merge: true));
+
     HapticFeedback.mediumImpact();
   }
 
