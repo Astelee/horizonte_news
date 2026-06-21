@@ -100,7 +100,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     final post = ModalRoute.of(context)?.settings.arguments as PostModel?;
     if (post == null) return;
 
-    await AdminService().recordPostView(
+    await AdminService().recordUniqueView(
       postId: post.id,
       postTitle: post.title,
     );
@@ -463,14 +463,16 @@ class _PostDetailScreenState extends State<PostDetailScreen>
           ),
 
           // 👁️ Visualizações únicas via Firestore
+          // Campo correto: 'uniqueViewers' (gravado por
+          // AdminService.recordUniqueView em post_views/{postId})
           StreamBuilder<DocumentSnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('post_views')
                 .doc(post.id)
                 .snapshots(),
             builder: (context, snap) {
-              final views =
-                  (snap.data?.data() as Map<String, dynamic>?)?['uniqueViews']
+              final views = (snap.data?.data()
+                          as Map<String, dynamic>?)?['uniqueViewers']
                       as int? ??
                   0;
               return Row(
