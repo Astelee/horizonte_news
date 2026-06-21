@@ -95,9 +95,14 @@ class AdminService {
 
   // ── Visualizações ────────────────────────────────────────────────
 
-  /// Registra que um usuário visualizou uma matéria.
+  /// Registra visualização ÚNICA por usuário.
   /// Salva em: post_views/{postId}/viewers/{userId}
-  Future<void> recordPostView({
+  ///
+  /// REGRAS:
+  /// - Primeira abertura do usuário → conta +1 em uniqueViewers e +1 em totalViews.
+  /// - Reaberturas / refresh do mesmo usuário → NÃO incrementa nada,
+  ///   apenas atualiza lastViewedAt para fins estatísticos internos.
+  Future<void> recordUniqueView({
     required String postId,
     required String postTitle,
   }) async {
@@ -114,40 +119,45 @@ class AdminService {
       final existing = await viewRef.get();
 
       if (existing.exists) {
-        // Já visualizou antes — apenas atualiza o contador e timestamp
+        // Já visualizou antes — NÃO incrementa nenhum contador.
+        // Apenas atualiza o timestamp da última visita, sem somar view nova.
         await viewRef.update({
-          'viewCount': FieldValue.increment(1),
           'lastViewedAt': FieldValue.serverTimestamp(),
         });
-      } else {
-        // Primeira visualização deste usuário nesta matéria
-        await viewRef.set({
-          'userId': user.uid,
-          'userName': user.displayName ?? user.email?.split('@').first ?? 'Leitor',
-          'userEmail': user.email ?? '',
-          'postId': postId,
-          'postTitle': postTitle,
-          'viewCount': 1,
-          'firstViewedAt': FieldValue.serverTimestamp(),
-          'lastViewedAt': FieldValue.serverTimestamp(),
-        });
-
-        // Incrementa contador total da matéria
-        await _db.collection('post_views').doc(postId).set({
-          'postId': postId,
-          'postTitle': postTitle,
-          'totalViews': FieldValue.increment(1),
-          'uniqueViewers': FieldValue.increment(1),
-          'lastViewedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        return;
       }
 
-      // Sempre incrementa o total de views (mesmo visitante voltando)
-      await _db.collection('post_views').doc(postId).update({
-        'totalViews': FieldValue.increment(1),
+      // Primeira visualização deste usuário nesta matéria.
+      await viewRef.set({
+        'userId': user.uid,
+        'userName': user.displayName ?? user.email?.split('@').first ?? 'Leitor',
+        'userEmail': user.email ?? '',
+        'postId': postId,
+        'postTitle': postTitle,
+        'firstViewedAt': FieldValue.serverTimestamp(),
         'lastViewedAt': FieldValue.serverTimestamp(),
       });
+
+      // Incrementa contadores agregados da matéria — uma única vez.
+      await _db.collection('post_views').doc(postId).set({
+        'postId': postId,
+        'postTitle': postTitle,
+        'totalViews': FieldValue.increment(1),
+        'uniqueViewers': FieldValue.increment(1),
+        'lastViewedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     } catch (_) {}
+  }
+
+  /// MANTIDO por compatibilidade com chamadas antigas, mas agora
+  /// delega para recordUniqueView (visualização única e correta).
+  /// Não use este método em código novo — use recordUniqueView.
+  @Deprecated('Use recordUniqueView para contagem correta de visualizações únicas')
+  Future<void> recordPostView({
+    required String postId,
+    required String postTitle,
+  }) async {
+    await recordUniqueView(postId: postId, postTitle: postTitle);
   }
 
   /// Busca todos os visualizadores de uma matéria específica.
@@ -169,11 +179,17 @@ class AdminService {
         .snapshots();
   }
 
-  /// Busca total de visualizações de uma matéria.
+  /// Busca total de visualizações de uma matéria (snapshot único).
   Future<Map<String, dynamic>?> getPostViewStats(String postId) async {
     final doc = await _db.collection('post_views').doc(postId).get();
     if (!doc.exists) return null;
     return doc.data();
+  }
+
+  /// Stream em tempo real do total de visualizações únicas de uma matéria.
+  /// Use isto na tela de leitura para exibir o contador 👁️ ao vivo.
+  Stream<DocumentSnapshot> postViewStatsStream(String postId) {
+    return _db.collection('post_views').doc(postId).snapshots();
   }
 
   // ── Estatísticas ─────────────────────────────────────────────────
