@@ -1,23 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'chat_screen.dart';
 import 'amigos_modelos.dart';
 import 'amigos_widgets.dart';
-import 'amigos_perfil.dart';
 
-class AbaAmigos extends StatelessWidget {
+class AbaPedidos extends StatelessWidget {
   final String myUid;
   final FirebaseFirestore db;
-  final FriendFilter filter;
-  final String searchQuery;
 
-  const AbaAmigos({
+  const AbaPedidos({
     Key? key,
     required this.myUid,
     required this.db,
-    required this.filter,
-    required this.searchQuery,
   }) : super(key: key);
 
   @override
@@ -25,369 +19,311 @@ class AbaAmigos extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: db
           .collection('friend_requests')
-          .where('status', isEqualTo: 'accepted')
-          .where('participants', arrayContains: myUid)
-          .orderBy('acceptedAt', descending: true)
+          .where('toUid', isEqualTo: myUid)
+          .where('status', isEqualTo: 'pending')
+          .orderBy('sentAt', descending: true)
           .snapshots(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const EstadoCarregando();
         }
         if (!snap.hasData || snap.data!.docs.isEmpty) {
-          return const EstadoSemAmigos();
+          return const EstadoVazio(
+            icon: Icons.mark_email_read_rounded,
+            titulo: 'Sem pedidos pendentes',
+            subtitulo: 'Quando alguém te adicionar, aparece aqui',
+          );
         }
 
-        return FutureBuilder<List<_FriendComConversa>>(
-          future: _carregarAmigosComConversa(snap.data!.docs),
-          builder: (context, friendsSnap) {
-            if (!friendsSnap.hasData) return const EstadoCarregando();
+        final docs = snap.data!.docs;
 
-            var lista = friendsSnap.data!;
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final data = docs[i].data() as Map<String, dynamic>;
+            final fromUid = data['fromUid'] as String;
 
-            switch (filter) {
-              case FriendFilter.online:
-                lista = lista.where((f) => f.friend.isOnline).toList();
-                break;
-              case FriendFilter.offline:
-                lista = lista.where((f) => !f.friend.isOnline).toList();
-                break;
-              case FriendFilter.favorites:
-                lista = lista.where((f) => f.friend.isFavorite).toList();
-                break;
-              case FriendFilter.recent:
-                lista.sort((a, b) =>
-                    (b.friend.lastMessageTime ?? DateTime(0))
-                        .compareTo(a.friend.lastMessageTime ?? DateTime(0)));
-                break;
-              case FriendFilter.all:
-                break;
-            }
-
-            if (searchQuery.isNotEmpty) {
-              lista = lista
-                  .where((f) =>
-                      f.friend.displayName
-                          .toLowerCase()
-                          .contains(searchQuery) ||
-                      f.friend.username.toLowerCase().contains(searchQuery))
-                  .toList();
-            }
-
-            lista.sort((a, b) {
-              if (a.friend.isFavorite && !b.friend.isFavorite) return -1;
-              if (!a.friend.isFavorite && b.friend.isFavorite) return 1;
-              if (a.friend.isOnline && !b.friend.isOnline) return -1;
-              if (!a.friend.isOnline && b.friend.isOnline) return 1;
-              return 0;
-            });
-
-            if (lista.isEmpty) {
-              return const EstadoVazio(
-                icon: Icons.search_off_rounded,
-                titulo: 'Nenhum resultado',
-                subtitulo: 'Tente outro filtro ou busca',
-              );
-            }
-
-            final favoritos = lista.where((f) => f.friend.isFavorite).toList();
-            final outros = lista.where((f) => !f.friend.isFavorite).toList();
-
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-              children: [
-                if (favoritos.isNotEmpty) ...[
-                  CabecalhoSecao(
-                    icon: Icons.star_rounded,
-                    label: 'FAVORITOS',
-                    color: const Color(0xFFFAA61A),
-                    count: favoritos.length,
-                  ),
-                  ...favoritos.map((f) => CardAmigo(
-                        friend: f.friend,
-                        chatId: f.chatId,
-                        myUid: myUid,
-                        db: db,
-                      )),
-                  const SizedBox(height: 8),
-                ],
-                if (outros.isNotEmpty) ...[
-                  CabecalhoSecao(
-                    icon: Icons.people_rounded,
-                    label: 'TODOS OS AMIGOS',
-                    color: const Color(0xFF666666),
-                    count: outros.length,
-                  ),
-                  ...outros.map((f) => CardAmigo(
-                        friend: f.friend,
-                        chatId: f.chatId,
-                        myUid: myUid,
-                        db: db,
-                      )),
-                ],
-              ],
+            return FutureBuilder<DocumentSnapshot>(
+              future: db.collection('users_xp').doc(fromUid).get(),
+              builder: (context, userSnap) {
+                if (!userSnap.hasData || !userSnap.data!.exists) {
+                  return const SizedBox.shrink();
+                }
+                final remetente = FriendModel.fromDoc(userSnap.data!);
+                return _CardPedido(
+                  remetente: remetente,
+                  requestId: docs[i].id,
+                  myUid: myUid,
+                  db: db,
+                );
+              },
             );
           },
         );
       },
     );
   }
-
-  Future<List<_FriendComConversa>> _carregarAmigosComConversa(
-      List<QueryDocumentSnapshot> docs) async {
-    final futures = docs.map((doc) async {
-      final data = doc.data() as Map<String, dynamic>;
-      final friendUid = (data['fromUid'] as String) == myUid
-          ? data['toUid'] as String
-          : data['fromUid'] as String;
-
-      final userDoc = await db.collection('users_xp').doc(friendUid).get();
-      if (!userDoc.exists) return null;
-
-      FriendModel friend = FriendModel.fromDoc(userDoc);
-
-      try {
-        final chatId = _gerarChatId(myUid, friendUid);
-        final msgSnap = await db
-            .collection('chats')
-            .doc(chatId)
-            .collection('messages')
-            .orderBy('timestamp', descending: true)
-            .limit(1)
-            .get();
-
-        if (msgSnap.docs.isNotEmpty) {
-          final msgData = msgSnap.docs.first.data();
-          final texto = msgData['text'] as String? ?? '';
-          final ts = (msgData['timestamp'] as Timestamp?)?.toDate();
-          final remetente = msgData['senderId'] as String? ?? '';
-          final prefixo = remetente == myUid ? 'Você: ' : '';
-          friend = friend.copyWith(
-            lastMessage: '$prefixo$texto',
-            lastMessageTime: ts,
-            chatId: chatId,
-          );
-        } else {
-          friend = friend.copyWith(chatId: _gerarChatId(myUid, friendUid));
-        }
-      } catch (_) {
-        friend = friend.copyWith(chatId: _gerarChatId(myUid, friendUid));
-      }
-
-      return _FriendComConversa(friend: friend, chatId: friend.chatId ?? '');
-    });
-
-    final results = await Future.wait(futures);
-    return results.whereType<_FriendComConversa>().toList();
-  }
-
-  String _gerarChatId(String uid1, String uid2) {
-    final ids = [uid1, uid2]..sort();
-    return '${ids[0]}_${ids[1]}';
-  }
 }
 
-class _FriendComConversa {
-  final FriendModel friend;
-  final String chatId;
-  _FriendComConversa({required this.friend, required this.chatId});
-}
-
-class CardAmigo extends StatelessWidget {
-  final FriendModel friend;
-  final String chatId;
+// ═══════════════════════════════════════════════════════════════════
+// CARD DE SOLICITAÇÃO RECEBIDA
+// ═══════════════════════════════════════════════════════════════════
+class _CardPedido extends StatefulWidget {
+  final FriendModel remetente;
+  final String requestId;
   final String myUid;
   final FirebaseFirestore db;
 
-  const CardAmigo({
-    Key? key,
-    required this.friend,
-    required this.chatId,
+  const _CardPedido({
+    required this.remetente,
+    required this.requestId,
     required this.myUid,
     required this.db,
-  }) : super(key: key);
+  });
 
-  String _formatarTempo(DateTime? time) {
-    if (time == null) return '';
-    final diff = DateTime.now().difference(time);
-    if (diff.inMinutes < 1) return 'agora';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
-    if (diff.inHours < 24) return '${diff.inHours}h';
-    return '${diff.inDays}d';
+  @override
+  State<_CardPedido> createState() => _CardPedidoState();
+}
+
+class _CardPedidoState extends State<_CardPedido>
+    with SingleTickerProviderStateMixin {
+  bool _carregando = false;
+  late AnimationController _slideCtrl;
+  late Animation<Offset> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _slideCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 400));
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0.3, 0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _slideCtrl, curve: Curves.easeOut));
+    _slideCtrl.forward();
   }
 
-  void _abrirMenu(BuildContext context) {
-    HapticFeedback.mediumImpact();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => MenuContextoAmigo(
-        friend: friend,
-        myUid: myUid,
-        db: db,
-        chatId: chatId,
-      ),
-    );
+  @override
+  void dispose() {
+    _slideCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _aceitar() async {
+    setState(() => _carregando = true);
+    HapticFeedback.heavyImpact();
+    try {
+      await widget.db
+          .collection('friend_requests')
+          .doc(widget.requestId)
+          .update({
+        'status': 'accepted',
+        'acceptedAt': FieldValue.serverTimestamp(),
+      });
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
+
+  Future<void> _recusar() async {
+    setState(() => _carregando = true);
+    HapticFeedback.lightImpact();
+    try {
+      await widget.db
+          .collection('friend_requests')
+          .doc(widget.requestId)
+          .delete();
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => TelaPerfilAmigo(friend: friend)),
-      ),
-      onLongPress: () => _abrirMenu(context),
+    final remetente = widget.remetente;
+
+    return SlideTransition(
+      position: _slideAnim,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: const Color(0xFF0C0C0C),
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: friend.isFavorite
-                ? const Color(0xFFFAA61A).withOpacity(0.25)
-                : const Color(0xFF1A1A1A),
+            color: const Color(0xFFFF6B00).withOpacity(0.2),
           ),
           boxShadow: [
-            if (friend.isOnline)
-              BoxShadow(
-                color: friend.status.color.withOpacity(0.05),
-                blurRadius: 12,
-              ),
+            BoxShadow(
+              color: const Color(0xFFFF6B00).withOpacity(0.04),
+              blurRadius: 20,
+            ),
           ],
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              AmigoAvatar(friend: friend),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  friend.displayName,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                AmigoAvatar(friend: remetente),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              remetente.displayName,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
                               ),
-                              if (friend.isFavorite) ...[
-                                const SizedBox(width: 4),
-                                const Icon(Icons.star_rounded,
-                                    size: 12, color: Color(0xFFFAA61A)),
-                              ],
-                              if (friend.achievements.isNotEmpty)
-                                FileiraBadges(achievementIds: friend.achievements),
-                            ],
+                            ),
                           ),
+                          if (remetente.achievements.isNotEmpty)
+                            FileiraBadges(
+                                achievementIds: remetente.achievements),
+                        ],
+                      ),
+                      Text(
+                        '@${remetente.username}',
+                        style: TextStyle(
+                          color: const Color(0xFFFF6B00).withOpacity(0.7),
+                          fontSize: 12,
                         ),
-                        if (friend.lastMessageTime != null)
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          NivelBadge(level: remetente.level),
+                          const SizedBox(width: 6),
                           Text(
-                            _formatarTempo(friend.lastMessageTime),
+                            '${remetente.totalXp} XP',
                             style: const TextStyle(
-                                color: Color(0xFF555555), fontSize: 11),
+                              color: Color(0xFF444444),
+                              fontSize: 11,
+                            ),
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Text(
-                          '@${friend.username}',
-                          style: TextStyle(
-                            color: const Color(0xFFFF6B00).withOpacity(0.6),
-                            fontSize: 11,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        NivelBadge(level: friend.level),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    if (friend.isTyping)
-                      const IndicadorDigitando()
-                    else if (friend.lastMessage != null &&
-                        friend.lastMessage!.isNotEmpty)
-                      Text(
-                        friend.lastMessage!,
-                        style: TextStyle(
-                          color: friend.unreadCount > 0
-                              ? Colors.white.withOpacity(0.8)
-                              : const Color(0xFF555555),
-                          fontSize: 12,
-                          fontWeight: friend.unreadCount > 0
-                              ? FontWeight.w500
-                              : FontWeight.normal,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      )
-                    else
-                      Text(
-                        friend.status.label,
-                        style: TextStyle(
-                          color: friend.status.color.withOpacity(0.8),
-                          fontSize: 12,
-                        ),
+                        ],
                       ),
-                    const SizedBox(height: 6),
-                    BarraXp(friend: friend),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Column(
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF6B00).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: const Color(0xFFFF6B00).withOpacity(0.2)),
+                  ),
+                  child: const Text(
+                    'NOVO',
+                    style: TextStyle(
+                      color: Color(0xFFFF6B00),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (_carregando)
+              const SizedBox(
+                height: 42,
+                child: Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFFFF6B00),
+                  ),
+                ),
+              )
+            else
+              Row(
                 children: [
-                  if (friend.unreadCount > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF6B00),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${friend.unreadCount}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    )
-                  else
-                    GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => ChatScreen(friend: friend)),
-                      ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _aceitar,
                       child: Container(
-                        padding: const EdgeInsets.all(7),
+                        height: 42,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFF6B00).withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: const Color(0xFFFF6B00).withOpacity(0.2)),
+                          borderRadius: BorderRadius.circular(12),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  const Color(0xFFFF6B00).withOpacity(0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
-                        child: const Icon(Icons.chat_bubble_rounded,
-                            color: Color(0xFFFF6B00), size: 15),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_rounded,
+                                color: Colors.white, size: 16),
+                            SizedBox(width: 6),
+                            Text(
+                              'ACEITAR',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _recusar,
+                      child: Container(
+                        height: 42,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: const Color(0xFFED4245).withOpacity(0.08),
+                          border: Border.all(
+                            color:
+                                const Color(0xFFED4245).withOpacity(0.3),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.close_rounded,
+                                color: Color(0xFFED4245), size: 16),
+                            SizedBox(width: 6),
+                            Text(
+                              'RECUSAR',
+                              style: TextStyle(
+                                color: Color(0xFFED4245),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
