@@ -6,7 +6,8 @@ import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../providers/user_xp_provider.dart';
 import '../providers/admin_provider.dart';
-import '../screens/friends_screen.dart';
+import '../screens/amigos_modelos.dart';
+import '../screens/amigos_perfil.dart';
 import 'badge_widgets.dart';
 
 class CommentModel {
@@ -86,7 +87,6 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
   }
 
   Future<void> _loadData() async {
-    // Carrega dados do usuário e status de amizade em paralelo
     await Future.wait([
       _loadUserData(),
       _loadFriendStatus(),
@@ -154,7 +154,6 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
     Navigator.pop(context);
     if (_userData == null) return;
 
-    // Constrói FriendModel a partir dos dados carregados
     final doc = await _db.collection('users_xp').doc(widget.userId).get();
     if (!doc.exists) return;
 
@@ -163,7 +162,7 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => FriendProfileScreen(friend: friend),
+        builder: (_) => TelaPerfilAmigo(friend: friend),
       ),
     );
   }
@@ -202,7 +201,6 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Handle
           Container(
             width: 36,
             height: 4,
@@ -212,11 +210,8 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-
-          // Avatar + info
           Row(
             children: [
-              // Avatar grande
               Container(
                 width: 60,
                 height: 60,
@@ -289,8 +284,6 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
               ),
             ],
           ),
-
-          // Conquistas
           if (widget.userAchievements.isNotEmpty) ...[
             const SizedBox(height: 16),
             Align(
@@ -302,10 +295,7 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
               ),
             ),
           ],
-
           const SizedBox(height: 20),
-
-          // Botões de ação
           if (_isMe)
             _InfoBanner(
               icon: Icons.person_rounded,
@@ -327,7 +317,6 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
               ),
             )
           else ...[
-            // Botão adicionar amigo / status
             if (_friendRequestStatus == 'accepted')
               _InfoBanner(
                 icon: Icons.people_rounded,
@@ -389,10 +378,7 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                   ),
                 ),
               ),
-
             const SizedBox(height: 10),
-
-            // Botão ver perfil completo
             GestureDetector(
               onTap: _openFullProfile,
               child: Container(
@@ -425,7 +411,6 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
               ),
             ),
           ],
-
           const SizedBox(height: 8),
         ],
       ),
@@ -1179,7 +1164,6 @@ class _CommentTileState extends State<_CommentTile>
                         Expanded(
                           child: Row(
                             children: [
-                              // Nome clicável
                               Flexible(
                                 child: GestureDetector(
                                   onTap: widget.onTapUser,
