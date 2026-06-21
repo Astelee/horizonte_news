@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'chat_screen.dart';
 import 'amigos_modelos.dart';
 import 'amigos_widgets.dart';
@@ -37,7 +38,16 @@ class AbaConversas extends StatelessWidget {
           return const EstadoCarregando();
         }
 
-        final docs = snap.data?.docs ?? [];
+        // ── Filtra fora chats que EU excluí (hiddenFor contém meu uid) ──
+        // A conversa volta a aparecer automaticamente assim que uma nova
+        // mensagem remover meu uid de hiddenFor (feito em chat_screen.dart
+        // no momento do envio).
+        final allDocs = snap.data?.docs ?? [];
+        final docs = allDocs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final hiddenFor = List<String>.from(data['hiddenFor'] ?? []);
+          return !hiddenFor.contains(myUid);
+        }).toList();
 
         if (docs.isEmpty) {
           return _EstadoSemConversas(onIniciarConversa: onIniciarConversa);
