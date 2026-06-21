@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/badge_config.dart';
 import 'amigos_modelos.dart';
+import 'chat_screen.dart';
 
 class AmigoAvatar extends StatefulWidget {
   final FriendModel friend;
@@ -450,6 +453,330 @@ class EstadoVazio extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(color: Color(0xFF444444), fontSize: 13)),
         ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MENU DE CONTEXTO REAPROVEITÁVEL (LONG PRESS)
+// Usado tanto no card de amigo quanto no card de conversa.
+// ═══════════════════════════════════════════════════════════════════
+class MenuContextoAmigo extends StatelessWidget {
+  final FriendModel friend;
+  final String myUid;
+  final FirebaseFirestore db;
+
+  /// Se já souber o requestId (ex: vindo da lista de amigos), passe aqui
+  /// para evitar uma leitura extra no Firestore. Se for null, o menu busca
+  /// o documento de friend_requests sozinho ao clicar em "Excluir Amigo".
+  final String? requestId;
+
+  /// Se a conversa já tem chatId calculado (vindo da aba Conversas),
+  /// passe aqui para "Limpar Conversa" funcionar sem recalcular.
+  final String? chatId;
+
+  /// Callback opcional chamado depois de qualquer ação que exija recarregar
+  /// a tela que abriu o menu (ex: favoritar). Útil quando a tela usa um
+  /// FutureBuilder que não escuta automaticamente o Firestore.
+  final VoidCallback? onChanged;
+
+  const MenuContextoAmigo({
+    Key? key,
+    required this.friend,
+    required this.myUid,
+    required this.db,
+    this.requestId,
+    this.chatId,
+    this.onChanged,
+  }) : super(key: key);
+
+  String get _chatIdResolvido {
+    if (chatId != null) return chatId!;
+    final ids = [myUid, friend.uid]..sort();
+    return '${ids[0]}_${ids[1]}';
+  }
+
+  Future<String?> _buscarRequestId() async {
+    if (requestId != null) return requestId;
+    final snap = await db
+        .collection('friend_requests')
+        .where('participants', arrayContains: myUid)
+        .get();
+    for (final doc in snap.docs) {
+      final participants =
+          List<String>.from(doc.data()['participants'] ?? []);
+      if (participants.contains(friend.uid)) return doc.id;
+    }
+    return null;
+  }
+
+  Future<void> _alternarFavorito(BuildContext context) async {
+    Navigator.pop(context);
+    await db.collection('users_xp').doc(friend.uid).update({
+      'isFavorite': !friend.isFavorite,
+    });
+    onChanged?.call();
+  }
+
+  Future<void> _limparConversa(BuildContext context) async {
+    Navigator.pop(context);
+
+    final confirma = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0A0A0A),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Limpar conversa?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+        content: const Text(
+          'Todas as mensagens serão apagadas apenas para você. O contato permanece na sua lista de amigos.',
+          style: TextStyle(color: Color(0xFF999999), height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar',
+                style: TextStyle(color: Color(0xFF999999))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Limpar',
+              style: TextStyle(
+                  color: Color(0xFFED4245), fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirma != true) return;
+
+    final messagesRef = db
+        .collection('chats')
+        .doc(_chatIdResolvido)
+        .collection('messages');
+
+    final snap = await messagesRef.get();
+    final batch = db.batch();
+    for (final doc in snap.docs) {
+      batch.update(doc.reference, {
+        'deletedFor': FieldValue.arrayUnion([myUid]),
+      });
+    }
+    await batch.commit();
+
+    // Zera o resumo da última mensagem mostrado no card da lista
+    await db.collection('chats').doc(_chatIdResolvido).set({
+      'unreadCount_$myUid': 0,
+    }, SetOptions(merge: true));
+
+    HapticFeedback.mediumImpact();
+    onChanged?.call();
+  }
+
+  Future<void> _excluirAmigo(BuildContext context) async {
+    Navigator.pop(context);
+
+    final idEncontrado = await _buscarRequestId();
+    if (idEncontrado == null) return;
+
+    final confirma = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0C0C0C),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Remover amigo?',
+            style:
+                TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+        content: Text(
+          'Tem certeza que quer remover @${friend.username}?',
+          style: const TextStyle(color: Color(0xFF666666)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar',
+                style: TextStyle(color: Color(0xFF666666))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remover',
+                style: TextStyle(
+                    color: Color(0xFFED4245), fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirma != true) return;
+
+    await db.collection('friend_requests').doc(idEncontrado).delete();
+    onChanged?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF0C0C0C),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF222222),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Row(
+            children: [
+              AmigoAvatar(friend: friend, size: 44),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            friend.displayName,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        if (friend.achievements.isNotEmpty)
+                          FileiraBadges(
+                              achievementIds: friend.achievements),
+                      ],
+                    ),
+                    Text(
+                      '@${friend.username}',
+                      style: TextStyle(
+                        color: const Color(0xFFFF6B00).withOpacity(0.7),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _ItemMenu(
+            icon: Icons.person_rounded,
+            label: 'Ver Perfil',
+            color: Colors.white,
+            onTap: () => Navigator.pop(context),
+          ),
+          _ItemMenu(
+            icon: Icons.chat_bubble_rounded,
+            label: 'Conversar',
+            color: const Color(0xFFFF6B00),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChatScreen(friend: friend),
+                ),
+              );
+            },
+          ),
+          _ItemMenu(
+            icon: friend.isFavorite
+                ? Icons.star_rounded
+                : Icons.star_outline_rounded,
+            label: friend.isFavorite
+                ? 'Remover dos Favoritos'
+                : 'Adicionar aos Favoritos',
+            color: const Color(0xFFFAA61A),
+            onTap: () => _alternarFavorito(context),
+          ),
+          _ItemMenu(
+            icon: Icons.notifications_off_rounded,
+            label: 'Silenciar',
+            color: const Color(0xFF747F8D),
+            onTap: () => Navigator.pop(context),
+          ),
+          _ItemMenu(
+            icon: Icons.delete_sweep_rounded,
+            label: 'Limpar Conversa',
+            color: const Color(0xFF747F8D),
+            onTap: () => _limparConversa(context),
+          ),
+          const Divider(color: Color(0xFF1A1A1A), height: 20),
+          _ItemMenu(
+            icon: Icons.person_remove_rounded,
+            label: 'Excluir Amigo',
+            color: const Color(0xFFED4245),
+            onTap: () => _excluirAmigo(context),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ItemMenu extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ItemMenu({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        margin: const EdgeInsets.only(bottom: 4),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.08)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 14),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Expanded(child: SizedBox()),
+            Icon(Icons.chevron_right_rounded,
+                color: color.withOpacity(0.3), size: 18),
+          ],
+        ),
       ),
     );
   }
