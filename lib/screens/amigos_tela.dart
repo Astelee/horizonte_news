@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:ui';
 import 'amigos_modelos.dart';
-import 'amigos_aba_lista.dart';
+import 'amigos_aba_conversas.dart';
 import 'amigos_aba_pedidos.dart';
 import 'amigos_adicionar.dart';
 
@@ -21,7 +21,6 @@ class _TelaAmigosState extends State<TelaAmigos>
   final _db = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
   final _searchController = TextEditingController();
-  FriendFilter _filtroAtivo = FriendFilter.all;
   String _busca = '';
   bool _buscaAberta = false;
 
@@ -51,6 +50,10 @@ class _TelaAmigosState extends State<TelaAmigos>
     });
   }
 
+  void _abrirPainelAmigos() {
+    abrirPainelAmigos(context, myUid: _myUid, db: _db);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -58,18 +61,17 @@ class _TelaAmigosState extends State<TelaAmigos>
       body: Column(
         children: [
           _buildHeader(),
-          _buildFiltros(),
           _buildTabBar(),
           if (_buscaAberta) _buildBarraBusca(),
           Expanded(
             child: TabBarView(
               controller: _tabController,
               children: [
-                AbaAmigos(
+                AbaConversas(
                   myUid: _myUid,
                   db: _db,
-                  filter: _filtroAtivo,
                   searchQuery: _busca,
+                  onIniciarConversa: _abrirPainelAmigos,
                 ),
                 AbaPedidos(myUid: _myUid, db: _db),
               ],
@@ -127,7 +129,7 @@ class _TelaAmigosState extends State<TelaAmigos>
                 ),
               ],
             ),
-            child: const Icon(Icons.people_rounded,
+            child: const Icon(Icons.chat_bubble_rounded,
                 color: Colors.white, size: 16),
           ),
           const SizedBox(width: 10),
@@ -135,7 +137,7 @@ class _TelaAmigosState extends State<TelaAmigos>
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('AMIGOS',
+              Text('CONVERSAS',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 13,
@@ -171,7 +173,7 @@ class _TelaAmigosState extends State<TelaAmigos>
               onChanged: (v) => setState(() => _busca = v.toLowerCase()),
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
-                hintText: 'Buscar amigos...',
+                hintText: 'Buscar conversas...',
                 hintStyle:
                     const TextStyle(color: Color(0xFF555555), fontSize: 14),
                 prefixIcon: const Icon(Icons.search_rounded,
@@ -197,64 +199,6 @@ class _TelaAmigosState extends State<TelaAmigos>
     );
   }
 
-  Widget _buildFiltros() {
-    final filtros = [
-      (FriendFilter.all, 'Todos', Icons.apps_rounded),
-      (FriendFilter.online, 'Online', Icons.circle),
-      (FriendFilter.favorites, 'Favoritos', Icons.star_rounded),
-      (FriendFilter.recent, 'Recentes', Icons.history_rounded),
-      (FriendFilter.offline, 'Offline', Icons.circle_outlined),
-    ];
-
-    return Container(
-      color: Colors.black,
-      child: SizedBox(
-        height: 46,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-          children: filtros.map((f) {
-            final ativo = _filtroAtivo == f.$1;
-            return GestureDetector(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() => _filtroAtivo = f.$1);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  color: ativo ? const Color(0xFFFF6B00) : const Color(0xFF111111),
-                  border: Border.all(
-                    color: ativo
-                        ? const Color(0xFFFF6B00)
-                        : const Color(0xFF222222),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(f.$3,
-                        size: 12,
-                        color: ativo ? Colors.white : const Color(0xFF666666)),
-                    const SizedBox(width: 5),
-                    Text(f.$2,
-                        style: TextStyle(
-                            color: ativo ? Colors.white : const Color(0xFF666666),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700)),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
   Widget _buildTabBar() {
     return Container(
       color: Colors.black,
@@ -269,8 +213,8 @@ class _TelaAmigosState extends State<TelaAmigos>
             fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8),
         tabs: [
           const Tab(
-            icon: Icon(Icons.people_rounded, size: 16),
-            text: 'AMIGOS',
+            icon: Icon(Icons.chat_bubble_rounded, size: 16),
+            text: 'CONVERSAS',
           ),
           Tab(
             child: StreamBuilder<QuerySnapshot>(
