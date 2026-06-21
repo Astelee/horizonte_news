@@ -14,6 +14,7 @@ class MessageModel {
   final String senderUid;
   final DateTime sentAt;
   final bool deletedForMe;
+  final MessageStatus status;
 
   const MessageModel({
     required this.id,
@@ -21,16 +22,31 @@ class MessageModel {
     required this.senderUid,
     required this.sentAt,
     this.deletedForMe = false,
+    this.status = MessageStatus.sent,
   });
 
   factory MessageModel.fromDoc(DocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>;
+    final statusStr = (d['status'] as String?) ?? 'sent';
+    MessageStatus status;
+    switch (statusStr) {
+      case 'delivered':
+        status = MessageStatus.delivered;
+        break;
+      case 'read':
+        status = MessageStatus.read;
+        break;
+      default:
+        status = MessageStatus.sent;
+    }
+
     return MessageModel(
       id: doc.id,
       text: (d['text'] as String?) ?? '',
       senderUid: (d['senderUid'] as String?) ?? '',
       sentAt: (d['sentAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       deletedForMe: (d['deletedForMe'] as bool?) ?? false,
+      status: status,
     );
   }
 }
@@ -65,6 +81,12 @@ class _ChatScreenState extends State<ChatScreen> {
       _db.collection('chats').doc(_chatId).collection('messages');
 
   @override
+  void initState() {
+    super.initState();
+    _markIncomingAsRead();
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
@@ -83,6 +105,29 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  // ── Marca como "lida" todas as mensagens recebidas ainda não lidas ──
+  Future<void> _markIncomingAsRead() async {
+    try {
+      final snap = await _messagesRef
+          .where('senderUid', isEqualTo: widget.friend.uid)
+          .where('status', whereIn: ['sent', 'delivered'])
+          .get();
+
+      if (snap.docs.isEmpty) return;
+
+      final batch = _db.batch();
+      for (final doc in snap.docs) {
+        batch.update(doc.reference, {'status': 'read'});
+      }
+      await batch.commit();
+
+      // Zera contador de não lidas no chat
+      await _db.collection('chats').doc(_chatId).set({
+        'unreadCount_$_myUid': 0,
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending) return;
@@ -97,13 +142,23 @@ class _ChatScreenState extends State<ChatScreen> {
         'lastMessage': text,
         'lastMessageAt': FieldValue.serverTimestamp(),
         'lastMessageBy': _myUid,
+        'lastMessageStatus': 'sent',
+        'unreadCount_${widget.friend.uid}': FieldValue.increment(1),
       }, SetOptions(merge: true));
 
-      await _messagesRef.add({
+      final docRef = await _messagesRef.add({
         'text': text,
         'senderUid': _myUid,
         'sentAt': FieldValue.serverTimestamp(),
         'deletedFor': [],
+        'status': 'sent',
+      });
+
+      // Simula "entregue" pouco depois do envio (se o destinatário estiver
+      // com o app aberto, isso seria atualizado por uma Cloud Function;
+      // aqui fazemos client-side como fallback simples)
+      Future.delayed(const Duration(seconds: 1), () {
+        docRef.update({'status': 'delivered'}).catchError((_) {});
       });
 
       _scrollToBottom();
@@ -425,6 +480,8 @@ class _ChatScreenState extends State<ChatScreen> {
           );
         }
 
+        // Marca como lida em tempo real enquanto a tela está aberta
+        _markIncomingAsRead();
         _scrollToBottom();
 
         return ListView.builder(
@@ -600,14 +657,23 @@ class _MessageBubble extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                _formatTime(msg.sentAt),
-                style: TextStyle(
-                  color: isMe
-                      ? Colors.white.withOpacity(0.6)
-                      : const Color(0xFF666666),
-                  fontSize: 10,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _formatTime(msg.sentAt),
+                    style: TextStyle(
+                      color: isMe
+                          ? Colors.white.withOpacity(0.6)
+                          : const Color(0xFF666666),
+                      fontSize: 10,
+                    ),
+                  ),
+                  if (isMe) ...[
+                    const SizedBox(width: 4),
+                    _StatusIcon(status: msg.status),
+                  ],
+                ],
               ),
             ],
           ),
@@ -620,6 +686,38 @@ class _MessageBubble extends StatelessWidget {
     final h = date.hour.toString().padLeft(2, '0');
     final m = date.minute.toString().padLeft(2, '0');
     return '$h:$m';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ÍCONE DE STATUS (ESTILO WHATSAPP)
+// ═══════════════════════════════════════════════════════════════════
+class _StatusIcon extends StatelessWidget {
+  final MessageStatus status;
+  const _StatusIcon({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    switch (status) {
+      case MessageStatus.sending:
+        return SizedBox(
+          width: 10,
+          height: 10,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.5,
+            color: Colors.white.withOpacity(0.6),
+          ),
+        );
+      case MessageStatus.sent:
+        return Icon(Icons.done_rounded,
+            size: 14, color: Colors.white.withOpacity(0.6));
+      case MessageStatus.delivered:
+        return Icon(Icons.done_all_rounded,
+            size: 14, color: Colors.white.withOpacity(0.6));
+      case MessageStatus.read:
+        return const Icon(Icons.done_all_rounded,
+            size: 14, color: Color(0xFF4FC3F7));
+    }
   }
 }
 
