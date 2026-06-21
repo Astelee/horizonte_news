@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'chat_screen.dart';
 import 'amigos_modelos.dart';
@@ -67,11 +68,19 @@ class AbaConversas extends StatelessWidget {
               );
             }
 
+            // Favoritos sempre no topo, mantendo a ordem por última
+            // mensagem dentro de cada grupo (já vem ordenado da query).
+            lista.sort((a, b) {
+              if (a.friend.isFavorite && !b.friend.isFavorite) return -1;
+              if (!a.friend.isFavorite && b.friend.isFavorite) return 1;
+              return 0;
+            });
+
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
               itemCount: lista.length,
               itemBuilder: (context, i) =>
-                  _CardConversa(item: lista[i], myUid: myUid),
+                  _CardConversa(item: lista[i], myUid: myUid, db: db),
             );
           },
         );
@@ -227,8 +236,13 @@ class _EstadoSemConversas extends StatelessWidget {
 class _CardConversa extends StatelessWidget {
   final _ConversaItem item;
   final String myUid;
+  final FirebaseFirestore db;
 
-  const _CardConversa({required this.item, required this.myUid});
+  const _CardConversa({
+    required this.item,
+    required this.myUid,
+    required this.db,
+  });
 
   String _formatarTempo(DateTime? time) {
     if (time == null) return '';
@@ -238,6 +252,20 @@ class _CardConversa extends StatelessWidget {
     if (diff.inHours < 24) return '${diff.inHours}h';
     if (diff.inDays < 7) return '${diff.inDays}d';
     return '${time.day.toString().padLeft(2, '0')}/${time.month.toString().padLeft(2, '0')}';
+  }
+
+  void _abrirMenuContexto(BuildContext context) {
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => MenuContextoAmigo(
+        friend: item.friend,
+        myUid: myUid,
+        db: db,
+        chatId: item.chatId,
+      ),
+    );
   }
 
   @override
@@ -251,6 +279,7 @@ class _CardConversa extends StatelessWidget {
         context,
         MaterialPageRoute(builder: (_) => ChatScreen(friend: friend)),
       ),
+      onLongPress: () => _abrirMenuContexto(context),
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
@@ -258,107 +287,148 @@ class _CardConversa extends StatelessWidget {
           color: const Color(0xFF0C0C0C),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: temNaoLidas
-                ? const Color(0xFFFF6B00).withOpacity(0.3)
-                : const Color(0xFF1A1A1A),
+            color: friend.isFavorite
+                ? const Color(0xFFFAA61A).withOpacity(0.3)
+                : temNaoLidas
+                    ? const Color(0xFFFF6B00).withOpacity(0.3)
+                    : const Color(0xFF1A1A1A),
           ),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AmigoAvatar(friend: friend),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            Row(
+              children: [
+                AmigoAvatar(friend: friend),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          friend.displayName,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: temNaoLidas
-                                ? FontWeight.w800
-                                : FontWeight.w700,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Text(
-                        _formatarTempo(friend.lastMessageTime),
-                        style: TextStyle(
-                          color: temNaoLidas
-                              ? const Color(0xFFFF6B00)
-                              : const Color(0xFF555555),
-                          fontSize: 11,
-                          fontWeight: temNaoLidas
-                              ? FontWeight.w700
-                              : FontWeight.normal,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      if (friend.isTyping)
-                        const Expanded(child: IndicadorDigitando())
-                      else
-                        Expanded(
-                          child: Row(
-                            children: [
-                              if (souEuQueMandei &&
-                                  friend.lastMessageStatus != null) ...[
-                                _MiniStatusIcon(
-                                    status: friend.lastMessageStatus!),
-                                const SizedBox(width: 4),
-                              ],
-                              Expanded(
-                                child: Text(
-                                  souEuQueMandei
-                                      ? 'Você: ${friend.lastMessage ?? ''}'
-                                      : friend.lastMessage ?? '',
-                                  style: TextStyle(
-                                    color: temNaoLidas
-                                        ? Colors.white.withOpacity(0.9)
-                                        : const Color(0xFF666666),
-                                    fontSize: 12.5,
-                                    fontWeight: temNaoLidas
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    friend.displayName,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: temNaoLidas
+                                          ? FontWeight.w800
+                                          : FontWeight.w700,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      if (temNaoLidas) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF6B00),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${friend.unreadCount}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
+                                if (friend.isFavorite) ...[
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.star_rounded,
+                                      size: 12,
+                                      color: Color(0xFFFAA61A)),
+                                ],
+                                if (friend.achievements.isNotEmpty)
+                                  FileiraBadges(
+                                      achievementIds: friend.achievements),
+                              ],
                             ),
                           ),
-                        ),
-                      ],
+                          Text(
+                            _formatarTempo(friend.lastMessageTime),
+                            style: TextStyle(
+                              color: temNaoLidas
+                                  ? const Color(0xFFFF6B00)
+                                  : const Color(0xFF555555),
+                              fontSize: 11,
+                              fontWeight: temNaoLidas
+                                  ? FontWeight.w700
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Text(
+                            '@${friend.username}',
+                            style: TextStyle(
+                              color: const Color(0xFFFF6B00).withOpacity(0.6),
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          NivelBadge(level: friend.level),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          if (friend.isTyping)
+                            const Expanded(child: IndicadorDigitando())
+                          else
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  if (souEuQueMandei &&
+                                      friend.lastMessageStatus != null) ...[
+                                    _MiniStatusIcon(
+                                        status: friend.lastMessageStatus!),
+                                    const SizedBox(width: 4),
+                                  ],
+                                  Expanded(
+                                    child: Text(
+                                      souEuQueMandei
+                                          ? 'Você: ${friend.lastMessage ?? ''}'
+                                          : friend.lastMessage ?? '',
+                                      style: TextStyle(
+                                        color: temNaoLidas
+                                            ? Colors.white.withOpacity(0.9)
+                                            : const Color(0xFF666666),
+                                        fontSize: 12.5,
+                                        fontWeight: temNaoLidas
+                                            ? FontWeight.w600
+                                            : FontWeight.normal,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (temNaoLidas) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFF6B00),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${friend.unreadCount}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(left: 62),
+              child: BarraXp(friend: friend),
             ),
           ],
         ),
