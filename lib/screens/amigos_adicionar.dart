@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'amigos_modelos.dart';
 import 'amigos_widgets.dart';
+import 'chat_screen.dart';
+import 'amigos_perfil.dart';
 
 class BotaoAdicionarAmigo extends StatelessWidget {
   final String myUid;
@@ -43,10 +45,10 @@ class BotaoAdicionarAmigo extends StatelessWidget {
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.person_add_rounded, color: Colors.white, size: 20),
-            SizedBox(width: 8),
+            Icon(Icons.add_rounded, color: Colors.white, size: 22),
+            SizedBox(width: 4),
             Text(
-              'ADICIONAR',
+              'AMIGOS',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 13,
@@ -61,6 +63,18 @@ class BotaoAdicionarAmigo extends StatelessWidget {
   }
 }
 
+// Permite abrir o painel programaticamente (usado pelo botão "Iniciar conversa")
+void abrirPainelAmigos(BuildContext context,
+    {required String myUid, required FirebaseFirestore db}) {
+  HapticFeedback.lightImpact();
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => PainelAdicionarAmigo(myUid: myUid, db: db),
+  );
+}
+
 class PainelAdicionarAmigo extends StatefulWidget {
   final String myUid;
   final FirebaseFirestore db;
@@ -72,7 +86,9 @@ class PainelAdicionarAmigo extends StatefulWidget {
   State<PainelAdicionarAmigo> createState() => _PainelAdicionarAmigoState();
 }
 
-class _PainelAdicionarAmigoState extends State<PainelAdicionarAmigo> {
+class _PainelAdicionarAmigoState extends State<PainelAdicionarAmigo>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   final _controller = TextEditingController();
   FriendModel? _usuarioEncontrado;
   bool _buscando = false;
@@ -82,8 +98,15 @@ class _PainelAdicionarAmigoState extends State<PainelAdicionarAmigo> {
   String? _statusSolicitacao;
 
   @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -192,62 +215,107 @@ class _PainelAdicionarAmigoState extends State<PainelAdicionarAmigo> {
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
 
-    return Container(
-      padding: EdgeInsets.fromLTRB(24, 16, 24, 24 + bottom),
-      decoration: const BoxDecoration(
-        color: Color(0xFF080808),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(
-          top: BorderSide(color: Color(0xFF1A1A1A)),
-          left: BorderSide(color: Color(0xFF111111)),
-          right: BorderSide(color: Color(0xFF111111)),
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF222222),
-                borderRadius: BorderRadius.circular(2),
-              ),
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          padding: EdgeInsets.fromLTRB(0, 16, 0, 0),
+          decoration: const BoxDecoration(
+            color: Color(0xFF080808),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(
+              top: BorderSide(color: Color(0xFF1A1A1A)),
+              left: BorderSide(color: Color(0xFF111111)),
+              right: BorderSide(color: Color(0xFF111111)),
             ),
           ),
-          Row(
+          child: Column(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF222222),
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.person_search_rounded,
-                    color: Colors.white, size: 18),
               ),
-              const SizedBox(width: 12),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('BUSCAR AMIGO',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5)),
-                  Text('Digite o @ do usuário',
-                      style: TextStyle(color: Color(0xFF555555), fontSize: 12)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.people_alt_rounded,
+                          color: Colors.white, size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('AMIGOS',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.5)),
+                        Text('Busque ou inicie uma conversa',
+                            style: TextStyle(
+                                color: Color(0xFF555555), fontSize: 12)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              TabBar(
+                controller: _tabController,
+                indicatorColor: const Color(0xFFFF6B00),
+                labelColor: const Color(0xFFFF6B00),
+                unselectedLabelColor: const Color(0xFF555555),
+                labelStyle: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w800),
+                tabs: const [
+                  Tab(text: 'BUSCAR POR ID'),
+                  Tab(text: 'MEUS AMIGOS'),
                 ],
               ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildAbaBuscar(scrollController),
+                    _buildAbaListaAmigos(),
+                  ],
+                ),
+              ),
+              SizedBox(height: bottom),
             ],
           ),
-          const SizedBox(height: 24),
+        );
+      },
+    );
+  }
+
+  // ── ABA 1: BUSCAR POR ID ──────────────────────────────────────────
+  Widget _buildAbaBuscar(ScrollController scrollController) {
+    return SingleChildScrollView(
+      controller: scrollController,
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Row(
             children: [
               Expanded(
@@ -403,9 +471,18 @@ class _PainelAdicionarAmigoState extends State<PainelAdicionarAmigo> {
                   const SizedBox(height: 14),
                   if (_statusSolicitacao == 'accepted')
                     _BannerStatus(
-                      icon: Icons.people_rounded,
-                      texto: 'Vocês já são amigos!',
+                      icon: Icons.chat_bubble_rounded,
+                      texto: 'Vocês já são amigos! Toque para conversar',
                       cor: const Color(0xFFFF6B00),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) =>
+                                  ChatScreen(friend: _usuarioEncontrado!)),
+                        );
+                      },
                     )
                   else if (_statusSolicitacao == 'pending')
                     _BannerStatus(
@@ -457,10 +534,118 @@ class _PainelAdicionarAmigoState extends State<PainelAdicionarAmigo> {
               ),
             ),
           ],
-          const SizedBox(height: 8),
         ],
       ),
     );
+  }
+
+  // ── ABA 2: LISTA DE AMIGOS (clica e abre conversa) ────────────────
+  Widget _buildAbaListaAmigos() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: widget.db
+          .collection('friend_requests')
+          .where('status', isEqualTo: 'accepted')
+          .where('participants', arrayContains: widget.myUid)
+          .snapshots(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const EstadoCarregando();
+        }
+        if (!snap.hasData || snap.data!.docs.isEmpty) {
+          return const EstadoSemAmigos();
+        }
+
+        return FutureBuilder<List<FriendModel>>(
+          future: _carregarAmigos(snap.data!.docs),
+          builder: (context, friendsSnap) {
+            if (!friendsSnap.hasData) return const EstadoCarregando();
+            final amigos = friendsSnap.data!;
+
+            if (amigos.isEmpty) return const EstadoSemAmigos();
+
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              itemCount: amigos.length,
+              itemBuilder: (context, i) {
+                final friend = amigos[i];
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ChatScreen(friend: friend)),
+                    );
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F0F0F),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF1A1A1A)),
+                    ),
+                    child: Row(
+                      children: [
+                        AmigoAvatar(friend: friend, size: 44),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(friend.displayName,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700)),
+                              Text('@${friend.username}',
+                                  style: TextStyle(
+                                      color: const Color(0xFFFF6B00)
+                                          .withOpacity(0.7),
+                                      fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF6B00).withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color:
+                                    const Color(0xFFFF6B00).withOpacity(0.2)),
+                          ),
+                          child: const Icon(Icons.chat_bubble_rounded,
+                              color: Color(0xFFFF6B00), size: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<List<FriendModel>> _carregarAmigos(
+      List<QueryDocumentSnapshot> docs) async {
+    final futures = docs.map((doc) async {
+      final data = doc.data() as Map<String, dynamic>;
+      final friendUid = (data['fromUid'] as String) == widget.myUid
+          ? data['toUid'] as String
+          : data['fromUid'] as String;
+
+      final userDoc =
+          await widget.db.collection('users_xp').doc(friendUid).get();
+      if (!userDoc.exists) return null;
+      return FriendModel.fromDoc(userDoc);
+    });
+
+    final results = await Future.wait(futures);
+    return results.whereType<FriendModel>().toList();
   }
 }
 
@@ -468,28 +653,37 @@ class _BannerStatus extends StatelessWidget {
   final IconData icon;
   final String texto;
   final Color cor;
+  final VoidCallback? onTap;
 
-  const _BannerStatus({required this.icon, required this.texto, required this.cor});
+  const _BannerStatus({
+    required this.icon,
+    required this.texto,
+    required this.cor,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        color: cor.withOpacity(0.08),
-        border: Border.all(color: cor.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: cor, size: 16),
-          const SizedBox(width: 8),
-          Text(texto,
-              style: TextStyle(
-                  color: cor, fontSize: 13, fontWeight: FontWeight.w700)),
-        ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: cor.withOpacity(0.08),
+          border: Border.all(color: cor.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: cor, size: 16),
+            const SizedBox(width: 8),
+            Text(texto,
+                style: TextStyle(
+                    color: cor, fontSize: 13, fontWeight: FontWeight.w700)),
+          ],
+        ),
       ),
     );
   }
