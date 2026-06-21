@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum FriendStatus { online, away, playing, reading, offline }
 enum FriendFilter { all, online, offline, favorites, recent }
+enum MessageStatus { sending, sent, delivered, read }
 
 extension FriendStatusExt on FriendStatus {
   String get label {
@@ -47,6 +48,8 @@ class FriendModel {
   final DateTime? lastActivity;
   final String? lastMessage;
   final DateTime? lastMessageTime;
+  final String? lastMessageSenderId;
+  final MessageStatus? lastMessageStatus;
   final int unreadCount;
   final bool isFavorite;
   final bool isTyping;
@@ -65,6 +68,8 @@ class FriendModel {
     this.lastActivity,
     this.lastMessage,
     this.lastMessageTime,
+    this.lastMessageSenderId,
+    this.lastMessageStatus,
     this.unreadCount = 0,
     this.isFavorite = false,
     this.isTyping = false,
@@ -85,6 +90,8 @@ class FriendModel {
   FriendModel copyWith({
     String? lastMessage,
     DateTime? lastMessageTime,
+    String? lastMessageSenderId,
+    MessageStatus? lastMessageStatus,
     int? unreadCount,
     bool? isTyping,
     String? chatId,
@@ -100,6 +107,8 @@ class FriendModel {
       lastActivity: lastActivity,
       lastMessage: lastMessage ?? this.lastMessage,
       lastMessageTime: lastMessageTime ?? this.lastMessageTime,
+      lastMessageSenderId: lastMessageSenderId ?? this.lastMessageSenderId,
+      lastMessageStatus: lastMessageStatus ?? this.lastMessageStatus,
       unreadCount: unreadCount ?? this.unreadCount,
       isFavorite: isFavorite,
       isTyping: isTyping ?? this.isTyping,
