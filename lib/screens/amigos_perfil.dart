@@ -1,752 +1,338 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/badge_config.dart';
+import '../services/xp_service.dart';
 import 'amigos_modelos.dart';
-import 'amigos_perfil.dart';
+import 'amigos_widgets.dart';
 import 'chat_screen.dart';
 
-class AmigoAvatar extends StatefulWidget {
+// ═══════════════════════════════════════════════════════════════════
+// TELA DE PERFIL DO AMIGO
+// ═══════════════════════════════════════════════════════════════════
+class TelaPerfilAmigo extends StatelessWidget {
   final FriendModel friend;
-  final double size;
 
-  const AmigoAvatar({Key? key, required this.friend, this.size = 50})
-      : super(key: key);
+  const TelaPerfilAmigo({Key? key, required this.friend}) : super(key: key);
 
-  @override
-  State<AmigoAvatar> createState() => _AmigoAvatarState();
-}
-
-class _AmigoAvatarState extends State<AmigoAvatar>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    );
-    _pulseAnim = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-    if (widget.friend.status == FriendStatus.online) {
-      _pulseController.repeat(reverse: true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
+  String _tempoAtras(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}min atrás';
+    if (diff.inHours < 24) return '${diff.inHours}h atrás';
+    return '${diff.inDays}d atrás';
   }
 
   @override
   Widget build(BuildContext context) {
-    final s = widget.size;
-    final borderColor = widget.friend.isFavorite
-        ? const Color(0xFFFAA61A)
-        : widget.friend.status.color;
+    final xpService = XpService();
+    final achievements = xpService.getAllAchievements(friend.achievements);
 
-    return Stack(
-      children: [
-        Container(
-          width: s,
-          height: s,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 220,
+            pinned: true,
+            backgroundColor: Colors.black,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white, size: 20),
+              onPressed: () => Navigator.pop(context),
             ),
-            border: Border.all(color: borderColor, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: borderColor.withOpacity(0.3),
-                blurRadius: 10,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+                onPressed: () {},
               ),
             ],
-          ),
-          child: Center(
-            child: Text(
-              widget.friend.displayName.isNotEmpty
-                  ? widget.friend.displayName[0].toUpperCase()
-                  : '?',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: s * 0.36,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          right: 0,
-          bottom: 0,
-          child: AnimatedBuilder(
-            animation: _pulseAnim,
-            builder: (context, child) {
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  if (widget.friend.status == FriendStatus.online)
-                    Container(
-                      width: 16 * _pulseAnim.value,
-                      height: 16 * _pulseAnim.value,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: widget.friend.status.color.withOpacity(0.3),
-                      ),
-                    ),
-                  Container(
-                    width: 13,
-                    height: 13,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: widget.friend.status.color,
-                      border: Border.all(color: Colors.black, width: 2),
-                    ),
-                    child: widget.friend.status == FriendStatus.offline
-                        ? null
-                        : Center(
-                            child: Icon(
-                              widget.friend.status.icon,
-                              size: 6,
-                              color: Colors.white,
-                            ),
-                          ),
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF150600), Colors.black],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
                   ),
-                ],
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class NivelBadge extends StatelessWidget {
-  final int level;
-  const NivelBadge({Key? key, required this.level}) : super(key: key);
-
-  Color get _cor {
-    if (level >= 50) return const Color(0xFFFFD700);
-    if (level >= 30) return const Color(0xFF7289DA);
-    if (level >= 15) return const Color(0xFF43B581);
-    return const Color(0xFFFF6B00);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
-        color: _cor.withOpacity(0.12),
-        border: Border.all(color: _cor.withOpacity(0.4)),
-      ),
-      child: Text(
-        'Nv.$level',
-        style: TextStyle(
-          color: _cor,
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
-class BarraXp extends StatelessWidget {
-  final FriendModel friend;
-  const BarraXp({Key? key, required this.friend}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text('${friend.totalXp} XP',
-                style: const TextStyle(color: Color(0xFF444444), fontSize: 9)),
-            const Expanded(child: SizedBox()),
-            Text('${friend.xpForNextLevel} XP',
-                style: const TextStyle(color: Color(0xFF444444), fontSize: 9)),
-          ],
-        ),
-        const SizedBox(height: 3),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: friend.xpProgress,
-            backgroundColor: const Color(0xFF1A1A1A),
-            valueColor: AlwaysStoppedAnimation<Color>(
-              friend.isFavorite
-                  ? const Color(0xFFFAA61A)
-                  : const Color(0xFFFF6B00),
-            ),
-            minHeight: 3,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class FileiraBadges extends StatelessWidget {
-  final List<String> achievementIds;
-  final int maxVisible;
-
-  const FileiraBadges({
-    Key? key,
-    required this.achievementIds,
-    this.maxVisible = 3,
-  }) : super(key: key);
-
-  static const _rarityOrder = [
-    'first_login', '1h_online', 'first_comment', 'first_share',
-    '100_articles', '10h_online', 'level_5', 'level_10',
-  ];
-
-  List<String> get _topByRarity {
-    final sorted = List<String>.from(achievementIds);
-    sorted.sort((a, b) {
-      final ra = _rarityOrder.indexOf(a);
-      final rb = _rarityOrder.indexOf(b);
-      return (rb == -1 ? 0 : rb).compareTo(ra == -1 ? 0 : ra);
-    });
-    return sorted.take(maxVisible).toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ids = _topByRarity;
-    if (ids.isEmpty) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: ids.map((id) {
-        final color = BadgeConfig.achievementColor(id);
-        return Padding(
-          padding: const EdgeInsets.only(left: 4),
-          child: Container(
-            width: 18,
-            height: 18,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withOpacity(0.15),
-              border: Border.all(color: color.withOpacity(0.4), width: 0.8),
-            ),
-            child: Center(
-              child: FaIcon(
-                BadgeConfig.achievementIcon(id),
-                size: 9,
-                color: color,
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class IndicadorDigitando extends StatefulWidget {
-  const IndicadorDigitando({Key? key}) : super(key: key);
-
-  @override
-  State<IndicadorDigitando> createState() => _IndicadorDigitandoState();
-}
-
-class _IndicadorDigitandoState extends State<IndicadorDigitando>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1200))
-      ..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          'digitando',
-          style: TextStyle(
-            color: const Color(0xFF43B581).withOpacity(0.8),
-            fontSize: 12,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-        const SizedBox(width: 3),
-        ...List.generate(3, (i) {
-          return AnimatedBuilder(
-            animation: _ctrl,
-            builder: (_, __) {
-              final t = (_ctrl.value - i * 0.2).clamp(0.0, 1.0);
-              final opacity =
-                  (t < 0.5 ? t * 2 : (1 - t) * 2).clamp(0.3, 1.0);
-              return Container(
-                margin: const EdgeInsets.only(right: 2),
-                width: 4,
-                height: 4,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF43B581).withOpacity(opacity),
                 ),
-              );
-            },
-          );
-        }),
-      ],
-    );
-  }
-}
-
-class CabecalhoSecao extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final int count;
-
-  const CabecalhoSecao({
-    Key? key,
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.count,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10, top: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: color.withOpacity(0.3)),
-            ),
-            child: Text(
-              '$count',
-              style: TextStyle(
-                color: color,
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const Expanded(child: SizedBox()),
-        ],
-      ),
-    );
-  }
-}
-
-class EstadoCarregando extends StatelessWidget {
-  const EstadoCarregando({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: CircularProgressIndicator(
-        strokeWidth: 2,
-        color: Color(0xFFFF6B00),
-      ),
-    );
-  }
-}
-
-class EstadoSemAmigos extends StatelessWidget {
-  const EstadoSemAmigos({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFFFF6B00).withOpacity(0.06),
-              border: Border.all(
-                  color: const Color(0xFFFF6B00).withOpacity(0.15)),
-            ),
-            child: const Icon(Icons.people_outline_rounded,
-                size: 36, color: Color(0xFFFF6B00)),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Nenhum amigo ainda',
-            style: TextStyle(
-                color: Colors.white,
-                fontSize: 17,
-                fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Use o botão + para encontrar\namigos pelo username',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF444444), fontSize: 13),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class EstadoVazio extends StatelessWidget {
-  final IconData icon;
-  final String titulo;
-  final String subtitulo;
-
-  const EstadoVazio({
-    Key? key,
-    required this.icon,
-    required this.titulo,
-    required this.subtitulo,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon,
-              size: 48,
-              color: const Color(0xFFFF6B00).withOpacity(0.2)),
-          const SizedBox(height: 16),
-          Text(titulo,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          Text(subtitulo,
-              textAlign: TextAlign.center,
-              style:
-                  const TextStyle(color: Color(0xFF444444), fontSize: 13)),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// MENU DE CONTEXTO REAPROVEITÁVEL (LONG PRESS)
-// ═══════════════════════════════════════════════════════════════════
-class MenuContextoAmigo extends StatelessWidget {
-  final FriendModel friend;
-  final String myUid;
-  final FirebaseFirestore db;
-  final String? requestId;
-  final String? chatId;
-  final VoidCallback? onChanged;
-
-  const MenuContextoAmigo({
-    Key? key,
-    required this.friend,
-    required this.myUid,
-    required this.db,
-    this.requestId,
-    this.chatId,
-    this.onChanged,
-  }) : super(key: key);
-
-  String get _chatIdResolvido {
-    if (chatId != null) return chatId!;
-    final ids = [myUid, friend.uid]..sort();
-    return '${ids[0]}_${ids[1]}';
-  }
-
-  Future<String?> _buscarRequestId() async {
-    if (requestId != null) return requestId;
-    final snap = await db
-        .collection('friend_requests')
-        .where('participants', arrayContains: myUid)
-        .get();
-    for (final doc in snap.docs) {
-      final participants =
-          List<String>.from(doc.data()['participants'] ?? []);
-      if (participants.contains(friend.uid)) return doc.id;
-    }
-    return null;
-  }
-
-  Future<void> _alternarFavorito(BuildContext context) async {
-    final rootNav = Navigator.of(context, rootNavigator: true);
-    rootNav.pop();
-    await db.collection('users_xp').doc(friend.uid).update({
-      'isFavorite': !friend.isFavorite,
-    });
-    onChanged?.call();
-  }
-
-  Future<void> _excluirConversa(BuildContext context) async {
-    final rootNav = Navigator.of(context, rootNavigator: true);
-    final rootContext = rootNav.context;
-
-    rootNav.pop();
-    await Future.delayed(const Duration(milliseconds: 150));
-
-    final confirma = await showDialog<bool>(
-      context: rootContext,
-      barrierDismissible: true,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF0A0A0A),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Excluir conversa?',
-          style:
-              TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-        ),
-        content: const Text(
-          'A conversa será removida apenas da sua lista. O contato e o '
-          'histórico de mensagens permanecem intactos para a outra pessoa, '
-          'e a conversa volta a aparecer aqui se ela enviar uma nova mensagem.',
-          style: TextStyle(color: Color(0xFF999999), height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancelar',
-                style: TextStyle(color: Color(0xFF999999))),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Excluir',
-                style: TextStyle(
-                    color: Color(0xFFED4245),
-                    fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirma != true) return;
-
-    await db.collection('chats').doc(_chatIdResolvido).set({
-      'hiddenFor': FieldValue.arrayUnion([myUid]),
-      'unreadCount_$myUid': 0,
-    }, SetOptions(merge: true));
-
-    HapticFeedback.mediumImpact();
-    onChanged?.call();
-  }
-
-  Future<void> _excluirAmigo(BuildContext context) async {
-    final rootNav = Navigator.of(context, rootNavigator: true);
-    final rootContext = rootNav.context;
-
-    rootNav.pop();
-    await Future.delayed(const Duration(milliseconds: 150));
-
-    final idEncontrado = await _buscarRequestId();
-    if (idEncontrado == null) return;
-
-    final confirma = await showDialog<bool>(
-      context: rootContext,
-      barrierDismissible: true,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF0C0C0C),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
-        title: const Text('Remover amigo?',
-            style: TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w800)),
-        content: Text(
-          'Tem certeza que quer remover @${friend.username}?',
-          style: const TextStyle(color: Color(0xFF666666)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancelar',
-                style: TextStyle(color: Color(0xFF666666))),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Remover',
-                style: TextStyle(
-                    color: Color(0xFFED4245),
-                    fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirma != true) return;
-
-    await db.collection('friend_requests').doc(idEncontrado).delete();
-    onChanged?.call();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF0C0C0C),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle
-          Container(
-            width: 36,
-            height: 4,
-            margin: const EdgeInsets.only(bottom: 20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF222222),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-
-          // Cabeçalho com avatar e nome
-          Row(
-            children: [
-              AmigoAvatar(friend: friend, size: 44),
-              const SizedBox(width: 12),
-              Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Row(
+                    const SizedBox(height: 50),
+                    Stack(
+                      alignment: Alignment.bottomRight,
                       children: [
-                        Flexible(
-                          child: Text(
-                            friend.displayName,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                        Container(
+                          width: 88,
+                          height: 88,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
+                            ),
+                            border: Border.all(
+                                color: friend.status.color, width: 2.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF6B00).withOpacity(0.5),
+                                blurRadius: 24,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Text(
+                              friend.displayName.isNotEmpty
+                                  ? friend.displayName[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w900),
                             ),
                           ),
                         ),
-                        if (friend.achievements.isNotEmpty)
-                          FileiraBadges(
-                              achievementIds: friend.achievements),
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: friend.status.color,
+                            border: Border.all(color: Colors.black, width: 3),
+                          ),
+                        ),
                       ],
                     ),
+                    const SizedBox(height: 12),
                     Text(
-                      '@${friend.username}',
-                      style: TextStyle(
-                        color: const Color(0xFFFF6B00).withOpacity(0.7),
-                        fontSize: 12,
-                      ),
+                      friend.displayName,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 4),
-                    NivelBadge(level: friend.level),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '@${friend.username}',
+                          style: TextStyle(
+                              color: const Color(0xFFFF6B00).withOpacity(0.8),
+                              fontSize: 13),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: friend.status.color.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: friend.status.color.withOpacity(0.4)),
+                          ),
+                          child: Text(
+                            friend.status.label,
+                            style: TextStyle(
+                                color: friend.status.color,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+              child: Column(
+                children: [
+                  // Botão Chat
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ChatScreen(friend: friend)),
+                    ),
+                    child: Container(
+                      width: double.infinity,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFF6B00).withOpacity(0.35),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.chat_rounded,
+                              color: Colors.white, size: 20),
+                          SizedBox(width: 10),
+                          Text(
+                            'ENVIAR MENSAGEM',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
-          const SizedBox(height: 20),
+                  // Status card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0C0C0C),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(0xFF1A1A1A)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: friend.status.color,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          friend.isOnline
+                              ? friend.status.label
+                              : friend.lastActivity != null
+                                  ? 'Visto ${_tempoAtras(friend.lastActivity!)}'
+                                  : 'Offline',
+                          style: TextStyle(
+                              color: friend.status.color,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
 
-          // ── VER PERFIL — CORRIGIDO ────────────────────────────
-          _ItemMenu(
-            icon: Icons.person_rounded,
-            label: 'Ver Perfil',
-            color: Colors.white,
-            onTap: () {
-              final rootNav = Navigator.of(context, rootNavigator: true);
-              rootNav.pop();
-              rootNav.push(
-                MaterialPageRoute(
-                  builder: (_) => TelaPerfilAmigo(friend: friend),
-                ),
-              );
-            },
-          ),
+                  // Stats
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0C0C0C),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: const Color(0xFFFF6B00).withOpacity(0.15)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'ESTATÍSTICAS',
+                          style: TextStyle(
+                              color: Color(0xFFFF6B00),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 2),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            _CartaoStat(
+                                label: 'XP Total',
+                                valor: '${friend.totalXp}',
+                                icon: Icons.bolt_rounded,
+                                cor: const Color(0xFFFF6B00)),
+                            const SizedBox(width: 10),
+                            _CartaoStat(
+                                label: 'Nível',
+                                valor: '${friend.level}',
+                                icon: Icons.military_tech_rounded,
+                                cor: const Color(0xFF7289DA)),
+                            if (friend.rank > 0) ...[
+                              const SizedBox(width: 10),
+                              _CartaoStat(
+                                  label: 'Ranking',
+                                  valor: '#${friend.rank}',
+                                  icon: Icons.leaderboard_rounded,
+                                  cor: const Color(0xFFFFD700)),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'PROGRESSO',
+                          style: TextStyle(
+                              color: Color(0xFF444444),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.5),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Text(
+                              'Nv.${friend.level}',
+                              style: const TextStyle(
+                                  color: Color(0xFFFF6B00),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: LinearProgressIndicator(
+                                  value: friend.xpProgress,
+                                  backgroundColor: const Color(0xFF1A1A1A),
+                                  valueColor:
+                                      const AlwaysStoppedAnimation<Color>(
+                                          Color(0xFFFF6B00)),
+                                  minHeight: 6,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Nv.${friend.level + 1}',
+                              style: const TextStyle(
+                                  color: Color(0xFF444444),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Center(
+                          child: Text(
+                            '${friend.totalXp} / ${friend.xpForNextLevel} XP',
+                            style: const TextStyle(
+                                color: Color(0xFF444444), fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
 
-          _ItemMenu(
-            icon: Icons.chat_bubble_rounded,
-            label: 'Conversar',
-            color: const Color(0xFFFF6B00),
-            onTap: () {
-              final rootNav = Navigator.of(context, rootNavigator: true);
-              rootNav.pop();
-              rootNav.push(
-                MaterialPageRoute(
-                  builder: (_) => ChatScreen(friend: friend),
-                ),
-              );
-            },
-          ),
-
-          _ItemMenu(
-            icon: friend.isFavorite
-                ? Icons.star_rounded
-                : Icons.star_outline_rounded,
-            label: friend.isFavorite
-                ? 'Remover dos Favoritos'
-                : 'Adicionar aos Favoritos',
-            color: const Color(0xFFFAA61A),
-            onTap: () => _alternarFavorito(context),
-          ),
-
-          _ItemMenu(
-            icon: Icons.notifications_off_rounded,
-            label: 'Silenciar',
-            color: const Color(0xFF747F8D),
-            onTap: () => Navigator.of(context, rootNavigator: true).pop(),
-          ),
-
-          _ItemMenu(
-            icon: Icons.delete_outline_rounded,
-            label: 'Excluir Conversa',
-            color: const Color(0xFF747F8D),
-            onTap: () => _excluirConversa(context),
-          ),
-
-          const Divider(color: Color(0xFF1A1A1A), height: 20),
-
-          _ItemMenu(
-            icon: Icons.person_remove_rounded,
-            label: 'Excluir Amigo',
-            color: const Color(0xFFED4245),
-            onTap: () => _excluirAmigo(context),
+                  // Emblemas
+                  _CardEmblemas(achievements: achievements),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -754,46 +340,295 @@ class MenuContextoAmigo extends StatelessWidget {
   }
 }
 
-class _ItemMenu extends StatelessWidget {
-  final IconData icon;
+// ═══════════════════════════════════════════════════════════════════
+// CARTÃO DE STAT
+// ═══════════════════════════════════════════════════════════════════
+class _CartaoStat extends StatelessWidget {
   final String label;
-  final Color color;
-  final VoidCallback onTap;
+  final String valor;
+  final IconData icon;
+  final Color cor;
 
-  const _ItemMenu({
-    required this.icon,
+  const _CartaoStat({
     required this.label,
-    required this.color,
-    required this.onTap,
+    required this.valor,
+    required this.icon,
+    required this.cor,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
+    return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.04),
+          color: cor.withOpacity(0.06),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.08)),
+          border: Border.all(color: cor.withOpacity(0.2)),
         ),
-        child: Row(
+        child: Column(
           children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 14),
-            Text(
-              label,
+            Icon(icon, color: cor, size: 18),
+            const SizedBox(height: 6),
+            Text(valor,
+                style: TextStyle(
+                    color: cor, fontSize: 20, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 2),
+            Text(label,
+                style: const TextStyle(
+                    color: Color(0xFF555555), fontSize: 10),
+                textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CARD DE EMBLEMAS
+// ═══════════════════════════════════════════════════════════════════
+class _CardEmblemas extends StatelessWidget {
+  final List<Achievement> achievements;
+  const _CardEmblemas({required this.achievements});
+
+  @override
+  Widget build(BuildContext context) {
+    final desbloqueados = achievements.where((a) => a.unlocked).toList();
+    final bloqueados = achievements.where((a) => !a.unlocked).toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF0C0C0C),
+        border: Border.all(color: const Color(0xFF1A1A1A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'EMBLEMAS',
+                style: TextStyle(
+                    color: Color(0xFFFF6B00),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 2),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  color: const Color(0xFFFF6B00).withOpacity(0.15),
+                ),
+                child: Text(
+                  '${desbloqueados.length} / ${achievements.length}',
+                  style: const TextStyle(
+                      color: Color(0xFFFF6B00),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          if (desbloqueados.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.85,
+              ),
+              itemCount: desbloqueados.length,
+              itemBuilder: (context, i) =>
+                  _TileEmblema(achievement: desbloqueados[i], unlocked: true),
+            ),
+          ],
+          if (bloqueados.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Text(
+              'BLOQUEADOS',
               style: TextStyle(
-                color: color,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+                  color: Color(0xFF333333),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5),
+            ),
+            const SizedBox(height: 12),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.85,
+              ),
+              itemCount: bloqueados.length,
+              itemBuilder: (context, i) =>
+                  _TileEmblema(achievement: bloqueados[i], unlocked: false),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TILE DE EMBLEMA
+// ═══════════════════════════════════════════════════════════════════
+class _TileEmblema extends StatelessWidget {
+  final Achievement achievement;
+  final bool unlocked;
+  const _TileEmblema({required this.achievement, required this.unlocked});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = unlocked
+        ? BadgeConfig.achievementColor(achievement.icon)
+        : const Color(0xFF2A2A2A);
+
+    return GestureDetector(
+      onTap: () => showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: const Color(0xFF0A0A0A),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color.withOpacity(0.15),
+                  border:
+                      Border.all(color: color.withOpacity(0.4), width: 2),
+                ),
+                child: Center(
+                  child: FaIcon(
+                    BadgeConfig.achievementIcon(achievement.icon),
+                    size: 26,
+                    color: unlocked ? color : const Color(0xFF3A3A3A),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                achievement.title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    color:
+                        unlocked ? Colors.white : const Color(0xFF444444),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                achievement.description,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: Color(0xFF888888), fontSize: 12, height: 1.5),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  color: unlocked
+                      ? color.withOpacity(0.15)
+                      : const Color(0xFF1A1A1A),
+                ),
+                child: Text(
+                  unlocked ? 'OBTIDO' : 'BLOQUEADO',
+                  style: TextStyle(
+                      color: unlocked ? color : const Color(0xFF444444),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: unlocked
+              ? color.withOpacity(0.08)
+              : const Color(0xFF0F0F0F),
+          border: Border.all(
+            color: unlocked
+                ? color.withOpacity(0.3)
+                : const Color(0xFF1A1A1A),
+          ),
+          boxShadow: unlocked
+              ? [BoxShadow(color: color.withOpacity(0.1), blurRadius: 8)]
+              : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: unlocked
+                    ? color.withOpacity(0.15)
+                    : const Color(0xFF1A1A1A),
+                border: Border.all(
+                  color: unlocked
+                      ? color.withOpacity(0.4)
+                      : const Color(0xFF2A2A2A),
+                  width: 1.5,
+                ),
+              ),
+              child: Center(
+                child: FaIcon(
+                  BadgeConfig.achievementIcon(achievement.icon),
+                  size: 16,
+                  color: unlocked ? color : const Color(0xFF3A3A3A),
+                ),
               ),
             ),
-            const Expanded(child: SizedBox()),
-            Icon(Icons.chevron_right_rounded,
-                color: color.withOpacity(0.3), size: 18),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                achievement.title,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: unlocked ? Colors.white : const Color(0xFF333333),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  height: 1.3,
+                ),
+              ),
+            ),
+            if (!unlocked)
+              const Padding(
+                padding: EdgeInsets.only(top: 3),
+                child: FaIcon(FontAwesomeIcons.lock,
+                    size: 8, color: Color(0xFF333333)),
+              ),
           ],
         ),
       ),
