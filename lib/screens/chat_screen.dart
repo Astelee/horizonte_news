@@ -84,6 +84,10 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _markIncomingAsRead();
+    // Ao ABRIR o chat, a conversa volta a aparecer pra mim também,
+    // mesmo que eu tenha "limpado" ela antes e ninguém tenha mandado
+    // mensagem nova ainda.
+    _unhideForMe();
   }
 
   @override
@@ -103,6 +107,15 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     });
+  }
+
+  // ── Remove meu uid de hiddenFor (chamado ao abrir o chat) ───────────
+  Future<void> _unhideForMe() async {
+    try {
+      await _db.collection('chats').doc(_chatId).set({
+        'hiddenFor': FieldValue.arrayRemove([_myUid]),
+      }, SetOptions(merge: true));
+    } catch (_) {}
   }
 
   // ── Marca como "lida" todas as mensagens recebidas ainda não lidas ──
@@ -144,13 +157,15 @@ class _ChatScreenState extends State<ChatScreen> {
         'lastMessageBy': _myUid,
         'lastMessageStatus': 'sent',
         'unreadCount_${widget.friend.uid}': FieldValue.increment(1),
-        // Ao enviar uma mensagem, removo o destinatário de hiddenFor:
-        // se ele tinha "excluído" essa conversa da própria lista, ela
-        // volta a aparecer para ele agora que chegou algo novo.
-        // Meu próprio uid não é tocado aqui — se eu mesmo tiver
-        // escondido essa conversa, ela só volta para mim quando EU
-        // mandar ou receber mensagem nova, nunca antes disso.
-        'hiddenFor': FieldValue.arrayRemove([widget.friend.uid]),
+        // ── CORREÇÃO PRINCIPAL ──────────────────────────────────────
+        // Ao enviar uma mensagem, removo AMBOS de hiddenFor:
+        // - O destinatário: se ele tinha "limpado" a conversa, ela
+        //   volta a aparecer pra ele agora que chegou algo novo.
+        // - Eu mesmo: se eu tinha "limpado" a conversa antes e agora
+        //   estou mandando mensagem de novo, ela tem que voltar pra
+        //   MINHA lista também (antes só o amigo era removido daqui,
+        //   por isso a conversa nunca voltava quando EU mandava).
+        'hiddenFor': FieldValue.arrayRemove([widget.friend.uid, _myUid]),
       }, SetOptions(merge: true));
 
       final docRef = await _messagesRef.add({
@@ -193,12 +208,13 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // LIMPAR CONVERSA (continua só dentro do chat):
-  // Apaga as mensagens (para mim) e agora também limpa o resumo
-  // (lastMessage/lastMessageAt/lastMessageBy/lastMessageStatus) do doc
-  // do chat — corrigindo o bug em que o card da lista de conversas
-  // continuava mostrando a última mensagem antiga mesmo depois de
-  // limpar tudo dentro do chat.
+  // LIMPAR CONVERSA (de dentro do chat):
+  // Apaga as mensagens (para mim), limpa o resumo mostrado na lista,
+  // e agora também ESCONDE a conversa da minha lista (hiddenFor),
+  // já que isso é o que "limpar/excluir" deve fazer visualmente.
+  // Ela volta a aparecer sozinha assim que eu ou o amigo mandarmos
+  // uma mensagem nova (ver _sendMessage) ou se eu abrir o chat de
+  // novo pelo perfil do amigo (ver _unhideForMe).
   // ─────────────────────────────────────────────────────────────────
   Future<void> _clearConversation() async {
     final confirm = await showDialog<bool>(
@@ -213,7 +229,7 @@ class _ChatScreenState extends State<ChatScreen> {
               color: Colors.white, fontWeight: FontWeight.w800),
         ),
         content: const Text(
-          'Todas as mensagens serão apagadas apenas para você. O contato permanece na sua lista de amigos.',
+          'Todas as mensagens serão apagadas apenas para você e a conversa sairá da sua lista. Ela volta a aparecer se vocês trocarem novas mensagens.',
           style: TextStyle(color: AppColors.textSecondary, height: 1.5),
         ),
         actions: [
@@ -247,16 +263,20 @@ class _ChatScreenState extends State<ChatScreen> {
     await batch.commit();
 
     // Limpa o resumo da última mensagem mostrado no card da lista de
-    // conversas, evitando o card "fantasma" com texto antigo.
+    // conversas, esconde a conversa da minha lista, e zera não lidas.
     await _db.collection('chats').doc(_chatId).set({
       'lastMessage': '',
       'lastMessageAt': FieldValue.serverTimestamp(),
       'lastMessageBy': '',
       'lastMessageStatus': '',
       'unreadCount_$_myUid': 0,
+      'hiddenFor': FieldValue.arrayUnion([_myUid]),
     }, SetOptions(merge: true));
 
     HapticFeedback.mediumImpact();
+
+    // Volta para a lista de conversas, já que ela sumiu da lista.
+    if (mounted) Navigator.pop(context);
   }
 
   void _showMessageOptions(MessageModel msg) {
