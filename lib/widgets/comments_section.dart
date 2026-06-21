@@ -71,13 +71,12 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
   final _db = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
 
-  String? _friendRequestStatus; // null, 'pending', 'accepted'
+  String? _friendRequestStatus;
   bool _loadingStatus = true;
   bool _sendingRequest = false;
   Map<String, dynamic>? _userData;
 
   String get _myUid => _auth.currentUser?.uid ?? '';
-
   bool get _isMe => widget.userId == _myUid;
 
   @override
@@ -113,12 +112,10 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
 
       for (final doc in snap.docs) {
         final data = doc.data();
-        final participants =
-            List<String>.from(data['participants'] ?? []);
+        final participants = List<String>.from(data['participants'] ?? []);
         if (participants.contains(widget.userId)) {
           if (mounted) {
-            setState(
-                () => _friendRequestStatus = data['status'] as String?);
+            setState(() => _friendRequestStatus = data['status'] as String?);
           }
           return;
         }
@@ -151,16 +148,17 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
   }
 
   Future<void> _openFullProfile() async {
-    Navigator.pop(context);
-    if (_userData == null) return;
+    // Captura o navigator raiz ANTES de fechar o bottom sheet
+    final rootNav = Navigator.of(context, rootNavigator: true);
 
     final doc = await _db.collection('users_xp').doc(widget.userId).get();
     if (!doc.exists) return;
 
     final friend = FriendModel.fromDoc(doc);
-    if (!mounted) return;
-    Navigator.push(
-      context,
+
+    // Fecha o bottom sheet e navega para o perfil
+    rootNav.pop();
+    rootNav.push(
       MaterialPageRoute(
         builder: (_) => TelaPerfilAmigo(friend: friend),
       ),
@@ -201,6 +199,7 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Handle
           Container(
             width: 36,
             height: 4,
@@ -210,6 +209,8 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
+
+          // Avatar + info
           Row(
             children: [
               Container(
@@ -284,6 +285,8 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
               ),
             ],
           ),
+
+          // Conquistas
           if (widget.userAchievements.isNotEmpty) ...[
             const SizedBox(height: 16),
             Align(
@@ -295,7 +298,10 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
               ),
             ),
           ],
+
           const SizedBox(height: 20),
+
+          // Botões de ação
           if (_isMe)
             _InfoBanner(
               icon: Icons.person_rounded,
@@ -378,7 +384,10 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                   ),
                 ),
               ),
+
             const SizedBox(height: 10),
+
+            // Botão ver perfil completo
             GestureDetector(
               onTap: _openFullProfile,
               child: Container(
@@ -411,6 +420,7 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
               ),
             ),
           ],
+
           const SizedBox(height: 8),
         ],
       ),
@@ -503,11 +513,10 @@ class _CommentsSectionState extends State<CommentsSection>
     super.dispose();
   }
 
-  CollectionReference get _commentsRef =>
-      FirebaseFirestore.instance
-          .collection('comments')
-          .doc(widget.postId)
-          .collection('postComments');
+  CollectionReference get _commentsRef => FirebaseFirestore.instance
+      .collection('comments')
+      .doc(widget.postId)
+      .collection('postComments');
 
   String _initials(String name) {
     final parts = name.trim().split(' ');
@@ -572,8 +581,7 @@ class _CommentsSectionState extends State<CommentsSection>
     try {
       final userName =
           user.displayName ?? user.email?.split('@').first ?? 'Leitor';
-      final xpProvider =
-          Provider.of<UserXpProvider>(context, listen: false);
+      final xpProvider = Provider.of<UserXpProvider>(context, listen: false);
       final userLevel = xpProvider.data.level;
       final userAchievements = xpProvider.data.achievements;
 
@@ -636,8 +644,7 @@ class _CommentsSectionState extends State<CommentsSection>
         ]),
         backgroundColor: AppColors.backgroundElevated,
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
       ),
     );
@@ -649,8 +656,7 @@ class _CommentsSectionState extends State<CommentsSection>
         content: Text(msg, style: const TextStyle(color: Colors.white)),
         backgroundColor: AppColors.backgroundElevated,
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
         duration: const Duration(seconds: 5),
       ),
@@ -669,8 +675,7 @@ class _CommentsSectionState extends State<CommentsSection>
         ]),
         backgroundColor: const Color(0xFF1A0800),
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
         duration: const Duration(seconds: 2),
       ),
@@ -726,8 +731,7 @@ class _CommentsSectionState extends State<CommentsSection>
               ),
               const SizedBox(width: 10),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   color: AppColors.primaryOrange.withOpacity(0.15),
@@ -758,8 +762,7 @@ class _CommentsSectionState extends State<CommentsSection>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           color: const Color(0xFF0A0A0A),
-          border:
-              Border.all(color: AppColors.primaryOrange.withOpacity(0.2)),
+          border: Border.all(color: AppColors.primaryOrange.withOpacity(0.2)),
           boxShadow: [
             BoxShadow(
               color: AppColors.primaryOrange.withOpacity(0.05),
@@ -773,9 +776,7 @@ class _CommentsSectionState extends State<CommentsSection>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildAvatar(
-                  user?.displayName ??
-                      user?.email?.split('@').first ??
-                      '?',
+                  user?.displayName ?? user?.email?.split('@').first ?? '?',
                   size: 36,
                 ),
                 const SizedBox(width: 12),
@@ -793,8 +794,7 @@ class _CommentsSectionState extends State<CommentsSection>
                           ? '💭 O que você achou desta notícia?'
                           : 'Faça login para comentar',
                       hintStyle: TextStyle(
-                          color: Colors.white.withOpacity(0.25),
-                          fontSize: 14),
+                          color: Colors.white.withOpacity(0.25), fontSize: 14),
                       border: InputBorder.none,
                       counterStyle: const TextStyle(
                           color: AppColors.textMuted, fontSize: 10),
@@ -817,8 +817,8 @@ class _CommentsSectionState extends State<CommentsSection>
                     const SizedBox(width: 4),
                     const Text(
                       'Ganhe XP ao comentar',
-                      style: TextStyle(
-                          color: AppColors.textMuted, fontSize: 11),
+                      style:
+                          TextStyle(color: AppColors.textMuted, fontSize: 11),
                     ),
                   ],
                 ),
@@ -832,17 +832,15 @@ class _CommentsSectionState extends State<CommentsSection>
                           horizontal: 16, vertical: 9),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(10),
-                        gradient:
-                            _isSending ? null : AppColors.orangeGradient,
-                        color: _isSending
-                            ? AppColors.backgroundElevated
-                            : null,
+                        gradient: _isSending ? null : AppColors.orangeGradient,
+                        color:
+                            _isSending ? AppColors.backgroundElevated : null,
                         boxShadow: _isSending
                             ? null
                             : [
                                 BoxShadow(
-                                  color: AppColors.primaryOrange
-                                      .withOpacity(0.4),
+                                  color:
+                                      AppColors.primaryOrange.withOpacity(0.4),
                                   blurRadius: 12,
                                   offset: const Offset(0, 3),
                                 ),
@@ -925,8 +923,7 @@ class _CommentsSectionState extends State<CommentsSection>
             comment: comments[index],
             initials: _initials(comments[index].userName),
             timeAgo: _timeAgo(comments[index].createdAt),
-            currentUserId:
-                FirebaseAuth.instance.currentUser?.uid ?? '',
+            currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
             isAdmin: isAdmin,
             onDelete: () => _deleteComment(comments[index].id),
             onTapUser: () => _openUserProfile(comments[index]),
@@ -962,9 +959,8 @@ class _CommentsSectionState extends State<CommentsSection>
       [const Color(0xFFFF8C3A), const Color(0xFFFF6B00)],
       [const Color(0xFFE65100), const Color(0xFF8D3200)],
     ];
-    final pair = colorPairs[name.isNotEmpty
-        ? name.codeUnitAt(0) % colorPairs.length
-        : 0];
+    final pair =
+        colorPairs[name.isNotEmpty ? name.codeUnitAt(0) % colorPairs.length : 0];
 
     return Container(
       width: size,
@@ -977,8 +973,7 @@ class _CommentsSectionState extends State<CommentsSection>
             end: Alignment.bottomRight),
         boxShadow: [
           BoxShadow(
-              color: AppColors.primaryOrange.withOpacity(0.3),
-              blurRadius: 8),
+              color: AppColors.primaryOrange.withOpacity(0.3), blurRadius: 8),
         ],
       ),
       child: Center(
@@ -995,7 +990,7 @@ class _CommentsSectionState extends State<CommentsSection>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// COMMENT TILE — com toque no avatar/nome para ver perfil
+// COMMENT TILE
 // ═══════════════════════════════════════════════════════════════════
 class _CommentTile extends StatefulWidget {
   final CommentModel comment;
@@ -1033,10 +1028,8 @@ class _CommentTileState extends State<_CommentTile>
     _ctrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 350));
     _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _slide =
-        Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero)
-            .animate(
-                CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _slide = Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
     _ctrl.forward();
   }
 
@@ -1058,8 +1051,7 @@ class _CommentTileState extends State<_CommentTile>
         backgroundColor: const Color(0xFF0A0A0A),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-              color: AppColors.primaryOrange.withOpacity(0.2)),
+          side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.2)),
         ),
         title: const Text('Excluir comentário?',
             style: TextStyle(color: Colors.white, fontSize: 16)),
@@ -1067,8 +1059,8 @@ class _CommentTileState extends State<_CommentTile>
           widget.isAdmin && !_isOwner
               ? 'Você está excluindo o comentário de ${widget.comment.userName} como administrador.'
               : 'Esta ação não pode ser desfeita.',
-          style: const TextStyle(
-              color: AppColors.textSecondary, fontSize: 14),
+          style:
+              const TextStyle(color: AppColors.textSecondary, fontSize: 14),
         ),
         actions: [
           TextButton(
@@ -1098,8 +1090,8 @@ class _CommentTileState extends State<_CommentTile>
       [const Color(0xFFE65100), const Color(0xFF8D3200)],
     ];
     final name = widget.comment.userName;
-    final pair = colorPairs[
-        name.isNotEmpty ? name.codeUnitAt(0) % colorPairs.length : 0];
+    final pair =
+        colorPairs[name.isNotEmpty ? name.codeUnitAt(0) % colorPairs.length : 0];
 
     return GestureDetector(
       onTap: widget.onTapUser,
@@ -1176,13 +1168,11 @@ class _CommentTileState extends State<_CommentTile>
                                           : Colors.white,
                                       fontSize: 13,
                                       fontWeight: FontWeight.w700,
-                                      decoration:
-                                          TextDecoration.underline,
+                                      decoration: TextDecoration.underline,
                                       decorationColor: _isOwner
                                           ? AppColors.primaryOrange
                                               .withOpacity(0.4)
-                                          : Colors.white
-                                              .withOpacity(0.2),
+                                          : Colors.white.withOpacity(0.2),
                                       decorationStyle:
                                           TextDecorationStyle.dotted,
                                     ),
@@ -1195,8 +1185,7 @@ class _CommentTileState extends State<_CommentTile>
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 5, vertical: 1),
                                   decoration: BoxDecoration(
-                                    borderRadius:
-                                        BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(4),
                                     color: AppColors.primaryOrange
                                         .withOpacity(0.15),
                                   ),
@@ -1212,15 +1201,13 @@ class _CommentTileState extends State<_CommentTile>
                                 ),
                               ],
                               const SizedBox(width: 5),
-                              LevelBadgeInline(
-                                  level: widget.comment.userLevel),
-                              if (widget
-                                  .comment.userAchievements.isNotEmpty)
+                              LevelBadgeInline(level: widget.comment.userLevel),
+                              if (widget.comment.userAchievements.isNotEmpty)
                                 UnlockedBadgesRow(
                                   unlockedAchievements:
                                       widget.comment.userAchievements,
-                                  maxVisible: widget
-                                      .comment.userAchievements.length,
+                                  maxVisible:
+                                      widget.comment.userAchievements.length,
                                   badgeSize: 9,
                                 ),
                             ],
@@ -1231,8 +1218,7 @@ class _CommentTileState extends State<_CommentTile>
                             Text(
                               widget.timeAgo,
                               style: const TextStyle(
-                                  color: AppColors.textMuted,
-                                  fontSize: 11),
+                                  color: AppColors.textMuted, fontSize: 11),
                             ),
                             if (_canDelete) ...[
                               const SizedBox(width: 8),
@@ -1242,8 +1228,7 @@ class _CommentTileState extends State<_CommentTile>
                                   Icons.delete_outline_rounded,
                                   size: 15,
                                   color: widget.isAdmin && !_isOwner
-                                      ? AppColors.emergencyRed
-                                          .withOpacity(0.7)
+                                      ? AppColors.emergencyRed.withOpacity(0.7)
                                       : AppColors.textMuted,
                                 ),
                               ),
