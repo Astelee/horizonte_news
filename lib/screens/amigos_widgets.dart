@@ -554,11 +554,13 @@ class MenuContextoAmigo extends StatelessWidget {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
         content: const Text(
-          'A conversa será removida apenas da sua lista. @${''}'
-          'O contato e o histórico de mensagens permanecem intactos para '
-          'a outra pessoa, e a conversa volta a aparecer aqui se ela '
-          'enviar uma nova mensagem.',
-          style: TextStyle(color: Color(0xFF999999), height: 1.5),
+          'A conversa será removida apenas da sua lista. O contato e o '
+          'histórico de mensagens permanecem intactos para a outra pessoa, e a '
+          'conversa volta a aparecer aqui se ela enviar uma nova mensagem.',
+          style: TextStyle(
+            color: Color(0xFF999999), 
+            height: 1.5,
+          ),
         ),
         actions: [
           TextButton(
