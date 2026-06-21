@@ -512,19 +512,46 @@ class MenuContextoAmigo extends StatelessWidget {
   }
 
   Future<void> _alternarFavorito(BuildContext context) async {
-    Navigator.pop(context);
+    // Captura o Navigator da árvore raiz ANTES de fechar o bottom sheet.
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    rootNav.pop();
     await db.collection('users_xp').doc(friend.uid).update({
       'isFavorite': !friend.isFavorite,
     });
     onChanged?.call();
   }
 
+  // ─────────────────────────────────────────────────────────────────
+  // CORREÇÃO DO BUG "Limpar Conversa":
+  // O bottom sheet era fechado com Navigator.pop(context) ANTES de abrir
+  // o showDialog, reutilizando o mesmo context. Como esse context pertence
+  // à árvore do bottom sheet (que já estava sendo desmontada), o diálogo
+  // de confirmação podia abrir "preso" a um contexto morto, fazendo os
+  // botões Cancelar/Limpar não responderem ao toque.
+  //
+  // A correção: guardamos a referência do Navigator RAIZ (do app) antes de
+  // fechar o bottom sheet, usamos o context do widget raiz (via
+  // navigatorKey implícito do MaterialApp através de rootNavigator) para
+  // abrir o diálogo, e usamos a mesma referência salva (rootNav) para
+  // fechar o diálogo depois — nunca dependendo do context do bottom sheet
+  // já fechado.
+  // ─────────────────────────────────────────────────────────────────
   Future<void> _limparConversa(BuildContext context) async {
-    Navigator.pop(context);
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    final rootContext = rootNav.context;
+
+    // Fecha o bottom sheet primeiro.
+    rootNav.pop();
+
+    // Pequeno delay para garantir que a animação de fechamento do bottom
+    // sheet termine antes de empilhar o novo diálogo — evita conflito de
+    // animações simultâneas no Navigator, que também pode travar o toque.
+    await Future.delayed(const Duration(milliseconds: 150));
 
     final confirma = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
+      context: rootContext,
+      barrierDismissible: true,
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF0A0A0A),
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -538,12 +565,12 @@ class MenuContextoAmigo extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Cancelar',
                 style: TextStyle(color: Color(0xFF999999))),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text(
               'Limpar',
               style: TextStyle(
@@ -580,14 +607,21 @@ class MenuContextoAmigo extends StatelessWidget {
   }
 
   Future<void> _excluirAmigo(BuildContext context) async {
-    Navigator.pop(context);
+    // Mesma correção aplicada aqui: captura o Navigator raiz antes de
+    // fechar o bottom sheet, e usa o context raiz para o diálogo seguinte.
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    final rootContext = rootNav.context;
+
+    rootNav.pop();
+    await Future.delayed(const Duration(milliseconds: 150));
 
     final idEncontrado = await _buscarRequestId();
     if (idEncontrado == null) return;
 
     final confirma = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
+      context: rootContext,
+      barrierDismissible: true,
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF0C0C0C),
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -600,12 +634,12 @@ class MenuContextoAmigo extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Cancelar',
                 style: TextStyle(color: Color(0xFF666666))),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Remover',
                 style: TextStyle(
                     color: Color(0xFFED4245), fontWeight: FontWeight.w700)),
@@ -684,16 +718,16 @@ class MenuContextoAmigo extends StatelessWidget {
             icon: Icons.person_rounded,
             label: 'Ver Perfil',
             color: Colors.white,
-            onTap: () => Navigator.pop(context),
+            onTap: () => Navigator.of(context, rootNavigator: true).pop(),
           ),
           _ItemMenu(
             icon: Icons.chat_bubble_rounded,
             label: 'Conversar',
             color: const Color(0xFFFF6B00),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
+              final rootNav = Navigator.of(context, rootNavigator: true);
+              rootNav.pop();
+              rootNav.push(
                 MaterialPageRoute(
                   builder: (_) => ChatScreen(friend: friend),
                 ),
@@ -714,7 +748,7 @@ class MenuContextoAmigo extends StatelessWidget {
             icon: Icons.notifications_off_rounded,
             label: 'Silenciar',
             color: const Color(0xFF747F8D),
-            onTap: () => Navigator.pop(context),
+            onTap: () => Navigator.of(context, rootNavigator: true).pop(),
           ),
           _ItemMenu(
             icon: Icons.delete_sweep_rounded,
