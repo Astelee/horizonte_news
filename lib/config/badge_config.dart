@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-// ═══════════════════════════════════════════════════════════════════
-// BADGE CONFIG — SISTEMA DE NÍVEIS PARA LEITORES
-// ═══════════════════════════════════════════════════════════════════
-
 class BadgeConfig {
   BadgeConfig._();
 
-  // ── SISTEMA DE NÍVEIS (1–30) ─────────────────────────────────────
+  // ── SISTEMA DE NÍVEIS ────────────────────────────────────────────
   static String levelTitle(int level) {
     if (level <= 1)  return 'Visitante';
     if (level <= 2)  return 'Leitor';
@@ -108,34 +104,33 @@ class BadgeConfig {
   // ── CONQUISTAS ───────────────────────────────────────────────────
 
   static IconData achievementIcon(String id) {
-    static IconData achievementIcon(String id) {
-  switch (id) {
-    case 'first_login':    return FontAwesomeIcons.rocket;
-    case 'articles_10':    return FontAwesomeIcons.bookOpen;
-    case 'articles_50':    return FontAwesomeIcons.solidNewspaper;
-    case 'articles_100':   return FontAwesomeIcons.graduationCap;
-    case 'articles_500':   return FontAwesomeIcons.brain;
-    case '1h_online':      return FontAwesomeIcons.solidClock;
-    case '10h_online':     return FontAwesomeIcons.hourglass;
-    case '50h_online':     return FontAwesomeIcons.infinity;
-    case '100h_online':    return FontAwesomeIcons.meteor;
-    case 'first_comment':  return FontAwesomeIcons.solidComments;
-    case 'comments_10':    return FontAwesomeIcons.solidComment;
-    case 'comments_50':    return FontAwesomeIcons.users;
-    case 'top_commenter':  return FontAwesomeIcons.trophy;
-    case 'first_share':    return FontAwesomeIcons.shareNodes;
-    case 'shares_10':      return FontAwesomeIcons.bullhorn;
-    case 'influencer':     return FontAwesomeIcons.wandMagicSparkles;
-    case 'streak_7':       return FontAwesomeIcons.fire;
-    case 'streak_30':      return FontAwesomeIcons.fireFlameCurved;
-    case 'streak_100':     return FontAwesomeIcons.fireAlt;
-    case 'level_5':        return FontAwesomeIcons.solidStar;
-    case 'level_10':       return FontAwesomeIcons.crown;
-    case 'popular_friend': return FontAwesomeIcons.handshake;
-    case 'collaborator':   return FontAwesomeIcons.circleCheck;
-    default:               return FontAwesomeIcons.medal;
+    switch (id) {
+      case 'first_login':    return FontAwesomeIcons.rocket;
+      case 'articles_10':    return FontAwesomeIcons.bookOpen;
+      case 'articles_50':    return FontAwesomeIcons.solidNewspaper;
+      case 'articles_100':   return FontAwesomeIcons.graduationCap;
+      case 'articles_500':   return FontAwesomeIcons.brain;
+      case '1h_online':      return FontAwesomeIcons.solidClock;
+      case '10h_online':     return FontAwesomeIcons.hourglass;
+      case '50h_online':     return FontAwesomeIcons.infinity;
+      case '100h_online':    return FontAwesomeIcons.meteor;
+      case 'first_comment':  return FontAwesomeIcons.solidComments;
+      case 'comments_10':    return FontAwesomeIcons.solidComment;
+      case 'comments_50':    return FontAwesomeIcons.users;
+      case 'top_commenter':  return FontAwesomeIcons.trophy;
+      case 'first_share':    return FontAwesomeIcons.shareNodes;
+      case 'shares_10':      return FontAwesomeIcons.bullhorn;
+      case 'influencer':     return FontAwesomeIcons.wandMagicSparkles;
+      case 'streak_7':       return FontAwesomeIcons.fire;
+      case 'streak_30':      return FontAwesomeIcons.fireFlameCurved;
+      case 'streak_100':     return FontAwesomeIcons.fireAlt;
+      case 'level_5':        return FontAwesomeIcons.solidStar;
+      case 'level_10':       return FontAwesomeIcons.crown;
+      case 'popular_friend': return FontAwesomeIcons.handshake;
+      case 'collaborator':   return FontAwesomeIcons.circleCheck;
+      default:               return FontAwesomeIcons.medal;
+    }
   }
-}
 
   static Color achievementColor(String id) {
     switch (id) {
@@ -185,15 +180,15 @@ class BadgeConfig {
   static String achievementRarity(String id) {
     const legendary = {
       'articles_500', '100h_online', 'top_commenter',
-      'streak_100', 'level_10', 'influencer'
+      'streak_100', 'level_10', 'influencer',
     };
     const epic = {
       'articles_100', '10h_online', 'comments_50',
-      'streak_30', 'level_5', 'shares_10'
+      'streak_30', 'level_5', 'shares_10',
     };
     const rare = {
       'articles_50', '1h_online', 'comments_10',
-      'streak_7', 'first_share'
+      'streak_7', 'first_share',
     };
     if (legendary.contains(id)) return 'LENDÁRIO';
     if (epic.contains(id))      return 'ÉPICO';
