@@ -108,33 +108,34 @@ class BadgeConfig {
   // ── CONQUISTAS ───────────────────────────────────────────────────
 
   static IconData achievementIcon(String id) {
-    switch (id) {
-      case 'first_login':    return FontAwesomeIcons.rocket;
-      case 'articles_10':    return FontAwesomeIcons.bookOpen;
-      case 'articles_50':    return FontAwesomeIcons.solidNewspaper;
-      case 'articles_100':   return FontAwesomeIcons.graduationCap;
-      case 'articles_500':   return FontAwesomeIcons.brainCircuit;
-      case '1h_online':      return FontAwesomeIcons.solidClock;
-      case '10h_online':     return FontAwesomeIcons.hourglass;
-      case '50h_online':     return FontAwesomeIcons.infinity;
-      case '100h_online':    return FontAwesomeIcons.meteor;
-      case 'first_comment':  return FontAwesomeIcons.solidComments;
-      case 'comments_10':    return FontAwesomeIcons.solidComment;
-      case 'comments_50':    return FontAwesomeIcons.users;
-      case 'top_commenter':  return FontAwesomeIcons.trophy;
-      case 'first_share':    return FontAwesomeIcons.shareNodes;
-      case 'shares_10':      return FontAwesomeIcons.bullhorn;
-      case 'influencer':     return FontAwesomeIcons.wandMagicSparkles;
-      case 'streak_7':       return FontAwesomeIcons.fire;
-      case 'streak_30':      return FontAwesomeIcons.solidFire;
-      case 'streak_100':     return FontAwesomeIcons.fireFlameEnhanced;
-      case 'level_5':        return FontAwesomeIcons.solidStar;
-      case 'level_10':       return FontAwesomeIcons.crown;
-      case 'popular_friend': return FontAwesomeIcons.handshake;
-      case 'collaborator':   return FontAwesomeIcons.circleCheck;
-      default:               return FontAwesomeIcons.medal;
-    }
+    static IconData achievementIcon(String id) {
+  switch (id) {
+    case 'first_login':    return FontAwesomeIcons.rocket;
+    case 'articles_10':    return FontAwesomeIcons.bookOpen;
+    case 'articles_50':    return FontAwesomeIcons.solidNewspaper;
+    case 'articles_100':   return FontAwesomeIcons.graduationCap;
+    case 'articles_500':   return FontAwesomeIcons.brain;
+    case '1h_online':      return FontAwesomeIcons.solidClock;
+    case '10h_online':     return FontAwesomeIcons.hourglass;
+    case '50h_online':     return FontAwesomeIcons.infinity;
+    case '100h_online':    return FontAwesomeIcons.meteor;
+    case 'first_comment':  return FontAwesomeIcons.solidComments;
+    case 'comments_10':    return FontAwesomeIcons.solidComment;
+    case 'comments_50':    return FontAwesomeIcons.users;
+    case 'top_commenter':  return FontAwesomeIcons.trophy;
+    case 'first_share':    return FontAwesomeIcons.shareNodes;
+    case 'shares_10':      return FontAwesomeIcons.bullhorn;
+    case 'influencer':     return FontAwesomeIcons.wandMagicSparkles;
+    case 'streak_7':       return FontAwesomeIcons.fire;
+    case 'streak_30':      return FontAwesomeIcons.fireFlameCurved;
+    case 'streak_100':     return FontAwesomeIcons.fireAlt;
+    case 'level_5':        return FontAwesomeIcons.solidStar;
+    case 'level_10':       return FontAwesomeIcons.crown;
+    case 'popular_friend': return FontAwesomeIcons.handshake;
+    case 'collaborator':   return FontAwesomeIcons.circleCheck;
+    default:               return FontAwesomeIcons.medal;
   }
+}
 
   static Color achievementColor(String id) {
     switch (id) {
