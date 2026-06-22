@@ -20,15 +20,14 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen>
     with TickerProviderStateMixin {
 
-  // Controladores de animação
   late AnimationController _glowCtrl;
   late AnimationController _barCtrl;
   late AnimationController _fadeCtrl;
   late AnimationController _pulseCtrl;
   late AnimationController _shimmerCtrl;
   late AnimationController _entryCtrl;
+  late AnimationController _counterCtrl;
 
-  // Animações
   late Animation<double> _glowAnim;
   late Animation<double> _fadeAnim;
   late Animation<double> _pulseAnim;
@@ -36,45 +35,36 @@ class _ProfileScreenState extends State<ProfileScreen>
   late Animation<double> _avatarScaleAnim;
   late Animation<double> _badgeSlideAnim;
 
-  // Contadores animados para estatísticas
-  late AnimationController _counterCtrl;
-
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
     super.initState();
 
-    // Glow pulsante do avatar
     _glowCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 3))
       ..repeat(reverse: true);
     _glowAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
       CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
     );
 
-    // Barra de XP
     _barCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
 
-    // Fade geral de entrada
     _fadeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600))
       ..forward();
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
 
-    // Pulso suave do badge de nível
     _pulseCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 2))
       ..repeat(reverse: true);
     _pulseAnim = Tween<double>(begin: 1.0, end: 1.06).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
 
-    // Shimmer correndo na barra de XP
     _shimmerCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 2))
       ..repeat();
     _shimmerAnim = Tween<double>(begin: -1.0, end: 2.0).animate(
       CurvedAnimation(parent: _shimmerCtrl, curve: Curves.linear),
     );
 
-    // Animação de entrada: avatar escala + badge desliza
     _entryCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
     _avatarScaleAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _entryCtrl, curve: const Interval(0.0, 0.6, curve: Curves.elasticOut)),
@@ -83,7 +73,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       CurvedAnimation(parent: _entryCtrl, curve: const Interval(0.4, 1.0, curve: Curves.easeOut)),
     );
 
-    // Contadores
     _counterCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600));
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -153,7 +142,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             const SizedBox(height: 16),
                             _buildStatsGrid(data),
                             const SizedBox(height: 16),
-                            _buildDailyMissions(),
+                            _buildDailyMissions(data), // ← recebe data
                             const SizedBox(height: 16),
                             _buildAchievementsSection(data),
                             const SizedBox(height: 16),
@@ -171,7 +160,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // SLIVER APP BAR — AVATAR COM AURA ANIMADA
+  // SLIVER APP BAR
   // ══════════════════════════════════════════════════════════════════
   Widget _buildSliverAppBar(User? user, UserXpData data) {
     final levelColor    = BadgeConfig.levelColor(data.level);
@@ -190,7 +179,6 @@ class _ProfileScreenState extends State<ProfileScreen>
         background: Stack(
           fit: StackFit.expand,
           children: [
-            // Fundo gradiente
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
@@ -200,8 +188,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ),
             ),
-
-            // Glow de fundo pulsante
             AnimatedBuilder(
               animation: _glowAnim,
               builder: (_, __) => Center(
@@ -220,15 +206,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ),
             ),
-
-            // Conteúdo do header
             Positioned(
               bottom: 16,
               left: 0,
               right: 0,
               child: Column(
                 children: [
-                  // Avatar com aura animada
                   AnimatedBuilder(
                     animation: _avatarScaleAnim,
                     builder: (_, child) => Transform.scale(
@@ -255,7 +238,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          // Anel externo animado
                           AnimatedBuilder(
                             animation: _pulseAnim,
                             builder: (_, __) => Container(
@@ -270,7 +252,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ),
                             ),
                           ),
-                          // Avatar
                           CircleAvatar(
                             radius: 42,
                             backgroundColor: const Color(0xFF1A0800),
@@ -297,7 +278,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ),
                             ),
                           ),
-                          // Badge de nível flutuante
                           Positioned(
                             bottom: 0,
                             right: 0,
@@ -334,10 +314,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 12),
-
-                  // Nome
                   Text(
                     user?.displayName ?? user?.email?.split('@').first ?? 'Usuário',
                     style: const TextStyle(
@@ -347,10 +324,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       letterSpacing: 0.5,
                     ),
                   ),
-
                   const SizedBox(height: 6),
-
-                  // Tag de nível premium com animação de entrada
                   AnimatedBuilder(
                     animation: _badgeSlideAnim,
                     builder: (_, child) => Transform.translate(
@@ -368,7 +342,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ── Tag de nível premium ──────────────────────────────────────────
   Widget _buildLevelTag(UserXpData data) {
     final gradient = BadgeConfig.levelGradient(data.level);
     final color    = BadgeConfig.levelColor(data.level);
@@ -411,11 +384,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ),
           const SizedBox(width: 8),
-          Container(
-            width: 1,
-            height: 12,
-            color: Colors.white.withOpacity(0.4),
-          ),
+          Container(width: 1, height: 12, color: Colors.white.withOpacity(0.4)),
           const SizedBox(width: 8),
           Text(
             rarity,
@@ -432,7 +401,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // CARD DE XP — BARRA PREMIUM COM SHIMMER
+  // CARD DE XP
   // ══════════════════════════════════════════════════════════════════
   Widget _buildXpCard(UserXpData data) {
     final levelColor    = BadgeConfig.levelColor(data.level);
@@ -469,7 +438,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                     ),
                     const SizedBox(height: 4),
-                    // Contador animado de XP total
                     AnimatedBuilder(
                       animation: _counterCtrl,
                       builder: (_, __) {
@@ -503,8 +471,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ),
                   ],
                 ),
-
-                // Badge LVL pulsante
                 AnimatedBuilder(
                   animation: _glowAnim,
                   builder: (_, __) => Container(
@@ -552,10 +518,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ],
             ),
-
             const SizedBox(height: 20),
-
-            // Labels da barra
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -574,12 +537,8 @@ class _ProfileScreenState extends State<ProfileScreen>
               ],
             ),
             const SizedBox(height: 8),
-
-            // Barra de XP premium com shimmer
             _buildPremiumProgressBar(data.progressPercent, levelGradient, levelColor),
             const SizedBox(height: 16),
-
-            // Tempo online
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
@@ -614,7 +573,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ── Barra premium com shimmer animado ─────────────────────────────
   Widget _buildPremiumProgressBar(double progress, List<Color> gradient, Color glowColor) {
     return AnimatedBuilder(
       animation: Listenable.merge([_barCtrl, _shimmerAnim]),
@@ -626,7 +584,6 @@ class _ProfileScreenState extends State<ProfileScreen>
           borderRadius: BorderRadius.circular(10),
           child: Stack(
             children: [
-              // Trilha
               Container(
                 height: 12,
                 decoration: BoxDecoration(
@@ -634,7 +591,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              // Preenchimento
               FractionallySizedBox(
                 widthFactor: animatedProgress,
                 child: Container(
@@ -648,7 +604,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                 ),
               ),
-              // Shimmer correndo
               if (_barCtrl.value > 0.3)
                 Positioned.fill(
                   child: FractionallySizedBox(
@@ -733,10 +688,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   const SizedBox(height: 2),
                   Text(
                     '🎁 Desbloqueia: $unlock',
-                    style: const TextStyle(
-                      color: Color(0xFF9E9E9E),
-                      fontSize: 11,
-                    ),
+                    style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 11),
                   ),
                 ],
               ),
@@ -763,20 +715,19 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // GRADE DE ESTATÍSTICAS EXPANDIDA
+  // GRADE DE ESTATÍSTICAS
   // ══════════════════════════════════════════════════════════════════
   Widget _buildStatsGrid(UserXpData data) {
-    final articles  = (data.stats['articlesRead'] as num?)?.toInt() ?? 0;
-    final shares    = (data.stats['articlesShared'] as num?)?.toInt() ?? 0;
-    final comments  = (data.stats['commentsPosted'] as num?)?.toInt() ?? 0;
-    final streak    = (data.stats['consecutiveDays'] as num?)?.toInt() ?? 0;
-    final timeH     = data.totalSecondsOnline ~/ 3600;
+    final articles = (data.stats['articlesRead'] as num?)?.toInt() ?? 0;
+    final shares   = (data.stats['articlesShared'] as num?)?.toInt() ?? 0;
+    final comments = (data.stats['commentsPosted'] as num?)?.toInt() ?? 0;
+    final streak   = (data.stats['consecutiveDays'] as num?)?.toInt() ?? 0;
+    final timeH    = data.totalSecondsOnline ~/ 3600;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          // Linha 1
           Row(
             children: [
               _AnimatedStatCard(
@@ -805,7 +756,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             ],
           ),
           const SizedBox(height: 10),
-          // Linha 2
           Row(
             children: [
               _AnimatedStatCard(
@@ -841,9 +791,14 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // MISSÕES DIÁRIAS
+  // MISSÕES DIÁRIAS — lê dados reais do UserXpData
   // ══════════════════════════════════════════════════════════════════
-  Widget _buildDailyMissions() {
+  Widget _buildDailyMissions(UserXpData data) {
+    final articles = (data.stats['articlesRead'] as num?)?.toInt() ?? 0;
+    final comments = (data.stats['commentsPosted'] as num?)?.toInt() ?? 0;
+    final shares   = (data.stats['articlesShared'] as num?)?.toInt() ?? 0;
+    final timeMin  = data.totalSecondsOnline ~/ 60;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
@@ -899,37 +854,40 @@ class _ProfileScreenState extends State<ProfileScreen>
               icon: FontAwesomeIcons.newspaper,
               label: 'Ler 5 notícias',
               xp: 25,
-              progress: 3,
+              progress: articles.clamp(0, 5),
               total: 5,
               color: AppColors.primaryOrange,
+              completed: articles >= 5,
             ),
             const SizedBox(height: 10),
             _MissionTile(
               icon: FontAwesomeIcons.comment,
               label: 'Fazer 2 comentários',
               xp: 40,
-              progress: 1,
+              progress: comments.clamp(0, 2),
               total: 2,
               color: const Color(0xFFBA68C8),
+              completed: comments >= 2,
             ),
             const SizedBox(height: 10),
             _MissionTile(
               icon: FontAwesomeIcons.shareNodes,
               label: 'Compartilhar 1 notícia',
               xp: 15,
-              progress: 0,
+              progress: shares.clamp(0, 1),
               total: 1,
               color: const Color(0xFF26C6DA),
+              completed: shares >= 1,
             ),
             const SizedBox(height: 10),
             _MissionTile(
               icon: FontAwesomeIcons.solidClock,
               label: 'Ficar 10 min lendo',
               xp: 20,
-              progress: 10,
+              progress: timeMin.clamp(0, 10),
               total: 10,
               color: const Color(0xFF66BB6A),
-              completed: true,
+              completed: timeMin >= 10,
             ),
           ],
         ),
@@ -995,7 +953,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ],
             ),
-
             if (unlocked.isNotEmpty) ...[
               const SizedBox(height: 18),
               _sectionLabel('OBTIDOS', const Color(0xFF43B581)),
@@ -1013,7 +970,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                 itemBuilder: (_, i) => _EmblemCard(achievement: unlocked[i], unlocked: true),
               ),
             ],
-
             if (locked.isNotEmpty) ...[
               const SizedBox(height: 22),
               _sectionLabel('BLOQUEADOS', const Color(0xFF333333)),
@@ -1044,12 +1000,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         const SizedBox(width: 6),
         Text(
           text,
-          style: TextStyle(
-            color: color,
-            fontSize: 9,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.5,
-          ),
+          style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 1.5),
         ),
       ],
     );
@@ -1330,7 +1281,10 @@ class _EmblemCardState extends State<_EmblemCard>
               width: isLeg ? 1.5 : 1,
             ),
             boxShadow: widget.unlocked
-                ? [BoxShadow(color: color.withOpacity(isLeg ? 0.25 : 0.10 + 0.10 * _shimmerCtrl.value), blurRadius: isLeg ? 16 : 10)]
+                ? [BoxShadow(
+                    color: color.withOpacity(isLeg ? 0.25 : 0.10 + 0.10 * _shimmerCtrl.value),
+                    blurRadius: isLeg ? 16 : 10,
+                  )]
                 : null,
           ),
           child: Column(
@@ -1356,11 +1310,17 @@ class _EmblemCardState extends State<_EmblemCard>
                   child: widget.unlocked
                       ? ShaderMask(
                           shaderCallback: (b) => LinearGradient(colors: gradient).createShader(b),
-                          child: FaIcon(BadgeConfig.achievementIcon(widget.achievement.icon),
-                              size: 17, color: Colors.white),
+                          child: FaIcon(
+                            BadgeConfig.achievementIcon(widget.achievement.icon),
+                            size: 17,
+                            color: Colors.white,
+                          ),
                         )
-                      : FaIcon(BadgeConfig.achievementIcon(widget.achievement.icon),
-                          size: 17, color: const Color(0xFF2A2A2A)),
+                      : FaIcon(
+                          BadgeConfig.achievementIcon(widget.achievement.icon),
+                          size: 17,
+                          color: const Color(0xFF2A2A2A),
+                        ),
                 ),
               ),
               const SizedBox(height: 7),
@@ -1442,15 +1402,20 @@ class _EmblemCardState extends State<_EmblemCard>
                   child: widget.unlocked
                       ? ShaderMask(
                           shaderCallback: (b) => LinearGradient(colors: gradient).createShader(b),
-                          child: FaIcon(BadgeConfig.achievementIcon(widget.achievement.icon),
-                              size: 34, color: Colors.white),
+                          child: FaIcon(
+                            BadgeConfig.achievementIcon(widget.achievement.icon),
+                            size: 34,
+                            color: Colors.white,
+                          ),
                         )
-                      : FaIcon(BadgeConfig.achievementIcon(widget.achievement.icon),
-                          size: 34, color: const Color(0xFF2A2A2A)),
+                      : FaIcon(
+                          BadgeConfig.achievementIcon(widget.achievement.icon),
+                          size: 34,
+                          color: const Color(0xFF2A2A2A),
+                        ),
                 ),
               ),
               const SizedBox(height: 18),
-              // Badge de raridade
               if (widget.unlocked)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
