@@ -12,6 +12,7 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   Timer? _activeTimer;
   int _secondsAccumulated = 0;
 
+  // A cada 60s salva no Firestore e atualiza minutos diários
   static const int _saveIntervalSeconds = 60;
 
   UserXpData get data => _data;
@@ -23,6 +24,7 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     _isLoading = true;
     notifyListeners();
 
+    // loadUserXpData já chama _checkAndResetDailyMissions internamente
     _data = await _service.loadUserXpData();
     _isLoading = false;
     notifyListeners();
@@ -35,6 +37,8 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
+        // Ao voltar ao app, recarrega dados (pode ter mudado a data)
+        _reloadOnResume();
         _startTimer();
         break;
       case AppLifecycleState.paused:
@@ -44,6 +48,12 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
         _pauseAndSave();
         break;
     }
+  }
+
+  // Recarrega dados ao retornar ao app (garante reset de missões)
+  Future<void> _reloadOnResume() async {
+    _data = await _service.loadUserXpData();
+    notifyListeners();
   }
 
   // ── Timer de tempo ativo ─────────────────────────────────────────
@@ -95,8 +105,6 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
-  // ── Comentário — usado pelo CommentsSection ───────────────────────
-  // Chame provider.addXpForComment() no widget de comentários
   Future<void> addXpForComment() async {
     try {
       await _service.recordComment();
@@ -107,7 +115,6 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
-  // Mantido para compatibilidade com código existente
   Future<void> onComment() async => addXpForComment();
 
   Future<void> reload() async {
