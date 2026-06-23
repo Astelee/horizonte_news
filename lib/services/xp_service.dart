@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 // ═══════════════════════════════════════════════════════════════════
 // MODELO DE DADOS DO USUÁRIO XP
 // ═══════════════════════════════════════════════════════════════════
-
 class UserXpData {
   final int totalXp;
   final int level;
@@ -15,6 +14,7 @@ class UserXpData {
   final DateTime? lastActivity;
   final List<String> achievements;
   final Map<String, dynamic> stats;
+  final Map<String, dynamic> dailyMissions;
 
   const UserXpData({
     required this.totalXp,
@@ -26,6 +26,7 @@ class UserXpData {
     this.lastActivity,
     this.achievements = const [],
     this.stats = const {},
+    this.dailyMissions = const {},
   });
 
   factory UserXpData.empty() => const UserXpData(
@@ -43,18 +44,25 @@ class UserXpData {
     if (h > 0) return '${h}h ${m}min';
     return '${m}min';
   }
+
+  // Atalhos para missões do dia
+  int get dailyArticles =>
+      (dailyMissions['articlesRead'] as num?)?.toInt() ?? 0;
+  int get dailyComments =>
+      (dailyMissions['commentsPosted'] as num?)?.toInt() ?? 0;
+  int get dailyShares =>
+      (dailyMissions['articlesShared'] as num?)?.toInt() ?? 0;
+  int get dailyMinutes =>
+      (dailyMissions['minutesOnline'] as num?)?.toInt() ?? 0;
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // MODELO DE CONQUISTA
 // ═══════════════════════════════════════════════════════════════════
-
 class Achievement {
   final String id;
   final String title;
   final String description;
-  // 'icon' agora armazena o próprio ID da conquista.
-  // BadgeConfig.achievementIcon(icon) resolve o IconData correto.
   final String icon;
   final bool unlocked;
 
@@ -70,7 +78,6 @@ class Achievement {
 // ═══════════════════════════════════════════════════════════════════
 // SERVIÇO PRINCIPAL DE XP
 // ═══════════════════════════════════════════════════════════════════
-
 class XpService {
   static final XpService _instance = XpService._internal();
   factory XpService() => _instance;
@@ -92,7 +99,6 @@ class XpService {
     return xpRequiredForLevel(level + 1) - xpRequiredForLevel(level);
   }
 
-  // ── Calcula nível a partir do XP total ──────────────────────────
   static int levelFromXp(int totalXp) {
     int level = 1;
     while (xpRequiredForLevel(level + 1) <= totalXp) {
@@ -101,13 +107,13 @@ class XpService {
     return level;
   }
 
-  // ── Constrói UserXpData a partir do XP total ────────────────────
   static UserXpData buildXpData({
     required int totalXp,
     required int totalSecondsOnline,
     DateTime? lastActivity,
     List<String> achievements = const [],
     Map<String, dynamic> stats = const {},
+    Map<String, dynamic> dailyMissions = const {},
   }) {
     final level = levelFromXp(totalXp);
     final xpAtThisLevel = xpRequiredForLevel(level);
@@ -128,14 +134,20 @@ class XpService {
       lastActivity: lastActivity,
       achievements: achievements,
       stats: stats,
+      dailyMissions: dailyMissions,
     );
   }
 
-  // ── Referência ao documento do usuário no Firestore ─────────────
   DocumentReference<Map<String, dynamic>>? get _userDoc {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return null;
     return _db.collection('users_xp').doc(uid);
+  }
+
+  // ── Data de hoje como string YYYY-MM-DD ──────────────────────────
+  String _todayString() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
 
   // ── Carrega dados do Firestore ───────────────────────────────────
@@ -151,14 +163,25 @@ class XpService {
       }
 
       final data = snap.data()!;
-      final totalXp = (data['totalXp'] as num?)?.toInt() ?? 0;
+
+      // Verifica e reseta missões diárias se necessário
+      await _checkAndResetDailyMissions(doc, data);
+
+      // Recarrega após possível reset
+      final snapUpdated = await doc.get();
+      final dataUpdated = snapUpdated.data()!;
+
+      final totalXp = (dataUpdated['totalXp'] as num?)?.toInt() ?? 0;
       final totalSeconds =
-          (data['totalSecondsOnline'] as num?)?.toInt() ?? 0;
+          (dataUpdated['totalSecondsOnline'] as num?)?.toInt() ?? 0;
       final achievements =
-          List<String>.from(data['achievements'] ?? []);
-      final stats = Map<String, dynamic>.from(data['stats'] ?? {});
+          List<String>.from(dataUpdated['achievements'] ?? []);
+      final stats =
+          Map<String, dynamic>.from(dataUpdated['stats'] ?? {});
+      final dailyMissions =
+          Map<String, dynamic>.from(dataUpdated['dailyMissions'] ?? {});
       final lastActivity =
-          (data['lastActivity'] as Timestamp?)?.toDate();
+          (dataUpdated['lastActivity'] as Timestamp?)?.toDate();
 
       final xpData = buildXpData(
         totalXp: totalXp,
@@ -166,9 +189,10 @@ class XpService {
         lastActivity: lastActivity,
         achievements: achievements,
         stats: stats,
+        dailyMissions: dailyMissions,
       );
 
-      final savedLevel = (data['level'] as num?)?.toInt() ?? 1;
+      final savedLevel = (dataUpdated['level'] as num?)?.toInt() ?? 1;
       if (savedLevel != xpData.level) {
         doc.update({'level': xpData.level}).catchError((_) {});
       }
@@ -179,12 +203,67 @@ class XpService {
     }
   }
 
+  // ── Verifica se precisa resetar missões diárias ──────────────────
+  Future<void> _checkAndResetDailyMissions(
+    DocumentReference<Map<String, dynamic>> doc,
+    Map<String, dynamic> data,
+  ) async {
+    final today = _todayString();
+    final lastReset = data['lastMissionReset'] as String? ?? '';
+
+    if (lastReset == today) return; // já resetou hoje, não faz nada
+
+    // Calcula sequência de dias
+    int consecutiveDays =
+        (data['stats']?['consecutiveDays'] as num?)?.toInt() ?? 0;
+
+    if (lastReset.isNotEmpty) {
+      try {
+        final lastDate = DateTime.parse(lastReset);
+        final todayDate = DateTime.now();
+        final diff = todayDate
+            .difference(DateTime(lastDate.year, lastDate.month, lastDate.day))
+            .inDays;
+
+        if (diff == 1) {
+          // Acessou no dia seguinte: incrementa sequência
+          consecutiveDays += 1;
+        } else if (diff > 1) {
+          // Pulou um ou mais dias: zera sequência
+          consecutiveDays = 1;
+        }
+        // diff == 0 não deveria chegar aqui (já tratado acima)
+      } catch (_) {
+        consecutiveDays = 1;
+      }
+    } else {
+      // Primeiro acesso com esse campo
+      consecutiveDays = 1;
+    }
+
+    // Reseta missões do dia e atualiza sequência
+    await doc.update({
+      'lastMissionReset': today,
+      'dailyMissions': {
+        'articlesRead': 0,
+        'commentsPosted': 0,
+        'articlesShared': 0,
+        'minutesOnline': 0,
+        'rewardsCollected': <String>[],
+      },
+      'stats.consecutiveDays': consecutiveDays,
+      'stats.lastLoginDate': today,
+    });
+  }
+
   // ── Inicializa documento do usuário novo ─────────────────────────
   Future<void> _initializeUser() async {
     final doc = _userDoc;
     if (doc == null) return;
 
     final user = _auth.currentUser;
+    final today = _todayString();
+
     await doc.set({
       'uid': user?.uid ?? '',
       'email': user?.email ?? '',
@@ -195,12 +274,20 @@ class XpService {
       'lastActivity': FieldValue.serverTimestamp(),
       'createdAt': FieldValue.serverTimestamp(),
       'achievements': ['first_login'],
+      'lastMissionReset': today,
+      'dailyMissions': {
+        'articlesRead': 0,
+        'commentsPosted': 0,
+        'articlesShared': 0,
+        'minutesOnline': 0,
+        'rewardsCollected': <String>[],
+      },
       'stats': {
         'articlesRead': 0,
         'articlesShared': 0,
         'commentsPosted': 0,
-        'consecutiveDays': 0,
-        'lastLoginDate': DateTime.now().toIso8601String(),
+        'consecutiveDays': 1,
+        'lastLoginDate': today,
       },
     });
   }
@@ -238,12 +325,20 @@ class XpService {
     if (intervals <= 0) return loadUserXpData();
 
     final xpGained = intervals * _xpPerInterval;
+    final minutesActive = secondsActive ~/ 60;
 
     try {
       final updated = await _incrementXpAndSave(
         xpGained: xpGained,
         extraSeconds: secondsActive,
+        extraFields: minutesActive > 0
+            ? {
+                'dailyMissions.minutesOnline':
+                    FieldValue.increment(minutesActive),
+              }
+            : {},
       );
+      await _checkMissionRewards(updated);
       await _checkAchievements(updated);
       return updated;
     } catch (e) {
@@ -256,8 +351,12 @@ class XpService {
     try {
       final updated = await _incrementXpAndSave(
         xpGained: 5,
-        extraFields: {'stats.articlesRead': FieldValue.increment(1)},
+        extraFields: {
+          'stats.articlesRead': FieldValue.increment(1),
+          'dailyMissions.articlesRead': FieldValue.increment(1),
+        },
       );
+      await _checkMissionRewards(updated);
       await _checkAchievements(updated);
     } catch (_) {}
   }
@@ -267,8 +366,12 @@ class XpService {
     try {
       final updated = await _incrementXpAndSave(
         xpGained: 15,
-        extraFields: {'stats.articlesShared': FieldValue.increment(1)},
+        extraFields: {
+          'stats.articlesShared': FieldValue.increment(1),
+          'dailyMissions.articlesShared': FieldValue.increment(1),
+        },
       );
+      await _checkMissionRewards(updated);
       await _checkAchievements(updated);
     } catch (_) {}
   }
@@ -278,10 +381,59 @@ class XpService {
     try {
       final updated = await _incrementXpAndSave(
         xpGained: 20,
-        extraFields: {'stats.commentsPosted': FieldValue.increment(1)},
+        extraFields: {
+          'stats.commentsPosted': FieldValue.increment(1),
+          'dailyMissions.commentsPosted': FieldValue.increment(1),
+        },
       );
+      await _checkMissionRewards(updated);
       await _checkAchievements(updated);
     } catch (_) {}
+  }
+
+  // ── Verifica recompensas de missões diárias ──────────────────────
+  Future<void> _checkMissionRewards(UserXpData data) async {
+    final doc = _userDoc;
+    if (doc == null) return;
+
+    final collected = List<String>.from(
+        data.dailyMissions['rewardsCollected'] ?? []);
+
+    // Missão 1: Ler 5 artigos → +25 XP
+    if (data.dailyArticles >= 5 && !collected.contains('articles')) {
+      await doc.update({
+        'totalXp': FieldValue.increment(25),
+        'dailyMissions.rewardsCollected':
+            FieldValue.arrayUnion(['articles']),
+      });
+    }
+
+    // Missão 2: Fazer 2 comentários → +40 XP
+    if (data.dailyComments >= 2 && !collected.contains('comments')) {
+      await doc.update({
+        'totalXp': FieldValue.increment(40),
+        'dailyMissions.rewardsCollected':
+            FieldValue.arrayUnion(['comments']),
+      });
+    }
+
+    // Missão 3: Compartilhar 1 notícia → +15 XP
+    if (data.dailyShares >= 1 && !collected.contains('shares')) {
+      await doc.update({
+        'totalXp': FieldValue.increment(15),
+        'dailyMissions.rewardsCollected':
+            FieldValue.arrayUnion(['shares']),
+      });
+    }
+
+    // Missão 4: Ficar 10 min lendo → +20 XP
+    if (data.dailyMinutes >= 10 && !collected.contains('time')) {
+      await doc.update({
+        'totalXp': FieldValue.increment(20),
+        'dailyMissions.rewardsCollected':
+            FieldValue.arrayUnion(['time']),
+      });
+    }
   }
 
   // ── Verifica e desbloqueia conquistas ────────────────────────────
@@ -323,14 +475,12 @@ class XpService {
     }
 
     if (toUnlock.isNotEmpty) {
-      await doc
-          .update({'achievements': FieldValue.arrayUnion(toUnlock)});
+      await doc.update(
+          {'achievements': FieldValue.arrayUnion(toUnlock)});
     }
   }
 
   // ── Lista todas as conquistas possíveis com status ───────────────
-  // ATUALIZADO: icon agora é o próprio ID da conquista.
-  // BadgeConfig.achievementIcon(achievement.icon) resolve o ícone FA.
   List<Achievement> getAllAchievements(List<String> unlocked) {
     return [
       Achievement(
@@ -392,7 +542,6 @@ class XpService {
     ];
   }
 
-  // ── Nome do nível ────────────────────────────────────────────────
   static String levelTitle(int level) {
     if (level < 3) return 'Novato';
     if (level < 5) return 'Leitor';
@@ -404,6 +553,5 @@ class XpService {
     return 'Lenda';
   }
 
-  // ── Mantido para compatibilidade — UI usa BadgeConfig.levelIcon() ─
   static String levelIcon(int level) => '';
 }
