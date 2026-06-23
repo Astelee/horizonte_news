@@ -483,7 +483,7 @@ class _RegisterScreenState extends State<RegisterScreen>
         ),
         const SizedBox(height: 4),
         Text(
-          'Será usado para te identificar no chat. Não pode ser alterado.',
+          'Será usado para te identificar no chat.',
           style: TextStyle(
             fontSize: 11,
             color: Colors.white.withOpacity(0.3),
@@ -505,7 +505,7 @@ class _RegisterScreenState extends State<RegisterScreen>
             }),
           ],
           decoration: InputDecoration(
-            hintText: 'ex: joao_silva123',
+            hintText: 'ex: Joãozinho123',
             hintStyle: const TextStyle(
                 color: Color(0xFF424242), fontSize: 15),
             prefixText: '@',
