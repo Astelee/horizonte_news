@@ -142,7 +142,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             const SizedBox(height: 16),
                             _buildStatsGrid(data),
                             const SizedBox(height: 16),
-                            _buildDailyMissions(data), // ← recebe data
+                            _buildDailyMissions(data),
                             const SizedBox(height: 16),
                             _buildAchievementsSection(data),
                             const SizedBox(height: 16),
@@ -441,7 +441,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                     AnimatedBuilder(
                       animation: _counterCtrl,
                       builder: (_, __) {
-                        final val = (data.totalXp * Curves.easeOut.transform(_counterCtrl.value)).round();
+                        final val = (data.totalXp *
+                                Curves.easeOut.transform(_counterCtrl.value))
+                            .round();
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
@@ -548,7 +550,8 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.timer_outlined, color: AppColors.primaryOrange, size: 16),
+                  const Icon(Icons.timer_outlined,
+                      color: AppColors.primaryOrange, size: 16),
                   const SizedBox(width: 8),
                   const Text(
                     'Tempo online total:',
@@ -557,12 +560,18 @@ class _ProfileScreenState extends State<ProfileScreen>
                   const SizedBox(width: 6),
                   Text(
                     data.formattedTimeOnline,
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700),
                   ),
                   const Spacer(),
                   const Text(
                     '10 XP/min',
-                    style: TextStyle(color: AppColors.primaryOrange, fontSize: 11, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                        color: AppColors.primaryOrange,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -573,7 +582,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildPremiumProgressBar(double progress, List<Color> gradient, Color glowColor) {
+  Widget _buildPremiumProgressBar(
+      double progress, List<Color> gradient, Color glowColor) {
     return AnimatedBuilder(
       animation: Listenable.merge([_barCtrl, _shimmerAnim]),
       builder: (_, __) {
@@ -599,7 +609,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                     borderRadius: BorderRadius.circular(10),
                     gradient: LinearGradient(colors: gradient),
                     boxShadow: [
-                      BoxShadow(color: glowColor.withOpacity(0.7), blurRadius: 10),
+                      BoxShadow(
+                          color: glowColor.withOpacity(0.7), blurRadius: 10),
                     ],
                   ),
                 ),
@@ -666,10 +677,13 @@ class _ProfileScreenState extends State<ProfileScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: LinearGradient(colors: nextGradient),
-                boxShadow: [BoxShadow(color: nextColor.withOpacity(0.5), blurRadius: 10)],
+                boxShadow: [
+                  BoxShadow(color: nextColor.withOpacity(0.5), blurRadius: 10)
+                ],
               ),
               child: Center(
-                child: FaIcon(BadgeConfig.levelIcon(data.level + 1), size: 16, color: Colors.white),
+                child: FaIcon(BadgeConfig.levelIcon(data.level + 1),
+                    size: 16, color: Colors.white),
               ),
             ),
             const SizedBox(width: 12),
@@ -688,13 +702,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                   const SizedBox(height: 2),
                   Text(
                     '🎁 Desbloqueia: $unlock',
-                    style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 11),
+                    style: const TextStyle(
+                        color: Color(0xFF9E9E9E), fontSize: 11),
                   ),
                 ],
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 gradient: LinearGradient(colors: nextGradient),
@@ -791,13 +807,20 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // MISSÕES DIÁRIAS — lê dados reais do UserXpData
+  // MISSÕES DIÁRIAS — usa progresso do dia (dailyMissions)
   // ══════════════════════════════════════════════════════════════════
   Widget _buildDailyMissions(UserXpData data) {
-    final articles = (data.stats['articlesRead'] as num?)?.toInt() ?? 0;
-    final comments = (data.stats['commentsPosted'] as num?)?.toInt() ?? 0;
-    final shares   = (data.stats['articlesShared'] as num?)?.toInt() ?? 0;
-    final timeMin  = data.totalSecondsOnline ~/ 60;
+    final articles = data.dailyArticles.clamp(0, 5);
+    final comments = data.dailyComments.clamp(0, 2);
+    final shares   = data.dailyShares.clamp(0, 1);
+    final minutes  = data.dailyMinutes.clamp(0, 10);
+
+    // Tempo até meia-noite
+    final now      = DateTime.now();
+    final midnight = DateTime(now.year, now.month, now.day + 1);
+    final diff     = midnight.difference(now);
+    final hh       = diff.inHours.toString().padLeft(2, '0');
+    final mm       = (diff.inMinutes % 60).toString().padLeft(2, '0');
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -814,12 +837,12 @@ class _ProfileScreenState extends State<ProfileScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
+                const Row(
                   children: [
-                    const FaIcon(FontAwesomeIcons.listCheck,
+                    FaIcon(FontAwesomeIcons.listCheck,
                         color: AppColors.primaryOrange, size: 13),
-                    const SizedBox(width: 8),
-                    const Text(
+                    SizedBox(width: 8),
+                    Text(
                       'MISSÕES DIÁRIAS',
                       style: TextStyle(
                         color: AppColors.primaryOrange,
@@ -831,15 +854,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
                     color: const Color(0xFF43B581).withOpacity(0.15),
-                    border: Border.all(color: const Color(0xFF43B581).withOpacity(0.4)),
+                    border: Border.all(
+                        color: const Color(0xFF43B581).withOpacity(0.4)),
                   ),
-                  child: const Text(
-                    'RESET: 00:00',
-                    style: TextStyle(
+                  child: Text(
+                    'RESET: $hh:$mm',
+                    style: const TextStyle(
                       color: Color(0xFF43B581),
                       fontSize: 9,
                       fontWeight: FontWeight.w700,
@@ -854,7 +879,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               icon: FontAwesomeIcons.newspaper,
               label: 'Ler 5 notícias',
               xp: 25,
-              progress: articles.clamp(0, 5),
+              progress: articles,
               total: 5,
               color: AppColors.primaryOrange,
               completed: articles >= 5,
@@ -864,7 +889,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               icon: FontAwesomeIcons.comment,
               label: 'Fazer 2 comentários',
               xp: 40,
-              progress: comments.clamp(0, 2),
+              progress: comments,
               total: 2,
               color: const Color(0xFFBA68C8),
               completed: comments >= 2,
@@ -874,7 +899,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               icon: FontAwesomeIcons.shareNodes,
               label: 'Compartilhar 1 notícia',
               xp: 15,
-              progress: shares.clamp(0, 1),
+              progress: shares,
               total: 1,
               color: const Color(0xFF26C6DA),
               completed: shares >= 1,
@@ -884,10 +909,10 @@ class _ProfileScreenState extends State<ProfileScreen>
               icon: FontAwesomeIcons.solidClock,
               label: 'Ficar 10 min lendo',
               xp: 20,
-              progress: timeMin.clamp(0, 10),
+              progress: minutes,
               total: 10,
               color: const Color(0xFF66BB6A),
-              completed: timeMin >= 10,
+              completed: minutes >= 10,
             ),
           ],
         ),
@@ -911,7 +936,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           color: const Color(0xFF0A0A0A),
-          border: Border.all(color: AppColors.primaryOrange.withOpacity(0.2), width: 1),
+          border: Border.all(
+              color: AppColors.primaryOrange.withOpacity(0.2), width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -919,12 +945,12 @@ class _ProfileScreenState extends State<ProfileScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
+                const Row(
                   children: [
-                    const FaIcon(FontAwesomeIcons.medal,
+                    FaIcon(FontAwesomeIcons.medal,
                         color: AppColors.primaryOrange, size: 13),
-                    const SizedBox(width: 8),
-                    const Text(
+                    SizedBox(width: 8),
+                    Text(
                       'EMBLEMAS',
                       style: TextStyle(
                         color: AppColors.primaryOrange,
@@ -936,11 +962,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
                     color: AppColors.primaryOrange.withOpacity(0.12),
-                    border: Border.all(color: AppColors.primaryOrange.withOpacity(0.3)),
+                    border: Border.all(
+                        color: AppColors.primaryOrange.withOpacity(0.3)),
                   ),
                   child: Text(
                     '${unlocked.length} / ${achievements.length}',
@@ -960,14 +988,16 @@ class _ProfileScreenState extends State<ProfileScreen>
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 4,
                   mainAxisSpacing: 10,
                   crossAxisSpacing: 10,
                   childAspectRatio: 0.82,
                 ),
                 itemCount: unlocked.length,
-                itemBuilder: (_, i) => _EmblemCard(achievement: unlocked[i], unlocked: true),
+                itemBuilder: (_, i) =>
+                    _EmblemCard(achievement: unlocked[i], unlocked: true),
               ),
             ],
             if (locked.isNotEmpty) ...[
@@ -977,14 +1007,16 @@ class _ProfileScreenState extends State<ProfileScreen>
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 4,
                   mainAxisSpacing: 10,
                   crossAxisSpacing: 10,
                   childAspectRatio: 0.82,
                 ),
                 itemCount: locked.length,
-                itemBuilder: (_, i) => _EmblemCard(achievement: locked[i], unlocked: false),
+                itemBuilder: (_, i) =>
+                    _EmblemCard(achievement: locked[i], unlocked: false),
               ),
             ],
           ],
@@ -996,11 +1028,19 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _sectionLabel(String text, Color color) {
     return Row(
       children: [
-        Container(width: 6, height: 6, decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
+        Container(
+            width: 6,
+            height: 6,
+            decoration:
+                BoxDecoration(shape: BoxShape.circle, color: color)),
         const SizedBox(width: 6),
         Text(
           text,
-          style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 1.5),
+          style: TextStyle(
+              color: color,
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.5),
         ),
       ],
     );
@@ -1034,7 +1074,8 @@ class _ProfileScreenState extends State<ProfileScreen>
   String _getInitials(String? name) {
     if (name == null || name.isEmpty) return '?';
     final parts = name.trim().split(' ');
-    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    if (parts.length >= 2)
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     return name[0].toUpperCase();
   }
 }
@@ -1068,7 +1109,9 @@ class _AnimatedStatCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           color: const Color(0xFF0A0A0A),
           border: Border.all(color: color.withOpacity(0.25), width: 1),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.05), blurRadius: 12)],
+          boxShadow: [
+            BoxShadow(color: color.withOpacity(0.05), blurRadius: 12)
+          ],
         ),
         child: Column(
           children: [
@@ -1077,7 +1120,9 @@ class _AnimatedStatCard extends StatelessWidget {
             AnimatedBuilder(
               animation: controller,
               builder: (_, __) {
-                final val = (value * Curves.easeOut.transform(controller.value)).round();
+                final val = (value *
+                        Curves.easeOut.transform(controller.value))
+                    .round();
                 return Text(
                   '$val$suffix',
                   style: const TextStyle(
@@ -1092,7 +1137,8 @@ class _AnimatedStatCard extends StatelessWidget {
             Text(
               label,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF757575), fontSize: 10, height: 1.3),
+              style: const TextStyle(
+                  color: Color(0xFF757575), fontSize: 10, height: 1.3),
             ),
           ],
         ),
@@ -1131,9 +1177,13 @@ class _MissionTile extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: completed ? color.withOpacity(0.08) : const Color(0xFF111111),
+        color: completed
+            ? color.withOpacity(0.08)
+            : const Color(0xFF111111),
         border: Border.all(
-          color: completed ? color.withOpacity(0.5) : const Color(0xFF1E1E1E),
+          color: completed
+              ? color.withOpacity(0.5)
+              : const Color(0xFF1E1E1E),
         ),
       ),
       child: Row(
@@ -1160,7 +1210,9 @@ class _MissionTile extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    color: completed ? Colors.white : const Color(0xFFCCCCCC),
+                    color: completed
+                        ? Colors.white
+                        : const Color(0xFFCCCCCC),
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -1170,7 +1222,8 @@ class _MissionTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                   child: Stack(
                     children: [
-                      Container(height: 5, color: const Color(0xFF1E1E1E)),
+                      Container(
+                          height: 5, color: const Color(0xFF1E1E1E)),
                       FractionallySizedBox(
                         widthFactor: pct,
                         child: Container(
@@ -1178,7 +1231,11 @@ class _MissionTile extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: color,
                             borderRadius: BorderRadius.circular(4),
-                            boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: 4)],
+                            boxShadow: [
+                              BoxShadow(
+                                  color: color.withOpacity(0.5),
+                                  blurRadius: 4)
+                            ],
                           ),
                         ),
                       ),
@@ -1188,21 +1245,26 @@ class _MissionTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   '$progress/$total',
-                  style: TextStyle(color: color.withOpacity(0.7), fontSize: 10),
+                  style: TextStyle(
+                      color: color.withOpacity(0.7), fontSize: 10),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 10),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
               gradient: completed
-                  ? LinearGradient(colors: [color.withOpacity(0.8), color])
+                  ? LinearGradient(
+                      colors: [color.withOpacity(0.8), color])
                   : null,
               color: completed ? null : const Color(0xFF1A1A1A),
-              border: completed ? null : Border.all(color: const Color(0xFF2A2A2A)),
+              border: completed
+                  ? null
+                  : Border.all(color: const Color(0xFF2A2A2A)),
             ),
             child: Text(
               '+$xp XP',
@@ -1239,7 +1301,8 @@ class _EmblemCardState extends State<_EmblemCard>
   @override
   void initState() {
     super.initState();
-    _shimmerCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 3));
+    _shimmerCtrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 3));
     if (widget.unlocked) _shimmerCtrl.repeat(reverse: true);
   }
 
@@ -1251,13 +1314,14 @@ class _EmblemCardState extends State<_EmblemCard>
 
   @override
   Widget build(BuildContext context) {
-    final color    = widget.unlocked
+    final color = widget.unlocked
         ? BadgeConfig.achievementColor(widget.achievement.icon)
         : const Color(0xFF1E1E1E);
     final gradient = widget.unlocked
         ? BadgeConfig.achievementGradient(widget.achievement.icon)
         : [const Color(0xFF111111), const Color(0xFF111111)];
-    final isLeg    = widget.unlocked && BadgeConfig.isLegendary(widget.achievement.icon);
+    final isLeg =
+        widget.unlocked && BadgeConfig.isLegendary(widget.achievement.icon);
 
     return GestureDetector(
       onTap: () => _showDetail(context, color, gradient),
@@ -1268,7 +1332,10 @@ class _EmblemCardState extends State<_EmblemCard>
             borderRadius: BorderRadius.circular(16),
             gradient: widget.unlocked
                 ? LinearGradient(
-                    colors: [gradient[0].withOpacity(0.18), gradient[1].withOpacity(0.07)],
+                    colors: [
+                      gradient[0].withOpacity(0.18),
+                      gradient[1].withOpacity(0.07)
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   )
@@ -1276,15 +1343,20 @@ class _EmblemCardState extends State<_EmblemCard>
             color: widget.unlocked ? null : const Color(0xFF0D0D0D),
             border: Border.all(
               color: widget.unlocked
-                  ? color.withOpacity(isLeg ? 0.7 : 0.28 + 0.22 * _shimmerCtrl.value)
+                  ? color.withOpacity(
+                      isLeg ? 0.7 : 0.28 + 0.22 * _shimmerCtrl.value)
                   : const Color(0xFF1A1A1A),
               width: isLeg ? 1.5 : 1,
             ),
             boxShadow: widget.unlocked
-                ? [BoxShadow(
-                    color: color.withOpacity(isLeg ? 0.25 : 0.10 + 0.10 * _shimmerCtrl.value),
-                    blurRadius: isLeg ? 16 : 10,
-                  )]
+                ? [
+                    BoxShadow(
+                      color: color.withOpacity(isLeg
+                          ? 0.25
+                          : 0.10 + 0.10 * _shimmerCtrl.value),
+                      blurRadius: isLeg ? 16 : 10,
+                    )
+                  ]
                 : null,
           ),
           child: Column(
@@ -1297,27 +1369,35 @@ class _EmblemCardState extends State<_EmblemCard>
                   shape: BoxShape.circle,
                   gradient: widget.unlocked
                       ? LinearGradient(
-                          colors: [gradient[0].withOpacity(0.28), gradient[1].withOpacity(0.12)],
+                          colors: [
+                            gradient[0].withOpacity(0.28),
+                            gradient[1].withOpacity(0.12)
+                          ],
                         )
                       : null,
                   color: widget.unlocked ? null : const Color(0xFF161616),
                   border: Border.all(
-                    color: widget.unlocked ? color.withOpacity(0.5) : const Color(0xFF222222),
+                    color: widget.unlocked
+                        ? color.withOpacity(0.5)
+                        : const Color(0xFF222222),
                     width: 1.5,
                   ),
                 ),
                 child: Center(
                   child: widget.unlocked
                       ? ShaderMask(
-                          shaderCallback: (b) => LinearGradient(colors: gradient).createShader(b),
+                          shaderCallback: (b) =>
+                              LinearGradient(colors: gradient).createShader(b),
                           child: FaIcon(
-                            BadgeConfig.achievementIcon(widget.achievement.icon),
+                            BadgeConfig.achievementIcon(
+                                widget.achievement.icon),
                             size: 17,
                             color: Colors.white,
                           ),
                         )
                       : FaIcon(
-                          BadgeConfig.achievementIcon(widget.achievement.icon),
+                          BadgeConfig.achievementIcon(
+                              widget.achievement.icon),
                           size: 17,
                           color: const Color(0xFF2A2A2A),
                         ),
@@ -1332,7 +1412,9 @@ class _EmblemCardState extends State<_EmblemCard>
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: widget.unlocked ? Colors.white : const Color(0xFF2E2E2E),
+                    color: widget.unlocked
+                        ? Colors.white
+                        : const Color(0xFF2E2E2E),
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
                     height: 1.3,
@@ -1347,11 +1429,15 @@ class _EmblemCardState extends State<_EmblemCard>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: color,
-                    boxShadow: [BoxShadow(color: color.withOpacity(0.9), blurRadius: 6)],
+                    boxShadow: [
+                      BoxShadow(
+                          color: color.withOpacity(0.9), blurRadius: 6)
+                    ],
                   ),
                 )
               else
-                const FaIcon(FontAwesomeIcons.lock, size: 8, color: Color(0xFF2A2A2A)),
+                const FaIcon(FontAwesomeIcons.lock,
+                    size: 8, color: Color(0xFF2A2A2A)),
             ],
           ),
         ),
@@ -1371,11 +1457,16 @@ class _EmblemCardState extends State<_EmblemCard>
             borderRadius: BorderRadius.circular(24),
             color: const Color(0xFF0C0C0C),
             border: Border.all(
-              color: widget.unlocked ? color.withOpacity(0.45) : const Color(0xFF1A1A1A),
+              color: widget.unlocked
+                  ? color.withOpacity(0.45)
+                  : const Color(0xFF1A1A1A),
               width: 1.5,
             ),
             boxShadow: widget.unlocked
-                ? [BoxShadow(color: color.withOpacity(0.22), blurRadius: 48)]
+                ? [
+                    BoxShadow(
+                        color: color.withOpacity(0.22), blurRadius: 48)
+                  ]
                 : null,
           ),
           child: Column(
@@ -1387,29 +1478,42 @@ class _EmblemCardState extends State<_EmblemCard>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: widget.unlocked
-                      ? LinearGradient(colors: [gradient[0].withOpacity(0.3), gradient[1].withOpacity(0.1)])
+                      ? LinearGradient(colors: [
+                          gradient[0].withOpacity(0.3),
+                          gradient[1].withOpacity(0.1)
+                        ])
                       : null,
-                  color: widget.unlocked ? null : const Color(0xFF161616),
+                  color:
+                      widget.unlocked ? null : const Color(0xFF161616),
                   border: Border.all(
-                    color: widget.unlocked ? color.withOpacity(0.6) : const Color(0xFF222222),
+                    color: widget.unlocked
+                        ? color.withOpacity(0.6)
+                        : const Color(0xFF222222),
                     width: 2,
                   ),
                   boxShadow: widget.unlocked
-                      ? [BoxShadow(color: color.withOpacity(0.35), blurRadius: 28)]
+                      ? [
+                          BoxShadow(
+                              color: color.withOpacity(0.35),
+                              blurRadius: 28)
+                        ]
                       : null,
                 ),
                 child: Center(
                   child: widget.unlocked
                       ? ShaderMask(
-                          shaderCallback: (b) => LinearGradient(colors: gradient).createShader(b),
+                          shaderCallback: (b) =>
+                              LinearGradient(colors: gradient).createShader(b),
                           child: FaIcon(
-                            BadgeConfig.achievementIcon(widget.achievement.icon),
+                            BadgeConfig.achievementIcon(
+                                widget.achievement.icon),
                             size: 34,
                             color: Colors.white,
                           ),
                         )
                       : FaIcon(
-                          BadgeConfig.achievementIcon(widget.achievement.icon),
+                          BadgeConfig.achievementIcon(
+                              widget.achievement.icon),
                           size: 34,
                           color: const Color(0xFF2A2A2A),
                         ),
@@ -1418,7 +1522,8 @@ class _EmblemCardState extends State<_EmblemCard>
               const SizedBox(height: 18),
               if (widget.unlocked)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
                     gradient: LinearGradient(colors: gradient),
@@ -1438,7 +1543,9 @@ class _EmblemCardState extends State<_EmblemCard>
                 widget.achievement.title,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: widget.unlocked ? Colors.white : const Color(0xFF3A3A3A),
+                  color: widget.unlocked
+                      ? Colors.white
+                      : const Color(0xFF3A3A3A),
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1447,30 +1554,43 @@ class _EmblemCardState extends State<_EmblemCard>
               Text(
                 widget.achievement.description,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF666666), fontSize: 13, height: 1.5),
+                style: const TextStyle(
+                    color: Color(0xFF666666), fontSize: 13, height: 1.5),
               ),
               const SizedBox(height: 18),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 18, vertical: 8),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  gradient: widget.unlocked ? LinearGradient(colors: gradient) : null,
-                  color: widget.unlocked ? null : const Color(0xFF161616),
-                  border: widget.unlocked ? null : Border.all(color: const Color(0xFF2A2A2A)),
+                  gradient: widget.unlocked
+                      ? LinearGradient(colors: gradient)
+                      : null,
+                  color:
+                      widget.unlocked ? null : const Color(0xFF161616),
+                  border: widget.unlocked
+                      ? null
+                      : Border.all(color: const Color(0xFF2A2A2A)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      widget.unlocked ? Icons.check_circle_rounded : Icons.lock_rounded,
-                      color: widget.unlocked ? Colors.white : const Color(0xFF444444),
+                      widget.unlocked
+                          ? Icons.check_circle_rounded
+                          : Icons.lock_rounded,
+                      color: widget.unlocked
+                          ? Colors.white
+                          : const Color(0xFF444444),
                       size: 14,
                     ),
                     const SizedBox(width: 6),
                     Text(
                       widget.unlocked ? 'OBTIDO' : 'BLOQUEADO',
                       style: TextStyle(
-                        color: widget.unlocked ? Colors.white : const Color(0xFF444444),
+                        color: widget.unlocked
+                            ? Colors.white
+                            : const Color(0xFF444444),
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.2,
@@ -1509,7 +1629,8 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           color: const Color(0xFF0A0A0A),
@@ -1523,9 +1644,14 @@ class _ActionButton extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 20),
             const SizedBox(width: 12),
-            Text(label, style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w600)),
+            Text(label,
+                style: TextStyle(
+                    color: color,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600)),
             const Spacer(),
-            Icon(Icons.chevron_right_rounded, color: color.withOpacity(0.5), size: 20),
+            Icon(Icons.chevron_right_rounded,
+                color: color.withOpacity(0.5), size: 20),
           ],
         ),
       ),
@@ -1545,7 +1671,8 @@ class _ProfileSkeleton extends StatelessWidget {
       padding: EdgeInsets.all(16.0),
       child: Center(
         child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
+          valueColor:
+              AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
           strokeWidth: 2,
         ),
       ),
@@ -1576,20 +1703,26 @@ class _LogoutDialog extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppColors.emergencyRed.withOpacity(0.1),
-                border: Border.all(color: AppColors.emergencyRed.withOpacity(0.3)),
+                border: Border.all(
+                    color: AppColors.emergencyRed.withOpacity(0.3)),
               ),
-              child: const Icon(Icons.logout_rounded, color: AppColors.emergencyRed, size: 26),
+              child: const Icon(Icons.logout_rounded,
+                  color: AppColors.emergencyRed, size: 26),
             ),
             const SizedBox(height: 16),
             const Text(
               'Sair da conta?',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             const Text(
               'Seu progresso e XP estão salvos.\nVocê pode entrar novamente a qualquer momento.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF9E9E9E), fontSize: 13, height: 1.5),
+              style: TextStyle(
+                  color: Color(0xFF9E9E9E), fontSize: 13, height: 1.5),
             ),
             const SizedBox(height: 24),
             Row(
@@ -1601,7 +1734,8 @@ class _LogoutDialog extends StatelessWidget {
                       height: 46,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF2A2A2A)),
+                        border:
+                            Border.all(color: const Color(0xFF2A2A2A)),
                       ),
                       child: const Center(
                         child: Text(
@@ -1626,7 +1760,9 @@ class _LogoutDialog extends StatelessWidget {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         color: AppColors.emergencyRed.withOpacity(0.15),
-                        border: Border.all(color: AppColors.emergencyRed.withOpacity(0.4)),
+                        border: Border.all(
+                            color:
+                                AppColors.emergencyRed.withOpacity(0.4)),
                       ),
                       child: const Center(
                         child: Text(
