@@ -401,7 +401,7 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Entre para acompanhar notícias, comentar e salvar conteúdos.',
+                  'Seu portal de notícias em tempo real',
                   style: TextStyle(
                     fontSize: 13,
                     color: Color(0xFF757575),
