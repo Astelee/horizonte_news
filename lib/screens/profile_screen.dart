@@ -10,6 +10,7 @@ import '../providers/user_xp_provider.dart';
 import '../services/xp_service.dart';
 import '../widgets/badge_widgets.dart';
 import '../widgets/avatar_frame.dart';
+import '../widgets/level_up_overlay.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -42,39 +43,50 @@ class _ProfileScreenState extends State<ProfileScreen>
   void initState() {
     super.initState();
 
-    _glowCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 3))
+    _glowCtrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 3))
       ..repeat(reverse: true);
     _glowAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
       CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
     );
 
-    _barCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
+    _barCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1400));
 
-    _fadeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600))
+    _fadeCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600))
       ..forward();
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
 
-    _pulseCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 2))
+    _pulseCtrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 2))
       ..repeat(reverse: true);
     _pulseAnim = Tween<double>(begin: 1.0, end: 1.06).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
 
-    _shimmerCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 2))
+    _shimmerCtrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 2))
       ..repeat();
     _shimmerAnim = Tween<double>(begin: -1.0, end: 2.0).animate(
       CurvedAnimation(parent: _shimmerCtrl, curve: Curves.linear),
     );
 
-    _entryCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    _entryCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 900));
     _avatarScaleAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _entryCtrl, curve: const Interval(0.0, 0.6, curve: Curves.elasticOut)),
+      CurvedAnimation(
+          parent: _entryCtrl,
+          curve: const Interval(0.0, 0.6, curve: Curves.elasticOut)),
     );
     _badgeSlideAnim = Tween<double>(begin: 30.0, end: 0.0).animate(
-      CurvedAnimation(parent: _entryCtrl, curve: const Interval(0.4, 1.0, curve: Curves.easeOut)),
+      CurvedAnimation(
+          parent: _entryCtrl,
+          curve: const Interval(0.4, 1.0, curve: Curves.easeOut)),
     );
 
-    _counterCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600));
+    _counterCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1600));
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _entryCtrl.forward();
@@ -82,6 +94,13 @@ class _ProfileScreenState extends State<ProfileScreen>
         _barCtrl.forward();
         _counterCtrl.forward();
       });
+
+      // ── Conecta o callback de level up ao overlay ───────────────
+      final xpProvider =
+          Provider.of<UserXpProvider>(context, listen: false);
+      xpProvider.onLevelUp = (newLevel) {
+        if (mounted) showLevelUpOverlay(context, newLevel);
+      };
     });
 
     _audioPlayer.setReleaseMode(ReleaseMode.loop);
@@ -91,6 +110,11 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   @override
   void dispose() {
+    // Remove o callback ao sair da tela para evitar memory leak
+    final xpProvider =
+        Provider.of<UserXpProvider>(context, listen: false);
+    xpProvider.onLevelUp = null;
+
     _glowCtrl.dispose();
     _barCtrl.dispose();
     _fadeCtrl.dispose();
@@ -110,7 +134,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
     if (confirm == true && mounted) {
       await FirebaseAuth.instance.signOut();
-      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
+      Navigator.pushNamedAndRemoveUntil(
+          context, AppRoutes.login, (_) => false);
     }
   }
 
@@ -124,7 +149,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         opacity: _fadeAnim,
         child: Consumer<UserXpProvider>(
           builder: (context, xpProvider, _) {
-            final data      = xpProvider.data;
+            final data = xpProvider.data;
             final isLoading = xpProvider.isLoading;
 
             return CustomScrollView(
@@ -211,7 +236,6 @@ class _ProfileScreenState extends State<ProfileScreen>
               right: 0,
               child: Column(
                 children: [
-                  // ── AVATAR COM MOLDURA POR RARIDADE ──────────────
                   AvatarFrame(
                     level: data.level,
                     size: 84,
@@ -223,7 +247,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                       child: Center(
                         child: Text(
-                          _getInitials(user?.displayName ?? user?.email),
+                          _getInitials(
+                              user?.displayName ?? user?.email),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 28,
@@ -235,7 +260,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    user?.displayName ?? user?.email?.split('@').first ?? 'Usuário',
+                    user?.displayName ??
+                        user?.email?.split('@').first ??
+                        'Usuário',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -263,14 +290,15 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildLevelTag(UserXpData data) {
     final gradient = BadgeConfig.levelGradient(data.level);
-    final color    = BadgeConfig.levelColor(data.level);
-    final isEpic   = data.level >= 8;
+    final color = BadgeConfig.levelColor(data.level);
+    final isEpic = data.level >= 8;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(30),
             gradient: LinearGradient(
@@ -279,7 +307,8 @@ class _ProfileScreenState extends State<ProfileScreen>
               end: Alignment.centerRight,
             ),
             border: Border.all(
-              color: Colors.white.withOpacity(isEpic ? 0.3 : 0.15),
+              color:
+                  Colors.white.withOpacity(isEpic ? 0.3 : 0.15),
               width: 1,
             ),
             boxShadow: [
@@ -293,7 +322,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              FaIcon(BadgeConfig.levelIcon(data.level), size: 12, color: Colors.white),
+              FaIcon(BadgeConfig.levelIcon(data.level),
+                  size: 12, color: Colors.white),
               const SizedBox(width: 7),
               Text(
                 BadgeConfig.levelTitle(data.level),
@@ -317,7 +347,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   // CARD DE XP
   // ══════════════════════════════════════════════════════════════════
   Widget _buildXpCard(UserXpData data) {
-    final levelColor    = BadgeConfig.levelColor(data.level);
+    final levelColor = BadgeConfig.levelColor(data.level);
     final levelGradient = BadgeConfig.levelGradient(data.level);
 
     return Padding(
@@ -327,9 +357,13 @@ class _ProfileScreenState extends State<ProfileScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           color: const Color(0xFF0A0A0A),
-          border: Border.all(color: AppColors.primaryOrange.withOpacity(0.25), width: 1),
+          border: Border.all(
+              color: AppColors.primaryOrange.withOpacity(0.25),
+              width: 1),
           boxShadow: [
-            BoxShadow(color: AppColors.primaryOrange.withOpacity(0.06), blurRadius: 30),
+            BoxShadow(
+                color: AppColors.primaryOrange.withOpacity(0.06),
+                blurRadius: 30),
           ],
         ),
         child: Column(
@@ -355,7 +389,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                       animation: _counterCtrl,
                       builder: (_, __) {
                         final val = (data.totalXp *
-                                Curves.easeOut.transform(_counterCtrl.value))
+                                Curves.easeOut
+                                    .transform(_counterCtrl.value))
                             .round();
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -370,7 +405,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ),
                             ),
                             const Padding(
-                              padding: EdgeInsets.only(bottom: 4, left: 4),
+                              padding:
+                                  EdgeInsets.only(bottom: 4, left: 4),
                               child: Text(
                                 'XP',
                                 style: TextStyle(
@@ -400,7 +436,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: levelColor.withOpacity(0.5 * _glowAnim.value),
+                          color: levelColor
+                              .withOpacity(0.5 * _glowAnim.value),
                           blurRadius: 20,
                           spreadRadius: 2,
                         ),
@@ -439,7 +476,8 @@ class _ProfileScreenState extends State<ProfileScreen>
               children: [
                 Text(
                   '${data.xpInCurrentLevel} / ${data.xpForNextLevel} XP',
-                  style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 12),
+                  style: const TextStyle(
+                      color: Color(0xFF9E9E9E), fontSize: 12),
                 ),
                 Text(
                   'Faltam ${data.xpForNextLevel - data.xpInCurrentLevel} XP para Nível ${data.level + 1}',
@@ -452,14 +490,17 @@ class _ProfileScreenState extends State<ProfileScreen>
               ],
             ),
             const SizedBox(height: 8),
-            _buildPremiumProgressBar(data.progressPercent, levelGradient, levelColor),
+            _buildPremiumProgressBar(
+                data.progressPercent, levelGradient, levelColor),
             const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
                 color: AppColors.primaryOrange.withOpacity(0.08),
-                border: Border.all(color: AppColors.primaryOrange.withOpacity(0.2)),
+                border: Border.all(
+                    color: AppColors.primaryOrange.withOpacity(0.2)),
               ),
               child: Row(
                 children: [
@@ -468,7 +509,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   const SizedBox(width: 8),
                   const Text(
                     'Tempo online total:',
-                    style: TextStyle(color: Color(0xFF9E9E9E), fontSize: 12),
+                    style: TextStyle(
+                        color: Color(0xFF9E9E9E), fontSize: 12),
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -523,7 +565,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                     gradient: LinearGradient(colors: gradient),
                     boxShadow: [
                       BoxShadow(
-                          color: glowColor.withOpacity(0.7), blurRadius: 10),
+                          color: glowColor.withOpacity(0.7),
+                          blurRadius: 10),
                     ],
                   ),
                 ),
@@ -537,7 +580,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                       animation: _shimmerAnim,
                       builder: (_, __) => ShaderMask(
                         shaderCallback: (rect) => LinearGradient(
-                          begin: Alignment(_shimmerAnim.value - 1, 0),
+                          begin:
+                              Alignment(_shimmerAnim.value - 1, 0),
                           end: Alignment(_shimmerAnim.value, 0),
                           colors: [
                             Colors.transparent,
@@ -568,8 +612,8 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ══════════════════════════════════════════════════════════════════
   Widget _buildNextLevelPreview(UserXpData data) {
     final nextGradient = BadgeConfig.levelGradient(data.level + 1);
-    final nextColor    = BadgeConfig.levelColor(data.level + 1);
-    final unlock       = BadgeConfig.nextLevelUnlock(data.level);
+    final nextColor = BadgeConfig.levelColor(data.level + 1);
+    final unlock = BadgeConfig.nextLevelUnlock(data.level);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -578,7 +622,10 @@ class _ProfileScreenState extends State<ProfileScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           gradient: LinearGradient(
-            colors: [nextColor.withOpacity(0.08), nextColor.withOpacity(0.03)],
+            colors: [
+              nextColor.withOpacity(0.08),
+              nextColor.withOpacity(0.03)
+            ],
           ),
           border: Border.all(color: nextColor.withOpacity(0.25)),
         ),
@@ -591,7 +638,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                 shape: BoxShape.circle,
                 gradient: LinearGradient(colors: nextGradient),
                 boxShadow: [
-                  BoxShadow(color: nextColor.withOpacity(0.5), blurRadius: 10)
+                  BoxShadow(
+                      color: nextColor.withOpacity(0.5), blurRadius: 10)
                 ],
               ),
               child: Center(
@@ -622,8 +670,8 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
             ),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 gradient: LinearGradient(colors: nextGradient),
@@ -647,11 +695,15 @@ class _ProfileScreenState extends State<ProfileScreen>
   // GRADE DE ESTATÍSTICAS
   // ══════════════════════════════════════════════════════════════════
   Widget _buildStatsGrid(UserXpData data) {
-    final articles = (data.stats['articlesRead'] as num?)?.toInt() ?? 0;
-    final shares   = (data.stats['articlesShared'] as num?)?.toInt() ?? 0;
-    final comments = (data.stats['commentsPosted'] as num?)?.toInt() ?? 0;
-    final streak   = (data.stats['consecutiveDays'] as num?)?.toInt() ?? 0;
-    final timeH    = data.totalSecondsOnline ~/ 3600;
+    final articles =
+        (data.stats['articlesRead'] as num?)?.toInt() ?? 0;
+    final shares =
+        (data.stats['articlesShared'] as num?)?.toInt() ?? 0;
+    final comments =
+        (data.stats['commentsPosted'] as num?)?.toInt() ?? 0;
+    final streak =
+        (data.stats['consecutiveDays'] as num?)?.toInt() ?? 0;
+    final timeH = data.totalSecondsOnline ~/ 3600;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -725,14 +777,14 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildDailyMissions(UserXpData data) {
     final articles = data.dailyArticles.clamp(0, 5);
     final comments = data.dailyComments.clamp(0, 2);
-    final shares   = data.dailyShares.clamp(0, 1);
-    final minutes  = data.dailyMinutes.clamp(0, 10);
+    final shares = data.dailyShares.clamp(0, 1);
+    final minutes = data.dailyMinutes.clamp(0, 10);
 
-    final now      = DateTime.now();
+    final now = DateTime.now();
     final midnight = DateTime(now.year, now.month, now.day + 1);
-    final diff     = midnight.difference(now);
-    final hh       = diff.inHours.toString().padLeft(2, '0');
-    final mm       = (diff.inMinutes % 60).toString().padLeft(2, '0');
+    final diff = midnight.difference(now);
+    final hh = diff.inHours.toString().padLeft(2, '0');
+    final mm = (diff.inMinutes % 60).toString().padLeft(2, '0');
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -741,7 +793,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           color: const Color(0xFF0A0A0A),
-          border: Border.all(color: AppColors.primaryOrange.withOpacity(0.2)),
+          border: Border.all(
+              color: AppColors.primaryOrange.withOpacity(0.2)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -772,7 +825,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                     borderRadius: BorderRadius.circular(20),
                     color: const Color(0xFF43B581).withOpacity(0.15),
                     border: Border.all(
-                        color: const Color(0xFF43B581).withOpacity(0.4)),
+                        color:
+                            const Color(0xFF43B581).withOpacity(0.4)),
                   ),
                   child: Text(
                     'RESET: $hh:$mm',
@@ -836,10 +890,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   // SEÇÃO DE EMBLEMAS
   // ══════════════════════════════════════════════════════════════════
   Widget _buildAchievementsSection(UserXpData data) {
-    final xpService    = XpService();
+    final xpService = XpService();
     final achievements = xpService.getAllAchievements(data.achievements);
-    final unlocked     = achievements.where((a) => a.unlocked).toList();
-    final locked       = achievements.where((a) => !a.unlocked).toList();
+    final unlocked = achievements.where((a) => a.unlocked).toList();
+    final locked = achievements.where((a) => !a.unlocked).toList();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -849,7 +903,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           borderRadius: BorderRadius.circular(20),
           color: const Color(0xFF0A0A0A),
           border: Border.all(
-              color: AppColors.primaryOrange.withOpacity(0.2), width: 1),
+              color: AppColors.primaryOrange.withOpacity(0.2),
+              width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -878,9 +933,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                       horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    color: AppColors.primaryOrange.withOpacity(0.12),
+                    color:
+                        AppColors.primaryOrange.withOpacity(0.12),
                     border: Border.all(
-                        color: AppColors.primaryOrange.withOpacity(0.3)),
+                        color:
+                            AppColors.primaryOrange.withOpacity(0.3)),
                   ),
                   child: Text(
                     '${unlocked.length} / ${achievements.length}',
@@ -908,8 +965,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   childAspectRatio: 0.82,
                 ),
                 itemCount: unlocked.length,
-                itemBuilder: (_, i) =>
-                    _EmblemCard(achievement: unlocked[i], unlocked: true),
+                itemBuilder: (_, i) => _EmblemCard(
+                    achievement: unlocked[i], unlocked: true),
               ),
             ],
             if (locked.isNotEmpty) ...[
@@ -927,8 +984,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   childAspectRatio: 0.82,
                 ),
                 itemCount: locked.length,
-                itemBuilder: (_, i) =>
-                    _EmblemCard(achievement: locked[i], unlocked: false),
+                itemBuilder: (_, i) => _EmblemCard(
+                    achievement: locked[i], unlocked: false),
               ),
             ],
           ],
@@ -969,7 +1026,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           _ActionButton(
             icon: Icons.settings_outlined,
             label: 'Configurações',
-            onTap: () => Navigator.pushNamed(context, AppRoutes.settings),
+            onTap: () =>
+                Navigator.pushNamed(context, AppRoutes.settings),
           ),
           const SizedBox(height: 10),
           _ActionButton(
@@ -1016,13 +1074,16 @@ class _AnimatedStatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+        padding:
+            const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           color: const Color(0xFF0A0A0A),
-          border: Border.all(color: color.withOpacity(0.25), width: 1),
+          border:
+              Border.all(color: color.withOpacity(0.25), width: 1),
           boxShadow: [
-            BoxShadow(color: color.withOpacity(0.05), blurRadius: 12)
+            BoxShadow(
+                color: color.withOpacity(0.05), blurRadius: 12)
           ],
         ),
         child: Column(
@@ -1050,7 +1111,9 @@ class _AnimatedStatCard extends StatelessWidget {
               label,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                  color: Color(0xFF757575), fontSize: 10, height: 1.3),
+                  color: Color(0xFF757575),
+                  fontSize: 10,
+                  height: 1.3),
             ),
           ],
         ),
@@ -1135,7 +1198,8 @@ class _MissionTile extends StatelessWidget {
                   child: Stack(
                     children: [
                       Container(
-                          height: 5, color: const Color(0xFF1E1E1E)),
+                          height: 5,
+                          color: const Color(0xFF1E1E1E)),
                       FractionallySizedBox(
                         widthFactor: pct,
                         child: Container(
@@ -1165,8 +1229,8 @@ class _MissionTile extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
               gradient: completed
@@ -1181,7 +1245,9 @@ class _MissionTile extends StatelessWidget {
             child: Text(
               '+$xp XP',
               style: TextStyle(
-                color: completed ? Colors.white : const Color(0xFF666666),
+                color: completed
+                    ? Colors.white
+                    : const Color(0xFF666666),
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
               ),
@@ -1200,7 +1266,8 @@ class _EmblemCard extends StatefulWidget {
   final Achievement achievement;
   final bool unlocked;
 
-  const _EmblemCard({required this.achievement, required this.unlocked});
+  const _EmblemCard(
+      {required this.achievement, required this.unlocked});
 
   @override
   State<_EmblemCard> createState() => _EmblemCardState();
@@ -1232,8 +1299,8 @@ class _EmblemCardState extends State<_EmblemCard>
     final gradient = widget.unlocked
         ? BadgeConfig.achievementGradient(widget.achievement.icon)
         : [const Color(0xFF111111), const Color(0xFF111111)];
-    final isLeg =
-        widget.unlocked && BadgeConfig.isLegendary(widget.achievement.icon);
+    final isLeg = widget.unlocked &&
+        BadgeConfig.isLegendary(widget.achievement.icon);
 
     return GestureDetector(
       onTap: () => _showDetail(context, color, gradient),
@@ -1252,11 +1319,14 @@ class _EmblemCardState extends State<_EmblemCard>
                     end: Alignment.bottomRight,
                   )
                 : null,
-            color: widget.unlocked ? null : const Color(0xFF0D0D0D),
+            color: widget.unlocked
+                ? null
+                : const Color(0xFF0D0D0D),
             border: Border.all(
               color: widget.unlocked
-                  ? color.withOpacity(
-                      isLeg ? 0.7 : 0.28 + 0.22 * _shimmerCtrl.value)
+                  ? color.withOpacity(isLeg
+                      ? 0.7
+                      : 0.28 + 0.22 * _shimmerCtrl.value)
                   : const Color(0xFF1A1A1A),
               width: isLeg ? 1.5 : 1,
             ),
@@ -1287,7 +1357,9 @@ class _EmblemCardState extends State<_EmblemCard>
                           ],
                         )
                       : null,
-                  color: widget.unlocked ? null : const Color(0xFF161616),
+                  color: widget.unlocked
+                      ? null
+                      : const Color(0xFF161616),
                   border: Border.all(
                     color: widget.unlocked
                         ? color.withOpacity(0.5)
@@ -1299,7 +1371,8 @@ class _EmblemCardState extends State<_EmblemCard>
                   child: widget.unlocked
                       ? ShaderMask(
                           shaderCallback: (b) =>
-                              LinearGradient(colors: gradient).createShader(b),
+                              LinearGradient(colors: gradient)
+                                  .createShader(b),
                           child: FaIcon(
                             BadgeConfig.achievementIcon(
                                 widget.achievement.icon),
@@ -1317,7 +1390,8 @@ class _EmblemCardState extends State<_EmblemCard>
               ),
               const SizedBox(height: 7),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 4),
                 child: Text(
                   widget.achievement.title,
                   textAlign: TextAlign.center,
@@ -1343,7 +1417,8 @@ class _EmblemCardState extends State<_EmblemCard>
                     color: color,
                     boxShadow: [
                       BoxShadow(
-                          color: color.withOpacity(0.9), blurRadius: 6)
+                          color: color.withOpacity(0.9),
+                          blurRadius: 6)
                     ],
                   ),
                 )
@@ -1357,8 +1432,10 @@ class _EmblemCardState extends State<_EmblemCard>
     );
   }
 
-  void _showDetail(BuildContext context, Color color, List<Color> gradient) {
-    final rarity = BadgeConfig.achievementRarity(widget.achievement.icon);
+  void _showDetail(
+      BuildContext context, Color color, List<Color> gradient) {
+    final rarity =
+        BadgeConfig.achievementRarity(widget.achievement.icon);
     showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -1377,7 +1454,8 @@ class _EmblemCardState extends State<_EmblemCard>
             boxShadow: widget.unlocked
                 ? [
                     BoxShadow(
-                        color: color.withOpacity(0.22), blurRadius: 48)
+                        color: color.withOpacity(0.22),
+                        blurRadius: 48)
                   ]
                 : null,
           ),
@@ -1395,8 +1473,9 @@ class _EmblemCardState extends State<_EmblemCard>
                           gradient[1].withOpacity(0.1)
                         ])
                       : null,
-                  color:
-                      widget.unlocked ? null : const Color(0xFF161616),
+                  color: widget.unlocked
+                      ? null
+                      : const Color(0xFF161616),
                   border: Border.all(
                     color: widget.unlocked
                         ? color.withOpacity(0.6)
@@ -1415,7 +1494,8 @@ class _EmblemCardState extends State<_EmblemCard>
                   child: widget.unlocked
                       ? ShaderMask(
                           shaderCallback: (b) =>
-                              LinearGradient(colors: gradient).createShader(b),
+                              LinearGradient(colors: gradient)
+                                  .createShader(b),
                           child: FaIcon(
                             BadgeConfig.achievementIcon(
                                 widget.achievement.icon),
@@ -1467,7 +1547,9 @@ class _EmblemCardState extends State<_EmblemCard>
                 widget.achievement.description,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                    color: Color(0xFF666666), fontSize: 13, height: 1.5),
+                    color: Color(0xFF666666),
+                    fontSize: 13,
+                    height: 1.5),
               ),
               const SizedBox(height: 18),
               Container(
@@ -1478,11 +1560,13 @@ class _EmblemCardState extends State<_EmblemCard>
                   gradient: widget.unlocked
                       ? LinearGradient(colors: gradient)
                       : null,
-                  color:
-                      widget.unlocked ? null : const Color(0xFF161616),
+                  color: widget.unlocked
+                      ? null
+                      : const Color(0xFF161616),
                   border: widget.unlocked
                       ? null
-                      : Border.all(color: const Color(0xFF2A2A2A)),
+                      : Border.all(
+                          color: const Color(0xFF2A2A2A)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1537,12 +1621,13 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isDestructive ? AppColors.emergencyRed : Colors.white;
+    final color =
+        isDestructive ? AppColors.emergencyRed : Colors.white;
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           color: const Color(0xFF0A0A0A),
@@ -1583,8 +1668,8 @@ class _ProfileSkeleton extends StatelessWidget {
       padding: EdgeInsets.all(16.0),
       child: Center(
         child: CircularProgressIndicator(
-          valueColor:
-              AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
+          valueColor: AlwaysStoppedAnimation<Color>(
+              AppColors.primaryOrange),
           strokeWidth: 2,
         ),
       ),
@@ -1602,7 +1687,8 @@ class _LogoutDialog extends StatelessWidget {
       backgroundColor: const Color(0xFF0A0A0A),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: AppColors.emergencyRed.withOpacity(0.3)),
+        side: BorderSide(
+            color: AppColors.emergencyRed.withOpacity(0.3)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -1616,7 +1702,8 @@ class _LogoutDialog extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: AppColors.emergencyRed.withOpacity(0.1),
                 border: Border.all(
-                    color: AppColors.emergencyRed.withOpacity(0.3)),
+                    color:
+                        AppColors.emergencyRed.withOpacity(0.3)),
               ),
               child: const Icon(Icons.logout_rounded,
                   color: AppColors.emergencyRed, size: 26),
@@ -1634,7 +1721,9 @@ class _LogoutDialog extends StatelessWidget {
               'Seu progresso e XP estão salvos.\nVocê pode entrar novamente a qualquer momento.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: Color(0xFF9E9E9E), fontSize: 13, height: 1.5),
+                  color: Color(0xFF9E9E9E),
+                  fontSize: 13,
+                  height: 1.5),
             ),
             const SizedBox(height: 24),
             Row(
@@ -1646,8 +1735,8 @@ class _LogoutDialog extends StatelessWidget {
                       height: 46,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        border:
-                            Border.all(color: const Color(0xFF2A2A2A)),
+                        border: Border.all(
+                            color: const Color(0xFF2A2A2A)),
                       ),
                       child: const Center(
                         child: Text(
@@ -1671,10 +1760,11 @@ class _LogoutDialog extends StatelessWidget {
                       height: 46,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        color: AppColors.emergencyRed.withOpacity(0.15),
+                        color: AppColors.emergencyRed
+                            .withOpacity(0.15),
                         border: Border.all(
-                            color:
-                                AppColors.emergencyRed.withOpacity(0.4)),
+                            color: AppColors.emergencyRed
+                                .withOpacity(0.4)),
                       ),
                       child: const Center(
                         child: Text(
