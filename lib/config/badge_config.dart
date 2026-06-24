@@ -81,13 +81,16 @@ class BadgeConfig {
     return [const Color(0xFF424242), const Color(0xFFFFFFFF)];
   }
 
+  // ✅ CORRIGIDO — espelhado com FrameRarityExt.fromLevel()
   static String levelRarity(int level) {
-    if (level <= 2)  return 'COMUM';
-    if (level <= 4)  return 'INCOMUM';
-    if (level <= 7)  return 'RARO';
-    if (level <= 10) return 'ÉPICO';
-    if (level <= 18) return 'LENDÁRIO';
-    return 'MÍTICO';
+    if (level <= 5)  return 'COMUM';
+    if (level <= 10) return 'INCOMUM';
+    if (level <= 15) return 'RARO';
+    if (level <= 20) return 'ÉPICO';
+    if (level <= 30) return 'LENDÁRIO';
+    if (level <= 40) return 'MÍTICO';
+    if (level <= 50) return 'SUPREMO';
+    return 'HORIZONTE ELITE';
   }
 
   static String nextLevelUnlock(int currentLevel) {
