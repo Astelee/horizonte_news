@@ -9,6 +9,7 @@ import '../config/badge_config.dart';
 import '../providers/user_xp_provider.dart';
 import '../services/xp_service.dart';
 import '../widgets/badge_widgets.dart';
+import '../widgets/avatar_frame.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -163,9 +164,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   // SLIVER APP BAR
   // ══════════════════════════════════════════════════════════════════
   Widget _buildSliverAppBar(User? user, UserXpData data) {
-    final levelColor    = BadgeConfig.levelColor(data.level);
-    final levelGradient = BadgeConfig.levelGradient(data.level);
-    final isEpic        = data.level >= 8;
+    final levelColor = BadgeConfig.levelColor(data.level);
 
     return SliverAppBar(
       expandedHeight: 260,
@@ -212,105 +211,25 @@ class _ProfileScreenState extends State<ProfileScreen>
               right: 0,
               child: Column(
                 children: [
-                  AnimatedBuilder(
-                    animation: _avatarScaleAnim,
-                    builder: (_, child) => Transform.scale(
-                      scale: _avatarScaleAnim.value,
-                      child: child,
-                    ),
-                    child: AnimatedBuilder(
-                      animation: _glowAnim,
-                      builder: (_, child) => Container(
-                        width: 96,
-                        height: 96,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: levelColor.withOpacity(0.55 * _glowAnim.value),
-                              blurRadius: isEpic ? 32 : 20,
-                              spreadRadius: isEpic ? 6 : 3,
-                            ),
-                          ],
-                        ),
-                        child: child,
+                  // ── AVATAR COM MOLDURA POR RARIDADE ──────────────
+                  AvatarFrame(
+                    level: data.level,
+                    size: 84,
+                    enableEntryAnimation: true,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFF1A0800),
                       ),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          AnimatedBuilder(
-                            animation: _pulseAnim,
-                            builder: (_, __) => Container(
-                              width: 96,
-                              height: 96,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: levelColor.withOpacity(0.6 * _glowAnim.value),
-                                  width: 2.5,
-                                ),
-                              ),
-                            ),
+                      child: Center(
+                        child: Text(
+                          _getInitials(user?.displayName ?? user?.email),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
                           ),
-                          CircleAvatar(
-                            radius: 42,
-                            backgroundColor: const Color(0xFF1A0800),
-                            child: Container(
-                              width: 84,
-                              height: 84,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  colors: levelGradient,
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  _getInitials(user?.displayName ?? user?.email),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: AnimatedBuilder(
-                              animation: _pulseAnim,
-                              builder: (_, __) => Transform.scale(
-                                scale: _pulseAnim.value,
-                                child: Container(
-                                  width: 28,
-                                  height: 28,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: LinearGradient(colors: levelGradient),
-                                    border: Border.all(color: Colors.black, width: 2),
-                                    boxShadow: [
-                                      BoxShadow(color: levelColor.withOpacity(0.8), blurRadius: 8),
-                                    ],
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${data.level}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -346,57 +265,51 @@ class _ProfileScreenState extends State<ProfileScreen>
     final gradient = BadgeConfig.levelGradient(data.level);
     final color    = BadgeConfig.levelColor(data.level);
     final isEpic   = data.level >= 8;
-    final rarity   = BadgeConfig.levelRarity(data.level);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: LinearGradient(
-          colors: gradient,
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        border: Border.all(
-          color: Colors.white.withOpacity(isEpic ? 0.3 : 0.15),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(isEpic ? 0.6 : 0.35),
-            blurRadius: isEpic ? 20 : 12,
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FaIcon(BadgeConfig.levelIcon(data.level), size: 12, color: Colors.white),
-          const SizedBox(width: 7),
-          Text(
-            BadgeConfig.levelTitle(data.level),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            gradient: LinearGradient(
+              colors: gradient,
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
             ),
-          ),
-          const SizedBox(width: 8),
-          Container(width: 1, height: 12, color: Colors.white.withOpacity(0.4)),
-          const SizedBox(width: 8),
-          Text(
-            rarity,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.85),
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
+            border: Border.all(
+              color: Colors.white.withOpacity(isEpic ? 0.3 : 0.15),
+              width: 1,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(isEpic ? 0.6 : 0.35),
+                blurRadius: isEpic ? 20 : 12,
+                spreadRadius: 0,
+              ),
+            ],
           ),
-        ],
-      ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FaIcon(BadgeConfig.levelIcon(data.level), size: 12, color: Colors.white),
+              const SizedBox(width: 7),
+              Text(
+                BadgeConfig.levelTitle(data.level),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        FrameRarityTag(level: data.level),
+      ],
     );
   }
 
@@ -807,7 +720,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // MISSÕES DIÁRIAS — usa progresso do dia (dailyMissions)
+  // MISSÕES DIÁRIAS
   // ══════════════════════════════════════════════════════════════════
   Widget _buildDailyMissions(UserXpData data) {
     final articles = data.dailyArticles.clamp(0, 5);
@@ -815,7 +728,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     final shares   = data.dailyShares.clamp(0, 1);
     final minutes  = data.dailyMinutes.clamp(0, 10);
 
-    // Tempo até meia-noite
     final now      = DateTime.now();
     final midnight = DateTime(now.year, now.month, now.day + 1);
     final diff     = midnight.difference(now);
