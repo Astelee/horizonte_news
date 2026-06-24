@@ -12,8 +12,6 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   Timer? _activeTimer;
   int _secondsAccumulated = 0;
 
-  // Callback disparado quando o usuário sobe de nível
-  // Conecte ao showLevelUpOverlay no profile_screen.dart ou main.dart
   Function(int newLevel)? onLevelUp;
 
   static const int _saveIntervalSeconds = 60;
@@ -21,12 +19,12 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   UserXpData get data => _data;
   bool get isLoading => _isLoading;
 
-  // ── Inicializa provider ──────────────────────────────────────────
   Future<void> initialize() async {
     WidgetsBinding.instance.addObserver(this);
     _isLoading = true;
     notifyListeners();
 
+    // loadUserXpData já aplica adminOverride internamente
     _data = await _service.loadUserXpData();
     _isLoading = false;
     notifyListeners();
@@ -34,7 +32,6 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     _startTimer();
   }
 
-  // ── Ciclo de vida do app ─────────────────────────────────────────
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
@@ -56,7 +53,6 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
-  // ── Timer de tempo ativo ─────────────────────────────────────────
   void _startTimer() {
     if (_isActive) return;
     _isActive = true;
@@ -88,25 +84,23 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     _secondsAccumulated = 0;
 
     final oldLevel = _data.level;
+    // addXpForTime → _incrementXpAndSave → loadUserXpData
+    // toda a cadeia já respeita o override
     final updated = await _service.addXpForTime(seconds);
     _data = updated;
     notifyListeners();
 
-    // Dispara animação de level up se o nível subiu
     if (updated.level > oldLevel) {
       onLevelUp?.call(updated.level);
     }
   }
 
-  // ── Eventos de XP ────────────────────────────────────────────────
   Future<void> onArticleRead() async {
     final oldLevel = _data.level;
     await _service.recordArticleRead();
     _data = await _service.loadUserXpData();
     notifyListeners();
-    if (_data.level > oldLevel) {
-      onLevelUp?.call(_data.level);
-    }
+    if (_data.level > oldLevel) onLevelUp?.call(_data.level);
   }
 
   Future<void> onShare() async {
@@ -114,9 +108,7 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     await _service.recordShare();
     _data = await _service.loadUserXpData();
     notifyListeners();
-    if (_data.level > oldLevel) {
-      onLevelUp?.call(_data.level);
-    }
+    if (_data.level > oldLevel) onLevelUp?.call(_data.level);
   }
 
   Future<void> addXpForComment() async {
@@ -125,9 +117,7 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
       await _service.recordComment();
       _data = await _service.loadUserXpData();
       notifyListeners();
-      if (_data.level > oldLevel) {
-        onLevelUp?.call(_data.level);
-      }
+      if (_data.level > oldLevel) onLevelUp?.call(_data.level);
     } catch (e) {
       debugPrint('Erro ao adicionar XP por comentário: $e');
     }
