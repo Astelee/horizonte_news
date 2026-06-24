@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/xp_service.dart'; // <-- ADICIONE este import
 
 enum FriendStatus { online, away, playing, reading, offline }
 enum FriendFilter { all, online, offline, favorites, recent }
@@ -80,10 +81,13 @@ class FriendModel {
 
   bool get isOnline => status != FriendStatus.offline;
 
+  // ── Progresso correto usando a tabela real de XP ─────────────────
   double get xpProgress {
-    final base = (level - 1) * 500;
-    final needed = xpForNextLevel - base;
-    final current = totalXp - base;
+    final xpAtThisLevel  = XpService.xpRequiredForLevel(level);
+    final xpAtNextLevel  = XpService.xpRequiredForLevel(level + 1);
+    final needed = xpAtNextLevel - xpAtThisLevel;
+    if (needed <= 0) return 1.0;
+    final current = totalXp - xpAtThisLevel;
     return (current / needed).clamp(0.0, 1.0);
   }
 
@@ -139,24 +143,29 @@ class FriendModel {
       status = FriendStatus.offline;
     }
 
-    final lvl = (d['level'] as num?)?.toInt() ?? 1;
-    final xp  = (d['totalXp'] as num?)?.toInt() ?? 0;
-    final nextXp = lvl * 500;
+    // ── Lê o level do Firestore — já contém o override se ativo ─────
+    // O xp_service grava 'level' com o valor correto (real ou override)
+    // toda vez que os dados são atualizados.
+    final lvl   = (d['level'] as num?)?.toInt() ?? 1;
+    final xp    = (d['totalXp'] as num?)?.toInt() ?? 0;
+
+    // xpForNextLevel calculado com a tabela real, igual ao XpService
+    final nextXp = XpService.xpRequiredForLevel(lvl + 1);
 
     return FriendModel(
       uid: doc.id,
-      username: (d['username'] as String?) ?? '',
+      username:    (d['username']    as String?) ?? '',
       displayName: (d['displayName'] as String?) ?? 'Usuário',
-      level: lvl,
-      totalXp: xp,
+      level:       lvl,
+      totalXp:     xp,
       xpForNextLevel: nextXp,
-      status: status,
+      status:      status,
       lastActivity: last,
       unreadCount: (d['unreadCount'] as num?)?.toInt() ?? 0,
-      isFavorite: (d['isFavorite'] as bool?) ?? false,
-      isTyping: (d['isTyping'] as bool?) ?? false,
+      isFavorite:  (d['isFavorite']  as bool?)   ?? false,
+      isTyping:    (d['isTyping']    as bool?)    ?? false,
       achievements: List<String>.from(d['achievements'] ?? []),
-      rank: (d['rank'] as num?)?.toInt() ?? 0,
+      rank:        (d['rank']        as num?)?.toInt() ?? 0,
     );
   }
 }
