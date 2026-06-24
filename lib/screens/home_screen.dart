@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -18,36 +19,47 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
-  late AnimationController _fadeController;
-  late Animation<double> _fadeAnimation;
+  late AnimationController _fadeCtrl;
+  late AnimationController _headerParticleCtrl;
+  late AnimationController _sectionLineCtrl;
+  late Animation<double> _fadeAnim;
   bool _isScrolled = false;
 
   @override
   void initState() {
     super.initState();
 
-    _fadeController = AnimationController(
+    // Fade de entrada geral
+    _fadeCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
-    );
-    _fadeAnimation = CurvedAnimation(
-      parent: _fadeController,
-      curve: Curves.easeOut,
-    );
-    _fadeController.forward();
+    )..forward();
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+
+    // Partículas do header — loop contínuo
+    _headerParticleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6),
+    )..repeat();
+
+    // Linha animada do título de seção
+    _sectionLineCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<PostsProvider>(context, listen: false).loadInitialPosts();
     });
 
     _scrollController.addListener(() {
-      final postsProvider =
+      final provider =
           Provider.of<PostsProvider>(context, listen: false);
       if (_scrollController.position.pixels >=
           _scrollController.position.maxScrollExtent - 200) {
-        postsProvider.loadMorePosts();
+        provider.loadMorePosts();
       }
       final scrolled = _scrollController.offset > 10;
       if (scrolled != _isScrolled) setState(() => _isScrolled = scrolled);
@@ -62,18 +74,17 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     _scrollController.dispose();
-    _fadeController.dispose();
+    _fadeCtrl.dispose();
+    _headerParticleCtrl.dispose();
+    _sectionLineCtrl.dispose();
     super.dispose();
   }
 
-  // Filtra posts que são vídeos para não aparecerem no feed
-  bool _isVideoPost(post) {
-    return post.categories.any(
-      (c) =>
-          c.name.toLowerCase() == 'vídeo' ||
-          c.name.toLowerCase() == 'video',
-    );
-  }
+  bool _isVideoPost(post) => post.categories.any(
+        (c) =>
+            c.name.toLowerCase() == 'vídeo' ||
+            c.name.toLowerCase() == 'video',
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -82,15 +93,12 @@ class _HomeScreenState extends State<HomeScreen>
       extendBodyBehindAppBar: true,
       appBar: _buildAppBar(context),
       drawer: const AppDrawer(),
-
-      // ── Botão flutuante de Reels ──────────────────────────────
       floatingActionButton: _ReelsFloatingButton(
         onTap: () => Navigator.pushNamed(context, AppRoutes.videos),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-
       body: FadeTransition(
-        opacity: _fadeAnimation,
+        opacity: _fadeAnim,
         child: RefreshIndicator(
           color: AppColors.primaryOrange,
           backgroundColor: AppColors.backgroundElevated,
@@ -102,18 +110,15 @@ class _HomeScreenState extends State<HomeScreen>
           child: Consumer<PostsProvider>(
             builder: (context, provider, child) {
               if (provider.isLoading && provider.posts.isEmpty) {
-                return _buildLoadingState();
+                return _buildSkeletonState();
               }
               if (provider.errorMessage.isNotEmpty &&
                   provider.posts.isEmpty) {
                 return _buildErrorState(context, provider);
               }
 
-              // ── Filtra vídeos fora do feed ──────────────────
-              final feedPosts = provider.posts
-                  .where((p) => !_isVideoPost(p))
-                  .toList();
-
+              final feedPosts =
+                  provider.posts.where((p) => !_isVideoPost(p)).toList();
               final featuredPosts = feedPosts.take(3).toList();
               final recentPosts =
                   feedPosts.length > 3 ? feedPosts.skip(3).toList() : [];
@@ -132,12 +137,13 @@ class _HomeScreenState extends State<HomeScreen>
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
                   const SliverToBoxAdapter(
-                      child: SizedBox(height: kToolbarHeight + 40)),
+                    child: SizedBox(height: kToolbarHeight + 40),
+                  ),
                   const SliverToBoxAdapter(child: CategoryBar()),
                   if (urgentPost != null)
                     SliverToBoxAdapter(
-                        child:
-                            BreakingNewsBanner(urgentPost: urgentPost)),
+                      child: BreakingNewsBanner(urgentPost: urgentPost),
+                    ),
                   SliverToBoxAdapter(
                     child: FeaturedCarousel(featuredPosts: featuredPosts),
                   ),
@@ -146,24 +152,20 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                   SliverList(
                     delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final post = recentPosts[index];
-                        return _AnimatedCardWrapper(
-                          index: index,
-                          child: NewsCard(post: post),
-                        );
-                      },
+                      (context, index) => _AnimatedCardWrapper(
+                        index: index,
+                        child: NewsCard(post: recentPosts[index]),
+                      ),
                       childCount: recentPosts.length,
                     ),
                   ),
                   if (provider.hasMore)
                     const SliverToBoxAdapter(
                       child: Padding(
-                        padding: EdgeInsets.all(20.0),
+                        padding: EdgeInsets.all(20),
                         child: Center(child: _NeoLoader()),
                       ),
                     ),
-                  // Espaço extra para o botão flutuante não cobrir conteúdo
                   const SliverToBoxAdapter(child: SizedBox(height: 80)),
                 ],
               );
@@ -174,6 +176,8 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  // ── AppBar com partículas de fundo ────────────────────────────────────────
+
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     return PreferredSize(
       preferredSize: const Size.fromHeight(kToolbarHeight),
@@ -181,12 +185,11 @@ class _HomeScreenState extends State<HomeScreen>
         duration: const Duration(milliseconds: 300),
         decoration: BoxDecoration(
           color: _isScrolled
-              ? AppColors.backgroundDark.withOpacity(0.95)
+              ? AppColors.backgroundDark.withOpacity(0.96)
               : Colors.transparent,
           border: _isScrolled
               ? const Border(
-                  bottom: BorderSide(
-                      color: AppColors.borderGlow, width: 1))
+                  bottom: BorderSide(color: AppColors.borderGlow, width: 1))
               : null,
           boxShadow: _isScrolled
               ? [
@@ -194,86 +197,102 @@ class _HomeScreenState extends State<HomeScreen>
                     color: AppColors.primaryOrange.withOpacity(0.08),
                     blurRadius: 20,
                     offset: const Offset(0, 4),
-                  )
+                  ),
                 ]
               : null,
         ),
-        child: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: Builder(
-            builder: (context) => _NeoIconButton(
-              icon: Icons.menu_rounded,
-              onTap: () => Scaffold.of(context).openDrawer(),
-            ),
-          ),
-          title: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primaryOrange.withOpacity(0.5),
-                          blurRadius: 16,
-                          spreadRadius: 2,
-                        ),
-                      ],
+        child: Stack(
+          children: [
+            // Partículas sutis atrás do logo
+            if (!_isScrolled)
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: _headerParticleCtrl,
+                  builder: (_, __) => CustomPaint(
+                    painter: _HeaderParticlePainter(
+                      progress: _headerParticleCtrl.value,
                     ),
                   ),
-                  Image.asset(
-                    'assets/images/logo.png',
-                    height: 34,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 34,
-                      height: 34,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: AppColors.orangeGradient,
+                ),
+              ),
+            AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: Builder(
+                builder: (context) => _NeoIconButton(
+                  icon: Icons.menu_rounded,
+                  onTap: () => Scaffold.of(context).openDrawer(),
+                ),
+              ),
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryOrange.withOpacity(0.5),
+                              blurRadius: 16,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
                       ),
-                      child: const Icon(Icons.public,
-                          color: Colors.white, size: 20),
+                      Image.asset(
+                        'assets/images/logo.png',
+                        height: 34,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 34,
+                          height: 34,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: AppColors.orangeGradient,
+                          ),
+                          child: const Icon(Icons.public,
+                              color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 10),
+                  ShaderMask(
+                    shaderCallback: (bounds) =>
+                        AppColors.orangeGradient.createShader(bounds),
+                    child: const Text(
+                      'HORIZONTE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    ' NEWS',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w300,
+                      letterSpacing: 2,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(width: 10),
-              ShaderMask(
-                shaderCallback: (bounds) =>
-                    AppColors.orangeGradient.createShader(bounds),
-                child: const Text(
-                  'HORIZONTE',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 2,
-                  ),
+              centerTitle: true,
+              actions: [
+                _NeoIconButton(
+                  icon: Icons.search_rounded,
+                  onTap: () =>
+                      Navigator.pushNamed(context, AppRoutes.search),
                 ),
-              ),
-              const Text(
-                ' NEWS',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w300,
-                  letterSpacing: 2,
-                ),
-              ),
-            ],
-          ),
-          centerTitle: true,
-          actions: [
-            _NeoIconButton(
-              icon: Icons.search_rounded,
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.search),
+              ],
             ),
           ],
         ),
@@ -281,11 +300,14 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  // ── Título de seção com linha animada ─────────────────────────────────────
+
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
       child: Row(
         children: [
+          // Barra vertical com glow
           Container(
             width: 3,
             height: 18,
@@ -312,14 +334,35 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           const SizedBox(width: 12),
+          // Linha com gradiente animado (shimmer percorrendo)
           Expanded(
-            child: Container(
-              height: 1,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppColors.borderGlow, Colors.transparent],
-                ),
-              ),
+            child: AnimatedBuilder(
+              animation: _sectionLineCtrl,
+              builder: (_, __) {
+                final progress = _sectionLineCtrl.value;
+                return Container(
+                  height: 1,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.primaryOrange
+                            .withOpacity(0.6),
+                        AppColors.primaryOrangeLight
+                            .withOpacity(0.8),
+                        AppColors.primaryOrange
+                            .withOpacity(0.2),
+                        Colors.transparent,
+                      ],
+                      stops: [
+                        (progress - 0.3).clamp(0.0, 1.0),
+                        progress.clamp(0.0, 1.0),
+                        (progress + 0.1).clamp(0.0, 1.0),
+                        (progress + 0.3).clamp(0.0, 1.0),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -327,29 +370,68 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildLoadingState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _NeoLoader(),
-          SizedBox(height: 20),
-          Text(
-            'Carregando notícias...',
-            style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 14,
-                letterSpacing: 0.5),
+  // ── Skeleton loading com shimmer ──────────────────────────────────────────
+
+  Widget _buildSkeletonState() {
+    return CustomScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      slivers: [
+        const SliverToBoxAdapter(
+          child: SizedBox(height: kToolbarHeight + 40),
+        ),
+        // Skeleton da category bar
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 56,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: 6,
+              itemBuilder: (_, i) => Container(
+                margin: const EdgeInsets.symmetric(
+                    horizontal: 4, vertical: 10),
+                width: 90,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: const Color(0xFF111111),
+                  border: Border.all(color: const Color(0xFF1E1E1E)),
+                ),
+                child: const _SkeletonShimmer(),
+              ),
+            ),
           ),
-        ],
-      ),
+        ),
+        // Skeleton do carousel
+        SliverToBoxAdapter(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            height: 218,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              color: const Color(0xFF0F0F0F),
+              border: Border.all(color: const Color(0xFF1A1A1A)),
+            ),
+            child: const ClipRRect(
+              borderRadius: BorderRadius.all(Radius.circular(20)),
+              child: _SkeletonShimmer(),
+            ),
+          ),
+        ),
+        // Skeleton dos cards
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (_, i) => _SkeletonCard(delay: i * 80),
+            childCount: 5,
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildErrorState(BuildContext context, PostsProvider provider) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32.0),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -359,8 +441,9 @@ class _HomeScreenState extends State<HomeScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                    color: AppColors.emergencyRed.withOpacity(0.4),
-                    width: 1),
+                  color: AppColors.emergencyRed.withOpacity(0.4),
+                  width: 1,
+                ),
                 color: AppColors.emergencyRed.withOpacity(0.08),
               ),
               child: const Icon(Icons.cloud_off_rounded,
@@ -370,19 +453,16 @@ class _HomeScreenState extends State<HomeScreen>
             const Text(
               'Conexão Indisponível',
               style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             const Text(
               'Não foi possível atualizar o feed.\nVerifique sua conexão.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
-                  height: 1.5),
+                  color: AppColors.textSecondary, fontSize: 14, height: 1.5),
             ),
             const SizedBox(height: 28),
             GestureDetector(
@@ -427,7 +507,154 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
-// ── Botão flutuante de Reels ─────────────────────────────────────────────────
+// ── Partículas do header ──────────────────────────────────────────────────────
+
+class _HeaderParticlePainter extends CustomPainter {
+  final double progress;
+  _HeaderParticlePainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+    final rng = math.Random(7);
+
+    for (int i = 0; i < 8; i++) {
+      final x = rng.nextDouble() * size.width;
+      final baseY = rng.nextDouble() * size.height;
+      final speed = 0.4 + rng.nextDouble() * 0.6;
+      final radius = 0.8 + rng.nextDouble() * 1.4;
+      final offsetY =
+          math.sin((progress + i * 0.25) * 2 * math.pi * speed) * 4;
+      final opacity =
+          0.15 + math.sin((progress + i * 0.2) * math.pi) * 0.20;
+
+      paint
+        ..color = AppColors.primaryOrange.withOpacity(opacity.clamp(0.0, 0.45))
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+
+      canvas.drawCircle(Offset(x, baseY + offsetY), radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_HeaderParticlePainter old) =>
+      old.progress != progress;
+}
+
+// ── Skeleton card ─────────────────────────────────────────────────────────────
+
+class _SkeletonCard extends StatefulWidget {
+  final int delay;
+  const _SkeletonCard({required this.delay});
+
+  @override
+  State<_SkeletonCard> createState() => _SkeletonCardState();
+}
+
+class _SkeletonCardState extends State<_SkeletonCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _opacity =
+        Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+    );
+    Future.delayed(Duration(milliseconds: widget.delay), () {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+        height: 108,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: AppColors.backgroundCard,
+          border: Border.all(color: const Color(0xFF1A1A1A)),
+        ),
+        child: const ClipRRect(
+          borderRadius: BorderRadius.all(Radius.circular(16)),
+          child: _SkeletonShimmer(),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Shimmer genérico ──────────────────────────────────────────────────────────
+
+class _SkeletonShimmer extends StatefulWidget {
+  const _SkeletonShimmer();
+
+  @override
+  State<_SkeletonShimmer> createState() => _SkeletonShimmerState();
+}
+
+class _SkeletonShimmerState extends State<_SkeletonShimmer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1300),
+    )..repeat();
+    _anim = Tween<double>(begin: -1.5, end: 1.5).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.linear),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment(_anim.value - 1, 0),
+            end: Alignment(_anim.value, 0),
+            colors: const [
+              Color(0xFF0F0F0F),
+              Color(0xFF191919),
+              Color(0xFF252525),
+              Color(0xFF191919),
+              Color(0xFF0F0F0F),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Botão flutuante Reels ─────────────────────────────────────────────────────
 
 class _ReelsFloatingButton extends StatefulWidget {
   final VoidCallback onTap;
@@ -465,14 +692,21 @@ class _ReelsFloatingButtonState extends State<_ReelsFloatingButton>
     return AnimatedBuilder(
       animation: _glowAnim,
       builder: (_, __) => GestureDetector(
-        onTap: widget.onTap,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          widget.onTap();
+        },
         child: Container(
           height: 48,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
             gradient: const LinearGradient(
-              colors: [Color(0xFFBF360C), Color(0xFFE65100), Color(0xFFF57C00)],
+              colors: [
+                Color(0xFFBF360C),
+                Color(0xFFE65100),
+                Color(0xFFF57C00),
+              ],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),
@@ -481,7 +715,6 @@ class _ReelsFloatingButtonState extends State<_ReelsFloatingButton>
                 color: AppColors.primaryOrange
                     .withOpacity(0.5 * _glowAnim.value),
                 blurRadius: 20,
-                spreadRadius: 0,
                 offset: const Offset(0, 4),
               ),
             ],
@@ -509,7 +742,7 @@ class _ReelsFloatingButtonState extends State<_ReelsFloatingButton>
   }
 }
 
-// ── Botão de ícone Neo UI ────────────────────────────────────────────────────
+// ── Botão de ícone Neo ────────────────────────────────────────────────────────
 
 class _NeoIconButton extends StatefulWidget {
   final IconData icon;
@@ -548,15 +781,17 @@ class _NeoIconButtonState extends State<_NeoIconButton> {
                 : Colors.transparent,
           ),
         ),
-        child: Icon(widget.icon,
-            color: _pressed ? AppColors.primaryOrange : Colors.white,
-            size: 22),
+        child: Icon(
+          widget.icon,
+          color: _pressed ? AppColors.primaryOrange : Colors.white,
+          size: 22,
+        ),
       ),
     );
   }
 }
 
-// ── Loader Neo UI ────────────────────────────────────────────────────────────
+// ── NeoLoader ─────────────────────────────────────────────────────────────────
 
 class _NeoLoader extends StatefulWidget {
   const _NeoLoader();
@@ -573,8 +808,9 @@ class _NeoLoaderState extends State<_NeoLoader>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1200))
-      ..repeat();
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
   }
 
   @override
@@ -591,7 +827,7 @@ class _NeoLoaderState extends State<_NeoLoader>
       child: AnimatedBuilder(
         animation: _ctrl,
         builder: (_, __) => Transform.rotate(
-          angle: _ctrl.value * 2 * 3.14159,
+          angle: _ctrl.value * 2 * math.pi,
           child: Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
@@ -619,13 +855,12 @@ class _NeoLoaderState extends State<_NeoLoader>
   }
 }
 
-// ── Wrapper de animação dos cards ────────────────────────────────────────────
+// ── Wrapper de animação dos cards ─────────────────────────────────────────────
 
 class _AnimatedCardWrapper extends StatefulWidget {
   final int index;
   final Widget child;
-  const _AnimatedCardWrapper(
-      {Key? key, required this.index, required this.child})
+  const _AnimatedCardWrapper({Key? key, required this.index, required this.child})
       : super(key: key);
 
   @override
@@ -642,17 +877,22 @@ class _AnimatedCardWrapperState extends State<_AnimatedCardWrapper>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 400));
-    _opacity = Tween<double>(begin: 0, end: 1).animate(
-        CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+    _opacity =
+        Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+    );
     _slide =
-        Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
-            .animate(
-                CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+        Tween<Offset>(begin: const Offset(0, 0.10), end: Offset.zero).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+    );
 
-    final delay = (widget.index * 60).clamp(0, 300);
-    Future.delayed(Duration(milliseconds: delay),
-        () { if (mounted) _ctrl.forward(); });
+    final delay = (widget.index * 55).clamp(0, 320);
+    Future.delayed(Duration(milliseconds: delay), () {
+      if (mounted) _ctrl.forward();
+    });
   }
 
   @override
