@@ -38,10 +38,6 @@ class AbaConversas extends StatelessWidget {
           return const EstadoCarregando();
         }
 
-        // ── Filtra fora chats que EU excluí (hiddenFor contém meu uid) ──
-        // A conversa volta a aparecer automaticamente assim que:
-        // - uma nova mensagem remover meu uid de hiddenFor, ou
-        // - eu abrir o chat novamente pelo perfil do amigo.
         final allDocs = snap.data?.docs ?? [];
         final docs = allDocs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
@@ -78,8 +74,6 @@ class AbaConversas extends StatelessWidget {
               );
             }
 
-            // Favoritos sempre no topo, mantendo a ordem por última
-            // mensagem dentro de cada grupo (já vem ordenado da query).
             lista.sort((a, b) {
               if (a.friend.isFavorite && !b.friend.isFavorite) return -1;
               if (!a.friend.isFavorite && b.friend.isFavorite) return 1;
@@ -118,7 +112,6 @@ class AbaConversas extends StatelessWidget {
       final unread = (data['unreadCount_$myUid'] as num?)?.toInt() ?? 0;
 
       MessageStatus? status;
-      // Status só é relevante se a última mensagem foi enviada por mim
       if (lastMsgBy == myUid) {
         final statusStr = data['lastMessageStatus'] as String? ?? 'sent';
         switch (statusStr) {
@@ -436,8 +429,9 @@ class _CardConversa extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
+            // 92 = 80 (avatar com moldura, 50 * 1.6) + 12 (espaçamento do Row acima)
             Padding(
-              padding: const EdgeInsets.only(left: 62),
+              padding: const EdgeInsets.only(left: 92),
               child: BarraXp(friend: friend),
             ),
           ],
