@@ -20,7 +20,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
 
   late AnimationController _glowCtrl;
   late AnimationController _barCtrl;
@@ -38,10 +38,14 @@ class _ProfileScreenState extends State<ProfileScreen>
   late Animation<double> _badgeSlideAnim;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _audioStarted = false;
 
   @override
   void initState() {
     super.initState();
+
+    // Registra observer para ciclo de vida do app
+    WidgetsBinding.instance.addObserver(this);
 
     _glowCtrl = AnimationController(
         vsync: this, duration: const Duration(seconds: 3))
@@ -95,25 +99,71 @@ class _ProfileScreenState extends State<ProfileScreen>
         _counterCtrl.forward();
       });
 
-      // ── Conecta o callback de level up ao overlay ───────────────
       final xpProvider =
           Provider.of<UserXpProvider>(context, listen: false);
       xpProvider.onLevelUp = (newLevel) {
         if (mounted) showLevelUpOverlay(context, newLevel);
       };
-    });
 
-    _audioPlayer.setReleaseMode(ReleaseMode.loop);
-    _audioPlayer.setVolume(0.4);
-    _audioPlayer.play(AssetSource('sounds/ambient.mp3'));
+      // Inicia o áudio apenas depois do frame estar pronto
+      _startAudio();
+    });
+  }
+
+  Future<void> _startAudio() async {
+    try {
+      await _audioPlayer.setReleaseMode(ReleaseMode.loop);
+      await _audioPlayer.setVolume(0.4);
+      await _audioPlayer.play(AssetSource('sounds/ambient.mp3'));
+      _audioStarted = true;
+    } catch (e) {
+      debugPrint('Erro ao iniciar áudio: $e');
+    }
+  }
+
+  Future<void> _stopAudio() async {
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.release();
+    } catch (e) {
+      debugPrint('Erro ao parar áudio: $e');
+    }
+  }
+
+  // ── Para o áudio quando o app vai para background ─────────────────
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        _audioPlayer.pause();
+        break;
+      case AppLifecycleState.resumed:
+        // Só retoma se o áudio foi iniciado e a tela ainda está montada
+        if (_audioStarted && mounted) {
+          _audioPlayer.resume();
+        }
+        break;
+    }
   }
 
   @override
   void dispose() {
-    // Remove o callback ao sair da tela para evitar memory leak
-    final xpProvider =
-        Provider.of<UserXpProvider>(context, listen: false);
-    xpProvider.onLevelUp = null;
+    WidgetsBinding.instance.removeObserver(this);
+
+    // Remove callback de level up
+    try {
+      final xpProvider =
+          Provider.of<UserXpProvider>(context, listen: false);
+      xpProvider.onLevelUp = null;
+    } catch (_) {}
+
+    // Para e libera o áudio
+    _stopAudio();
+    _audioPlayer.dispose();
 
     _glowCtrl.dispose();
     _barCtrl.dispose();
@@ -122,8 +172,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     _shimmerCtrl.dispose();
     _entryCtrl.dispose();
     _counterCtrl.dispose();
-    _audioPlayer.stop();
-    _audioPlayer.dispose();
+
     super.dispose();
   }
 
@@ -307,8 +356,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               end: Alignment.centerRight,
             ),
             border: Border.all(
-              color:
-                  Colors.white.withOpacity(isEpic ? 0.3 : 0.15),
+              color: Colors.white.withOpacity(isEpic ? 0.3 : 0.15),
               width: 1,
             ),
             boxShadow: [
