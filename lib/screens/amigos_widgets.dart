@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/badge_config.dart';
+import '../widgets/avatar_frame.dart';
 import 'amigos_modelos.dart';
 import 'chat_screen.dart';
 
@@ -46,46 +47,56 @@ class _AmigoAvatarState extends State<AmigoAvatar>
   @override
   Widget build(BuildContext context) {
     final s = widget.size;
+
+    // A AvatarFrame desenha o anel/halo/partículas em uma área
+    // size * 1.6, com o avatar centralizado. Essa é a "folga" entre a
+    // borda da moldura e a borda do avatar — usamos ela pra colocar a
+    // bolinha de status exatamente no canto do avatar, como era antes.
+    final frameEdgeInset = s * 0.3;
+
     final borderColor = widget.friend.isFavorite
         ? const Color(0xFFFAA61A)
         : widget.friend.status.color;
 
     return Stack(
+      clipBehavior: Clip.none,
       children: [
-        Container(
-          width: s,
-          height: s,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            border: Border.all(color: borderColor, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: borderColor.withOpacity(0.3),
-                blurRadius: 10,
+        AvatarFrame(
+          level: widget.friend.level,
+          size: s,
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-            ],
-          ),
-          child: Center(
-            child: Text(
-              widget.friend.displayName.isNotEmpty
-                  ? widget.friend.displayName[0].toUpperCase()
-                  : '?',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: s * 0.36,
-                fontWeight: FontWeight.w900,
+              border: Border.all(color: borderColor, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: borderColor.withOpacity(0.3),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                widget.friend.displayName.isNotEmpty
+                    ? widget.friend.displayName[0].toUpperCase()
+                    : '?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: s * 0.36,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
           ),
         ),
         Positioned(
-          right: 0,
-          bottom: 0,
+          right: frameEdgeInset,
+          bottom: frameEdgeInset,
           child: AnimatedBuilder(
             animation: _pulseAnim,
             builder: (context, child) {
@@ -133,26 +144,20 @@ class NivelBadge extends StatelessWidget {
   final int level;
   const NivelBadge({Key? key, required this.level}) : super(key: key);
 
-  Color get _cor {
-    if (level >= 50) return const Color(0xFFFFD700);
-    if (level >= 30) return const Color(0xFF7289DA);
-    if (level >= 15) return const Color(0xFF43B581);
-    return const Color(0xFFFF6B00);
-  }
-
   @override
   Widget build(BuildContext context) {
+    final cor = BadgeConfig.levelColor(level);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(6),
-        color: _cor.withOpacity(0.12),
-        border: Border.all(color: _cor.withOpacity(0.4)),
+        color: cor.withOpacity(0.12),
+        border: Border.all(color: cor.withOpacity(0.4)),
       ),
       child: Text(
         'Nv.$level',
         style: TextStyle(
-          color: _cor,
+          color: cor,
           fontSize: 9,
           fontWeight: FontWeight.w800,
         ),
@@ -460,25 +465,13 @@ class EstadoVazio extends StatelessWidget {
 
 // ═══════════════════════════════════════════════════════════════════
 // MENU DE CONTEXTO REAPROVEITÁVEL (LONG PRESS)
-// Usado tanto no card de amigo quanto no card de conversa.
 // ═══════════════════════════════════════════════════════════════════
 class MenuContextoAmigo extends StatelessWidget {
   final FriendModel friend;
   final String myUid;
   final FirebaseFirestore db;
-
-  /// Se já souber o requestId (ex: vindo da lista de amigos), passe aqui
-  /// para evitar uma leitura extra no Firestore. Se for null, o menu busca
-  /// o documento de friend_requests sozinho ao clicar em "Excluir Amigo".
   final String? requestId;
-
-  /// Se a conversa já tem chatId calculado (vindo da aba Conversas),
-  /// passe aqui para "Excluir Conversa" funcionar sem recalcular.
   final String? chatId;
-
-  /// Callback opcional chamado depois de qualquer ação que exija recarregar
-  /// a tela que abriu o menu (ex: favoritar). Útil quando a tela usa um
-  /// FutureBuilder que não escuta automaticamente o Firestore.
   final VoidCallback? onChanged;
 
   const MenuContextoAmigo({
@@ -512,7 +505,6 @@ class MenuContextoAmigo extends StatelessWidget {
   }
 
   Future<void> _alternarFavorito(BuildContext context) async {
-    // Captura o Navigator da árvore raiz ANTES de fechar o bottom sheet.
     final rootNav = Navigator.of(context, rootNavigator: true);
     rootNav.pop();
     await db.collection('users_xp').doc(friend.uid).update({
@@ -521,20 +513,6 @@ class MenuContextoAmigo extends StatelessWidget {
     onChanged?.call();
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // EXCLUIR CONVERSA (substitui o antigo "Limpar Conversa" deste menu):
-  // - Adiciona meu uid a `hiddenFor` no doc do chat, então a query da
-  //   aba Conversas (AbaConversas) filtra esse chat fora da minha lista.
-  // - NÃO apaga nenhuma mensagem — a outra pessoa continua vendo a
-  //   conversa normalmente, com o histórico intacto.
-  // - Quando a outra pessoa enviar uma mensagem nova, o chat_screen.dart
-  //   remove automaticamente meu uid de `hiddenFor`, e a conversa volta
-  //   a aparecer na minha lista.
-  //
-  // Mantém a mesma correção de Navigator/contexto usada antes: captura o
-  // Navigator raiz e seu context ANTES de fechar o bottom sheet, evitando
-  // o bug de diálogo "preso" a um contexto já desmontado.
-  // ─────────────────────────────────────────────────────────────────
   Future<void> _excluirConversa(BuildContext context) async {
     final rootNav = Navigator.of(context, rootNavigator: true);
     final rootContext = rootNav.context;
@@ -558,7 +536,7 @@ class MenuContextoAmigo extends StatelessWidget {
           'histórico de mensagens permanecem intactos para a outra pessoa, e a '
           'conversa volta a aparecer aqui se ela enviar uma nova mensagem.',
           style: TextStyle(
-            color: Color(0xFF999999), 
+            color: Color(0xFF999999),
             height: 1.5,
           ),
         ),
@@ -592,8 +570,6 @@ class MenuContextoAmigo extends StatelessWidget {
   }
 
   Future<void> _excluirAmigo(BuildContext context) async {
-    // Mesma correção aplicada aqui: captura o Navigator raiz antes de
-    // fechar o bottom sheet, e usa o context raiz para o diálogo seguinte.
     final rootNav = Navigator.of(context, rootNavigator: true);
     final rootContext = rootNav.context;
 
