@@ -38,6 +38,22 @@ class UserXpData {
         totalSecondsOnline: 0,
       );
 
+  // ── copyWith para substituir o nível sem mexer no XP real ────────
+  UserXpData copyWith({int? level}) {
+    return UserXpData(
+      totalXp: totalXp,
+      level: level ?? this.level,
+      xpInCurrentLevel: xpInCurrentLevel,
+      xpForNextLevel: xpForNextLevel,
+      progressPercent: progressPercent,
+      totalSecondsOnline: totalSecondsOnline,
+      lastActivity: lastActivity,
+      achievements: achievements,
+      stats: stats,
+      dailyMissions: dailyMissions,
+    );
+  }
+
   String get formattedTimeOnline {
     final h = totalSecondsOnline ~/ 3600;
     final m = (totalSecondsOnline % 3600) ~/ 60;
@@ -45,7 +61,6 @@ class UserXpData {
     return '${m}min';
   }
 
-  // Atalhos para missões do dia
   int get dailyArticles =>
       (dailyMissions['articlesRead'] as num?)?.toInt() ?? 0;
   int get dailyComments =>
@@ -114,8 +129,11 @@ class XpService {
     List<String> achievements = const [],
     Map<String, dynamic> stats = const {},
     Map<String, dynamic> dailyMissions = const {},
+    int? overrideLevel, // <-- NOVO: nível forçado pelo admin
   }) {
-    final level = levelFromXp(totalXp);
+    final calculatedLevel = levelFromXp(totalXp);
+    final level = overrideLevel ?? calculatedLevel;
+
     final xpAtThisLevel = xpRequiredForLevel(level);
     final xpAtNextLevel = xpRequiredForLevel(level + 1);
     final xpInCurrentLevel = totalXp - xpAtThisLevel;
@@ -144,13 +162,12 @@ class XpService {
     return _db.collection('users_xp').doc(uid);
   }
 
-  // ── Data de hoje como string YYYY-MM-DD ──────────────────────────
   String _todayString() {
     final now = DateTime.now();
     return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
 
-  // ── Carrega dados do Firestore ───────────────────────────────────
+  // ── Carrega dados do Firestore — respeita adminOverride ──────────
   Future<UserXpData> loadUserXpData() async {
     try {
       final doc = _userDoc;
@@ -164,10 +181,8 @@ class XpService {
 
       final data = snap.data()!;
 
-      // Verifica e reseta missões diárias se necessário
       await _checkAndResetDailyMissions(doc, data);
 
-      // Recarrega após possível reset
       final snapUpdated = await doc.get();
       final dataUpdated = snapUpdated.data()!;
 
@@ -183,6 +198,13 @@ class XpService {
       final lastActivity =
           (dataUpdated['lastActivity'] as Timestamp?)?.toDate();
 
+      // ── Lê override do admin ─────────────────────────────────────
+      final overrideActive = dataUpdated['adminOverrideActive'] == true;
+      final overrideLevel =
+          overrideActive
+              ? (dataUpdated['adminOverrideLevel'] as num?)?.toInt()
+              : null;
+
       final xpData = buildXpData(
         totalXp: totalXp,
         totalSecondsOnline: totalSeconds,
@@ -190,11 +212,15 @@ class XpService {
         achievements: achievements,
         stats: stats,
         dailyMissions: dailyMissions,
+        overrideLevel: overrideLevel, // <-- passa o override
       );
 
-      final savedLevel = (dataUpdated['level'] as num?)?.toInt() ?? 1;
-      if (savedLevel != xpData.level) {
-        doc.update({'level': xpData.level}).catchError((_) {});
+      // Só sincroniza level no Firestore se NÃO houver override ativo
+      if (!overrideActive) {
+        final savedLevel = (dataUpdated['level'] as num?)?.toInt() ?? 1;
+        if (savedLevel != xpData.level) {
+          doc.update({'level': xpData.level}).catchError((_) {});
+        }
       }
 
       return xpData;
@@ -203,7 +229,6 @@ class XpService {
     }
   }
 
-  // ── Verifica se precisa resetar missões diárias ──────────────────
   Future<void> _checkAndResetDailyMissions(
     DocumentReference<Map<String, dynamic>> doc,
     Map<String, dynamic> data,
@@ -211,9 +236,8 @@ class XpService {
     final today = _todayString();
     final lastReset = data['lastMissionReset'] as String? ?? '';
 
-    if (lastReset == today) return; // já resetou hoje, não faz nada
+    if (lastReset == today) return;
 
-    // Calcula sequência de dias
     int consecutiveDays =
         (data['stats']?['consecutiveDays'] as num?)?.toInt() ?? 0;
 
@@ -222,26 +246,22 @@ class XpService {
         final lastDate = DateTime.parse(lastReset);
         final todayDate = DateTime.now();
         final diff = todayDate
-            .difference(DateTime(lastDate.year, lastDate.month, lastDate.day))
+            .difference(
+                DateTime(lastDate.year, lastDate.month, lastDate.day))
             .inDays;
 
         if (diff == 1) {
-          // Acessou no dia seguinte: incrementa sequência
           consecutiveDays += 1;
         } else if (diff > 1) {
-          // Pulou um ou mais dias: zera sequência
           consecutiveDays = 1;
         }
-        // diff == 0 não deveria chegar aqui (já tratado acima)
       } catch (_) {
         consecutiveDays = 1;
       }
     } else {
-      // Primeiro acesso com esse campo
       consecutiveDays = 1;
     }
 
-    // Reseta missões do dia e atualiza sequência
     await doc.update({
       'lastMissionReset': today,
       'dailyMissions': {
@@ -256,7 +276,6 @@ class XpService {
     });
   }
 
-  // ── Inicializa documento do usuário novo ─────────────────────────
   Future<void> _initializeUser() async {
     final doc = _userDoc;
     if (doc == null) return;
@@ -292,7 +311,6 @@ class XpService {
     });
   }
 
-  // ── Helper: salva XP + level calculado de uma vez ────────────────
   Future<UserXpData> _incrementXpAndSave({
     required int xpGained,
     int? extraSeconds,
@@ -313,13 +331,19 @@ class XpService {
 
     await doc.update(update);
 
+    // loadUserXpData já respeita o override internamente
     final updated = await loadUserXpData();
-    await doc.update({'level': updated.level}).catchError((_) {});
+
+    // Só atualiza level no Firestore se não houver override
+    final snap = await doc.get();
+    final overrideActive = snap.data()?['adminOverrideActive'] == true;
+    if (!overrideActive) {
+      await doc.update({'level': updated.level}).catchError((_) {});
+    }
 
     return updated;
   }
 
-  // ── Adiciona XP por tempo ────────────────────────────────────────
   Future<UserXpData> addXpForTime(int secondsActive) async {
     final intervals = secondsActive ~/ _intervalSeconds;
     if (intervals <= 0) return loadUserXpData();
@@ -346,7 +370,6 @@ class XpService {
     }
   }
 
-  // ── Registra artigo lido ─────────────────────────────────────────
   Future<void> recordArticleRead() async {
     try {
       final updated = await _incrementXpAndSave(
@@ -361,7 +384,6 @@ class XpService {
     } catch (_) {}
   }
 
-  // ── Registra compartilhamento ────────────────────────────────────
   Future<void> recordShare() async {
     try {
       final updated = await _incrementXpAndSave(
@@ -376,7 +398,6 @@ class XpService {
     } catch (_) {}
   }
 
-  // ── Registra comentário ──────────────────────────────────────────
   Future<void> recordComment() async {
     try {
       final updated = await _incrementXpAndSave(
@@ -391,15 +412,13 @@ class XpService {
     } catch (_) {}
   }
 
-  // ── Verifica recompensas de missões diárias ──────────────────────
   Future<void> _checkMissionRewards(UserXpData data) async {
     final doc = _userDoc;
     if (doc == null) return;
 
-    final collected = List<String>.from(
-        data.dailyMissions['rewardsCollected'] ?? []);
+    final collected =
+        List<String>.from(data.dailyMissions['rewardsCollected'] ?? []);
 
-    // Missão 1: Ler 5 artigos → +25 XP
     if (data.dailyArticles >= 5 && !collected.contains('articles')) {
       await doc.update({
         'totalXp': FieldValue.increment(25),
@@ -407,8 +426,6 @@ class XpService {
             FieldValue.arrayUnion(['articles']),
       });
     }
-
-    // Missão 2: Fazer 2 comentários → +40 XP
     if (data.dailyComments >= 2 && !collected.contains('comments')) {
       await doc.update({
         'totalXp': FieldValue.increment(40),
@@ -416,8 +433,6 @@ class XpService {
             FieldValue.arrayUnion(['comments']),
       });
     }
-
-    // Missão 3: Compartilhar 1 notícia → +15 XP
     if (data.dailyShares >= 1 && !collected.contains('shares')) {
       await doc.update({
         'totalXp': FieldValue.increment(15),
@@ -425,8 +440,6 @@ class XpService {
             FieldValue.arrayUnion(['shares']),
       });
     }
-
-    // Missão 4: Ficar 10 min lendo → +20 XP
     if (data.dailyMinutes >= 10 && !collected.contains('time')) {
       await doc.update({
         'totalXp': FieldValue.increment(20),
@@ -436,7 +449,6 @@ class XpService {
     }
   }
 
-  // ── Verifica e desbloqueia conquistas ────────────────────────────
   Future<void> _checkAchievements(UserXpData data) async {
     final doc = _userDoc;
     if (doc == null) return;
@@ -445,42 +457,32 @@ class XpService {
     final toUnlock = <String>[];
 
     if (data.totalSecondsOnline >= 3600 &&
-        !current.contains('1h_online')) {
-      toUnlock.add('1h_online');
-    }
+        !current.contains('1h_online')) toUnlock.add('1h_online');
     if (data.totalSecondsOnline >= 36000 &&
-        !current.contains('10h_online')) {
-      toUnlock.add('10h_online');
-    }
+        !current.contains('10h_online')) toUnlock.add('10h_online');
     final articlesRead =
         (data.stats['articlesRead'] as num?)?.toInt() ?? 0;
-    if (articlesRead >= 100 && !current.contains('100_articles')) {
+    if (articlesRead >= 100 && !current.contains('100_articles'))
       toUnlock.add('100_articles');
-    }
     final shares =
         (data.stats['articlesShared'] as num?)?.toInt() ?? 0;
-    if (shares >= 1 && !current.contains('first_share')) {
+    if (shares >= 1 && !current.contains('first_share'))
       toUnlock.add('first_share');
-    }
     final comments =
         (data.stats['commentsPosted'] as num?)?.toInt() ?? 0;
-    if (comments >= 1 && !current.contains('first_comment')) {
+    if (comments >= 1 && !current.contains('first_comment'))
       toUnlock.add('first_comment');
-    }
-    if (data.level >= 5 && !current.contains('level_5')) {
+    if (data.level >= 5 && !current.contains('level_5'))
       toUnlock.add('level_5');
-    }
-    if (data.level >= 10 && !current.contains('level_10')) {
+    if (data.level >= 10 && !current.contains('level_10'))
       toUnlock.add('level_10');
-    }
 
     if (toUnlock.isNotEmpty) {
-      await doc.update(
-          {'achievements': FieldValue.arrayUnion(toUnlock)});
+      await doc
+          .update({'achievements': FieldValue.arrayUnion(toUnlock)});
     }
   }
 
-  // ── Lista todas as conquistas possíveis com status ───────────────
   List<Achievement> getAllAchievements(List<String> unlocked) {
     return [
       Achievement(
