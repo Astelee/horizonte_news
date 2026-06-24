@@ -12,7 +12,10 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   Timer? _activeTimer;
   int _secondsAccumulated = 0;
 
-  // A cada 60s salva no Firestore e atualiza minutos diários
+  // Callback disparado quando o usuário sobe de nível
+  // Conecte ao showLevelUpOverlay no profile_screen.dart ou main.dart
+  Function(int newLevel)? onLevelUp;
+
   static const int _saveIntervalSeconds = 60;
 
   UserXpData get data => _data;
@@ -24,7 +27,6 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     _isLoading = true;
     notifyListeners();
 
-    // loadUserXpData já chama _checkAndResetDailyMissions internamente
     _data = await _service.loadUserXpData();
     _isLoading = false;
     notifyListeners();
@@ -37,7 +39,6 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
-        // Ao voltar ao app, recarrega dados (pode ter mudado a data)
         _reloadOnResume();
         _startTimer();
         break;
@@ -50,7 +51,6 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
-  // Recarrega dados ao retornar ao app (garante reset de missões)
   Future<void> _reloadOnResume() async {
     _data = await _service.loadUserXpData();
     notifyListeners();
@@ -87,29 +87,47 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     final seconds = _secondsAccumulated;
     _secondsAccumulated = 0;
 
+    final oldLevel = _data.level;
     final updated = await _service.addXpForTime(seconds);
     _data = updated;
     notifyListeners();
+
+    // Dispara animação de level up se o nível subiu
+    if (updated.level > oldLevel) {
+      onLevelUp?.call(updated.level);
+    }
   }
 
   // ── Eventos de XP ────────────────────────────────────────────────
   Future<void> onArticleRead() async {
+    final oldLevel = _data.level;
     await _service.recordArticleRead();
     _data = await _service.loadUserXpData();
     notifyListeners();
+    if (_data.level > oldLevel) {
+      onLevelUp?.call(_data.level);
+    }
   }
 
   Future<void> onShare() async {
+    final oldLevel = _data.level;
     await _service.recordShare();
     _data = await _service.loadUserXpData();
     notifyListeners();
+    if (_data.level > oldLevel) {
+      onLevelUp?.call(_data.level);
+    }
   }
 
   Future<void> addXpForComment() async {
     try {
+      final oldLevel = _data.level;
       await _service.recordComment();
       _data = await _service.loadUserXpData();
       notifyListeners();
+      if (_data.level > oldLevel) {
+        onLevelUp?.call(_data.level);
+      }
     } catch (e) {
       debugPrint('Erro ao adicionar XP por comentário: $e');
     }
