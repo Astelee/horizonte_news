@@ -9,6 +9,7 @@ import '../providers/admin_provider.dart';
 import '../screens/amigos_modelos.dart';
 import '../screens/amigos_perfil.dart';
 import 'badge_widgets.dart';
+import 'avatar_frame.dart';
 
 class CommentModel {
   final String id;
@@ -148,7 +149,6 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
   }
 
   Future<void> _openFullProfile() async {
-    // Captura o navigator raiz ANTES de fechar o bottom sheet
     final rootNav = Navigator.of(context, rootNavigator: true);
 
     final doc = await _db.collection('users_xp').doc(widget.userId).get();
@@ -156,7 +156,6 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
 
     final friend = FriendModel.fromDoc(doc);
 
-    // Fecha o bottom sheet e navega para o perfil
     rootNav.pop();
     rootNav.push(
       MaterialPageRoute(
@@ -167,16 +166,6 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final colorPairs = [
-      [const Color(0xFFFF6B00), const Color(0xFFCC4400)],
-      [const Color(0xFFFF8C3A), const Color(0xFFFF6B00)],
-      [const Color(0xFFE65100), const Color(0xFF8D3200)],
-    ];
-    final pair = colorPairs[
-        widget.userName.isNotEmpty
-            ? widget.userName.codeUnitAt(0) % colorPairs.length
-            : 0];
-
     final username = (_userData?['username'] as String?) ?? '';
     final totalXp = (_userData?['totalXp'] as num?)?.toInt() ?? 0;
 
@@ -210,33 +199,25 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
             ),
           ),
 
-          // Avatar + info
+          // Avatar com moldura + info
           Row(
             children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: pair,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+              AvatarFrame(
+                level: widget.userLevel,
+                size: 60,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFF1A0800),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primaryOrange.withOpacity(0.4),
-                      blurRadius: 16,
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    widget.initials,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
+                  child: Center(
+                    child: Text(
+                      widget.initials,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                 ),
@@ -268,6 +249,8 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                     Row(
                       children: [
                         LevelBadgeInline(level: widget.userLevel),
+                        const SizedBox(width: 6),
+                        FrameRarityTag(level: widget.userLevel, fontSize: 8),
                         if (totalXp > 0) ...[
                           const SizedBox(width: 8),
                           Text(
@@ -775,9 +758,8 @@ class _CommentsSectionState extends State<CommentsSection>
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildAvatar(
+                _buildInputAvatar(
                   user?.displayName ?? user?.email?.split('@').first ?? '?',
-                  size: 36,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -882,6 +864,35 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
+  // Avatar do campo de digitar comentário — usa nível 1 fixo (provider
+  // resolve o nível real só ao enviar; aqui é só feedback visual leve)
+  Widget _buildInputAvatar(String name) {
+    return Consumer<UserXpProvider>(
+      builder: (context, xpProvider, _) {
+        return AvatarFrame(
+          level: xpProvider.data.level,
+          size: 36,
+          child: Container(
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color(0xFF1A0800),
+            ),
+            child: Center(
+              child: Text(
+                _initials(name),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildCommentsList() {
     final isAdmin =
         Provider.of<AdminProvider>(context, listen: false).isAdmin;
@@ -948,41 +959,6 @@ class _CommentsSectionState extends State<CommentsSection>
               style: TextStyle(color: AppColors.textMuted, fontSize: 14),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAvatar(String name, {double size = 40}) {
-    final colorPairs = [
-      [const Color(0xFFFF6B00), const Color(0xFFCC4400)],
-      [const Color(0xFFFF8C3A), const Color(0xFFFF6B00)],
-      [const Color(0xFFE65100), const Color(0xFF8D3200)],
-    ];
-    final pair =
-        colorPairs[name.isNotEmpty ? name.codeUnitAt(0) % colorPairs.length : 0];
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-            colors: pair,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight),
-        boxShadow: [
-          BoxShadow(
-              color: AppColors.primaryOrange.withOpacity(0.3), blurRadius: 8),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          _initials(name),
-          style: TextStyle(
-              color: Colors.white,
-              fontSize: size * 0.35,
-              fontWeight: FontWeight.w800),
         ),
       ),
     );
@@ -1083,40 +1059,27 @@ class _CommentTileState extends State<_CommentTile>
     );
   }
 
+  // ── Avatar com moldura por raridade — leve mesmo em miniatura ───
   Widget _buildAvatar() {
-    final colorPairs = [
-      [const Color(0xFFFF6B00), const Color(0xFFCC4400)],
-      [const Color(0xFFFF8C3A), const Color(0xFFFF6B00)],
-      [const Color(0xFFE65100), const Color(0xFF8D3200)],
-    ];
-    final name = widget.comment.userName;
-    final pair =
-        colorPairs[name.isNotEmpty ? name.codeUnitAt(0) % colorPairs.length : 0];
-
     return GestureDetector(
       onTap: widget.onTapUser,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-              colors: pair,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight),
-          boxShadow: [
-            BoxShadow(
-                color: AppColors.primaryOrange.withOpacity(0.2),
-                blurRadius: 6),
-          ],
-        ),
-        child: Center(
-          child: Text(
-            widget.initials,
-            style: const TextStyle(
+      child: AvatarFrame(
+        level: widget.comment.userLevel,
+        size: 36,
+        child: Container(
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Color(0xFF1A0800),
+          ),
+          child: Center(
+            child: Text(
+              widget.initials,
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 13,
-                fontWeight: FontWeight.w800),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
         ),
       ),
