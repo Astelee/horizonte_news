@@ -20,11 +20,6 @@ class AbaConversas extends StatelessWidget {
     required this.onIniciarConversa,
   }) : super(key: key);
 
-  String _gerarChatId(String uid1, String uid2) {
-    final ids = [uid1, uid2]..sort();
-    return '${ids[0]}_${ids[1]}';
-  }
-
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
@@ -83,8 +78,11 @@ class AbaConversas extends StatelessWidget {
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
               itemCount: lista.length,
-              itemBuilder: (context, i) =>
-                  _CardConversa(item: lista[i], myUid: myUid, db: db),
+              itemBuilder: (context, i) => _CardConversa(
+                item: lista[i],
+                myUid: myUid,
+                db: db,
+              ),
             );
           },
         );
@@ -135,7 +133,11 @@ class AbaConversas extends StatelessWidget {
         chatId: doc.id,
       );
 
-      return _ConversaItem(friend: friend, chatId: doc.id);
+      return _ConversaItem(
+        friend: friend,
+        chatId: doc.id,
+        friendUid: friendUid,
+      );
     });
 
     final results = await Future.wait(futures);
@@ -146,7 +148,13 @@ class AbaConversas extends StatelessWidget {
 class _ConversaItem {
   final FriendModel friend;
   final String chatId;
-  _ConversaItem({required this.friend, required this.chatId});
+  final String friendUid;
+
+  _ConversaItem({
+    required this.friend,
+    required this.chatId,
+    required this.friendUid,
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -234,7 +242,7 @@ class _EstadoSemConversas extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// CARD DE CONVERSA
+// CARD DE CONVERSA — com StreamBuilder para "digitando" em tempo real
 // ═══════════════════════════════════════════════════════════════════
 class _CardConversa extends StatelessWidget {
   final _ConversaItem item;
@@ -308,6 +316,7 @@ class _CardConversa extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Nome + badges + hora
                       Row(
                         children: [
                           Expanded(
@@ -329,8 +338,7 @@ class _CardConversa extends StatelessWidget {
                                 if (friend.isFavorite) ...[
                                   const SizedBox(width: 4),
                                   const Icon(Icons.star_rounded,
-                                      size: 12,
-                                      color: Color(0xFFFAA61A)),
+                                      size: 12, color: Color(0xFFFAA61A)),
                                 ],
                                 if (friend.achievements.isNotEmpty)
                                   FileiraBadges(
@@ -353,6 +361,8 @@ class _CardConversa extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 2),
+
+                      // @username + nível
                       Row(
                         children: [
                           Text(
@@ -367,61 +377,75 @@ class _CardConversa extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          if (friend.isTyping)
-                            const Expanded(child: IndicadorDigitando())
-                          else
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  if (souEuQueMandei &&
-                                      friend.lastMessageStatus != null) ...[
-                                    _MiniStatusIcon(
-                                        status: friend.lastMessageStatus!),
-                                    const SizedBox(width: 4),
-                                  ],
-                                  Expanded(
-                                    child: Text(
-                                      souEuQueMandei
-                                          ? 'Você: ${friend.lastMessage ?? ''}'
-                                          : friend.lastMessage ?? '',
-                                      style: TextStyle(
-                                        color: temNaoLidas
-                                            ? Colors.white.withOpacity(0.9)
-                                            : const Color(0xFF666666),
-                                        fontSize: 12.5,
-                                        fontWeight: temNaoLidas
-                                            ? FontWeight.w600
-                                            : FontWeight.normal,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
+
+                      // ── LINHA DE PREVIEW — escuta isTyping em tempo real ──
+                      StreamBuilder<DocumentSnapshot>(
+                        stream: db
+                            .collection('chats')
+                            .doc(item.chatId)
+                            .snapshots(),
+                        builder: (context, chatSnap) {
+                          final data = chatSnap.data?.data()
+                              as Map<String, dynamic>?;
+
+                          // Verifica se o AMIGO está digitando
+                          final friendTyping =
+                              (data?['isTyping_${item.friendUid}'] as bool?) ??
+                                  false;
+
+                          if (friendTyping) {
+                            return const IndicadorDigitando();
+                          }
+
+                          // Preview normal da última mensagem
+                          return Row(
+                            children: [
+                              if (souEuQueMandei &&
+                                  friend.lastMessageStatus != null) ...[
+                                _MiniStatusIcon(
+                                    status: friend.lastMessageStatus!),
+                                const SizedBox(width: 4),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  souEuQueMandei
+                                      ? 'Você: ${friend.lastMessage ?? ''}'
+                                      : friend.lastMessage ?? '',
+                                  style: TextStyle(
+                                    color: temNaoLidas
+                                        ? Colors.white.withOpacity(0.9)
+                                        : const Color(0xFF666666),
+                                    fontSize: 12.5,
+                                    fontWeight: temNaoLidas
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
                                   ),
-                                ],
-                              ),
-                            ),
-                          if (temNaoLidas) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFF6B00),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                '${friend.unreadCount}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
                                 ),
                               ),
-                            ),
-                          ],
-                        ],
+                              if (temNaoLidas) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 7, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFF6B00),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    '${friend.unreadCount}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -429,9 +453,8 @@ class _CardConversa extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            // 92 = 80 (avatar com moldura, 50 * 1.6) + 12 (espaçamento do Row acima)
             Padding(
-              padding: const EdgeInsets.only(left: 92),
+              padding: const EdgeInsets.only(left: 62),
               child: BarraXp(friend: friend),
             ),
           ],
@@ -442,7 +465,7 @@ class _CardConversa extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// MINI ÍCONE DE STATUS PARA O CARD DA LISTA
+// MINI ÍCONE DE STATUS
 // ═══════════════════════════════════════════════════════════════════
 class _MiniStatusIcon extends StatelessWidget {
   final MessageStatus status;
