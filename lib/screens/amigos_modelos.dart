@@ -1,11 +1,18 @@
+// amigos_modelos.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/xp_service.dart';
 
+// ═══════════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════════
 enum FriendStatus { online, away, playing, reading, offline }
 enum FriendFilter { all, online, offline, favorites, recent }
 enum MessageStatus { sending, sent, delivered, read }
 
+// ═══════════════════════════════════════════════════════════════════
+// EXTENSÃO DE STATUS
+// ═══════════════════════════════════════════════════════════════════
 extension FriendStatusExt on FriendStatus {
   String get label {
     switch (this) {
@@ -37,20 +44,20 @@ extension FriendStatusExt on FriendStatus {
     }
   }
 
-  /// Converte string do Firestore/RTDB para enum.
-  /// Fonte da verdade agora é o PresenceService — nunca mais inferimos
-  /// por diferença de timestamp no client.
   static FriendStatus fromString(String? value) {
     switch (value) {
-      case 'online':   return FriendStatus.online;
-      case 'away':     return FriendStatus.away;
-      case 'playing':  return FriendStatus.playing;
-      case 'reading':  return FriendStatus.reading;
-      default:         return FriendStatus.offline;
+      case 'online':  return FriendStatus.online;
+      case 'away':    return FriendStatus.away;
+      case 'playing': return FriendStatus.playing;
+      case 'reading': return FriendStatus.reading;
+      default:        return FriendStatus.offline;
     }
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// MODELO DE AMIGO
+// ═══════════════════════════════════════════════════════════════════
 class FriendModel {
   final String uid;
   final String username;
@@ -111,6 +118,8 @@ class FriendModel {
     int? unreadCount,
     bool? isTyping,
     String? chatId,
+    bool? isFavorite,
+    FriendStatus? status,
   }) {
     return FriendModel(
       uid: uid,
@@ -119,14 +128,14 @@ class FriendModel {
       level: level,
       totalXp: totalXp,
       xpForNextLevel: xpForNextLevel,
-      status: status,
+      status: status ?? this.status,
       lastActivity: lastActivity,
       lastMessage: lastMessage ?? this.lastMessage,
       lastMessageTime: lastMessageTime ?? this.lastMessageTime,
       lastMessageSenderId: lastMessageSenderId ?? this.lastMessageSenderId,
       lastMessageStatus: lastMessageStatus ?? this.lastMessageStatus,
       unreadCount: unreadCount ?? this.unreadCount,
-      isFavorite: isFavorite,
+      isFavorite: isFavorite ?? this.isFavorite,
       isTyping: isTyping ?? this.isTyping,
       achievements: achievements,
       rank: rank,
@@ -137,32 +146,62 @@ class FriendModel {
   factory FriendModel.fromDoc(DocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>;
     final last = (d['lastActivity'] as Timestamp?)?.toDate();
-
-    // ✅ ATUALIZADO: status vem explícito do Firestore,
-    // gravado pelo PresenceService via RTDB → Firestore mirror.
-    // Não inferimos mais por diferença de timestamp — isso causava
-    // inconsistências e dependia do relógio do dispositivo.
     final statusStr = d['status'] as String?;
     final status = FriendStatusExt.fromString(statusStr);
-
     final lvl    = (d['level']   as num?)?.toInt() ?? 1;
     final xp     = (d['totalXp'] as num?)?.toInt() ?? 0;
     final nextXp = XpService.xpRequiredForLevel(lvl + 1);
 
     return FriendModel(
-      uid:           doc.id,
-      username:      (d['username']    as String?) ?? '',
-      displayName:   (d['displayName'] as String?) ?? 'Usuário',
-      level:         lvl,
-      totalXp:       xp,
+      uid:            doc.id,
+      username:       (d['username']    as String?) ?? '',
+      displayName:    (d['displayName'] as String?) ?? 'Usuário',
+      level:          lvl,
+      totalXp:        xp,
       xpForNextLevel: nextXp,
-      status:        status,
-      lastActivity:  last,
-      unreadCount:   (d['unreadCount'] as num?)?.toInt() ?? 0,
-      isFavorite:    (d['isFavorite']  as bool?)   ?? false,
-      isTyping:      (d['isTyping']    as bool?)    ?? false,
-      achievements:  List<String>.from(d['achievements'] ?? []),
-      rank:          (d['rank']        as num?)?.toInt() ?? 0,
+      status:         status,
+      lastActivity:   last,
+      unreadCount:    (d['unreadCount'] as num?)?.toInt() ?? 0,
+      isFavorite:     (d['isFavorite']  as bool?)   ?? false,
+      isTyping:       (d['isTyping']    as bool?)   ?? false,
+      achievements:   List<String>.from(d['achievements'] ?? []),
+      rank:           (d['rank']        as num?)?.toInt() ?? 0,
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MODELO DE SOLICITAÇÃO DE AMIZADE
+// ═══════════════════════════════════════════════════════════════════
+class FriendRequest {
+  final String id;
+  final String fromUid;
+  final String toUid;
+  final String status; // 'pending' | 'accepted' | 'declined'
+  final DateTime? sentAt;
+  final DateTime? acceptedAt;
+
+  const FriendRequest({
+    required this.id,
+    required this.fromUid,
+    required this.toUid,
+    required this.status,
+    this.sentAt,
+    this.acceptedAt,
+  });
+
+  factory FriendRequest.fromDoc(DocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>;
+    return FriendRequest(
+      id:          doc.id,
+      fromUid:     (d['fromUid']  as String?) ?? '',
+      toUid:       (d['toUid']    as String?) ?? '',
+      status:      (d['status']   as String?) ?? 'pending',
+      sentAt:      (d['sentAt']   as Timestamp?)?.toDate(),
+      acceptedAt:  (d['acceptedAt'] as Timestamp?)?.toDate(),
+    );
+  }
+
+  bool get isPending  => status == 'pending';
+  bool get isAccepted => status == 'accepted';
 }
