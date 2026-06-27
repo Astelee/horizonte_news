@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/badge_config.dart';
 import '../widgets/avatar_frame.dart';
 import 'amigos_modelos.dart';
+import 'amigos_perfil.dart';
 import 'chat_screen.dart';
 
 class AmigoAvatar extends StatefulWidget {
@@ -44,14 +45,18 @@ class _AmigoAvatarState extends State<AmigoAvatar>
     super.dispose();
   }
 
+  // ✅ Função centralizada para extrair inicial com fallbacks
+  String _getInitial() {
+    final name = widget.friend.displayName.trim();
+    if (name.isNotEmpty) return name[0].toUpperCase();
+    final username = widget.friend.username.trim();
+    if (username.isNotEmpty) return username[0].toUpperCase();
+    return '?';
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = widget.size;
-
-    // A AvatarFrame desenha o anel/halo/partículas em uma área
-    // size * 1.6, com o avatar centralizado. Essa é a "folga" entre a
-    // borda da moldura e a borda do avatar — usamos ela pra colocar a
-    // bolinha de status exatamente no canto do avatar, como era antes.
     final frameEdgeInset = s * 0.3;
 
     final borderColor = widget.friend.isFavorite
@@ -82,9 +87,7 @@ class _AmigoAvatarState extends State<AmigoAvatar>
             ),
             child: Center(
               child: Text(
-                widget.friend.displayName.isNotEmpty
-                    ? widget.friend.displayName[0].toUpperCase()
-                    : '?',
+                _getInitial(), // ✅ usa fallback seguro
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: s * 0.36,
@@ -109,7 +112,8 @@ class _AmigoAvatarState extends State<AmigoAvatar>
                       height: 16 * _pulseAnim.value,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: widget.friend.status.color.withOpacity(0.3),
+                        color:
+                            widget.friend.status.color.withOpacity(0.3),
                       ),
                     ),
                   Container(
@@ -178,10 +182,12 @@ class BarraXp extends StatelessWidget {
         Row(
           children: [
             Text('${friend.totalXp} XP',
-                style: const TextStyle(color: Color(0xFF444444), fontSize: 9)),
+                style:
+                    const TextStyle(color: Color(0xFF444444), fontSize: 9)),
             const Expanded(child: SizedBox()),
             Text('${friend.xpForNextLevel} XP',
-                style: const TextStyle(color: Color(0xFF444444), fontSize: 9)),
+                style:
+                    const TextStyle(color: Color(0xFF444444), fontSize: 9)),
           ],
         ),
         const SizedBox(height: 3),
@@ -245,10 +251,12 @@ class FileiraBadges extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: color.withOpacity(0.15),
-              border: Border.all(color: color.withOpacity(0.4), width: 0.8),
+              border:
+                  Border.all(color: color.withOpacity(0.4), width: 0.8),
             ),
             child: Center(
-              child: FaIcon(BadgeConfig.achievementIcon(id), size: 9, color: color),
+              child: FaIcon(BadgeConfig.achievementIcon(id),
+                  size: 9, color: color),
             ),
           ),
         );
@@ -300,7 +308,8 @@ class _IndicadorDigitandoState extends State<IndicadorDigitando>
             animation: _ctrl,
             builder: (_, __) {
               final t = (_ctrl.value - i * 0.2).clamp(0.0, 1.0);
-              final opacity = (t < 0.5 ? t * 2 : (1 - t) * 2).clamp(0.3, 1.0);
+              final opacity =
+                  (t < 0.5 ? t * 2 : (1 - t) * 2).clamp(0.3, 1.0);
               return Container(
                 margin: const EdgeInsets.only(right: 2),
                 width: 4,
@@ -351,7 +360,8 @@ class CabecalhoSecao extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
@@ -446,7 +456,9 @@ class EstadoVazio extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 48, color: const Color(0xFFFF6B00).withOpacity(0.2)),
+          Icon(icon,
+              size: 48,
+              color: const Color(0xFFFF6B00).withOpacity(0.2)),
           const SizedBox(height: 16),
           Text(titulo,
               style: const TextStyle(
@@ -456,7 +468,8 @@ class EstadoVazio extends StatelessWidget {
           const SizedBox(height: 6),
           Text(subtitulo,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF444444), fontSize: 13)),
+              style: const TextStyle(
+                  color: Color(0xFF444444), fontSize: 13)),
         ],
       ),
     );
@@ -525,20 +538,18 @@ class MenuContextoAmigo extends StatelessWidget {
       barrierDismissible: true,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF0A0A0A),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
         title: const Text(
           'Excluir conversa?',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          style: TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w800),
         ),
         content: const Text(
           'A conversa será removida apenas da sua lista. O contato e o '
           'histórico de mensagens permanecem intactos para a outra pessoa, e a '
           'conversa volta a aparecer aqui se ela enviar uma nova mensagem.',
-          style: TextStyle(
-            color: Color(0xFF999999),
-            height: 1.5,
-          ),
+          style: TextStyle(color: Color(0xFF999999), height: 1.5),
         ),
         actions: [
           TextButton(
@@ -584,11 +595,11 @@ class MenuContextoAmigo extends StatelessWidget {
       barrierDismissible: true,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF0C0C0C),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
         title: const Text('Remover amigo?',
-            style:
-                TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+            style: TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w800)),
         content: Text(
           'Tem certeza que quer remover @${friend.username}?',
           style: const TextStyle(color: Color(0xFF666666)),
@@ -603,7 +614,8 @@ class MenuContextoAmigo extends StatelessWidget {
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Remover',
                 style: TextStyle(
-                    color: Color(0xFFED4245), fontWeight: FontWeight.w700)),
+                    color: Color(0xFFED4245),
+                    fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -613,6 +625,21 @@ class MenuContextoAmigo extends StatelessWidget {
 
     await db.collection('friend_requests').doc(idEncontrado).delete();
     onChanged?.call();
+  }
+
+  // ✅ CORRIGIDO: navega para TelaPerfilAmigo passando o friend
+  Future<void> _verPerfil(BuildContext context) async {
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    rootNav.pop();
+
+    // Pequeno delay para o bottom sheet fechar antes de navegar
+    await Future.delayed(const Duration(milliseconds: 200));
+
+    rootNav.push(
+      MaterialPageRoute(
+        builder: (_) => TelaPerfilAmigo(friend: friend),
+      ),
+    );
   }
 
   @override
@@ -648,7 +675,9 @@ class MenuContextoAmigo extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            friend.displayName,
+                            friend.displayName.isNotEmpty
+                                ? friend.displayName
+                                : friend.username, // ✅ fallback pro username
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.white,
@@ -675,11 +704,13 @@ class MenuContextoAmigo extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
+
+          // ✅ CORRIGIDO: agora chama _verPerfil que navega de verdade
           _ItemMenu(
             icon: Icons.person_rounded,
             label: 'Ver Perfil',
             color: Colors.white,
-            onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+            onTap: () => _verPerfil(context),
           ),
           _ItemMenu(
             icon: Icons.chat_bubble_rounded,
@@ -748,7 +779,8 @@ class _ItemMenu extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         margin: const EdgeInsets.only(bottom: 4),
         decoration: BoxDecoration(
           color: color.withOpacity(0.04),
