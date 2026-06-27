@@ -1,3 +1,4 @@
+// amigos_tela.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +9,7 @@ import 'amigos_aba_conversas.dart';
 import 'amigos_aba_pedidos.dart';
 import 'amigos_aba_lista.dart';
 import 'amigos_adicionar.dart';
+import 'amigos_widgets.dart';
 
 class TelaAmigos extends StatefulWidget {
   const TelaAmigos({Key? key}) : super(key: key);
@@ -30,6 +32,7 @@ class _TelaAmigosState extends State<TelaAmigos>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() => setState(() {}));
   }
 
   @override
@@ -74,8 +77,18 @@ class _TelaAmigosState extends State<TelaAmigos>
         children: [
           _buildHeader(),
           _buildTabBar(),
-          if (_buscaAberta) _buildBarraBusca(),
-          if (_tabController.index == 1) _buildFiltrosAmigos(),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            child: _buscaAberta ? _buildBarraBusca() : const SizedBox.shrink(),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            child: (_tabController.index == 1)
+                ? _buildFiltrosAmigos()
+                : const SizedBox.shrink(),
+          ),
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -101,7 +114,9 @@ class _TelaAmigosState extends State<TelaAmigos>
         mainAxisSize: MainAxisSize.min,
         children: [
           _BotaoIconeRedondo(
-            icon: _buscaAberta ? Icons.close_rounded : Icons.search_rounded,
+            icon: _buscaAberta
+                ? Icons.close_rounded
+                : Icons.search_rounded,
             onTap: _toggleBusca,
           ),
           const SizedBox(width: 10),
@@ -111,79 +126,154 @@ class _TelaAmigosState extends State<TelaAmigos>
     );
   }
 
+  // ── Header com info do usuário logado ──────────────────────────
   Widget _buildHeader() {
-    return Container(
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 8,
-        bottom: 14,
-        left: 8,
-        right: 8,
-      ),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF0D0400), Colors.black],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: Colors.white, size: 20),
-            onPressed: () => Navigator.pop(context),
-          ),
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFFF6B00).withOpacity(0.4),
-                  blurRadius: 10,
-                ),
-              ],
-            ),
-            child: const Icon(Icons.chat_bubble_rounded,
-                color: Colors.white, size: 16),
-          ),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('CONVERSAS',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2)),
-                Text('Horizonte News',
-                    style: TextStyle(color: Color(0xFF666666), fontSize: 10)),
-              ],
-            ),
-          ),
-          // ── Menu de 3 pontinhos com "Pedidos" escondido ──────────
-          StreamBuilder<QuerySnapshot>(
-            stream: _db
-                .collection('friend_requests')
-                .where('toUid', isEqualTo: _myUid)
-                .where('status', isEqualTo: 'pending')
-                .snapshots(),
-            builder: (context, snap) {
-              final count = snap.data?.docs.length ?? 0;
-              return _MenuTresPontinhos(
-                pedidosCount: count,
-                onPedidosTap: _abrirPedidos,
-              );
-            },
-          ),
-        ],
-      ),
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _db.collection('users_xp').doc(_myUid).snapshots(),
+      builder: (context, snap) {
+        final data = snap.data?.data() as Map<String, dynamic>?;
+        final displayName =
+            (data?['displayName'] as String?) ?? 'Você';
+        final initial = displayName.isNotEmpty
+            ? displayName[0].toUpperCase()
+            : '?';
+
+        return StreamBuilder<QuerySnapshot>(
+          stream: _db
+              .collection('friend_requests')
+              .where('toUid', isEqualTo: _myUid)
+              .where('status', isEqualTo: 'pending')
+              .snapshots(),
+          builder: (context, pedidosSnap) {
+            final pedidosCount =
+                pedidosSnap.data?.docs.length ?? 0;
+
+            return StreamBuilder<QuerySnapshot>(
+              stream: _db
+                  .collection('friend_requests')
+                  .where('status', isEqualTo: 'accepted')
+                  .where('participants', arrayContains: _myUid)
+                  .snapshots(),
+              builder: (context, amigosSnap) {
+                final amigosCount =
+                    amigosSnap.data?.docs.length ?? 0;
+
+                return Container(
+                  padding: EdgeInsets.only(
+                    top: MediaQuery.of(context).padding.top + 8,
+                    bottom: 14,
+                    left: 8,
+                    right: 8,
+                  ),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF0D0400), Colors.black],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: Colors.white,
+                            size: 20),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+
+                      // Avatar do usuário logado
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [
+                              Color(0xFFFF6B00),
+                              Color(0xFFCC4400)
+                            ],
+                          ),
+                          border: Border.all(
+                              color: const Color(0xFF43B581),
+                              width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF43B581)
+                                  .withOpacity(0.3),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            initial,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+
+                      // Título + contadores
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'CONVERSAS',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                Text(
+                                  '$amigosCount amigo${amigosCount != 1 ? 's' : ''}',
+                                  style: const TextStyle(
+                                      color: Color(0xFF555555),
+                                      fontSize: 10),
+                                ),
+                                if (pedidosCount > 0) ...[
+                                  const Text(' · ',
+                                      style: TextStyle(
+                                          color: Color(0xFF333333),
+                                          fontSize: 10)),
+                                  Text(
+                                    '$pedidosCount pedido${pedidosCount != 1 ? 's' : ''}',
+                                    style: const TextStyle(
+                                        color: Color(0xFFFF6B00),
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Menu 3 pontinhos com badge de pedidos
+                      _MenuTresPontinhos(
+                        pedidosCount: pedidosCount,
+                        onPedidosTap: _abrirPedidos,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
@@ -198,21 +288,23 @@ class _TelaAmigosState extends State<TelaAmigos>
           child: Container(
             height: 46,
             decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A).withOpacity(0.8),
+              color: const Color(0xFF1A1A1A).withOpacity(0.9),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0xFF2A2A2A)),
             ),
             child: TextField(
               controller: _searchController,
               autofocus: true,
-              onChanged: (v) => setState(() => _busca = v.toLowerCase()),
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              onChanged: (v) =>
+                  setState(() => _busca = v.toLowerCase()),
+              style:
+                  const TextStyle(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
                 hintText: _tabController.index == 1
                     ? 'Buscar amigos...'
                     : 'Buscar conversas...',
-                hintStyle:
-                    const TextStyle(color: Color(0xFF555555), fontSize: 14),
+                hintStyle: const TextStyle(
+                    color: Color(0xFF555555), fontSize: 14),
                 prefixIcon: const Icon(Icons.search_rounded,
                     color: Color(0xFF555555), size: 20),
                 suffixIcon: _busca.isNotEmpty
@@ -262,8 +354,8 @@ class _TelaAmigosState extends State<TelaAmigos>
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.only(right: 8),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 color: ativo
@@ -274,18 +366,33 @@ class _TelaAmigosState extends State<TelaAmigos>
                       ? const Color(0xFFFF6B00)
                       : const Color(0xFF222222),
                 ),
+                boxShadow: ativo
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFFFF6B00)
+                              .withOpacity(0.3),
+                          blurRadius: 8,
+                        ),
+                      ]
+                    : null,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(f.$3,
-                      size: 12,
-                      color: ativo ? Colors.white : const Color(0xFF666666)),
+                  Icon(
+                    f.$3,
+                    size: 12,
+                    color: ativo
+                        ? Colors.white
+                        : const Color(0xFF666666),
+                  ),
                   const SizedBox(width: 5),
                   Text(
                     f.$2,
                     style: TextStyle(
-                      color: ativo ? Colors.white : const Color(0xFF666666),
+                      color: ativo
+                          ? Colors.white
+                          : const Color(0xFF666666),
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
@@ -299,20 +406,20 @@ class _TelaAmigosState extends State<TelaAmigos>
     );
   }
 
-  // ── TabBar agora com apenas 2 abas ────────────────────────────────
   Widget _buildTabBar() {
     return Container(
       color: Colors.black,
       child: TabBar(
         controller: _tabController,
-        onTap: (_) => setState(() {}),
         indicatorColor: const Color(0xFFFF6B00),
         indicatorWeight: 2,
         labelColor: const Color(0xFFFF6B00),
         unselectedLabelColor: const Color(0xFF555555),
         dividerColor: const Color(0xFF111111),
         labelStyle: const TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8),
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8),
         isScrollable: false,
         tabs: const [
           Tab(
@@ -330,7 +437,7 @@ class _TelaAmigosState extends State<TelaAmigos>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// MENU DE 3 PONTINHOS — Pedidos escondido aqui (estilo Instagram)
+// MENU DE 3 PONTINHOS
 // ═══════════════════════════════════════════════════════════════════
 class _MenuTresPontinhos extends StatelessWidget {
   final int pedidosCount;
@@ -358,7 +465,8 @@ class _MenuTresPontinhos extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: const Color(0xFFED4245),
-                  border: Border.all(color: Colors.black, width: 1.5),
+                  border:
+                      Border.all(color: Colors.black, width: 1.5),
                 ),
               ),
             ),
@@ -367,7 +475,8 @@ class _MenuTresPontinhos extends StatelessWidget {
       color: const Color(0xFF0C0C0C),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: const Color(0xFFFF6B00).withOpacity(0.15)),
+        side: BorderSide(
+            color: const Color(0xFFFF6B00).withOpacity(0.15)),
       ),
       onSelected: (value) {
         if (value == 'pedidos') onPedidosTap();
@@ -388,8 +497,8 @@ class _MenuTresPontinhos extends StatelessWidget {
               if (pedidosCount > 0) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
                     color: const Color(0xFFED4245),
                     borderRadius: BorderRadius.circular(20),
@@ -413,7 +522,7 @@ class _MenuTresPontinhos extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// PAINEL DE PEDIDOS — reaproveita AbaPedidos dentro de um bottom sheet
+// PAINEL DE PEDIDOS (bottom sheet)
 // ═══════════════════════════════════════════════════════════════════
 class _PainelPedidos extends StatelessWidget {
   final String myUid;
@@ -424,7 +533,7 @@ class _PainelPedidos extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 0.75,
+      initialChildSize: 0.8,
       minChildSize: 0.4,
       maxChildSize: 0.95,
       expand: false,
@@ -432,7 +541,8 @@ class _PainelPedidos extends StatelessWidget {
         return Container(
           decoration: const BoxDecoration(
             color: Color(0xFF080808),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            borderRadius:
+                BorderRadius.vertical(top: Radius.circular(28)),
             border: Border(
               top: BorderSide(color: Color(0xFF1A1A1A)),
               left: BorderSide(color: Color(0xFF111111)),
@@ -442,31 +552,43 @@ class _PainelPedidos extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 16),
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF222222),
-                  borderRadius: BorderRadius.circular(2),
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF222222),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
+                          colors: [
+                            Color(0xFFFF6B00),
+                            Color(0xFFCC4400)
+                          ],
                         ),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFF6B00)
+                                .withOpacity(0.35),
+                            blurRadius: 10,
+                          ),
+                        ],
                       ),
                       child: const Icon(Icons.person_add_rounded,
                           color: Colors.white, size: 18),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 14),
                     const Text(
                       'PEDIDOS DE AMIZADE',
                       style: TextStyle(
@@ -491,17 +613,22 @@ class _PainelPedidos extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// BOTÃO ÍCONE REDONDO (busca / fechar)
+// ═══════════════════════════════════════════════════════════════════
 class _BotaoIconeRedondo extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
 
-  const _BotaoIconeRedondo({required this.icon, required this.onTap});
+  const _BotaoIconeRedondo(
+      {required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         width: 52,
         height: 52,
         decoration: BoxDecoration(
@@ -509,7 +636,10 @@ class _BotaoIconeRedondo extends StatelessWidget {
           color: const Color(0xFF111111),
           border: Border.all(color: const Color(0xFF2A2A2A)),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.4),
+              blurRadius: 12,
+            ),
           ],
         ),
         child: Icon(icon, color: Colors.white, size: 22),
