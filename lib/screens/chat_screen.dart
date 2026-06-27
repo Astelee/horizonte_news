@@ -2,46 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:audioplayers/audioplayers.dart';
-import 'package:record/record.dart';
-import 'package:path_provider/path_provider.dart';
 import 'dart:async';
-import 'dart:io';
-import 'dart:convert';
 import '../config/app_colors.dart';
 import 'amigos_modelos.dart';
 
 // ═══════════════════════════════════════════════════════════════════
-// LIMITE MÁXIMO DE GRAVAÇÃO
-// ═══════════════════════════════════════════════════════════════════
-const int _kMaxRecordSeconds = 30;
-
-// ═══════════════════════════════════════════════════════════════════
-// FUNÇÕES DE CONVERSÃO BASE64
-// ═══════════════════════════════════════════════════════════════════
-
-/// Converte arquivo de áudio (.m4a / .aac) em String Base64
-Future<String> audioToBase64(String filePath) async {
-  final file = File(filePath);
-  final bytes = await file.readAsBytes();
-  return base64Encode(bytes);
-}
-
-/// Converte String Base64 de volta em arquivo temporário reproduzível
-Future<String> base64ToAudio(String base64String) async {
-  final bytes = base64Decode(base64String);
-  final dir = await getTemporaryDirectory();
-  final path =
-      '${dir.path}/audio_play_${DateTime.now().millisecondsSinceEpoch}.m4a';
-  final file = File(path);
-  await file.writeAsBytes(bytes);
-  return path;
-}
-
-// ═══════════════════════════════════════════════════════════════════
 // MODELO DE MENSAGEM
 // ═══════════════════════════════════════════════════════════════════
-enum MessageType { text, audio }
+enum MessageType { text }
 
 class MessageModel {
   final String id;
@@ -50,8 +18,6 @@ class MessageModel {
   final DateTime sentAt;
   final MessageStatus status;
   final MessageType type;
-  final String? audioBase64; // Base64 do áudio — substitui audioUrl
-  final int? audioDuration;
   final bool deletedForAll;
   final List<String> deletedFor;
   final bool isForwarded;
@@ -63,8 +29,6 @@ class MessageModel {
     required this.sentAt,
     this.status = MessageStatus.sent,
     this.type = MessageType.text,
-    this.audioBase64,
-    this.audioDuration,
     this.deletedForAll = false,
     this.deletedFor = const [],
     this.isForwarded = false,
@@ -85,17 +49,13 @@ class MessageModel {
         status = MessageStatus.sent;
     }
 
-    final typeStr = (d['type'] as String?) ?? 'text';
-
     return MessageModel(
       id: doc.id,
       text: (d['text'] as String?) ?? '',
       senderUid: (d['senderUid'] as String?) ?? '',
       sentAt: (d['sentAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       status: status,
-      type: typeStr == 'audio' ? MessageType.audio : MessageType.text,
-      audioBase64: d['audioBase64'] as String?,
-      audioDuration: (d['audioDuration'] as num?)?.toInt(),
+      type: MessageType.text,
       deletedForAll: (d['deletedForAll'] as bool?) ?? false,
       deletedFor: List<String>.from(d['deletedFor'] ?? []),
       isForwarded: (d['isForwarded'] as bool?) ?? false,
@@ -126,13 +86,6 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _typingDebounce;
   bool _isTypingFlagSet = false;
 
-  // Áudio
-  final AudioRecorder _recorder = AudioRecorder();
-  bool _isRecording = false;
-  String? _recordingPath;
-  Timer? _recordTimer;
-  int _recordSeconds = 0;
-
   String get _myUid => _auth.currentUser?.uid ?? '';
 
   String get _chatId {
@@ -155,9 +108,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _controller.removeListener(_onTextChanged);
     _typingDebounce?.cancel();
-    _recordTimer?.cancel();
     _setTyping(false);
-    _recorder.dispose();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -275,113 +226,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ── GRAVAÇÃO DE ÁUDIO ────────────────────────────────────────
-  Future<void> _startRecording() async {
-    final hasPermission = await _recorder.hasPermission();
-    if (!hasPermission) return;
-
-    final dir = await getTemporaryDirectory();
-    _recordingPath =
-        '${dir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-
-    await _recorder.start(
-      const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000),
-      path: _recordingPath!,
-    );
-
-    setState(() {
-      _isRecording = true;
-      _recordSeconds = 0;
-    });
-
-    HapticFeedback.mediumImpact();
-
-    _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      setState(() => _recordSeconds++);
-
-      // Bloqueia automaticamente aos 30 segundos
-      if (_recordSeconds >= _kMaxRecordSeconds) {
-        _stopAndSendAudio();
-      }
-    });
-  }
-
-  Future<void> _stopAndSendAudio() async {
-    _recordTimer?.cancel();
-    if (!_isRecording) return;
-
-    final path = await _recorder.stop();
-    setState(() => _isRecording = false);
-
-    if (path == null || _recordSeconds < 1) return;
-
-    HapticFeedback.heavyImpact();
-    setState(() => _sending = true);
-
-    try {
-      // Converte o arquivo para Base64
-      final base64String = await audioToBase64(path);
-      final duration = _recordSeconds;
-
-      await _db.collection('chats').doc(_chatId).set({
-        'participants': [_myUid, widget.friend.uid],
-        'lastMessage': '🎵 Áudio',
-        'lastMessageAt': FieldValue.serverTimestamp(),
-        'lastMessageBy': _myUid,
-        'lastMessageStatus': 'sent',
-        'unreadCount_${widget.friend.uid}': FieldValue.increment(1),
-        'hiddenFor': FieldValue.arrayRemove([widget.friend.uid, _myUid]),
-      }, SetOptions(merge: true));
-
-      final docRef = await _messagesRef.add({
-        'text': '🎵 Áudio',
-        'senderUid': _myUid,
-        'sentAt': FieldValue.serverTimestamp(),
-        'deletedFor': [],
-        'deletedForAll': false,
-        'status': 'sent',
-        'type': 'audio',
-        'audioBase64': base64String, // Base64 no lugar de URL
-        'audioDuration': duration,
-        'isForwarded': false,
-      });
-
-      Future.delayed(const Duration(seconds: 1), () {
-        docRef.update({'status': 'delivered'}).catchError((_) {});
-      });
-
-      // Limpa o arquivo temporário após envio
-      try {
-        await File(path).delete();
-      } catch (_) {}
-
-      _scrollToBottom();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text('Erro ao enviar áudio.'),
-          backgroundColor: AppColors.emergencyRed,
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ));
-      }
-    } finally {
-      if (mounted) setState(() => _sending = false);
-    }
-  }
-
-  Future<void> _cancelRecording() async {
-    _recordTimer?.cancel();
-    await _recorder.cancel();
-    setState(() {
-      _isRecording = false;
-      _recordSeconds = 0;
-    });
-    HapticFeedback.lightImpact();
-  }
-
   // ── APAGAR MENSAGEM ──────────────────────────────────────────
   Future<void> _deleteForMe(MessageModel msg) async {
     await _messagesRef.doc(msg.id).update({
@@ -393,7 +237,6 @@ class _ChatScreenState extends State<ChatScreen> {
     await _messagesRef.doc(msg.id).update({
       'deletedForAll': true,
       'text': 'Esta mensagem foi apagada',
-      'audioBase64': FieldValue.delete(),
     });
   }
 
@@ -547,14 +390,14 @@ class _ChatScreenState extends State<ChatScreen> {
                       color: AppColors.primaryOrange.withOpacity(0.2)),
                 ),
                 child: Text(
-                  msg.type == MessageType.audio ? '🎵 Áudio' : msg.text,
+                  msg.text,
                   style: const TextStyle(
                       color: Colors.white70, fontSize: 13),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-            if (msg.type == MessageType.text && !msg.deletedForAll)
+            if (!msg.deletedForAll)
               _OptionTile(
                 icon: Icons.copy_rounded,
                 label: 'Copiar mensagem',
@@ -571,17 +414,15 @@ class _ChatScreenState extends State<ChatScreen> {
                   ));
                 },
               ),
-            if (msg.type == MessageType.text && !msg.deletedForAll)
-              const SizedBox(height: 8),
-            if (msg.type == MessageType.text && !msg.deletedForAll)
+            if (!msg.deletedForAll) const SizedBox(height: 8),
+            if (!msg.deletedForAll)
               _OptionTile(
                 icon: Icons.forward_rounded,
                 label: 'Encaminhar mensagem',
                 color: const Color(0xFF4FC3F7),
                 onTap: () => _forwardMessage(msg),
               ),
-            if (msg.type == MessageType.text && !msg.deletedForAll)
-              const SizedBox(height: 8),
+            if (!msg.deletedForAll) const SizedBox(height: 8),
             _OptionTile(
               icon: Icons.delete_outline_rounded,
               label: 'Apagar para mim',
@@ -699,11 +540,10 @@ class _ChatScreenState extends State<ChatScreen> {
                       .doc(_chatId)
                       .snapshots(),
                   builder: (context, snap) {
-                    final data = snap.data?.data()
-                        as Map<String, dynamic>?;
-                    final friendTyping = (data?[
-                            'isTyping_${widget.friend.uid}'] as bool?) ??
-                        false;
+                    final data = snap.data?.data() as Map<String, dynamic>?;
+                    final friendTyping =
+                        (data?['isTyping_${widget.friend.uid}'] as bool?) ??
+                            false;
                     if (friendTyping) return const _TypingDots();
                     return Text(
                       widget.friend.isOnline ? 'Online' : 'Offline',
@@ -751,8 +591,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildMessageList() {
     return StreamBuilder<QuerySnapshot>(
-      stream:
-          _messagesRef.orderBy('sentAt', descending: false).snapshots(),
+      stream: _messagesRef.orderBy('sentAt', descending: false).snapshots(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -764,8 +603,7 @@ class _ChatScreenState extends State<ChatScreen> {
         final allDocs = snap.data?.docs ?? [];
         final docs = allDocs.where((doc) {
           final d = doc.data() as Map<String, dynamic>;
-          final deletedFor =
-              List<String>.from(d['deletedFor'] ?? []);
+          final deletedFor = List<String>.from(d['deletedFor'] ?? []);
           return !deletedFor.contains(_myUid);
         }).toList();
 
@@ -805,8 +643,7 @@ class _ChatScreenState extends State<ChatScreen> {
             final isMe = msg.senderUid == _myUid;
             final showDate = i == 0 ||
                 !_isSameDay(
-                    MessageModel.fromDoc(docs[i - 1]).sentAt,
-                    msg.sentAt);
+                    MessageModel.fromDoc(docs[i - 1]).sentAt, msg.sentAt);
 
             return Column(
               children: [
@@ -814,8 +651,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 _MessageBubble(
                   msg: msg,
                   isMe: isMe,
-                  onLongPress: () =>
-                      _showMessageOptions(msg, isMe),
+                  onLongPress: () => _showMessageOptions(msg, isMe),
                 ),
               ],
             );
@@ -828,10 +664,6 @@ class _ChatScreenState extends State<ChatScreen> {
   // ── BARRA DE INPUT ────────────────────────────────────────────
   Widget _buildInputBar() {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
-
-    if (_isRecording) {
-      return _buildRecordingBar(bottom);
-    }
 
     return Container(
       padding: EdgeInsets.fromLTRB(12, 10, 12, 10 + bottom),
@@ -850,154 +682,28 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               child: TextField(
                 controller: _controller,
-                style:
-                    const TextStyle(color: Colors.white, fontSize: 15),
+                style: const TextStyle(color: Colors.white, fontSize: 15),
                 maxLines: 4,
                 minLines: 1,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
                   hintText: 'Mensagem...',
-                  hintStyle: TextStyle(
-                      color: Color(0xFF424242), fontSize: 15),
+                  hintStyle:
+                      TextStyle(color: Color(0xFF424242), fontSize: 15),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
                 onSubmitted: (_) => _sendMessage(),
               ),
             ),
           ),
           const SizedBox(width: 10),
-          _hasText
-              ? GestureDetector(
-                  onTap: _sending ? null : _sendMessage,
-                  child: _ActionButton(
-                    icon: Icons.send_rounded,
-                    color: AppColors.primaryOrange,
-                  ),
-                )
-              : GestureDetector(
-                  onLongPressStart: (_) => _startRecording(),
-                  onLongPressEnd: (_) => _stopAndSendAudio(),
-                  child: _ActionButton(
-                    icon: Icons.mic_rounded,
-                    color: AppColors.primaryOrange,
-                  ),
-                ),
-        ],
-      ),
-    );
-  }
-
-  // ── BARRA DE GRAVAÇÃO ─────────────────────────────────────────
-  Widget _buildRecordingBar(double bottom) {
-    final mins = (_recordSeconds ~/ 60).toString().padLeft(2, '0');
-    final secs = (_recordSeconds % 60).toString().padLeft(2, '0');
-    final remaining = _kMaxRecordSeconds - _recordSeconds;
-
-    return Container(
-      padding: EdgeInsets.fromLTRB(16, 14, 16, 14 + bottom),
-      decoration: const BoxDecoration(
-        color: Colors.black,
-        border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
-      ),
-      child: Row(
-        children: [
-          // Cancelar
           GestureDetector(
-            onTap: _cancelRecording,
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF1A1A1A),
-                border: Border.all(color: const Color(0xFF2A2A2A)),
-              ),
-              child: const Icon(Icons.delete_outline_rounded,
-                  color: AppColors.emergencyRed, size: 20),
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    _PulsingDot(),
-                    const SizedBox(width: 8),
-                    Text(
-                      '$mins:$secs',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Gravando...',
-                      style: const TextStyle(
-                          color: AppColors.emergencyRed,
-                          fontSize: 13,
-                          fontStyle: FontStyle.italic),
-                    ),
-                  ],
-                ),
-                // Barra de progresso do limite
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: _recordSeconds / _kMaxRecordSeconds,
-                    backgroundColor: const Color(0xFF1A1A1A),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      remaining <= 5
-                          ? AppColors.emergencyRed
-                          : AppColors.primaryOrange,
-                    ),
-                    minHeight: 3,
-                  ),
-                ),
-                if (remaining <= 10)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 3),
-                    child: Text(
-                      'Limite: ${remaining}s restantes',
-                      style: const TextStyle(
-                          color: AppColors.emergencyRed,
-                          fontSize: 10),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          // Enviar
-          GestureDetector(
-            onTap: _stopAndSendAudio,
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: AppColors.orangeGradient,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primaryOrange.withOpacity(0.4),
-                    blurRadius: 12,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.send_rounded,
-                  color: Colors.white, size: 20),
+            onTap: _sending ? null : _sendMessage,
+            child: _ActionButton(
+              icon: Icons.send_rounded,
+              color: AppColors.primaryOrange,
             ),
           ),
         ],
@@ -1027,12 +733,11 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     if (msg.deletedForAll) {
       return Align(
-        alignment:
-            isMe ? Alignment.centerRight : Alignment.centerLeft,
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
         child: Container(
           margin: const EdgeInsets.only(bottom: 6),
-          padding: const EdgeInsets.symmetric(
-              horizontal: 14, vertical: 10),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: const Color(0xFF1A1A1A),
             borderRadius: BorderRadius.only(
@@ -1047,8 +752,7 @@ class _MessageBubble extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.block_rounded,
-                  size: 14,
-                  color: Colors.white.withOpacity(0.3)),
+                  size: 14, color: Colors.white.withOpacity(0.3)),
               const SizedBox(width: 6),
               Text(
                 'Esta mensagem foi apagada',
@@ -1072,8 +776,8 @@ class _MessageBubble extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 6),
           constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.72),
-          padding: const EdgeInsets.symmetric(
-              horizontal: 14, vertical: 10),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             gradient: isMe ? AppColors.orangeGradient : null,
             color: isMe ? null : const Color(0xFF1A1A1A),
@@ -1094,9 +798,8 @@ class _MessageBubble extends StatelessWidget {
                 : null,
           ),
           child: Column(
-            crossAxisAlignment: isMe
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
+            crossAxisAlignment:
+                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
               if (msg.isForwarded)
                 Padding(
@@ -1123,27 +826,14 @@ class _MessageBubble extends StatelessWidget {
                     ],
                   ),
                 ),
-
-              // Áudio via Base64 ou texto
-              if (msg.type == MessageType.audio &&
-                  msg.audioBase64 != null)
-                _AudioPlayerBase64(
-                  audioBase64: msg.audioBase64!,
-                  duration: msg.audioDuration ?? 0,
-                  isMe: isMe,
-                )
-              else
-                Text(
-                  msg.text,
-                  style: TextStyle(
-                    color: isMe
-                        ? Colors.white
-                        : const Color(0xFFE0E0E0),
-                    fontSize: 14.5,
-                    height: 1.4,
-                  ),
+              Text(
+                msg.text,
+                style: TextStyle(
+                  color: isMe ? Colors.white : const Color(0xFFE0E0E0),
+                  fontSize: 14.5,
+                  height: 1.4,
                 ),
-
+              ),
               const SizedBox(height: 4),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1174,218 +864,6 @@ class _MessageBubble extends StatelessWidget {
     final h = date.hour.toString().padLeft(2, '0');
     final m = date.minute.toString().padLeft(2, '0');
     return '$h:$m';
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// PLAYER DE ÁUDIO — usa Base64 convertido em arquivo temporário
-// ═══════════════════════════════════════════════════════════════════
-class _AudioPlayerBase64 extends StatefulWidget {
-  final String audioBase64;
-  final int duration;
-  final bool isMe;
-
-  const _AudioPlayerBase64({
-    required this.audioBase64,
-    required this.duration,
-    required this.isMe,
-  });
-
-  @override
-  State<_AudioPlayerBase64> createState() => _AudioPlayerBase64State();
-}
-
-class _AudioPlayerBase64State extends State<_AudioPlayerBase64> {
-  final AudioPlayer _player = AudioPlayer();
-  bool _playing = false;
-  bool _loading = false;
-  int _position = 0;
-  int _total = 0;
-  String? _tempPath;
-  StreamSubscription? _posSub;
-  StreamSubscription? _durSub;
-  StreamSubscription? _stateSub;
-
-  @override
-  void initState() {
-    super.initState();
-    _total = widget.duration;
-
-    _posSub = _player.onPositionChanged.listen((d) {
-      if (mounted) setState(() => _position = d.inSeconds);
-    });
-
-    _durSub = _player.onDurationChanged.listen((d) {
-      if (mounted) setState(() => _total = d.inSeconds);
-    });
-
-    _stateSub = _player.onPlayerStateChanged.listen((s) {
-      if (mounted) {
-        setState(() => _playing = s == PlayerState.playing);
-        if (s == PlayerState.completed) {
-          setState(() => _position = 0);
-        }
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _posSub?.cancel();
-    _durSub?.cancel();
-    _stateSub?.cancel();
-    _player.dispose();
-    // Limpa arquivo temporário ao sair da tela
-    if (_tempPath != null) {
-      File(_tempPath!).delete().catchError((_) {});
-    }
-    super.dispose();
-  }
-
-  Future<void> _togglePlay() async {
-    if (_playing) {
-      await _player.pause();
-      return;
-    }
-
-    // Converte Base64 para arquivo temporário na primeira reprodução
-    if (_tempPath == null) {
-      setState(() => _loading = true);
-      try {
-        _tempPath = await base64ToAudio(widget.audioBase64);
-      } catch (_) {
-        setState(() => _loading = false);
-        return;
-      }
-      setState(() => _loading = false);
-    }
-
-    await _player.play(DeviceFileSource(_tempPath!));
-  }
-
-  String _fmt(int s) {
-    final m = (s ~/ 60).toString().padLeft(2, '0');
-    final sec = (s % 60).toString().padLeft(2, '0');
-    return '$m:$sec';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = _total > 0 ? _position / _total : 0.0;
-    final iconColor =
-        widget.isMe ? Colors.white : AppColors.primaryOrange;
-    final trackColor = widget.isMe
-        ? Colors.white.withOpacity(0.3)
-        : const Color(0xFF2A2A2A);
-    final activeColor =
-        widget.isMe ? Colors.white : AppColors.primaryOrange;
-
-    return SizedBox(
-      width: 200,
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: _loading ? null : _togglePlay,
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: widget.isMe
-                    ? Colors.white.withOpacity(0.2)
-                    : AppColors.primaryOrange.withOpacity(0.15),
-              ),
-              child: _loading
-                  ? SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: iconColor,
-                      ),
-                    )
-                  : Icon(
-                      _playing
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      color: iconColor,
-                      size: 20,
-                    ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progress.clamp(0.0, 1.0),
-                    backgroundColor: trackColor,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(activeColor),
-                    minHeight: 3,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_fmt(_position)} / ${_fmt(_total)}',
-                  style: TextStyle(
-                    color: iconColor.withOpacity(0.7),
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// PONTO PULSANTE
-// ═══════════════════════════════════════════════════════════════════
-class _PulsingDot extends StatefulWidget {
-  @override
-  State<_PulsingDot> createState() => _PulsingDotState();
-}
-
-class _PulsingDotState extends State<_PulsingDot>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 800))
-      ..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, __) => Container(
-        width: 10,
-        height: 10,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: AppColors.emergencyRed
-              .withOpacity(0.4 + 0.6 * _ctrl.value),
-        ),
-      ),
-    );
   }
 }
 
@@ -1427,8 +905,7 @@ class _ForwardSheet extends StatefulWidget {
   final String myUid;
   final FirebaseFirestore db;
   final String messageText;
-  final Future<void> Function(String friendUid, FriendModel friend)
-      onForward;
+  final Future<void> Function(String friendUid, FriendModel friend) onForward;
 
   const _ForwardSheet({
     required this.myUid,
@@ -1453,10 +930,7 @@ class _ForwardSheetState extends State<_ForwardSheet> {
         border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
       ),
       padding: EdgeInsets.fromLTRB(
-          0,
-          16,
-          0,
-          24 + MediaQuery.of(context).viewInsets.bottom),
+          0, 16, 0, 24 + MediaQuery.of(context).viewInsets.bottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1537,23 +1011,20 @@ class _ForwardSheetState extends State<_ForwardSheet> {
               stream: widget.db
                   .collection('friend_requests')
                   .where('status', isEqualTo: 'accepted')
-                  .where('participants',
-                      arrayContains: widget.myUid)
+                  .where('participants', arrayContains: widget.myUid)
                   .snapshots(),
               builder: (context, snap) {
                 if (!snap.hasData) {
                   return const Center(
                     child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.primaryOrange),
+                        strokeWidth: 2, color: AppColors.primaryOrange),
                   );
                 }
                 final docs = snap.data!.docs;
                 if (docs.isEmpty) {
                   return const Center(
                     child: Text('Nenhum amigo ainda',
-                        style:
-                            TextStyle(color: Color(0xFF666666))),
+                        style: TextStyle(color: Color(0xFF666666))),
                   );
                 }
 
@@ -1570,33 +1041,29 @@ class _ForwardSheetState extends State<_ForwardSheet> {
 
                     final friends = friendsSnap.data!;
                     return ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 20),
                       itemCount: friends.length,
                       itemBuilder: (context, i) {
                         final friend = friends[i];
-                        final isSending =
-                            _sending == friend.uid;
+                        final isSending = _sending == friend.uid;
 
                         return GestureDetector(
                           onTap: isSending
                               ? null
                               : () async {
-                                  setState(() =>
-                                      _sending = friend.uid);
+                                  setState(
+                                      () => _sending = friend.uid);
                                   await widget.onForward(
                                       friend.uid, friend);
-                                  if (mounted)
-                                    Navigator.pop(context);
+                                  if (mounted) Navigator.pop(context);
                                 },
                           child: Container(
-                            margin:
-                                const EdgeInsets.only(bottom: 8),
+                            margin: const EdgeInsets.only(bottom: 8),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: const Color(0xFF0F0F0F),
-                              borderRadius:
-                                  BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(14),
                               border: Border.all(
                                   color: const Color(0xFF1A1A1A)),
                             ),
@@ -1607,8 +1074,7 @@ class _ForwardSheetState extends State<_ForwardSheet> {
                                   height: 42,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    gradient:
-                                        AppColors.orangeGradient,
+                                    gradient: AppColors.orangeGradient,
                                   ),
                                   child: Center(
                                     child: Text(
@@ -1636,8 +1102,7 @@ class _ForwardSheetState extends State<_ForwardSheet> {
                                               fontSize: 14,
                                               fontWeight:
                                                   FontWeight.w700)),
-                                      Text(
-                                          '@${friend.username}',
+                                      Text('@${friend.username}',
                                           style: TextStyle(
                                               color: AppColors
                                                   .primaryOrange
@@ -1650,11 +1115,9 @@ class _ForwardSheetState extends State<_ForwardSheet> {
                                   const SizedBox(
                                     width: 20,
                                     height: 20,
-                                    child:
-                                        CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: AppColors
-                                                .primaryOrange),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.primaryOrange),
                                   )
                                 else
                                   const Icon(Icons.send_rounded,
@@ -1680,10 +1143,9 @@ class _ForwardSheetState extends State<_ForwardSheet> {
       List<QueryDocumentSnapshot> docs) async {
     final futures = docs.map((doc) async {
       final data = doc.data() as Map<String, dynamic>;
-      final friendUid =
-          (data['fromUid'] as String) == widget.myUid
-              ? data['toUid'] as String
-              : data['fromUid'] as String;
+      final friendUid = (data['fromUid'] as String) == widget.myUid
+          ? data['toUid'] as String
+          : data['fromUid'] as String;
       final userDoc = await widget.db
           .collection('users_xp')
           .doc(friendUid)
@@ -1714,8 +1176,7 @@ class _TypingDotsState extends State<_TypingDots>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 1200))
+        vsync: this, duration: const Duration(milliseconds: 1200))
       ..repeat();
   }
 
@@ -1740,18 +1201,16 @@ class _TypingDotsState extends State<_TypingDots>
           return AnimatedBuilder(
             animation: _ctrl,
             builder: (_, __) {
-              final t =
-                  (_ctrl.value - i * 0.2).clamp(0.0, 1.0);
-              final opacity = (t < 0.5 ? t * 2 : (1 - t) * 2)
-                  .clamp(0.3, 1.0);
+              final t = (_ctrl.value - i * 0.2).clamp(0.0, 1.0);
+              final opacity =
+                  (t < 0.5 ? t * 2 : (1 - t) * 2).clamp(0.3, 1.0);
               return Container(
                 margin: const EdgeInsets.only(right: 2),
                 width: 4,
                 height: 4,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF4CAF50)
-                      .withOpacity(opacity),
+                  color: const Color(0xFF4CAF50).withOpacity(opacity),
                 ),
               );
             },
@@ -1777,8 +1236,7 @@ class _StatusIcon extends StatelessWidget {
           width: 10,
           height: 10,
           child: CircularProgressIndicator(
-              strokeWidth: 1.5,
-              color: Colors.white.withOpacity(0.6)),
+              strokeWidth: 1.5, color: Colors.white.withOpacity(0.6)),
         );
       case MessageStatus.sent:
         return Icon(Icons.done_rounded,
@@ -1856,8 +1314,8 @@ class _OptionTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 16, vertical: 14),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: color.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
