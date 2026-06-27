@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import '../config/app_colors.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'amigos_modelos.dart';
 
 // ═══════════════════════════════════════════════════════════════════
