@@ -172,7 +172,6 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
   }
 
-  // ── ENVIAR TEXTO ─────────────────────────────────────────────
   Future<void> _sendMessage(
       {String? text, bool isForwarded = false}) async {
     final msg = (text ?? _controller.text).trim();
@@ -217,8 +216,8 @@ class _ChatScreenState extends State<ChatScreen> {
           content: const Text('Erro ao enviar mensagem.'),
           backgroundColor: AppColors.emergencyRed,
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
         ));
       }
     } finally {
@@ -226,7 +225,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ── APAGAR MENSAGEM ──────────────────────────────────────────
   Future<void> _deleteForMe(MessageModel msg) async {
     await _messagesRef.doc(msg.id).update({
       'deletedFor': FieldValue.arrayUnion([_myUid]),
@@ -240,7 +238,6 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  // ── ENCAMINHAR ───────────────────────────────────────────────
   void _forwardMessage(MessageModel msg) {
     Navigator.pop(context);
     showModalBottomSheet(
@@ -295,7 +292,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ── LIMPAR CONVERSA ──────────────────────────────────────────
   Future<void> _clearConversation() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -350,7 +346,6 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) Navigator.pop(context);
   }
 
-  // ── OPÇÕES (LONG PRESS) ──────────────────────────────────────
   void _showMessageOptions(MessageModel msg, bool isMe) {
     showModalBottomSheet(
       context: context,
@@ -450,12 +445,10 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // BUILD
-  // ══════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: AppColors.backgroundDark,
       body: Column(
         children: [
@@ -540,9 +533,11 @@ class _ChatScreenState extends State<ChatScreen> {
                       .doc(_chatId)
                       .snapshots(),
                   builder: (context, snap) {
-                    final data = snap.data?.data() as Map<String, dynamic>?;
+                    final data =
+                        snap.data?.data() as Map<String, dynamic>?;
                     final friendTyping =
-                        (data?['isTyping_${widget.friend.uid}'] as bool?) ??
+                        (data?['isTyping_${widget.friend.uid}']
+                                as bool?) ??
                             false;
                     if (friendTyping) return const _TypingDots();
                     return Text(
@@ -603,7 +598,8 @@ class _ChatScreenState extends State<ChatScreen> {
         final allDocs = snap.data?.docs ?? [];
         final docs = allDocs.where((doc) {
           final d = doc.data() as Map<String, dynamic>;
-          final deletedFor = List<String>.from(d['deletedFor'] ?? []);
+          final deletedFor =
+              List<String>.from(d['deletedFor'] ?? []);
           return !deletedFor.contains(_myUid);
         }).toList();
 
@@ -643,7 +639,8 @@ class _ChatScreenState extends State<ChatScreen> {
             final isMe = msg.senderUid == _myUid;
             final showDate = i == 0 ||
                 !_isSameDay(
-                    MessageModel.fromDoc(docs[i - 1]).sentAt, msg.sentAt);
+                    MessageModel.fromDoc(docs[i - 1]).sentAt,
+                    msg.sentAt);
 
             return Column(
               children: [
@@ -661,7 +658,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ── BARRA DE INPUT ────────────────────────────────────────────
   Widget _buildInputBar() {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
 
@@ -682,17 +678,18 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               child: TextField(
                 controller: _controller,
-                style: const TextStyle(color: Colors.white, fontSize: 15),
+                style:
+                    const TextStyle(color: Colors.white, fontSize: 15),
                 maxLines: 4,
                 minLines: 1,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
                   hintText: 'Mensagem...',
-                  hintStyle:
-                      TextStyle(color: Color(0xFF424242), fontSize: 15),
+                  hintStyle: TextStyle(
+                      color: Color(0xFF424242), fontSize: 15),
                   border: InputBorder.none,
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
                 ),
                 onSubmitted: (_) => _sendMessage(),
               ),
@@ -733,11 +730,12 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     if (msg.deletedForAll) {
       return Align(
-        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        alignment:
+            isMe ? Alignment.centerRight : Alignment.centerLeft,
         child: Container(
           margin: const EdgeInsets.only(bottom: 6),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(
+              horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: const Color(0xFF1A1A1A),
             borderRadius: BorderRadius.only(
@@ -776,8 +774,8 @@ class _MessageBubble extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 6),
           constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.72),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(
+              horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             gradient: isMe ? AppColors.orangeGradient : null,
             color: isMe ? null : const Color(0xFF1A1A1A),
@@ -798,8 +796,9 @@ class _MessageBubble extends StatelessWidget {
                 : null,
           ),
           child: Column(
-            crossAxisAlignment:
-                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            crossAxisAlignment: isMe
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
             children: [
               if (msg.isForwarded)
                 Padding(
@@ -829,7 +828,8 @@ class _MessageBubble extends StatelessWidget {
               Text(
                 msg.text,
                 style: TextStyle(
-                  color: isMe ? Colors.white : const Color(0xFFE0E0E0),
+                  color:
+                      isMe ? Colors.white : const Color(0xFFE0E0E0),
                   fontSize: 14.5,
                   height: 1.4,
                 ),
@@ -905,7 +905,8 @@ class _ForwardSheet extends StatefulWidget {
   final String myUid;
   final FirebaseFirestore db;
   final String messageText;
-  final Future<void> Function(String friendUid, FriendModel friend) onForward;
+  final Future<void> Function(String friendUid, FriendModel friend)
+      onForward;
 
   const _ForwardSheet({
     required this.myUid,
@@ -1011,20 +1012,23 @@ class _ForwardSheetState extends State<_ForwardSheet> {
               stream: widget.db
                   .collection('friend_requests')
                   .where('status', isEqualTo: 'accepted')
-                  .where('participants', arrayContains: widget.myUid)
+                  .where('participants',
+                      arrayContains: widget.myUid)
                   .snapshots(),
               builder: (context, snap) {
                 if (!snap.hasData) {
                   return const Center(
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.primaryOrange),
+                        strokeWidth: 2,
+                        color: AppColors.primaryOrange),
                   );
                 }
                 final docs = snap.data!.docs;
                 if (docs.isEmpty) {
                   return const Center(
                     child: Text('Nenhum amigo ainda',
-                        style: TextStyle(color: Color(0xFF666666))),
+                        style:
+                            TextStyle(color: Color(0xFF666666))),
                   );
                 }
 
@@ -1041,31 +1045,36 @@ class _ForwardSheetState extends State<_ForwardSheet> {
 
                     final friends = friendsSnap.data!;
                     return ListView.builder(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20),
                       itemCount: friends.length,
                       itemBuilder: (context, i) {
                         final friend = friends[i];
-                        final isSending = _sending == friend.uid;
+                        final isSending =
+                            _sending == friend.uid;
 
                         return GestureDetector(
                           onTap: isSending
                               ? null
                               : () async {
-                                  setState(
-                                      () => _sending = friend.uid);
+                                  setState(() =>
+                                      _sending = friend.uid);
                                   await widget.onForward(
                                       friend.uid, friend);
-                                  if (mounted) Navigator.pop(context);
+                                  if (mounted)
+                                    Navigator.pop(context);
                                 },
                           child: Container(
-                            margin: const EdgeInsets.only(bottom: 8),
+                            margin:
+                                const EdgeInsets.only(bottom: 8),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: const Color(0xFF0F0F0F),
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius:
+                                  BorderRadius.circular(14),
                               border: Border.all(
-                                  color: const Color(0xFF1A1A1A)),
+                                  color:
+                                      const Color(0xFF1A1A1A)),
                             ),
                             child: Row(
                               children: [
@@ -1074,7 +1083,8 @@ class _ForwardSheetState extends State<_ForwardSheet> {
                                   height: 42,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    gradient: AppColors.orangeGradient,
+                                    gradient:
+                                        AppColors.orangeGradient,
                                   ),
                                   child: Center(
                                     child: Text(
@@ -1102,7 +1112,8 @@ class _ForwardSheetState extends State<_ForwardSheet> {
                                               fontSize: 14,
                                               fontWeight:
                                                   FontWeight.w700)),
-                                      Text('@${friend.username}',
+                                      Text(
+                                          '@${friend.username}',
                                           style: TextStyle(
                                               color: AppColors
                                                   .primaryOrange
@@ -1115,13 +1126,16 @@ class _ForwardSheetState extends State<_ForwardSheet> {
                                   const SizedBox(
                                     width: 20,
                                     height: 20,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: AppColors.primaryOrange),
+                                    child:
+                                        CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors
+                                                .primaryOrange),
                                   )
                                 else
                                   const Icon(Icons.send_rounded,
-                                      color: AppColors.primaryOrange,
+                                      color:
+                                          AppColors.primaryOrange,
                                       size: 18),
                               ],
                             ),
@@ -1143,9 +1157,10 @@ class _ForwardSheetState extends State<_ForwardSheet> {
       List<QueryDocumentSnapshot> docs) async {
     final futures = docs.map((doc) async {
       final data = doc.data() as Map<String, dynamic>;
-      final friendUid = (data['fromUid'] as String) == widget.myUid
-          ? data['toUid'] as String
-          : data['fromUid'] as String;
+      final friendUid =
+          (data['fromUid'] as String) == widget.myUid
+              ? data['toUid'] as String
+              : data['fromUid'] as String;
       final userDoc = await widget.db
           .collection('users_xp')
           .doc(friendUid)
@@ -1176,7 +1191,8 @@ class _TypingDotsState extends State<_TypingDots>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1200))
+        vsync: this,
+        duration: const Duration(milliseconds: 1200))
       ..repeat();
   }
 
@@ -1201,7 +1217,8 @@ class _TypingDotsState extends State<_TypingDots>
           return AnimatedBuilder(
             animation: _ctrl,
             builder: (_, __) {
-              final t = (_ctrl.value - i * 0.2).clamp(0.0, 1.0);
+              final t =
+                  (_ctrl.value - i * 0.2).clamp(0.0, 1.0);
               final opacity =
                   (t < 0.5 ? t * 2 : (1 - t) * 2).clamp(0.3, 1.0);
               return Container(
@@ -1210,7 +1227,8 @@ class _TypingDotsState extends State<_TypingDots>
                 height: 4,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF4CAF50).withOpacity(opacity),
+                  color: const Color(0xFF4CAF50)
+                      .withOpacity(opacity),
                 ),
               );
             },
@@ -1236,7 +1254,8 @@ class _StatusIcon extends StatelessWidget {
           width: 10,
           height: 10,
           child: CircularProgressIndicator(
-              strokeWidth: 1.5, color: Colors.white.withOpacity(0.6)),
+              strokeWidth: 1.5,
+              color: Colors.white.withOpacity(0.6)),
         );
       case MessageStatus.sent:
         return Icon(Icons.done_rounded,
@@ -1314,8 +1333,8 @@ class _OptionTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: color.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
