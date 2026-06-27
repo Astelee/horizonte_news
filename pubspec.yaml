@@ -43,7 +43,7 @@ dependencies:
   firebase_analytics: ^11.1.1
   cloud_firestore: ^5.1.0
   firebase_database: ^11.1.0
-  firebase_storage: ^11.7.0
+  firebase_storage: ^12.2.0
 
   # Notificações locais (foreground)
   flutter_local_notifications: ^17.0.0
