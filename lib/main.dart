@@ -12,6 +12,7 @@ import 'providers/favorites_provider.dart';
 import 'providers/user_xp_provider.dart';
 import 'providers/admin_provider.dart';
 import 'services/notification_service.dart';
+import 'services/presence_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -82,6 +83,9 @@ class HorizonteNewsApp extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// AUTH GATE — gerencia ciclo de vida do PresenceService
+// ═══════════════════════════════════════════════════════════════════
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
 
@@ -96,13 +100,19 @@ class _AuthGate extends StatelessWidget {
 
         if (snapshot.hasData && snapshot.data != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Inicia XP e Admin
             Provider.of<UserXpProvider>(context, listen: false).initialize();
             Provider.of<AdminProvider>(context, listen: false).initialize();
+
+            // Inicia presença — APÓS Firebase já estar inicializado
+            PresenceService.instance.start();
           });
           return AppRoutes.routes[AppRoutes.home]!(context);
         }
 
+        // Logout — para a presença e limpa estado
         WidgetsBinding.instance.addPostFrameCallback((_) {
+          PresenceService.instance.stop();
           Provider.of<AdminProvider>(context, listen: false).reset();
         });
 
@@ -185,7 +195,6 @@ class _SplashLoadingState extends State<_SplashLoading>
       CurvedAnimation(parent: _textCtrl, curve: Curves.easeOut),
     );
 
-    // Troca frase a cada 700ms
     Future.doWhile(() async {
       await Future.delayed(const Duration(milliseconds: 700));
       if (!mounted) return false;
@@ -216,7 +225,6 @@ class _SplashLoadingState extends State<_SplashLoading>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Partículas de fundo
           AnimatedBuilder(
             animation: _particleCtrl,
             builder: (_, __) => CustomPaint(
@@ -224,15 +232,12 @@ class _SplashLoadingState extends State<_SplashLoading>
               painter: _SplashParticlePainter(_particleCtrl.value),
             ),
           ),
-
-          // Conteúdo central
           FadeTransition(
             opacity: _fadeAnim,
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Logo com glow pulsante
                   AnimatedBuilder(
                     animation: _pulseAnim,
                     builder: (_, child) => Transform.scale(
@@ -280,10 +285,7 @@ class _SplashLoadingState extends State<_SplashLoading>
                       },
                     ),
                   ),
-
                   const SizedBox(height: 28),
-
-                  // Nome do app
                   ShaderMask(
                     shaderCallback: (bounds) => const LinearGradient(
                       colors: [
@@ -302,10 +304,7 @@ class _SplashLoadingState extends State<_SplashLoading>
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 6),
-
-                  // Linha "ao vivo"
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -329,60 +328,48 @@ class _SplashLoadingState extends State<_SplashLoading>
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 48),
-
-                  // Barra de progresso elegante
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 48),
                     child: AnimatedBuilder(
                       animation: _progressAnim,
-                      builder: (_, __) => Column(
+                      builder: (_, __) => Stack(
                         children: [
-                          Stack(
-                            children: [
-                              // Fundo da barra
-                              Container(
-                                height: 2,
-                                width: size.width - 96,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1A1A1A),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
+                          Container(
+                            height: 2,
+                            width: size.width - 96,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A1A1A),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          Container(
+                            height: 2,
+                            width: (size.width - 96) * _progressAnim.value,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xFFBF360C),
+                                  Color(0xFFFF6B00),
+                                  Color(0xFFFFB74D),
+                                ],
                               ),
-                              // Preenchimento
-                              Container(
-                                height: 2,
-                                width: (size.width - 96) * _progressAnim.value,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(2),
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFFBF360C),
-                                      Color(0xFFFF6B00),
-                                      Color(0xFFFFB74D),
-                                    ],
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFFF6B00)
-                                          .withOpacity(0.8),
-                                      blurRadius: 8,
-                                      spreadRadius: 1,
-                                    ),
-                                  ],
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFFF6B00)
+                                      .withOpacity(0.8),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
-                  // Frase rotativa
                   FadeTransition(
                     opacity: _textFade,
                     child: Text(
@@ -409,32 +396,31 @@ class _SplashLoadingState extends State<_SplashLoading>
 // ═══════════════════════════════════════════════════════════════════
 class _SplashParticlePainter extends CustomPainter {
   final double t;
-
   _SplashParticlePainter(this.t);
 
   static final _rng = math.Random(42);
-  static final _particles = List.generate(40, (i) => _ParticleData(
-        x: _rng.nextDouble(),
-        y: _rng.nextDouble(),
-        size: 0.5 + _rng.nextDouble() * 1.5,
-        speed: 0.04 + _rng.nextDouble() * 0.08,
-        opacity: 0.1 + _rng.nextDouble() * 0.4,
-        phase: _rng.nextDouble(),
-      ));
+  static final _particles = List.generate(
+    40,
+    (i) => _ParticleData(
+      x: _rng.nextDouble(),
+      y: _rng.nextDouble(),
+      size: 0.5 + _rng.nextDouble() * 1.5,
+      speed: 0.04 + _rng.nextDouble() * 0.08,
+      opacity: 0.1 + _rng.nextDouble() * 0.4,
+      phase: _rng.nextDouble(),
+    ),
+  );
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Fundo preto
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
       Paint()..color = Colors.black,
     );
 
-    // Grade digital sutil
     final gridPaint = Paint()
       ..color = const Color(0xFFFF6B00).withOpacity(0.03)
       ..strokeWidth = 0.5;
-
     for (double x = 0; x < size.width; x += 40) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
     }
@@ -442,7 +428,6 @@ class _SplashParticlePainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    // Orb laranja grande ao fundo
     final orbPaint = Paint()
       ..shader = RadialGradient(
         colors: [
@@ -459,28 +444,27 @@ class _SplashParticlePainter extends CustomPainter {
       orbPaint,
     );
 
-    // Partículas flutuantes
     for (final p in _particles) {
       final dy = (p.y + t * p.speed + p.phase) % 1.0;
-      final dx = p.x +
-          0.03 * math.sin((t * 2 * math.pi) + p.phase * 6.28);
-
+      final dx =
+          p.x + 0.03 * math.sin((t * 2 * math.pi) + p.phase * 6.28);
       final opacity = p.opacity *
-          (0.5 + 0.5 * math.sin(t * 2 * math.pi * p.speed * 10 + p.phase));
-
+          (0.5 +
+              0.5 *
+                  math.sin(
+                      t * 2 * math.pi * p.speed * 10 + p.phase));
       canvas.drawCircle(
         Offset(dx * size.width, dy * size.height),
         p.size,
         Paint()
-          ..color = const Color(0xFFFF6B00).withOpacity(opacity.clamp(0.0, 1.0)),
+          ..color = const Color(0xFFFF6B00)
+              .withOpacity(opacity.clamp(0.0, 1.0)),
       );
     }
 
-    // Linhas de transmissão (3 linhas diagonais sutis)
     final linePaint = Paint()
       ..strokeWidth = 0.8
       ..style = PaintingStyle.stroke;
-
     for (int i = 0; i < 3; i++) {
       final progress = (t + i * 0.33) % 1.0;
       final x = size.width * progress;
