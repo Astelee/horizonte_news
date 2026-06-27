@@ -83,6 +83,9 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _sending = false;
   bool _hasText = false;
 
+  // ✅ CORREÇÃO: captura padding UMA VEZ — evita tremido ao abrir teclado
+  late double _topPadding;
+
   Timer? _typingDebounce;
   bool _isTypingFlagSet = false;
 
@@ -95,6 +98,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
   CollectionReference get _messagesRef =>
       _db.collection('chats').doc(_chatId).collection('messages');
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Captura o padding UMA VEZ — não recalcula a cada rebuild do teclado
+    _topPadding = MediaQuery.of(context).padding.top;
+  }
 
   @override
   void initState() {
@@ -259,7 +269,8 @@ class _ChatScreenState extends State<ChatScreen> {
             'lastMessageBy': _myUid,
             'lastMessageStatus': 'sent',
             'unreadCount_$friendUid': FieldValue.increment(1),
-            'hiddenFor': FieldValue.arrayRemove([friendUid, _myUid]),
+            'hiddenFor':
+                FieldValue.arrayRemove([friendUid, _myUid]),
           }, SetOptions(merge: true));
 
           await _db
@@ -304,13 +315,15 @@ class _ChatScreenState extends State<ChatScreen> {
                 color: Colors.white, fontWeight: FontWeight.w800)),
         content: const Text(
           'Todas as mensagens serão apagadas apenas para você.',
-          style: TextStyle(color: AppColors.textSecondary, height: 1.5),
+          style:
+              TextStyle(color: AppColors.textSecondary, height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancelar',
-                style: TextStyle(color: AppColors.textSecondary)),
+                style:
+                    TextStyle(color: AppColors.textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -354,7 +367,8 @@ class _ChatScreenState extends State<ChatScreen> {
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
         decoration: const BoxDecoration(
           color: Color(0xFF0A0A0A),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(20)),
           border: Border(
             top: BorderSide(color: Color(0xFF1A1A1A)),
             left: BorderSide(color: Color(0xFF1A1A1A)),
@@ -382,7 +396,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   color: const Color(0xFF141414),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: AppColors.primaryOrange.withOpacity(0.2)),
+                      color:
+                          AppColors.primaryOrange.withOpacity(0.2)),
                 ),
                 child: Text(
                   msg.text,
@@ -400,7 +415,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 onTap: () {
                   Navigator.pop(context);
                   Clipboard.setData(ClipboardData(text: msg.text));
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(
                     content: const Text('Mensagem copiada!'),
                     backgroundColor: const Color(0xFF1A1A1A),
                     behavior: SnackBarBehavior.floating,
@@ -447,9 +463,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ CORREÇÃO: resizeToAvoidBottomInset: true
-    // Deixa o Flutter gerenciar o espaço do teclado nativamente
-    // sem causar rebuild da tela inteira
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.backgroundDark,
@@ -463,11 +476,14 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  // ✅ CORREÇÃO: usa _topPadding (capturado uma vez no didChangeDependencies)
+  // em vez de MediaQuery.of(context).padding.top — evita o tremido
+  // quando o teclado abre/fecha, pois o padding não muda nesse momento.
   Widget _buildAppBar() {
     return Container(
       color: Colors.black,
       padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 8,
+        top: _topPadding + 8,
         bottom: 12,
         left: 8,
         right: 16,
@@ -475,7 +491,8 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_rounded,
+                color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
           Stack(
@@ -495,7 +512,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: Text(
                     widget.friend.displayName.isNotEmpty
                         ? widget.friend.displayName[0].toUpperCase()
-                        : '?',
+                        : widget.friend.username.isNotEmpty
+                            ? widget.friend.username[0].toUpperCase()
+                            : '?',
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -514,7 +533,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     color: widget.friend.isOnline
                         ? const Color(0xFF4CAF50)
                         : const Color(0xFF555555),
-                    border: Border.all(color: Colors.black, width: 2),
+                    border:
+                        Border.all(color: Colors.black, width: 2),
                   ),
                 ),
               ),
@@ -525,11 +545,15 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.friend.displayName,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700)),
+                Text(
+                  widget.friend.displayName.isNotEmpty
+                      ? widget.friend.displayName
+                      : widget.friend.username,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700),
+                ),
                 StreamBuilder<DocumentSnapshot>(
                   stream: _db
                       .collection('chats')
@@ -558,7 +582,8 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+            icon: const Icon(Icons.more_vert_rounded,
+                color: Colors.white),
             color: const Color(0xFF0A0A0A),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14)),
@@ -589,7 +614,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildMessageList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: _messagesRef.orderBy('sentAt', descending: false).snapshots(),
+      stream:
+          _messagesRef.orderBy('sentAt', descending: false).snapshots(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -613,7 +639,8 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 Icon(Icons.chat_bubble_outline_rounded,
                     size: 56,
-                    color: AppColors.primaryOrange.withOpacity(0.2)),
+                    color:
+                        AppColors.primaryOrange.withOpacity(0.2)),
                 const SizedBox(height: 14),
                 const Text('Nenhuma mensagem ainda',
                     style: TextStyle(
@@ -661,8 +688,9 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ✅ CORREÇÃO PRINCIPAL: removido viewInsets.bottom daqui
-  // O Scaffold com resizeToAvoidBottomInset: true já cuida disso
+  // ✅ CORREÇÃO: SafeArea + sem viewInsets manual
+  // O Scaffold com resizeToAvoidBottomInset: true já empurra
+  // o inputBar para cima quando o teclado abre.
   Widget _buildInputBar() {
     return SafeArea(
       top: false,
@@ -670,7 +698,8 @@ class _ChatScreenState extends State<ChatScreen> {
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         decoration: const BoxDecoration(
           color: Colors.black,
-          border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
+          border:
+              Border(top: BorderSide(color: Color(0xFF1A1A1A))),
         ),
         child: Row(
           children: [
@@ -679,11 +708,13 @@ class _ChatScreenState extends State<ChatScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF141414),
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFF2A2A2A)),
+                  border:
+                      Border.all(color: const Color(0xFF2A2A2A)),
                 ),
                 child: TextField(
                   controller: _controller,
-                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                  style: const TextStyle(
+                      color: Colors.white, fontSize: 15),
                   maxLines: 4,
                   minLines: 1,
                   textCapitalization: TextCapitalization.sentences,
@@ -749,13 +780,15 @@ class _MessageBubble extends StatelessWidget {
               bottomLeft: Radius.circular(isMe ? 18 : 4),
               bottomRight: Radius.circular(isMe ? 4 : 18),
             ),
-            border: Border.all(color: const Color(0xFF2A2A2A)),
+            border:
+                Border.all(color: const Color(0xFF2A2A2A)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.block_rounded,
-                  size: 14, color: Colors.white.withOpacity(0.3)),
+                  size: 14,
+                  color: Colors.white.withOpacity(0.3)),
               const SizedBox(width: 6),
               Text(
                 'Esta mensagem foi apagada',
@@ -772,13 +805,15 @@ class _MessageBubble extends StatelessWidget {
     }
 
     return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      alignment:
+          isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
         onLongPress: onLongPress,
         child: Container(
           margin: const EdgeInsets.only(bottom: 6),
           constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.72),
+              maxWidth:
+                  MediaQuery.of(context).size.width * 0.72),
           padding: const EdgeInsets.symmetric(
               horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
@@ -793,7 +828,8 @@ class _MessageBubble extends StatelessWidget {
             boxShadow: isMe
                 ? [
                     BoxShadow(
-                      color: AppColors.primaryOrange.withOpacity(0.2),
+                      color: AppColors.primaryOrange
+                          .withOpacity(0.2),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -833,8 +869,9 @@ class _MessageBubble extends StatelessWidget {
               Text(
                 msg.text,
                 style: TextStyle(
-                  color:
-                      isMe ? Colors.white : const Color(0xFFE0E0E0),
+                  color: isMe
+                      ? Colors.white
+                      : const Color(0xFFE0E0E0),
                   fontSize: 14.5,
                   height: 1.4,
                 ),
@@ -932,11 +969,16 @@ class _ForwardSheetState extends State<_ForwardSheet> {
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF080808),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(24)),
+        border:
+            Border(top: BorderSide(color: Color(0xFF1A1A1A))),
       ),
       padding: EdgeInsets.fromLTRB(
-          0, 16, 0, 24 + MediaQuery.of(context).viewInsets.bottom),
+          0,
+          16,
+          0,
+          24 + MediaQuery.of(context).viewInsets.bottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -974,7 +1016,8 @@ class _ForwardSheetState extends State<_ForwardSheet> {
                             letterSpacing: 1.5)),
                     Text('Selecione um contato',
                         style: TextStyle(
-                            color: Color(0xFF666666), fontSize: 11)),
+                            color: Color(0xFF666666),
+                            fontSize: 11)),
                   ],
                 ),
               ],
@@ -990,7 +1033,8 @@ class _ForwardSheetState extends State<_ForwardSheet> {
                 color: const Color(0xFF111111),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: AppColors.primaryOrange.withOpacity(0.2)),
+                    color: AppColors.primaryOrange
+                        .withOpacity(0.2)),
               ),
               child: Row(
                 children: [
@@ -1032,8 +1076,8 @@ class _ForwardSheetState extends State<_ForwardSheet> {
                 if (docs.isEmpty) {
                   return const Center(
                     child: Text('Nenhum amigo ainda',
-                        style:
-                            TextStyle(color: Color(0xFF666666))),
+                        style: TextStyle(
+                            color: Color(0xFF666666))),
                   );
                 }
 
@@ -1070,16 +1114,16 @@ class _ForwardSheetState extends State<_ForwardSheet> {
                                     Navigator.pop(context);
                                 },
                           child: Container(
-                            margin:
-                                const EdgeInsets.only(bottom: 8),
+                            margin: const EdgeInsets.only(
+                                bottom: 8),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: const Color(0xFF0F0F0F),
                               borderRadius:
                                   BorderRadius.circular(14),
                               border: Border.all(
-                                  color:
-                                      const Color(0xFF1A1A1A)),
+                                  color: const Color(
+                                      0xFF1A1A1A)),
                             ),
                             child: Row(
                               children: [
@@ -1093,10 +1137,16 @@ class _ForwardSheetState extends State<_ForwardSheet> {
                                   ),
                                   child: Center(
                                     child: Text(
-                                      friend.displayName.isNotEmpty
+                                      friend.displayName
+                                              .isNotEmpty
                                           ? friend.displayName[0]
                                               .toUpperCase()
-                                          : '?',
+                                          : friend.username
+                                                  .isNotEmpty
+                                              ? friend
+                                                  .username[0]
+                                                  .toUpperCase()
+                                              : '?',
                                       style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 16,
@@ -1111,18 +1161,23 @@ class _ForwardSheetState extends State<_ForwardSheet> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(friend.displayName,
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 14,
-                                              fontWeight:
-                                                  FontWeight.w700)),
                                       Text(
-                                          '@${friend.username}',
+                                        friend.displayName
+                                                .isNotEmpty
+                                            ? friend.displayName
+                                            : friend.username,
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight:
+                                                FontWeight.w700),
+                                      ),
+                                      Text('@${friend.username}',
                                           style: TextStyle(
                                               color: AppColors
                                                   .primaryOrange
-                                                  .withOpacity(0.7),
+                                                  .withOpacity(
+                                                      0.7),
                                               fontSize: 12)),
                                     ],
                                   ),
@@ -1225,7 +1280,8 @@ class _TypingDotsState extends State<_TypingDots>
               final t =
                   (_ctrl.value - i * 0.2).clamp(0.0, 1.0);
               final opacity =
-                  (t < 0.5 ? t * 2 : (1 - t) * 2).clamp(0.3, 1.0);
+                  (t < 0.5 ? t * 2 : (1 - t) * 2)
+                      .clamp(0.3, 1.0);
               return Container(
                 margin: const EdgeInsets.only(right: 2),
                 width: 4,
@@ -1289,7 +1345,8 @@ class _DateDivider extends StatelessWidget {
       child: Row(
         children: [
           const Expanded(
-              child: Divider(color: Color(0xFF1A1A1A), height: 1)),
+              child:
+                  Divider(color: Color(0xFF1A1A1A), height: 1)),
           const SizedBox(width: 12),
           Text(_formatDate(date),
               style: const TextStyle(
@@ -1298,7 +1355,8 @@ class _DateDivider extends StatelessWidget {
                   fontWeight: FontWeight.w600)),
           const SizedBox(width: 12),
           const Expanded(
-              child: Divider(color: Color(0xFF1A1A1A), height: 1)),
+              child:
+                  Divider(color: Color(0xFF1A1A1A), height: 1)),
         ],
       ),
     );
