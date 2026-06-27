@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import '../config/app_colors.dart';
 import 'amigos_modelos.dart';
 
@@ -70,6 +71,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final _scrollController = ScrollController();
   bool _sending = false;
 
+  // ── Controle do indicador "digitando..." ────────────────────────
+  Timer? _typingDebounce;
+  bool _isTypingFlagSet = false;
+
   String get _myUid => _auth.currentUser?.uid ?? '';
 
   String get _chatId {
@@ -84,14 +89,16 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _markIncomingAsRead();
-    // Ao ABRIR o chat, a conversa volta a aparecer pra mim também,
-    // mesmo que eu tenha "limpado" ela antes e ninguém tenha mandado
-    // mensagem nova ainda.
     _unhideForMe();
+    _controller.addListener(_onTextChanged);
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onTextChanged);
+    _typingDebounce?.cancel();
+    // Garante que não fico marcado como "digitando" ao saber da tela
+    _setTyping(false);
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -107,6 +114,38 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     });
+  }
+
+  // ── Indicador de digitando — grava isTyping_<meuUid> no chat ───────
+  // Cada usuário tem seu próprio campo (isTyping_<uid>) para que os
+  // dois lados possam digitar "ao mesmo tempo" sem se sobrescrever.
+  void _onTextChanged() {
+    final hasText = _controller.text.trim().isNotEmpty;
+
+    if (hasText && !_isTypingFlagSet) {
+      _setTyping(true);
+    }
+
+    // Reinicia o timer de inatividade a cada tecla digitada
+    _typingDebounce?.cancel();
+    _typingDebounce = Timer(const Duration(seconds: 2), () {
+      _setTyping(false);
+    });
+
+    if (!hasText) {
+      _typingDebounce?.cancel();
+      _setTyping(false);
+    }
+  }
+
+  Future<void> _setTyping(bool typing) async {
+    if (_isTypingFlagSet == typing) return;
+    _isTypingFlagSet = typing;
+    try {
+      await _db.collection('chats').doc(_chatId).set({
+        'isTyping_$_myUid': typing,
+      }, SetOptions(merge: true));
+    } catch (_) {}
   }
 
   // ── Remove meu uid de hiddenFor (chamado ao abrir o chat) ───────────
@@ -134,7 +173,6 @@ class _ChatScreenState extends State<ChatScreen> {
       }
       await batch.commit();
 
-      // Zera contador de não lidas no chat
       await _db.collection('chats').doc(_chatId).set({
         'unreadCount_$_myUid': 0,
       }, SetOptions(merge: true));
@@ -147,6 +185,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() => _sending = true);
     _controller.clear();
+    _typingDebounce?.cancel();
+    _setTyping(false);
     HapticFeedback.lightImpact();
 
     try {
@@ -157,14 +197,6 @@ class _ChatScreenState extends State<ChatScreen> {
         'lastMessageBy': _myUid,
         'lastMessageStatus': 'sent',
         'unreadCount_${widget.friend.uid}': FieldValue.increment(1),
-        // ── CORREÇÃO PRINCIPAL ──────────────────────────────────────
-        // Ao enviar uma mensagem, removo AMBOS de hiddenFor:
-        // - O destinatário: se ele tinha "limpado" a conversa, ela
-        //   volta a aparecer pra ele agora que chegou algo novo.
-        // - Eu mesmo: se eu tinha "limpado" a conversa antes e agora
-        //   estou mandando mensagem de novo, ela tem que voltar pra
-        //   MINHA lista também (antes só o amigo era removido daqui,
-        //   por isso a conversa nunca voltava quando EU mandava).
         'hiddenFor': FieldValue.arrayRemove([widget.friend.uid, _myUid]),
       }, SetOptions(merge: true));
 
@@ -176,9 +208,6 @@ class _ChatScreenState extends State<ChatScreen> {
         'status': 'sent',
       });
 
-      // Simula "entregue" pouco depois do envio (se o destinatário estiver
-      // com o app aberto, isso seria atualizado por uma Cloud Function;
-      // aqui fazemos client-side como fallback simples)
       Future.delayed(const Duration(seconds: 1), () {
         docRef.update({'status': 'delivered'}).catchError((_) {});
       });
@@ -207,15 +236,6 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // LIMPAR CONVERSA (de dentro do chat):
-  // Apaga as mensagens (para mim), limpa o resumo mostrado na lista,
-  // e agora também ESCONDE a conversa da minha lista (hiddenFor),
-  // já que isso é o que "limpar/excluir" deve fazer visualmente.
-  // Ela volta a aparecer sozinha assim que eu ou o amigo mandarmos
-  // uma mensagem nova (ver _sendMessage) ou se eu abrir o chat de
-  // novo pelo perfil do amigo (ver _unhideForMe).
-  // ─────────────────────────────────────────────────────────────────
   Future<void> _clearConversation() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -262,8 +282,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     await batch.commit();
 
-    // Limpa o resumo da última mensagem mostrado no card da lista de
-    // conversas, esconde a conversa da minha lista, e zera não lidas.
     await _db.collection('chats').doc(_chatId).set({
       'lastMessage': '',
       'lastMessageAt': FieldValue.serverTimestamp(),
@@ -275,7 +293,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
     HapticFeedback.mediumImpact();
 
-    // Volta para a lista de conversas, já que ela sumiu da lista.
     if (mounted) Navigator.pop(context);
   }
 
@@ -354,6 +371,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  // ── App bar com status dinâmico (Online/Offline ↔ digitando...) ───
   Widget _buildAppBar() {
     return Container(
       color: Colors.black,
@@ -426,14 +444,30 @@ class _ChatScreenState extends State<ChatScreen> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                Text(
-                  widget.friend.isOnline ? 'Online' : 'Offline',
-                  style: TextStyle(
-                    color: widget.friend.isOnline
-                        ? const Color(0xFF4CAF50)
-                        : const Color(0xFF666666),
-                    fontSize: 12,
-                  ),
+                // Escuta isTyping_<uidDoAmigo> no documento do chat
+                StreamBuilder<DocumentSnapshot>(
+                  stream: _db.collection('chats').doc(_chatId).snapshots(),
+                  builder: (context, snap) {
+                    final data =
+                        snap.data?.data() as Map<String, dynamic>?;
+                    final friendTyping =
+                        (data?['isTyping_${widget.friend.uid}'] as bool?) ??
+                            false;
+
+                    if (friendTyping) {
+                      return const _TypingDots();
+                    }
+
+                    return Text(
+                      widget.friend.isOnline ? 'Online' : 'Offline',
+                      style: TextStyle(
+                        color: widget.friend.isOnline
+                            ? const Color(0xFF4CAF50)
+                            : const Color(0xFF666666),
+                        fontSize: 12,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -526,7 +560,6 @@ class _ChatScreenState extends State<ChatScreen> {
           );
         }
 
-        // Marca como lida em tempo real enquanto a tela está aberta
         _markIncomingAsRead();
         _scrollToBottom();
 
@@ -638,6 +671,72 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PONTINHOS "DIGITANDO..." NA APP BAR
+// ═══════════════════════════════════════════════════════════════════
+class _TypingDots extends StatefulWidget {
+  const _TypingDots();
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200))
+      ..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'digitando',
+          style: TextStyle(
+            color: Color(0xFF4CAF50),
+            fontSize: 12,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+        const SizedBox(width: 3),
+        ...List.generate(3, (i) {
+          return AnimatedBuilder(
+            animation: _ctrl,
+            builder: (_, __) {
+              final t = (_ctrl.value - i * 0.2).clamp(0.0, 1.0);
+              final opacity =
+                  (t < 0.5 ? t * 2 : (1 - t) * 2).clamp(0.3, 1.0);
+              return Container(
+                margin: const EdgeInsets.only(right: 2),
+                width: 4,
+                height: 4,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF4CAF50).withOpacity(opacity),
+                ),
+              );
+            },
+          );
+        }),
+      ],
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
