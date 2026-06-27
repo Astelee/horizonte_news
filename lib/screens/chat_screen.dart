@@ -447,8 +447,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ CORREÇÃO: resizeToAvoidBottomInset: true
+    // Deixa o Flutter gerenciar o espaço do teclado nativamente
+    // sem causar rebuild da tela inteira
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.backgroundDark,
       body: Column(
         children: [
@@ -658,52 +661,54 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  // ✅ CORREÇÃO PRINCIPAL: removido viewInsets.bottom daqui
+  // O Scaffold com resizeToAvoidBottomInset: true já cuida disso
   Widget _buildInputBar() {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-
-    return Container(
-      padding: EdgeInsets.fromLTRB(12, 10, 12, 10 + bottom),
-      decoration: const BoxDecoration(
-        color: Colors.black,
-        border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF141414),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: const Color(0xFF2A2A2A)),
-              ),
-              child: TextField(
-                controller: _controller,
-                style:
-                    const TextStyle(color: Colors.white, fontSize: 15),
-                maxLines: 4,
-                minLines: 1,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  hintText: 'Mensagem...',
-                  hintStyle: TextStyle(
-                      color: Color(0xFF424242), fontSize: 15),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: const BoxDecoration(
+          color: Colors.black,
+          border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141414),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFF2A2A2A)),
                 ),
-                onSubmitted: (_) => _sendMessage(),
+                child: TextField(
+                  controller: _controller,
+                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                  maxLines: 4,
+                  minLines: 1,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    hintText: 'Mensagem...',
+                    hintStyle: TextStyle(
+                        color: Color(0xFF424242), fontSize: 15),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                  ),
+                  onSubmitted: (_) => _sendMessage(),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          GestureDetector(
-            onTap: _sending ? null : _sendMessage,
-            child: _ActionButton(
-              icon: Icons.send_rounded,
-              color: AppColors.primaryOrange,
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: _sending ? null : _sendMessage,
+              child: _ActionButton(
+                icon: Icons.send_rounded,
+                color: AppColors.primaryOrange,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
