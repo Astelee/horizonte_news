@@ -47,6 +47,9 @@ dependencies:
   # Notificações locais (foreground)
   flutter_local_notifications: ^17.0.0
 
+  # Som ambiente
+  audioplayers: ^6.1.0
+
   # WebView para vídeos YouTube
   webview_flutter: ^4.7.0
 
