@@ -41,6 +41,7 @@ dependencies:
   firebase_messaging: ^15.0.1
   firebase_analytics: ^11.1.1
   cloud_firestore: ^5.1.0
+  firebase_database: ^11.1.0
 
   # Notificações locais (foreground)
   flutter_local_notifications: ^17.0.0
@@ -48,7 +49,7 @@ dependencies:
   # Som ambiente
   audioplayers: ^6.1.0
 
-  # WebView para vídeos YouTube (sem dependência de inappwebview)
+  # WebView para vídeos YouTube
   webview_flutter: ^4.7.0
 
 dependency_overrides:
