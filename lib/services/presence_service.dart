@@ -1,167 +1,160 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 
-/// Serviço de presença em tempo real (online / ausente / offline).
+/// Sistema de presença profissional — arquitetura igual WhatsApp/Discord.
 ///
-/// ARQUITETURA:
-/// - Fonte da verdade: Firebase Realtime Database, em status/{uid}.
-///   Usa `.info/connected` + `onDisconnect()`, que são tratados pelo
-///   PRÓPRIO SERVIDOR do Firebase — ou seja, mesmo se o app for fechado
-///   à força, sem internet, ou o processo for matado, o servidor marca
-///   o usuário como offline automaticamente, sem depender do client
-///   rodar mais nenhum código. É isso que dá a instantaneidade real
-///   (igual WhatsApp/Discord/Telegram).
-/// - Espelhamento para Firestore: como o restante do app (amigos,
-///   conversas) já lê presença do Firestore em users_xp/{uid}, este
-///   serviço também escreve lá (status + lastActivity) toda vez que o
-///   RTDB muda, para não precisar reescrever as outras telas.
-/// - Estado "away": não existe nativamente no RTDB; é controlado aqui
-///   por um timer de inatividade no client. Qualquer interação chamada
-///   via [registerActivity] (ou o app voltar ao foreground) reseta o
-///   timer e volta para "online".
+/// FLUXO:
+/// 1. Ao conectar: RTDB marca "online" + registra onDisconnect("offline")
+/// 2. Se o socket cair (app fechado, sem rede, processo morto):
+///    o SERVIDOR do Firebase grava "offline" automaticamente — sem
+///    depender de nenhum código no cliente rodar.
+/// 3. Um Cloud Function (ou listener no RTDB) espelha para o Firestore,
+///    mantendo users_xp/{uid}.status atualizado para as outras telas.
+/// 4. Timer de inatividade: após 2min sem atividade em foreground → "away".
+/// 5. App em background: não altera o estado — o onDisconnect cuida disso
+///    quando o socket efetivamente cair.
 class PresenceService with WidgetsBindingObserver {
   PresenceService._internal();
   static final PresenceService instance = PresenceService._internal();
 
-  final _auth = FirebaseAuth.instance;
-  final _rtdb = FirebaseDatabase.instance;
+  final _auth      = FirebaseAuth.instance;
+  final _rtdb      = FirebaseDatabase.instance;
   final _firestore = FirebaseFirestore.instance;
 
-  static const Duration _awayAfter = Duration(minutes: 2);
+  static const Duration _awayAfter    = Duration(minutes: 2);
+  // Debounce: não espelha pro Firestore mais de 1x por segundo
+  static const Duration _mirrorDebounce = Duration(seconds: 1);
 
   StreamSubscription<DatabaseEvent>? _connectedSub;
-  StreamSubscription<DocumentSnapshot>? _ownStatusMirrorSub;
+  StreamSubscription<DatabaseEvent>? _ownStatusSub;
   Timer? _awayTimer;
-  bool _initialized = false;
-  bool _appInForeground = true;
+  Timer? _mirrorDebounceTimer;
+
+  bool _initialized      = false;
+  bool _appInForeground  = true;
+  String _lastMirroredState = '';
 
   String? get _uid => _auth.currentUser?.uid;
 
-  DatabaseReference get _statusRef =>
-      _rtdb.ref('status/${_uid!}');
+  DatabaseReference? get _statusRef {
+    final uid = _uid;
+    if (uid == null) return null;
+    return _rtdb.ref('status/$uid');
+  }
 
-  /// Chame uma vez, normalmente a partir do _AuthGate em main.dart,
-  /// assim que houver um usuário autenticado.
+  // ═══════════════════════════════════════════════════════════════
+  // INICIALIZAÇÃO
+  // ═══════════════════════════════════════════════════════════════
+
+  /// Chame uma vez no _AuthGate, após confirmar usuário logado.
   Future<void> start() async {
     if (_initialized) return;
-    if (_uid == null) return;
-    _initialized = true;
+    final uid = _uid;
+    if (uid == null) return;
 
+    // CRÍTICO: setPersistenceEnabled ANTES de qualquer referência ao RTDB.
+    // Mantém o socket vivo em background e acelera a reconexão.
+    try {
+      _rtdb.setPersistenceEnabled(true);
+    } catch (_) {
+      // Ignora se já foi chamado (pode acontecer em hot reload)
+    }
+
+    _initialized = true;
     WidgetsBinding.instance.addObserver(this);
 
-    // Mantém uma conexão de socket persistente; reduz latência de
-    // reconexão e é o que torna a detecção de queda quase instantânea.
-    _rtdb.setPersistenceEnabled(true);
-
-    _connectedSub = _rtdb.ref('.info/connected').onValue.listen((event) {
-      final connected = event.snapshot.value == true;
-      if (connected) {
-        _onConnected();
-      }
-    });
+    // Escuta a conexão com o servidor Firebase
+    _connectedSub = _rtdb
+        .ref('.info/connected')
+        .onValue
+        .listen(_onConnectionChanged);
 
     _startAwayTimer();
   }
 
-  /// Chame no logout, para parar de escutar e marcar offline de imediato
-  /// (sem esperar o onDisconnect do servidor, já que a sessão terminou
-  /// de forma intencional).
+  /// Chame no logout — marca offline imediatamente e limpa tudo.
   Future<void> stop() async {
     if (!_initialized) return;
     _initialized = false;
 
     WidgetsBinding.instance.removeObserver(this);
     _awayTimer?.cancel();
-    _awayTimer = null;
+    _mirrorDebounceTimer?.cancel();
     await _connectedSub?.cancel();
-    _connectedSub = null;
+    await _ownStatusSub?.cancel();
 
     final uid = _uid;
     if (uid != null) {
+      // Grava offline de forma fire-and-forget — o onDisconnect
+      // já faria isso, mas fazemos explicitamente no logout intencional
+      // para ser instantâneo.
       try {
         await _rtdb.ref('status/$uid').set({
-          'state': 'offline',
+          'state':       'offline',
           'lastChanged': ServerValue.timestamp,
         });
+        await _mirrorToFirestore('offline');
       } catch (_) {}
     }
   }
 
-  /// Registra atividade do usuário (toque na tela, scroll, envio de
-  /// mensagem, etc). Reseta o timer de away e, se estava away, volta
-  /// para online imediatamente.
-  void registerActivity() {
-    if (!_initialized) return;
-    _startAwayTimer();
-    _setState('online');
-  }
+  // ═══════════════════════════════════════════════════════════════
+  // CONEXÃO COM O SERVIDOR
+  // ═══════════════════════════════════════════════════════════════
 
-  // ── Ciclo de vida do app ─────────────────────────────────────────
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    switch (state) {
-      case AppLifecycleState.resumed:
-        _appInForeground = true;
-        registerActivity();
-        break;
-      case AppLifecycleState.paused:
-      case AppLifecycleState.inactive:
-      case AppLifecycleState.detached:
-      case AppLifecycleState.hidden:
-        _appInForeground = false;
-        // Não marcamos offline aqui de propósito: o app pode voltar
-        // rapidamente (troca de app, notificação, etc). A detecção de
-        // fechamento real é feita pelo onDisconnect() do servidor, que
-        // dispara quando o socket efetivamente cai — muito mais
-        // confiável do que adivinhar pelo lifecycle do Flutter.
-        break;
-    }
-  }
+  void _onConnectionChanged(DatabaseEvent event) {
+    final connected = event.snapshot.value == true;
+    if (!connected) return;
 
-  // ── Conexão estabelecida/restabelecida ────────────────────────────
-  void _onConnected() {
-    final uid = _uid;
-    if (uid == null) return;
+    final ref = _statusRef;
+    if (ref == null) return;
 
-    final ref = _rtdb.ref('status/$uid');
-
-    // onDisconnect: registrado a CADA reconexão, pois o Firebase exige
-    // que o gatilho seja redefinido sempre que a conexão é recriada.
-    // É isso que garante: se o app cair, perder rede, ou for matado,
-    // o SERVIDOR (não o client) grava este valor automaticamente.
+    // onDisconnect: o servidor grava isso quando o socket cai.
+    // DEVE ser registrado a cada reconexão — o Firebase limpa o
+    // gatilho quando a conexão cai e não restaura automaticamente.
     ref.onDisconnect().set({
-      'state': 'offline',
+      'state':       'offline',
       'lastChanged': ServerValue.timestamp,
     });
 
-    // Assim que conectar (ou reconectar), marca online.
+    // Marca online imediatamente após conectar/reconectar
     ref.set({
-      'state': 'online',
+      'state':       'online',
       'lastChanged': ServerValue.timestamp,
     });
 
-    _mirrorToFirestore('online');
-    _listenOwnStatusForMirror();
+    _scheduleMirror('online');
+    _listenOwnStatus();
   }
 
-  // ── Espelha o próprio status do RTDB para o Firestore ────────────
-  // Evita escrever Firestore em todo onValue (caro); em vez disso,
-  // escuta o próprio nó no RTDB e replica só quando o estado muda de
-  // fato, mantendo users_xp/{uid}.status e lastActivity atualizados
-  // para as telas que já leem presença de lá (lista de amigos, chat).
-  void _listenOwnStatusForMirror() {
-    final uid = _uid;
-    if (uid == null) return;
+  // ═══════════════════════════════════════════════════════════════
+  // ESPELHAMENTO RTDB → FIRESTORE (com debounce)
+  // ═══════════════════════════════════════════════════════════════
 
-    _statusRef.onValue.listen((event) {
+  /// Escuta o próprio nó no RTDB e espelha para o Firestore
+  /// somente quando o estado MUDA — evita writes redundantes.
+  void _listenOwnStatus() {
+    _ownStatusSub?.cancel();
+    final ref = _statusRef;
+    if (ref == null) return;
+
+    _ownStatusSub = ref.onValue.listen((event) {
       final data = event.snapshot.value;
       if (data is! Map) return;
       final state = data['state'] as String?;
       if (state == null) return;
+      if (state == _lastMirroredState) return; // sem mudança, sem write
+      _scheduleMirror(state);
+    });
+  }
+
+  /// Debounce para não espelhar mais de 1x por segundo
+  void _scheduleMirror(String state) {
+    _mirrorDebounceTimer?.cancel();
+    _mirrorDebounceTimer = Timer(_mirrorDebounce, () {
       _mirrorToFirestore(state);
     });
   }
@@ -169,43 +162,95 @@ class PresenceService with WidgetsBindingObserver {
   Future<void> _mirrorToFirestore(String state) async {
     final uid = _uid;
     if (uid == null) return;
+    if (state == _lastMirroredState) return;
+    _lastMirroredState = state;
+
     try {
       await _firestore.collection('users_xp').doc(uid).set({
-        'status': state,
+        'status':       state,
         'lastActivity': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
-      debugPrint('PresenceService: erro ao espelhar status no Firestore: $e');
+      debugPrint('PresenceService: erro ao espelhar no Firestore: $e');
     }
   }
 
-  // ── Define o estado diretamente (usado por registerActivity) ────
-  void _setState(String state) {
-    final uid = _uid;
-    if (uid == null) return;
-    _rtdb.ref('status/$uid').update({
-      'state': state,
+  // ═══════════════════════════════════════════════════════════════
+  // ATIVIDADE DO USUÁRIO
+  // ═══════════════════════════════════════════════════════════════
+
+  /// Chame em qualquer interação do usuário (toque, scroll, etc.)
+  /// para resetar o timer de away e voltar para online.
+  void registerActivity() {
+    if (!_initialized) return;
+    _startAwayTimer();
+
+    // Só grava se estava away — evita write desnecessário em cada toque
+    if (_lastMirroredState == 'away') {
+      _setRtdbState('online');
+    }
+  }
+
+  void _setRtdbState(String state) {
+    final ref = _statusRef;
+    if (ref == null) return;
+    ref.update({
+      'state':       state,
       'lastChanged': ServerValue.timestamp,
     }).catchError((_) {});
   }
 
-  // ── Timer de inatividade → away ──────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // CICLO DE VIDA DO APP
+  // ═══════════════════════════════════════════════════════════════
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _appInForeground = true;
+        // App voltou ao foreground — reseta inatividade
+        registerActivity();
+        break;
+
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        _appInForeground = false;
+        _awayTimer?.cancel();
+        // NÃO marcamos offline aqui intencionalmente.
+        // O onDisconnect() do servidor cuida disso quando o socket
+        // realmente cair — mais confiável que o lifecycle do Flutter,
+        // que pode disparar em situações temporárias (notificação,
+        // troca de app rápida, etc).
+        break;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // TIMER DE AWAY
+  // ═══════════════════════════════════════════════════════════════
+
   void _startAwayTimer() {
     _awayTimer?.cancel();
     _awayTimer = Timer(_awayAfter, () {
-      if (_appInForeground) {
-        // Só marca "away" se o app ainda estiver em foreground —
-        // se foi para background, o estado correto é deixado para o
-        // onDisconnect ou para a próxima vez que conectar.
-        _setState('away');
+      // Só marca away se o app ainda estiver em foreground
+      if (_appInForeground && _initialized) {
+        _setRtdbState('away');
       }
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // DISPOSE
+  // ═══════════════════════════════════════════════════════════════
+
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _awayTimer?.cancel();
+    _mirrorDebounceTimer?.cancel();
     _connectedSub?.cancel();
-    _ownStatusMirrorSub?.cancel();
+    _ownStatusSub?.cancel();
   }
 }
