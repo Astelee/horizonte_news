@@ -1,3 +1,4 @@
+// amigos_widgets.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -8,6 +9,9 @@ import 'amigos_modelos.dart';
 import 'amigos_perfil.dart';
 import 'chat_screen.dart';
 
+// ═══════════════════════════════════════════════════════════════════
+// AVATAR DO AMIGO COM PULSE ANIMADO
+// ═══════════════════════════════════════════════════════════════════
 class AmigoAvatar extends StatefulWidget {
   final FriendModel friend;
   final double size;
@@ -21,31 +25,40 @@ class AmigoAvatar extends StatefulWidget {
 
 class _AmigoAvatarState extends State<AmigoAvatar>
     with SingleTickerProviderStateMixin {
-  late AnimationController _pulseController;
+  late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
+    _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
     );
-    _pulseAnim = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    _pulseAnim = Tween<double>(begin: 0.8, end: 1.3).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
     if (widget.friend.status == FriendStatus.online) {
-      _pulseController.repeat(reverse: true);
+      _pulseCtrl.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(AmigoAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.friend.status == FriendStatus.online) {
+      if (!_pulseCtrl.isAnimating) _pulseCtrl.repeat(reverse: true);
+    } else {
+      _pulseCtrl.stop();
     }
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
+    _pulseCtrl.dispose();
     super.dispose();
   }
 
-  // ✅ Função centralizada para extrair inicial com fallbacks
   String _getInitial() {
     final name = widget.friend.displayName.trim();
     if (name.isNotEmpty) return name[0].toUpperCase();
@@ -57,8 +70,7 @@ class _AmigoAvatarState extends State<AmigoAvatar>
   @override
   Widget build(BuildContext context) {
     final s = widget.size;
-    final frameEdgeInset = s * 0.3;
-
+    final frameEdgeInset = s * 0.28;
     final borderColor = widget.friend.isFavorite
         ? const Color(0xFFFAA61A)
         : widget.friend.status.color;
@@ -87,7 +99,7 @@ class _AmigoAvatarState extends State<AmigoAvatar>
             ),
             child: Center(
               child: Text(
-                _getInitial(), // ✅ usa fallback seguro
+                _getInitial(),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: s * 0.36,
@@ -97,6 +109,7 @@ class _AmigoAvatarState extends State<AmigoAvatar>
             ),
           ),
         ),
+        // Indicador de status
         Positioned(
           right: frameEdgeInset,
           bottom: frameEdgeInset,
@@ -112,8 +125,7 @@ class _AmigoAvatarState extends State<AmigoAvatar>
                       height: 16 * _pulseAnim.value,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color:
-                            widget.friend.status.color.withOpacity(0.3),
+                        color: widget.friend.status.color.withOpacity(0.3),
                       ),
                     ),
                   Container(
@@ -144,6 +156,9 @@ class _AmigoAvatarState extends State<AmigoAvatar>
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// BADGE DE NÍVEL
+// ═══════════════════════════════════════════════════════════════════
 class NivelBadge extends StatelessWidget {
   final int level;
   const NivelBadge({Key? key, required this.level}) : super(key: key);
@@ -152,7 +167,7 @@ class NivelBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final cor = BadgeConfig.levelColor(level);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(6),
         color: cor.withOpacity(0.12),
@@ -170,12 +185,18 @@ class NivelBadge extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// BARRA DE XP
+// ═══════════════════════════════════════════════════════════════════
 class BarraXp extends StatelessWidget {
   final FriendModel friend;
   const BarraXp({Key? key, required this.friend}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final cor = friend.isFavorite
+        ? const Color(0xFFFAA61A)
+        : const Color(0xFFFF6B00);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -196,11 +217,7 @@ class BarraXp extends StatelessWidget {
           child: LinearProgressIndicator(
             value: friend.xpProgress,
             backgroundColor: const Color(0xFF1A1A1A),
-            valueColor: AlwaysStoppedAnimation<Color>(
-              friend.isFavorite
-                  ? const Color(0xFFFAA61A)
-                  : const Color(0xFFFF6B00),
-            ),
+            valueColor: AlwaysStoppedAnimation<Color>(cor),
             minHeight: 3,
           ),
         ),
@@ -209,6 +226,9 @@ class BarraXp extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// FILA DE BADGES DE CONQUISTAS
+// ═══════════════════════════════════════════════════════════════════
 class FileiraBadges extends StatelessWidget {
   final List<String> achievementIds;
   final int maxVisible;
@@ -245,18 +265,23 @@ class FileiraBadges extends StatelessWidget {
         final color = BadgeConfig.achievementColor(id);
         return Padding(
           padding: const EdgeInsets.only(left: 4),
-          child: Container(
-            width: 18,
-            height: 18,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withOpacity(0.15),
-              border:
-                  Border.all(color: color.withOpacity(0.4), width: 0.8),
-            ),
-            child: Center(
-              child: FaIcon(BadgeConfig.achievementIcon(id),
-                  size: 9, color: color),
+          child: Tooltip(
+            message: id,
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withOpacity(0.15),
+                border: Border.all(color: color.withOpacity(0.4), width: 0.8),
+              ),
+              child: Center(
+                child: FaIcon(
+                  BadgeConfig.achievementIcon(id),
+                  size: 8,
+                  color: color,
+                ),
+              ),
             ),
           ),
         );
@@ -265,6 +290,9 @@ class FileiraBadges extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// INDICADOR DE DIGITANDO
+// ═══════════════════════════════════════════════════════════════════
 class IndicadorDigitando extends StatefulWidget {
   const IndicadorDigitando({Key? key}) : super(key: key);
 
@@ -280,8 +308,9 @@ class _IndicadorDigitandoState extends State<IndicadorDigitando>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1200))
-      ..repeat();
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
   }
 
   @override
@@ -293,16 +322,17 @@ class _IndicadorDigitandoState extends State<IndicadorDigitando>
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'digitando',
           style: TextStyle(
             color: const Color(0xFF43B581).withOpacity(0.8),
-            fontSize: 12,
+            fontSize: 11,
             fontStyle: FontStyle.italic,
           ),
         ),
-        const SizedBox(width: 3),
+        const SizedBox(width: 4),
         ...List.generate(3, (i) {
           return AnimatedBuilder(
             animation: _ctrl,
@@ -327,6 +357,9 @@ class _IndicadorDigitandoState extends State<IndicadorDigitando>
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// CABEÇALHO DE SEÇÃO
+// ═══════════════════════════════════════════════════════════════════
 class CabecalhoSecao extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -360,11 +393,10 @@ class CabecalhoSecao extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: color.withOpacity(0.3)),
             ),
             child: Text(
@@ -377,99 +409,11 @@ class CabecalhoSecao extends StatelessWidget {
             ),
           ),
           const Expanded(child: SizedBox()),
-        ],
-      ),
-    );
-  }
-}
-
-class EstadoCarregando extends StatelessWidget {
-  const EstadoCarregando({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: CircularProgressIndicator(
-        strokeWidth: 2,
-        color: Color(0xFFFF6B00),
-      ),
-    );
-  }
-}
-
-class EstadoSemAmigos extends StatelessWidget {
-  const EstadoSemAmigos({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
           Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFFFF6B00).withOpacity(0.06),
-              border: Border.all(
-                  color: const Color(0xFFFF6B00).withOpacity(0.15)),
-            ),
-            child: const Icon(Icons.people_outline_rounded,
-                size: 36, color: Color(0xFFFF6B00)),
+            height: 1,
+            width: 60,
+            color: color.withOpacity(0.12),
           ),
-          const SizedBox(height: 20),
-          const Text(
-            'Nenhum amigo ainda',
-            style: TextStyle(
-                color: Colors.white,
-                fontSize: 17,
-                fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Use o botão + para encontrar\namigos pelo username',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF444444), fontSize: 13),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class EstadoVazio extends StatelessWidget {
-  final IconData icon;
-  final String titulo;
-  final String subtitulo;
-
-  const EstadoVazio({
-    Key? key,
-    required this.icon,
-    required this.titulo,
-    required this.subtitulo,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon,
-              size: 48,
-              color: const Color(0xFFFF6B00).withOpacity(0.2)),
-          const SizedBox(height: 16),
-          Text(titulo,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          Text(subtitulo,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: Color(0xFF444444), fontSize: 13)),
         ],
       ),
     );
@@ -477,14 +421,13 @@ class EstadoVazio extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// MENU DE CONTEXTO REAPROVEITÁVEL (LONG PRESS)
+// MENU DE CONTEXTO DO AMIGO
 // ═══════════════════════════════════════════════════════════════════
 class MenuContextoAmigo extends StatelessWidget {
   final FriendModel friend;
   final String myUid;
   final FirebaseFirestore db;
-  final String? requestId;
-  final String? chatId;
+  final String chatId;
   final VoidCallback? onChanged;
 
   const MenuContextoAmigo({
@@ -492,27 +435,25 @@ class MenuContextoAmigo extends StatelessWidget {
     required this.friend,
     required this.myUid,
     required this.db,
-    this.requestId,
-    this.chatId,
+    required this.chatId,
     this.onChanged,
   }) : super(key: key);
 
   String get _chatIdResolvido {
-    if (chatId != null) return chatId!;
+    if (chatId.isNotEmpty) return chatId;
     final ids = [myUid, friend.uid]..sort();
     return '${ids[0]}_${ids[1]}';
   }
 
   Future<String?> _buscarRequestId() async {
-    if (requestId != null) return requestId;
     final snap = await db
         .collection('friend_requests')
         .where('participants', arrayContains: myUid)
         .get();
     for (final doc in snap.docs) {
-      final participants =
-          List<String>.from(doc.data()['participants'] ?? []);
-      if (participants.contains(friend.uid)) return doc.id;
+      final d = doc.data();
+      final parts = List<String>.from(d['participants'] ?? []);
+      if (parts.contains(friend.uid)) return doc.id;
     }
     return null;
   }
@@ -520,36 +461,37 @@ class MenuContextoAmigo extends StatelessWidget {
   Future<void> _alternarFavorito(BuildContext context) async {
     final rootNav = Navigator.of(context, rootNavigator: true);
     rootNav.pop();
-    await db.collection('users_xp').doc(friend.uid).update({
-      'isFavorite': !friend.isFavorite,
-    });
-    onChanged?.call();
+    HapticFeedback.lightImpact();
+    try {
+      final snap = await db
+          .collection('users_xp')
+          .doc(friend.uid)
+          .get();
+      final atual = (snap.data()?['isFavorite'] as bool?) ?? false;
+      await db.collection('users_xp').doc(friend.uid).update({
+        'isFavorite': !atual,
+      });
+    } catch (_) {}
   }
 
   Future<void> _excluirConversa(BuildContext context) async {
     final rootNav = Navigator.of(context, rootNavigator: true);
     final rootContext = rootNav.context;
-
     rootNav.pop();
     await Future.delayed(const Duration(milliseconds: 150));
 
     final confirma = await showDialog<bool>(
       context: rootContext,
-      barrierDismissible: true,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF0A0A0A),
+        backgroundColor: const Color(0xFF0C0C0C),
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Excluir conversa?',
-          style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w800),
-        ),
+            borderRadius: BorderRadius.circular(20)),
+        title: const Text('Excluir conversa?',
+            style: TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w800)),
         content: const Text(
-          'A conversa será removida apenas da sua lista. O contato e o '
-          'histórico de mensagens permanecem intactos para a outra pessoa, e a '
-          'conversa volta a aparecer aqui se ela enviar uma nova mensagem.',
-          style: TextStyle(color: Color(0xFF999999), height: 1.5),
+          'O histórico será apagado apenas para você.',
+          style: TextStyle(color: Color(0xFF666666), height: 1.5),
         ),
         actions: [
           TextButton(
@@ -559,11 +501,10 @@ class MenuContextoAmigo extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text(
-              'Excluir',
-              style: TextStyle(
-                  color: Color(0xFFED4245), fontWeight: FontWeight.w700),
-            ),
+            child: const Text('Excluir',
+                style: TextStyle(
+                    color: Color(0xFFED4245),
+                    fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -583,7 +524,6 @@ class MenuContextoAmigo extends StatelessWidget {
   Future<void> _excluirAmigo(BuildContext context) async {
     final rootNav = Navigator.of(context, rootNavigator: true);
     final rootContext = rootNav.context;
-
     rootNav.pop();
     await Future.delayed(const Duration(milliseconds: 150));
 
@@ -592,7 +532,6 @@ class MenuContextoAmigo extends StatelessWidget {
 
     final confirma = await showDialog<bool>(
       context: rootContext,
-      barrierDismissible: true,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF0C0C0C),
         shape: RoundedRectangleBorder(
@@ -601,8 +540,9 @@ class MenuContextoAmigo extends StatelessWidget {
             style: TextStyle(
                 color: Colors.white, fontWeight: FontWeight.w800)),
         content: Text(
-          'Tem certeza que quer remover @${friend.username}?',
-          style: const TextStyle(color: Color(0xFF666666)),
+          'Tem certeza que quer remover @${friend.username}?\nAs conversas serão mantidas.',
+          style: const TextStyle(
+              color: Color(0xFF666666), height: 1.5),
         ),
         actions: [
           TextButton(
@@ -624,17 +564,14 @@ class MenuContextoAmigo extends StatelessWidget {
     if (confirma != true) return;
 
     await db.collection('friend_requests').doc(idEncontrado).delete();
+    HapticFeedback.mediumImpact();
     onChanged?.call();
   }
 
-  // ✅ CORRIGIDO: navega para TelaPerfilAmigo passando o friend
   Future<void> _verPerfil(BuildContext context) async {
     final rootNav = Navigator.of(context, rootNavigator: true);
     rootNav.pop();
-
-    // Pequeno delay para o bottom sheet fechar antes de navegar
     await Future.delayed(const Duration(milliseconds: 200));
-
     rootNav.push(
       MaterialPageRoute(
         builder: (_) => TelaPerfilAmigo(friend: friend),
@@ -642,18 +579,49 @@ class MenuContextoAmigo extends StatelessWidget {
     );
   }
 
+  Future<void> _compartilharPerfil(BuildContext context) async {
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    rootNav.pop();
+    HapticFeedback.lightImpact();
+    await Future.delayed(const Duration(milliseconds: 150));
+    if (rootNav.context.mounted) {
+      ScaffoldMessenger.of(rootNav.context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.share_rounded,
+                  color: Color(0xFFFF6B00), size: 16),
+              const SizedBox(width: 10),
+              Text(
+                'Perfil de @${friend.username} copiado!',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF111111),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF0C0C0C),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
       ),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Handle
           Container(
             width: 36,
             height: 4,
@@ -663,10 +631,12 @@ class MenuContextoAmigo extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
+
+          // Mini perfil
           Row(
             children: [
-              AmigoAvatar(friend: friend, size: 44),
-              const SizedBox(width: 12),
+              AmigoAvatar(friend: friend, size: 48),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -677,7 +647,7 @@ class MenuContextoAmigo extends StatelessWidget {
                           child: Text(
                             friend.displayName.isNotEmpty
                                 ? friend.displayName
-                                : friend.username, // ✅ fallback pro username
+                                : friend.username,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.white,
@@ -686,17 +656,42 @@ class MenuContextoAmigo extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (friend.achievements.isNotEmpty)
+                        if (friend.achievements.isNotEmpty) ...[
+                          const SizedBox(width: 6),
                           FileiraBadges(
                               achievementIds: friend.achievements),
+                        ],
                       ],
                     ),
-                    Text(
-                      '@${friend.username}',
-                      style: TextStyle(
-                        color: const Color(0xFFFF6B00).withOpacity(0.7),
-                        fontSize: 12,
-                      ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Text(
+                          '@${friend.username}',
+                          style: TextStyle(
+                            color:
+                                const Color(0xFFFF6B00).withOpacity(0.7),
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: friend.status.color,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          friend.status.label,
+                          style: TextStyle(
+                            color: friend.status.color,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -704,20 +699,24 @@ class MenuContextoAmigo extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
+          const Divider(color: Color(0xFF1A1A1A), height: 1),
+          const SizedBox(height: 16),
 
-          // ✅ CORRIGIDO: agora chama _verPerfil que navega de verdade
+          // Itens do menu
           _ItemMenu(
             icon: Icons.person_rounded,
             label: 'Ver Perfil',
             color: Colors.white,
             onTap: () => _verPerfil(context),
           ),
+          const SizedBox(height: 8),
           _ItemMenu(
             icon: Icons.chat_bubble_rounded,
             label: 'Conversar',
             color: const Color(0xFFFF6B00),
             onTap: () {
-              final rootNav = Navigator.of(context, rootNavigator: true);
+              final rootNav =
+                  Navigator.of(context, rootNavigator: true);
               rootNav.pop();
               rootNav.push(
                 MaterialPageRoute(
@@ -726,6 +725,7 @@ class MenuContextoAmigo extends StatelessWidget {
               );
             },
           ),
+          const SizedBox(height: 8),
           _ItemMenu(
             icon: friend.isFavorite
                 ? Icons.star_rounded
@@ -736,22 +736,26 @@ class MenuContextoAmigo extends StatelessWidget {
             color: const Color(0xFFFAA61A),
             onTap: () => _alternarFavorito(context),
           ),
+          const SizedBox(height: 8),
           _ItemMenu(
-            icon: Icons.notifications_off_rounded,
-            label: 'Silenciar',
-            color: const Color(0xFF747F8D),
-            onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+            icon: Icons.share_rounded,
+            label: 'Compartilhar Perfil',
+            color: const Color(0xFF4FC3F7),
+            onTap: () => _compartilharPerfil(context),
           ),
+          const SizedBox(height: 8),
           _ItemMenu(
             icon: Icons.delete_outline_rounded,
             label: 'Excluir Conversa',
             color: const Color(0xFF747F8D),
             onTap: () => _excluirConversa(context),
           ),
-          const Divider(color: Color(0xFF1A1A1A), height: 20),
+          const SizedBox(height: 12),
+          const Divider(color: Color(0xFF1A1A1A), height: 1),
+          const SizedBox(height: 12),
           _ItemMenu(
             icon: Icons.person_remove_rounded,
-            label: 'Excluir Amigo',
+            label: 'Remover Amigo',
             color: const Color(0xFFED4245),
             onTap: () => _excluirAmigo(context),
           ),
@@ -776,35 +780,247 @@ class _ItemMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        margin: const EdgeInsets.only(bottom: 4),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.08)),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        splashColor: color.withOpacity(0.08),
+        highlightColor: color.withOpacity(0.04),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.04),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withOpacity(0.08)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Expanded(child: SizedBox()),
+              Icon(Icons.chevron_right_rounded,
+                  color: color.withOpacity(0.3), size: 18),
+            ],
+          ),
         ),
-        child: Row(
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ESTADOS VAZIOS
+// ═══════════════════════════════════════════════════════════════════
+class EstadoCarregando extends StatefulWidget {
+  const EstadoCarregando({Key? key}) : super(key: key);
+
+  @override
+  State<EstadoCarregando> createState() => _EstadoCarregandoState();
+}
+
+class _EstadoCarregandoState extends State<EstadoCarregando>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.3, end: 0.7).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) {
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
+          itemCount: 5,
+          itemBuilder: (_, i) => _SkeletonCard(opacity: _anim.value),
+        );
+      },
+    );
+  }
+}
+
+class _SkeletonCard extends StatelessWidget {
+  final double opacity;
+  const _SkeletonCard({required this.opacity});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0C0C0C),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF1A1A1A)),
+      ),
+      child: Row(
+        children: [
+          // Avatar skeleton
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(opacity * 0.08),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity * 0.6,
+                  height: 13,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(opacity * 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: 100,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(opacity * 0.05),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(opacity * 0.04),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(opacity * 0.05),
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class EstadoVazio extends StatelessWidget {
+  final IconData icon;
+  final String titulo;
+  final String subtitulo;
+  final Widget? botao;
+
+  const EstadoVazio({
+    Key? key,
+    required this.icon,
+    required this.titulo,
+    required this.subtitulo,
+    this.botao,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 14),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFFF6B00).withOpacity(0.06),
+                border: Border.all(
+                    color: const Color(0xFFFF6B00).withOpacity(0.12)),
+              ),
+              child: Icon(icon,
+                  size: 34, color: const Color(0xFFFF6B00).withOpacity(0.5)),
+            ),
+            const SizedBox(height: 20),
             Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+              titulo,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
               ),
             ),
-            const Expanded(child: SizedBox()),
-            Icon(Icons.chevron_right_rounded,
-                color: color.withOpacity(0.3), size: 18),
+            const SizedBox(height: 8),
+            Text(
+              subtitulo,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF555555),
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+            if (botao != null) ...[
+              const SizedBox(height: 24),
+              botao!,
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class EstadoSemAmigos extends StatelessWidget {
+  const EstadoSemAmigos({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return const EstadoVazio(
+      icon: Icons.people_outline_rounded,
+      titulo: 'Nenhum amigo ainda',
+      subtitulo: 'Adicione amigos pelo botão\n+ AMIGOS abaixo',
     );
   }
 }
