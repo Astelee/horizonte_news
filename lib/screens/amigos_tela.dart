@@ -29,7 +29,7 @@ class _TelaAmigosState extends State<TelaAmigos>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -56,6 +56,16 @@ class _TelaAmigosState extends State<TelaAmigos>
     abrirPainelAmigos(context, myUid: _myUid, db: _db);
   }
 
+  void _abrirPedidos() {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PainelPedidos(myUid: _myUid, db: _db),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -65,7 +75,7 @@ class _TelaAmigosState extends State<TelaAmigos>
           _buildHeader(),
           _buildTabBar(),
           if (_buscaAberta) _buildBarraBusca(),
-          if (_tabController.index == 2) _buildFiltrosAmigos(),
+          if (_tabController.index == 1) _buildFiltrosAmigos(),
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -76,7 +86,6 @@ class _TelaAmigosState extends State<TelaAmigos>
                   searchQuery: _busca,
                   onIniciarConversa: _abrirPainelAmigos,
                 ),
-                AbaPedidos(myUid: _myUid, db: _db),
                 AbaAmigos(
                   myUid: _myUid,
                   db: _db,
@@ -108,7 +117,7 @@ class _TelaAmigosState extends State<TelaAmigos>
         top: MediaQuery.of(context).padding.top + 8,
         bottom: 14,
         left: 8,
-        right: 16,
+        right: 8,
       ),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -142,19 +151,36 @@ class _TelaAmigosState extends State<TelaAmigos>
                 color: Colors.white, size: 16),
           ),
           const SizedBox(width: 10),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('CONVERSAS',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2)),
-              Text('Horizonte News',
-                  style: TextStyle(color: Color(0xFF666666), fontSize: 10)),
-            ],
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('CONVERSAS',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2)),
+                Text('Horizonte News',
+                    style: TextStyle(color: Color(0xFF666666), fontSize: 10)),
+              ],
+            ),
+          ),
+          // ── Menu de 3 pontinhos com "Pedidos" escondido ──────────
+          StreamBuilder<QuerySnapshot>(
+            stream: _db
+                .collection('friend_requests')
+                .where('toUid', isEqualTo: _myUid)
+                .where('status', isEqualTo: 'pending')
+                .snapshots(),
+            builder: (context, snap) {
+              final count = snap.data?.docs.length ?? 0;
+              return _MenuTresPontinhos(
+                pedidosCount: count,
+                onPedidosTap: _abrirPedidos,
+              );
+            },
           ),
         ],
       ),
@@ -182,7 +208,7 @@ class _TelaAmigosState extends State<TelaAmigos>
               onChanged: (v) => setState(() => _busca = v.toLowerCase()),
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
-                hintText: _tabController.index == 2
+                hintText: _tabController.index == 1
                     ? 'Buscar amigos...'
                     : 'Buscar conversas...',
                 hintStyle:
@@ -210,8 +236,6 @@ class _TelaAmigosState extends State<TelaAmigos>
     );
   }
 
-  // ── Filtros (Todos, Online, Offline, Favoritos, Recentes) ──────────
-  // Só aparecem na aba "AMIGOS"
   Widget _buildFiltrosAmigos() {
     final filtros = [
       (FriendFilter.all, 'Todos', Icons.apps_rounded),
@@ -275,6 +299,7 @@ class _TelaAmigosState extends State<TelaAmigos>
     );
   }
 
+  // ── TabBar agora com apenas 2 abas ────────────────────────────────
   Widget _buildTabBar() {
     return Container(
       color: Colors.black,
@@ -289,53 +314,179 @@ class _TelaAmigosState extends State<TelaAmigos>
         labelStyle: const TextStyle(
             fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8),
         isScrollable: false,
-        tabs: [
-          const Tab(
+        tabs: const [
+          Tab(
             icon: Icon(Icons.chat_bubble_rounded, size: 16),
             text: 'CONVERSAS',
           ),
           Tab(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _db
-                  .collection('friend_requests')
-                  .where('toUid', isEqualTo: _myUid)
-                  .where('status', isEqualTo: 'pending')
-                  .snapshots(),
-              builder: (context, snap) {
-                final count = snap.data?.docs.length ?? 0;
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.person_add_rounded, size: 16),
-                    const SizedBox(width: 5),
-                    const Text('PEDIDOS'),
-                    if (count > 0) ...[
-                      const SizedBox(width: 5),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFED4245),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text('$count',
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800)),
-                      ),
-                    ],
-                  ],
-                );
-              },
-            ),
-          ),
-          const Tab(
             icon: Icon(Icons.people_alt_rounded, size: 16),
             text: 'AMIGOS',
           ),
         ],
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MENU DE 3 PONTINHOS — Pedidos escondido aqui (estilo Instagram)
+// ═══════════════════════════════════════════════════════════════════
+class _MenuTresPontinhos extends StatelessWidget {
+  final int pedidosCount;
+  final VoidCallback onPedidosTap;
+
+  const _MenuTresPontinhos({
+    required this.pedidosCount,
+    required this.onPedidosTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.more_vert_rounded, color: Colors.white),
+          if (pedidosCount > 0)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFED4245),
+                  border: Border.all(color: Colors.black, width: 1.5),
+                ),
+              ),
+            ),
+        ],
+      ),
+      color: const Color(0xFF0C0C0C),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: const Color(0xFFFF6B00).withOpacity(0.15)),
+      ),
+      onSelected: (value) {
+        if (value == 'pedidos') onPedidosTap();
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'pedidos',
+          child: Row(
+            children: [
+              const Icon(Icons.person_add_rounded,
+                  color: Color(0xFFFF6B00), size: 18),
+              const SizedBox(width: 10),
+              const Text(
+                'Pedidos de amizade',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+              if (pedidosCount > 0) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFED4245),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '$pedidosCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PAINEL DE PEDIDOS — reaproveita AbaPedidos dentro de um bottom sheet
+// ═══════════════════════════════════════════════════════════════════
+class _PainelPedidos extends StatelessWidget {
+  final String myUid;
+  final FirebaseFirestore db;
+
+  const _PainelPedidos({required this.myUid, required this.db});
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF080808),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(
+              top: BorderSide(color: Color(0xFF1A1A1A)),
+              left: BorderSide(color: Color(0xFF111111)),
+              right: BorderSide(color: Color(0xFF111111)),
+            ),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 16),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF222222),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.person_add_rounded,
+                          color: Colors.white, size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'PEDIDOS DE AMIZADE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: AbaPedidos(myUid: myUid, db: db),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
