@@ -39,11 +39,6 @@ Future<String> base64ToAudio(String base64String) async {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ENUM DE STATUS
-// ═══════════════════════════════════════════════════════════════════
-enum MessageStatus { sending, sent, delivered, read }
-
-// ═══════════════════════════════════════════════════════════════════
 // MODELO DE MENSAGEM
 // ═══════════════════════════════════════════════════════════════════
 enum MessageType { text, audio }
