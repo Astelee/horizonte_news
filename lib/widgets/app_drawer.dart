@@ -1,3 +1,4 @@
+// app_drawer.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -130,10 +131,11 @@ class _AppDrawerState extends State<AppDrawer>
                               isActive: currentRoute == e.value.route,
                               delay: e.key * 45,
                               onTap: () => _navigate(context, e.value.route),
+                              // ── Badge inteligente por rota ──────
                               badge: e.value.route == AppRoutes.profile
                                   ? _XpBadge()
                                   : e.value.route == AppRoutes.friends
-                                      ? _FriendRequestBadge()
+                                      ? _AmigoBadge() // ← substituído aqui
                                       : null,
                             ),
                           ),
@@ -399,49 +401,167 @@ class _AppDrawerState extends State<AppDrawer>
   }
 }
 
-// ── BADGE DE PEDIDOS PENDENTES ────────────────────────────────────
-class _FriendRequestBadge extends StatelessWidget {
+// ═══════════════════════════════════════════════════════════════════
+// BADGE COMBINADO — MENSAGENS NÃO LIDAS + PEDIDOS PENDENTES
+// ═══════════════════════════════════════════════════════════════════
+class _AmigoBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     if (uid.isEmpty) return const SizedBox.shrink();
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('friend_requests')
-          .where('toUid', isEqualTo: uid)
-          .where('status', isEqualTo: 'pending')
-          .snapshots(),
-      builder: (context, snap) {
-        final count = snap.data?.docs.length ?? 0;
-        if (count == 0) return const SizedBox.shrink();
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: AppColors.emergencyRed,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.emergencyRed.withOpacity(0.4),
-                blurRadius: 8,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── Badge de mensagens não lidas ──────────────────────
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('chats')
+              .where('participants', arrayContains: uid)
+              .snapshots(),
+          builder: (context, snap) {
+            int totalNaoLidas = 0;
+            if (snap.hasData) {
+              for (final doc in snap.data!.docs) {
+                final data = doc.data() as Map<String, dynamic>;
+                // Ignora chats ocultos
+                final hiddenFor =
+                    List<String>.from(data['hiddenFor'] ?? []);
+                if (hiddenFor.contains(uid)) continue;
+                // Ignora msgs enviadas por mim
+                final lastBy =
+                    (data['lastMessageBy'] as String?) ?? '';
+                if (lastBy == uid) continue;
+                final count =
+                    (data['unreadCount_$uid'] as num?)?.toInt() ?? 0;
+                totalNaoLidas += count;
+              }
+            }
+
+            if (totalNaoLidas == 0) return const SizedBox.shrink();
+
+            return _BadgePilula(
+              texto: totalNaoLidas > 99 ? '99+' : '$totalNaoLidas',
+              corFundo: const Color(0xFFFF6B00),
+              icone: Icons.chat_bubble_rounded,
+            );
+          },
+        ),
+
+        // ── Badge de pedidos pendentes ────────────────────────
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('friend_requests')
+              .where('toUid', isEqualTo: uid)
+              .where('status', isEqualTo: 'pending')
+              .snapshots(),
+          builder: (context, snap) {
+            final count = snap.data?.docs.length ?? 0;
+            if (count == 0) return const SizedBox.shrink();
+
+            return Padding(
+              // Espaço entre os dois badges quando ambos aparecem
+              padding: const EdgeInsets.only(left: 4),
+              child: _BadgePilula(
+                texto: count > 99 ? '99+' : '$count',
+                corFundo: AppColors.emergencyRed,
+                icone: Icons.person_add_rounded,
               ),
-            ],
-          ),
-          child: Text(
-            '$count',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 9,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        );
-      },
+            );
+          },
+        ),
+      ],
     );
   }
 }
 
-// ── BADGE DE XP ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// PILULA DE BADGE REUTILIZÁVEL
+// ═══════════════════════════════════════════════════════════════════
+class _BadgePilula extends StatefulWidget {
+  final String texto;
+  final Color corFundo;
+  final IconData icone;
+
+  const _BadgePilula({
+    required this.texto,
+    required this.corFundo,
+    required this.icone,
+  });
+
+  @override
+  State<_BadgePilula> createState() => _BadgePilulaState();
+}
+
+class _BadgePilulaState extends State<_BadgePilula>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _scale = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut),
+    );
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _scale,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: widget.corFundo,
+          boxShadow: [
+            BoxShadow(
+              color: widget.corFundo.withOpacity(0.45),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              widget.icone,
+              size: 8,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 3),
+            Text(
+              widget.texto,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                height: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BADGE DE XP
+// ═══════════════════════════════════════════════════════════════════
 class _XpBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -473,7 +593,9 @@ class _XpBadge extends StatelessWidget {
   }
 }
 
-// ── BADGE ADM ─────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// BADGE ADM
+// ═══════════════════════════════════════════════════════════════════
 class _AdminBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -502,6 +624,9 @@ class _AdminBadge extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// NAV ITEM MODEL
+// ═══════════════════════════════════════════════════════════════════
 class _NavItem {
   final IconData icon;
   final String label;
@@ -509,6 +634,9 @@ class _NavItem {
   const _NavItem({required this.icon, required this.label, required this.route});
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// DRAWER TILE
+// ═══════════════════════════════════════════════════════════════════
 class _DrawerTile extends StatefulWidget {
   final _NavItem item;
   final bool isActive;
@@ -610,7 +738,9 @@ class _DrawerTileState extends State<_DrawerTile>
                   child: Icon(
                     widget.item.icon,
                     size: 18,
-                    color: isActive ? AppColors.primaryOrange : Colors.white60,
+                    color: isActive
+                        ? AppColors.primaryOrange
+                        : Colors.white60,
                   ),
                 ),
                 const SizedBox(width: 13),
@@ -620,7 +750,8 @@ class _DrawerTileState extends State<_DrawerTile>
                     style: TextStyle(
                       color: isActive ? Colors.white : Colors.white70,
                       fontSize: 13,
-                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+                      fontWeight:
+                          isActive ? FontWeight.w700 : FontWeight.w400,
                       letterSpacing: 0.2,
                     ),
                   ),
