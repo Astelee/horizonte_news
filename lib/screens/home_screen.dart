@@ -175,8 +175,6 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
           ),
-
-          // ── Bolha flutuante de mensagem nova ──────────────────
           if (myUid.isNotEmpty)
             _BolhaMensagem(myUid: myUid),
         ],
@@ -184,7 +182,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // ── AppBar agora recebe myUid para o StreamBuilder do badge ────
   PreferredSizeWidget _buildAppBar(BuildContext context, String myUid) {
     return PreferredSize(
       preferredSize: const Size.fromHeight(kToolbarHeight),
@@ -196,8 +193,7 @@ class _HomeScreenState extends State<HomeScreen>
               : Colors.transparent,
           border: _isScrolled
               ? const Border(
-                  bottom:
-                      BorderSide(color: AppColors.borderGlow, width: 1))
+                  bottom: BorderSide(color: AppColors.borderGlow, width: 1))
               : null,
           boxShadow: _isScrolled
               ? [
@@ -225,7 +221,6 @@ class _HomeScreenState extends State<HomeScreen>
             AppBar(
               backgroundColor: Colors.transparent,
               elevation: 0,
-              // ── Leading com badge de não lidas ─────────────────
               leading: myUid.isEmpty
                   ? _NeoIconButton(
                       icon: Icons.menu_rounded,
@@ -233,39 +228,9 @@ class _HomeScreenState extends State<HomeScreen>
                     )
                   : Builder(
                       builder: (context) {
-                        return StreamBuilder<QuerySnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection('chats')
-                              .where('participants', arrayContains: myUid)
-                              .snapshots(),
-                          builder: (context, snap) {
-                            // Soma todos os unreadCount_{myUid} de todos os chats
-                            int totalNaoLidas = 0;
-                            if (snap.hasData) {
-                              for (final doc in snap.data!.docs) {
-                                final data =
-                                    doc.data() as Map<String, dynamic>;
-                                // Ignora chats ocultos
-                                final hiddenFor = List<String>.from(
-                                    data['hiddenFor'] ?? []);
-                                if (hiddenFor.contains(myUid)) continue;
-                                // Ignora mensagens enviadas por mim
-                                final lastBy =
-                                    (data['lastMessageBy'] as String?) ?? '';
-                                if (lastBy == myUid) continue;
-                                final count =
-                                    (data['unreadCount_$myUid'] as num?)
-                                            ?.toInt() ??
-                                        0;
-                                totalNaoLidas += count;
-                              }
-                            }
-
-                            return _BotaoMenuComBadge(
-                              totalNaoLidas: totalNaoLidas,
-                              onTap: () => Scaffold.of(context).openDrawer(),
-                            );
-                          },
+                        return _BotaoMenuComBadge(
+                          myUid: myUid,
+                          onTap: () => Scaffold.of(context).openDrawer(),
                         );
                       },
                     ),
@@ -543,14 +508,14 @@ class _HomeScreenState extends State<HomeScreen>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// BOTÃO DE MENU COM BADGE DE NÃO LIDAS
+// BOTÃO MENU COM DOIS BADGES DIFERENCIADOS
 // ═══════════════════════════════════════════════════════════════════
 class _BotaoMenuComBadge extends StatefulWidget {
-  final int totalNaoLidas;
+  final String myUid;
   final VoidCallback onTap;
 
   const _BotaoMenuComBadge({
-    required this.totalNaoLidas,
+    required this.myUid,
     required this.onTap,
   });
 
@@ -560,119 +525,221 @@ class _BotaoMenuComBadge extends StatefulWidget {
 
 class _BotaoMenuComBadgeState extends State<_BotaoMenuComBadge>
     with SingleTickerProviderStateMixin {
-  late AnimationController _badgeCtrl;
-  late Animation<double> _badgeScale;
-  int _ultimoTotal = 0;
+  late AnimationController _pulseCtrl;
+  late Animation<double> _pulseAnim;
 
   @override
   void initState() {
     super.initState();
-    _badgeCtrl = AnimationController(
+    // Pulso suave no ícone quando há notificações
+    _pulseCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 1800),
     );
-    _badgeScale = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _badgeCtrl, curve: Curves.elasticOut),
+    _pulseAnim = Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
-    if (widget.totalNaoLidas > 0) {
-      _badgeCtrl.value = 1.0;
-      _ultimoTotal = widget.totalNaoLidas;
-    }
-  }
-
-  @override
-  void didUpdateWidget(_BotaoMenuComBadge oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Badge aparece com animação quando chega mensagem nova
-    if (widget.totalNaoLidas > 0 && _ultimoTotal == 0) {
-      _badgeCtrl.forward(from: 0);
-    }
-    // Badge some com animação quando todas lidas
-    if (widget.totalNaoLidas == 0 && _ultimoTotal > 0) {
-      _badgeCtrl.reverse();
-    }
-    _ultimoTotal = widget.totalNaoLidas;
   }
 
   @override
   void dispose() {
-    _badgeCtrl.dispose();
+    _pulseCtrl.dispose();
     super.dispose();
-  }
-
-  String _formatarContagem(int n) {
-    if (n > 99) return '99+';
-    return '$n';
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() {}),
-      onTapUp: (_) {
-        widget.onTap();
-      },
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Botão de menu
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            width: 38,
-            height: 38,
-            child: Icon(
-              Icons.menu_rounded,
-              color: Colors.white,
-              size: 22,
-            ),
-          ),
+    // ── Stream 1: mensagens não lidas ──────────────────────────
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('chats')
+          .where('participants', arrayContains: widget.myUid)
+          .snapshots(),
+      builder: (context, snapChats) {
+        int totalMsgs = 0;
+        if (snapChats.hasData) {
+          for (final doc in snapChats.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final hiddenFor =
+                List<String>.from(data['hiddenFor'] ?? []);
+            if (hiddenFor.contains(widget.myUid)) continue;
+            final lastBy =
+                (data['lastMessageBy'] as String?) ?? '';
+            if (lastBy == widget.myUid) continue;
+            final count =
+                (data['unreadCount_${widget.myUid}'] as num?)
+                        ?.toInt() ??
+                    0;
+            totalMsgs += count;
+          }
+        }
 
-          // Badge animado
-          if (widget.totalNaoLidas > 0 || _badgeCtrl.isAnimating)
-            Positioned(
-              right: 2,
-              top: 4,
-              child: ScaleTransition(
-                scale: _badgeScale,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  constraints: const BoxConstraints(
-                    minWidth: 16,
-                    minHeight: 16,
-                  ),
-                  padding: widget.totalNaoLidas > 9
-                      ? const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 2)
-                      : const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFED4245),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: AppColors.backgroundDark,
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFED4245).withOpacity(0.5),
-                        blurRadius: 6,
-                        spreadRadius: 1,
+        // ── Stream 2: solicitações pendentes ───────────────────
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('friend_requests')
+              .where('toUid', isEqualTo: widget.myUid)
+              .where('status', isEqualTo: 'pending')
+              .snapshots(),
+          builder: (context, snapPedidos) {
+            final totalPedidos =
+                snapPedidos.data?.docs.length ?? 0;
+
+            final temQualquer = totalMsgs > 0 || totalPedidos > 0;
+
+            // Ativa/desativa pulso conforme notificações
+            if (temQualquer && !_pulseCtrl.isAnimating) {
+              _pulseCtrl.repeat(reverse: true);
+            } else if (!temQualquer && _pulseCtrl.isAnimating) {
+              _pulseCtrl.stop();
+              _pulseCtrl.value = 1.0;
+            }
+
+            return GestureDetector(
+              onTap: widget.onTap,
+              child: SizedBox(
+                width: 46,
+                height: 46,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    // Ícone de menu com pulso suave
+                    AnimatedBuilder(
+                      animation: _pulseAnim,
+                      builder: (_, child) => Transform.scale(
+                        scale: temQualquer ? _pulseAnim.value : 1.0,
+                        child: child,
                       ),
-                    ],
-                  ),
-                  child: Text(
-                    _formatarContagem(widget.totalNaoLidas),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
+                      child: const Icon(
+                        Icons.menu_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
                     ),
-                    textAlign: TextAlign.center,
-                  ),
+
+                    // ── Badge LARANJA: mensagens ────────────────
+                    // Fica no canto superior DIREITO
+                    if (totalMsgs > 0)
+                      Positioned(
+                        right: 0,
+                        top: 2,
+                        child: _BadgeMinimo(
+                          texto: totalMsgs > 99
+                              ? '99+'
+                              : '$totalMsgs',
+                          cor: const Color(0xFFFF6B00),
+                          icone: Icons.chat_bubble_rounded,
+                        ),
+                      ),
+
+                    // ── Badge VERMELHO: solicitações ────────────
+                    // Fica no canto superior ESQUERDO
+                    // (ou abaixo do laranja se ambos existirem)
+                    if (totalPedidos > 0)
+                      Positioned(
+                        left: totalMsgs > 0 ? null : 0,
+                        right: totalMsgs > 0 ? 0 : null,
+                        top: totalMsgs > 0 ? 18 : 2,
+                        child: _BadgeMinimo(
+                          texto: totalPedidos > 99
+                              ? '99+'
+                              : '$totalPedidos',
+                          cor: const Color(0xFFED4245),
+                          icone: Icons.person_add_rounded,
+                        ),
+                      ),
+                  ],
                 ),
               ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BADGE MÍNIMO — bolinha com ícone + número
+// ═══════════════════════════════════════════════════════════════════
+class _BadgeMinimo extends StatefulWidget {
+  final String texto;
+  final Color cor;
+  final IconData icone;
+
+  const _BadgeMinimo({
+    required this.texto,
+    required this.cor,
+    required this.icone,
+  });
+
+  @override
+  State<_BadgeMinimo> createState() => _BadgeMinimoState();
+}
+
+class _BadgeMinimoState extends State<_BadgeMinimo>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    );
+    _scale = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut),
+    );
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _scale,
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: BoxDecoration(
+          color: widget.cor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: AppColors.backgroundDark,
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: widget.cor.withOpacity(0.55),
+              blurRadius: 6,
+              spreadRadius: 1,
             ),
-        ],
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(widget.icone, size: 7, color: Colors.white),
+            const SizedBox(width: 2),
+            Text(
+              widget.texto,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 8,
+                fontWeight: FontWeight.w900,
+                height: 1,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -888,8 +955,7 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
               children: [
                 Positioned.fill(
                   child: CustomPaint(
-                    painter:
-                        _BolhaParticlePainter(_particleCtrl.value),
+                    painter: _BolhaParticlePainter(_particleCtrl.value),
                   ),
                 ),
                 Positioned(
@@ -930,8 +996,7 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
                                 boxShadow: [
                                   BoxShadow(
                                     color: const Color(0xFFFF6B00)
-                                        .withOpacity(
-                                            0.5 * _pulseCtrl.value),
+                                        .withOpacity(0.5 * _pulseCtrl.value),
                                     blurRadius: 16,
                                     spreadRadius: 4,
                                   ),
@@ -1078,8 +1143,7 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
       if (lastMsgBy == widget.myUid) continue;
 
       final lastMsg = data['lastMessage'] as String? ?? '';
-      final participants =
-          List<String>.from(data['participants'] ?? []);
+      final participants = List<String>.from(data['participants'] ?? []);
       final friendUid = participants.firstWhere(
           (p) => p != widget.myUid,
           orElse: () => '');
@@ -1155,9 +1219,8 @@ class _BolhaParticlePainter extends CustomPainter {
       final dy = ((p[1] - t * p[3] + p[4]) % 1.0) * size.height;
       final opacity =
           0.06 + 0.08 * math.sin((t + p[4]) * 2 * math.pi);
-
-      paint.color = const Color(0xFFFF6B00)
-          .withOpacity(opacity.clamp(0.0, 0.2));
+      paint.color =
+          const Color(0xFFFF6B00).withOpacity(opacity.clamp(0.0, 0.2));
       canvas.drawCircle(Offset(dx, dy), p[2], paint);
     }
   }
