@@ -1,3 +1,4 @@
+// home_screen.dart
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -93,9 +94,8 @@ class _HomeScreenState extends State<HomeScreen>
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
       extendBodyBehindAppBar: true,
-      appBar: _buildAppBar(context),
+      appBar: _buildAppBar(context, myUid),
       drawer: const AppDrawer(),
-      // Sem floatingActionButton — botão Reels removido
       body: Stack(
         children: [
           FadeTransition(
@@ -184,7 +184,8 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
+  // ── AppBar agora recebe myUid para o StreamBuilder do badge ────
+  PreferredSizeWidget _buildAppBar(BuildContext context, String myUid) {
     return PreferredSize(
       preferredSize: const Size.fromHeight(kToolbarHeight),
       child: AnimatedContainer(
@@ -224,12 +225,50 @@ class _HomeScreenState extends State<HomeScreen>
             AppBar(
               backgroundColor: Colors.transparent,
               elevation: 0,
-              leading: Builder(
-                builder: (context) => _NeoIconButton(
-                  icon: Icons.menu_rounded,
-                  onTap: () => Scaffold.of(context).openDrawer(),
-                ),
-              ),
+              // ── Leading com badge de não lidas ─────────────────
+              leading: myUid.isEmpty
+                  ? _NeoIconButton(
+                      icon: Icons.menu_rounded,
+                      onTap: () => Scaffold.of(context).openDrawer(),
+                    )
+                  : Builder(
+                      builder: (context) {
+                        return StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('chats')
+                              .where('participants', arrayContains: myUid)
+                              .snapshots(),
+                          builder: (context, snap) {
+                            // Soma todos os unreadCount_{myUid} de todos os chats
+                            int totalNaoLidas = 0;
+                            if (snap.hasData) {
+                              for (final doc in snap.data!.docs) {
+                                final data =
+                                    doc.data() as Map<String, dynamic>;
+                                // Ignora chats ocultos
+                                final hiddenFor = List<String>.from(
+                                    data['hiddenFor'] ?? []);
+                                if (hiddenFor.contains(myUid)) continue;
+                                // Ignora mensagens enviadas por mim
+                                final lastBy =
+                                    (data['lastMessageBy'] as String?) ?? '';
+                                if (lastBy == myUid) continue;
+                                final count =
+                                    (data['unreadCount_$myUid'] as num?)
+                                            ?.toInt() ??
+                                        0;
+                                totalNaoLidas += count;
+                              }
+                            }
+
+                            return _BotaoMenuComBadge(
+                              totalNaoLidas: totalNaoLidas,
+                              onTap: () => Scaffold.of(context).openDrawer(),
+                            );
+                          },
+                        );
+                      },
+                    ),
               title: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -504,6 +543,142 @@ class _HomeScreenState extends State<HomeScreen>
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// BOTÃO DE MENU COM BADGE DE NÃO LIDAS
+// ═══════════════════════════════════════════════════════════════════
+class _BotaoMenuComBadge extends StatefulWidget {
+  final int totalNaoLidas;
+  final VoidCallback onTap;
+
+  const _BotaoMenuComBadge({
+    required this.totalNaoLidas,
+    required this.onTap,
+  });
+
+  @override
+  State<_BotaoMenuComBadge> createState() => _BotaoMenuComBadgeState();
+}
+
+class _BotaoMenuComBadgeState extends State<_BotaoMenuComBadge>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _badgeCtrl;
+  late Animation<double> _badgeScale;
+  int _ultimoTotal = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _badgeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _badgeScale = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _badgeCtrl, curve: Curves.elasticOut),
+    );
+    if (widget.totalNaoLidas > 0) {
+      _badgeCtrl.value = 1.0;
+      _ultimoTotal = widget.totalNaoLidas;
+    }
+  }
+
+  @override
+  void didUpdateWidget(_BotaoMenuComBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Badge aparece com animação quando chega mensagem nova
+    if (widget.totalNaoLidas > 0 && _ultimoTotal == 0) {
+      _badgeCtrl.forward(from: 0);
+    }
+    // Badge some com animação quando todas lidas
+    if (widget.totalNaoLidas == 0 && _ultimoTotal > 0) {
+      _badgeCtrl.reverse();
+    }
+    _ultimoTotal = widget.totalNaoLidas;
+  }
+
+  @override
+  void dispose() {
+    _badgeCtrl.dispose();
+    super.dispose();
+  }
+
+  String _formatarContagem(int n) {
+    if (n > 99) return '99+';
+    return '$n';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() {}),
+      onTapUp: (_) {
+        widget.onTap();
+      },
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Botão de menu
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            width: 38,
+            height: 38,
+            child: Icon(
+              Icons.menu_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+
+          // Badge animado
+          if (widget.totalNaoLidas > 0 || _badgeCtrl.isAnimating)
+            Positioned(
+              right: 2,
+              top: 4,
+              child: ScaleTransition(
+                scale: _badgeScale,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 16,
+                  ),
+                  padding: widget.totalNaoLidas > 9
+                      ? const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 2)
+                      : const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFED4245),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.backgroundDark,
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFED4245).withOpacity(0.5),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    _formatarContagem(widget.totalNaoLidas),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // BOLHA FLUTUANTE DE MENSAGEM NOVA
 // ═══════════════════════════════════════════════════════════════════
 class _BolhaMensagem extends StatefulWidget {
@@ -516,7 +691,6 @@ class _BolhaMensagem extends StatefulWidget {
 
 class _BolhaMensagemState extends State<_BolhaMensagem>
     with TickerProviderStateMixin {
-  // Animações
   late AnimationController _pulseCtrl;
   late AnimationController _particleCtrl;
   late AnimationController _entryCtrl;
@@ -526,12 +700,9 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
   late Animation<double> _entryAnim;
   late Animation<double> _sairAnim;
 
-  // Dados da mensagem
   _DadosBolha? _dadosAtual;
   bool _visivel = false;
   bool _dispensada = false;
-
-  // Guarda o último chatId lido para não reaparecer
   String? _ultimoChatAberto;
 
   @override
@@ -582,7 +753,6 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
     super.dispose();
   }
 
-  // Chamado pelo StreamBuilder quando chega mensagem nova
   void _mostrar(_DadosBolha dados) {
     if (!mounted) return;
     if (_dadosAtual?.chatId == dados.chatId &&
@@ -597,7 +767,6 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
     _sairCtrl.reset();
     _entryCtrl.forward(from: 0);
 
-    // Auto-dispensa após 6 segundos
     Future.delayed(const Duration(seconds: 6), () {
       if (mounted && _visivel && !_dispensada) _dispensar();
     });
@@ -623,7 +792,6 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
         builder: (_) => ChatScreen(friend: _dadosAtual!.remetente),
       ),
     ).then((_) {
-      // Ao voltar do chat, libera para aparecer novamente se chegar msg nova
       _ultimoChatAberto = null;
     });
   }
@@ -638,7 +806,6 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
       builder: (context, snapChats) {
         if (!snapChats.hasData) return const SizedBox.shrink();
 
-        // Encontra o chat com mais mensagens não lidas e msg nova
         return StreamBuilder<_DadosBolha?>(
           stream: _streamMensagemNova(snapChats.data!.docs),
           builder: (context, snapMsg) {
@@ -719,16 +886,12 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
             borderRadius: BorderRadius.circular(20),
             child: Stack(
               children: [
-                // Partículas de fundo
                 Positioned.fill(
                   child: CustomPaint(
-                    painter: _BolhaParticlePainter(
-                      _particleCtrl.value,
-                    ),
+                    painter:
+                        _BolhaParticlePainter(_particleCtrl.value),
                   ),
                 ),
-
-                // Linha laranja no topo
                 Positioned(
                   top: 0,
                   left: 40,
@@ -747,13 +910,10 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
                     ),
                   ),
                 ),
-
-                // Conteúdo
                 Padding(
                   padding: const EdgeInsets.all(14),
                   child: Row(
                     children: [
-                      // Avatar pulsante
                       AnimatedBuilder(
                         animation: _pulseAnim,
                         builder: (_, child) => Transform.scale(
@@ -762,7 +922,6 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
                         ),
                         child: Stack(
                           children: [
-                            // Glow atrás do avatar
                             Container(
                               width: 52,
                               height: 52,
@@ -779,7 +938,6 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
                                 ],
                               ),
                             ),
-                            // Avatar
                             Container(
                               width: 52,
                               height: 52,
@@ -809,7 +967,6 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
                                 ),
                               ),
                             ),
-                            // Ponto verde online
                             Positioned(
                               right: 1,
                               bottom: 1,
@@ -828,8 +985,6 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
                         ),
                       ),
                       const SizedBox(width: 12),
-
-                      // Texto
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -880,8 +1035,6 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
                         ),
                       ),
                       const SizedBox(width: 8),
-
-                      // Botão fechar
                       GestureDetector(
                         onTap: _dispensar,
                         child: Container(
@@ -911,7 +1064,6 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
     );
   }
 
-  // Stream que monitora mensagens não lidas em todos os chats
   Stream<_DadosBolha?> _streamMensagemNova(
       List<QueryDocumentSnapshot> chatDocs) async* {
     final db = FirebaseFirestore.instance;
@@ -928,18 +1080,17 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
       final lastMsg = data['lastMessage'] as String? ?? '';
       final participants =
           List<String>.from(data['participants'] ?? []);
-      final friendUid =
-          participants.firstWhere((p) => p != widget.myUid, orElse: () => '');
+      final friendUid = participants.firstWhere(
+          (p) => p != widget.myUid,
+          orElse: () => '');
       if (friendUid.isEmpty) continue;
 
-      // Busca perfil do remetente
       final userDoc =
           await db.collection('users_xp').doc(friendUid).get();
       if (!userDoc.exists) continue;
 
       final remetente = FriendModel.fromDoc(userDoc);
 
-      // Busca o ID da última mensagem para detectar novidade
       final msgSnap = await db
           .collection('chats')
           .doc(chatDoc.id)
@@ -957,14 +1108,13 @@ class _BolhaMensagemState extends State<_BolhaMensagem>
         ultimaMensagem: lastMsg,
         ultimaMsgId: ultimaMsgId,
       );
-      return; // Mostra só o mais recente com msg não lida
+      return;
     }
 
     yield null;
   }
 }
 
-// Dados que a bolha exibe
 class _DadosBolha {
   final String chatId;
   final FriendModel remetente;
@@ -987,13 +1137,15 @@ class _BolhaParticlePainter extends CustomPainter {
   _BolhaParticlePainter(this.t);
 
   static final _rng = math.Random(13);
-  static final _particles = List.generate(12, (i) => [
-        _rng.nextDouble(), // x
-        _rng.nextDouble(), // y
-        0.5 + _rng.nextDouble() * 1.0, // size
-        0.02 + _rng.nextDouble() * 0.04, // speed
-        _rng.nextDouble(), // phase
-      ]);
+  static final _particles = List.generate(
+      12,
+      (i) => [
+            _rng.nextDouble(),
+            _rng.nextDouble(),
+            0.5 + _rng.nextDouble() * 1.0,
+            0.02 + _rng.nextDouble() * 0.04,
+            _rng.nextDouble(),
+          ]);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1001,12 +1153,11 @@ class _BolhaParticlePainter extends CustomPainter {
     for (final p in _particles) {
       final dx = p[0] * size.width;
       final dy = ((p[1] - t * p[3] + p[4]) % 1.0) * size.height;
-      final opacity = 0.06 +
-          0.08 *
-              math.sin((t + p[4]) * 2 * math.pi);
+      final opacity =
+          0.06 + 0.08 * math.sin((t + p[4]) * 2 * math.pi);
 
-      paint.color =
-          const Color(0xFFFF6B00).withOpacity(opacity.clamp(0.0, 0.2));
+      paint.color = const Color(0xFFFF6B00)
+          .withOpacity(opacity.clamp(0.0, 0.2));
       canvas.drawCircle(Offset(dx, dy), p[2], paint);
     }
   }
