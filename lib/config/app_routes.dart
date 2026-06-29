@@ -11,7 +11,7 @@ import '../screens/login_screen.dart';
 import '../screens/register_screen.dart';
 import '../screens/forgot_password_screen.dart';
 import '../screens/profile_screen.dart';
-import '../screens/admin_panel_screen.dart';
+import '../features/admin/screens/admin_panel_screen.dart';
 import '../screens/most_read_screen.dart';
 import '../screens/horizon_now_screen.dart';
 import '../screens/events_screen.dart';
