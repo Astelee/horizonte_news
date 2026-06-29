@@ -14,7 +14,7 @@ import '../config/app_colors.dart';
 import '../utils/blogger_cleaner.dart';
 import '../widgets/comments_section.dart';
 // ✅ CORRIGIDO: AdminService → AdminViewsService
-import '../services/admin_views_service.dart';
+import '../features/admin/services/admin_views_service.dart';
 
 // ─────────────────────────────────────────────────────────────────
 // UTILITÁRIO DE DATA
