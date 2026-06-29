@@ -13,7 +13,8 @@ import '../providers/user_xp_provider.dart';
 import '../config/app_colors.dart';
 import '../utils/blogger_cleaner.dart';
 import '../widgets/comments_section.dart';
-import '../services/admin_service.dart';
+// ✅ CORRIGIDO: AdminService → AdminViewsService
+import '../services/admin_views_service.dart';
 
 // ─────────────────────────────────────────────────────────────────
 // UTILITÁRIO DE DATA
@@ -64,7 +65,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
-    _fadeIn = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _fadeIn =
+        CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _animController.forward();
 
     _scrollController.addListener(() {
@@ -76,7 +78,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         _articleReadRegistered = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          Provider.of<UserXpProvider>(context, listen: false).onArticleRead();
+          Provider.of<UserXpProvider>(context, listen: false)
+              .onArticleRead();
         });
       }
     });
@@ -97,10 +100,12 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     if (_viewRegistered) return;
     _viewRegistered = true;
 
-    final post = ModalRoute.of(context)?.settings.arguments as PostModel?;
+    final post =
+        ModalRoute.of(context)?.settings.arguments as PostModel?;
     if (post == null) return;
 
-    await AdminService().recordUniqueView(
+    // ✅ CORRIGIDO: AdminService → AdminViewsService
+    await AdminViewsService().recordUniqueView(
       postId: post.id,
       postTitle: post.title,
     );
@@ -136,8 +141,9 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final String cleanedContent = BloggerCleaner.clean(post.content);
     final String normalizedContent = _normalizeContent(cleanedContent);
-    final String category =
-        post.categories.isNotEmpty ? post.categories.first.name : 'Notícia';
+    final String category = post.categories.isNotEmpty
+        ? post.categories.first.name
+        : 'Notícia';
     final topPadding = MediaQuery.of(context).padding.top;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -146,18 +152,21 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         statusBarIconBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor:
-            isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        backgroundColor: isDark
+            ? AppColors.backgroundDark
+            : AppColors.backgroundLight,
         body: FadeTransition(
           opacity: _fadeIn,
           child: Stack(
             children: [
               RefreshIndicator(
                 color: AppColors.primaryOrange,
-                backgroundColor:
-                    isDark ? AppColors.backgroundElevated : Colors.white,
+                backgroundColor: isDark
+                    ? AppColors.backgroundElevated
+                    : Colors.white,
                 onRefresh: () async {
-                  await Provider.of<PostsProvider>(context, listen: false)
+                  await Provider.of<PostsProvider>(context,
+                          listen: false)
                       .loadInitialPosts();
                 },
                 child: SelectionArea(
@@ -175,7 +184,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                                 : AppColors.backgroundLight,
                           ),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
                             children: [
                               _buildCategoryBadge(category),
                               _buildTitle(context, post),
@@ -233,7 +243,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                 ),
 
               // Barra colapsada (aparece ao rolar)
-              _buildCollapsedBar(context, post, isFav, favoritesProvider),
+              _buildCollapsedBar(
+                  context, post, isFav, favoritesProvider),
             ],
           ),
         ),
@@ -288,7 +299,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                 SizedBox(height: 8),
                 Text('Sem imagem',
                     style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 13)),
+                        color: AppColors.textSecondary,
+                        fontSize: 13)),
               ],
             ),
           ),
@@ -336,7 +348,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.95),
           border: const Border(
-              bottom: BorderSide(color: AppColors.borderDark, width: 1)),
+              bottom:
+                  BorderSide(color: AppColors.borderDark, width: 1)),
           boxShadow: [
             BoxShadow(
               color: AppColors.primaryOrange.withOpacity(0.08),
@@ -389,7 +402,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
           gradient: AppColors.orangeGradient,
           borderRadius: BorderRadius.circular(20),
@@ -428,14 +442,16 @@ class _PostDetailScreenState extends State<PostDetailScreen>
           fontWeight: FontWeight.w800,
           height: 1.3,
           letterSpacing: -0.3,
-          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+          color: isDark
+              ? AppColors.textPrimaryDark
+              : AppColors.textPrimaryLight,
         ),
       ),
     );
   }
 
   // ─────────────────────────────────────────────────────────────
-  // METADADOS — sem "tempo de leitura", com views únicas e comentários
+  // METADADOS
   // ─────────────────────────────────────────────────────────────
   Widget _buildMeta(BuildContext context, PostModel post) {
     return Padding(
@@ -444,7 +460,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         spacing: 16,
         runSpacing: 8,
         children: [
-          // 📅 Há X horas
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -461,10 +476,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
               ),
             ],
           ),
-
-          // 👁️ Visualizações únicas via Firestore
-          // Campo correto: 'uniqueViewers' (gravado por
-          // AdminService.recordUniqueView em post_views/{postId})
           StreamBuilder<DocumentSnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('post_views')
@@ -493,8 +504,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
               );
             },
           ),
-
-          // 💬 Comentários via Firestore
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('comments')
@@ -560,8 +569,9 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       BuildContext context, String content, bool isDark) {
     final textColor =
         isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryColor =
-        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final secondaryColor = isDark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -572,7 +582,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
               margin: Margins.zero,
               padding: HtmlPaddings.zero,
               fontFamily: 'Roboto'),
-          'body': Style(margin: Margins.zero, padding: HtmlPaddings.zero),
+          'body':
+              Style(margin: Margins.zero, padding: HtmlPaddings.zero),
           'p': Style(
             fontSize: FontSize(17),
             lineHeight: LineHeight(1.85),
@@ -611,14 +622,18 @@ class _PostDetailScreenState extends State<PostDetailScreen>
           'a': Style(
               color: AppColors.primaryOrange,
               textDecoration: TextDecoration.underline),
-          'strong': Style(fontWeight: FontWeight.w700, color: textColor),
+          'strong':
+              Style(fontWeight: FontWeight.w700, color: textColor),
           'b': Style(fontWeight: FontWeight.w700, color: textColor),
-          'em': Style(fontStyle: FontStyle.italic, color: secondaryColor),
+          'em': Style(
+              fontStyle: FontStyle.italic, color: secondaryColor),
           'blockquote': Style(
             border: Border(
-                left: BorderSide(color: AppColors.primaryOrange, width: 3)),
+                left: BorderSide(
+                    color: AppColors.primaryOrange, width: 3)),
             padding: HtmlPaddings.only(left: 16),
-            margin: Margins.only(left: 0, right: 0, top: 16, bottom: 20),
+            margin:
+                Margins.only(left: 0, right: 0, top: 16, bottom: 20),
             fontStyle: FontStyle.italic,
             color: secondaryColor,
             fontSize: FontSize(16),
@@ -640,8 +655,10 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             padding: HtmlPaddings.zero,
             display: Display.block,
           ),
-          'div': Style(margin: Margins.zero, padding: HtmlPaddings.zero),
-          'span': Style(margin: Margins.zero, padding: HtmlPaddings.zero),
+          'div':
+              Style(margin: Margins.zero, padding: HtmlPaddings.zero),
+          'span':
+              Style(margin: Margins.zero, padding: HtmlPaddings.zero),
         },
       ),
     );
