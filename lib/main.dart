@@ -10,7 +10,7 @@ import 'providers/posts_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/user_xp_provider.dart';
-import 'providers/admin_provider.dart';
+import 'features/admin/providers/admin_provider.dart';
 import 'services/notification_service.dart';
 import 'services/presence_service.dart';
 
