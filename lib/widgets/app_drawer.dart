@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../providers/user_xp_provider.dart';
-import '../providers/admin_provider.dart';
+import '../features/admin/providers/admin_provider.dart';
 import '../services/xp_service.dart';
 
 class AppDrawer extends StatefulWidget {
