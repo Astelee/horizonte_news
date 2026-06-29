@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../providers/user_xp_provider.dart';
-import '../providers/admin_provider.dart';
+import '../features/admin/providers/admin_provider.dart';
 import '../screens/amigos_modelos.dart';
 import '../screens/amigos_perfil.dart';
 import 'badge_widgets.dart';
