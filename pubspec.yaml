@@ -44,7 +44,7 @@ dependencies:
   firebase_database: ^11.1.0
   firebase_storage: ^12.2.0
 
-  # Notificações locais (foreground)
+  # Notificações locais
   flutter_local_notifications: ^17.0.0
 
   # Som ambiente
@@ -52,6 +52,10 @@ dependencies:
 
   # WebView para vídeos YouTube
   webview_flutter: ^4.7.0
+
+  # Background check de notícias
+  workmanager: ^0.5.2
+  xml: ^6.5.0
 
 dependency_overrides:
   font_awesome_flutter: 10.6.0
