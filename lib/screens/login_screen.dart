@@ -2,8 +2,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../services/news_notification_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -28,7 +30,6 @@ class _LoginScreenState extends State<LoginScreen>
   late AnimationController _pulseController;
   late AnimationController _glowController;
 
-  // Animações sequenciais dos campos
   late AnimationController _logoFadeCtrl;
   late AnimationController _taglineFadeCtrl;
   late AnimationController _field1Ctrl;
@@ -70,7 +71,6 @@ class _LoginScreenState extends State<LoginScreen>
       duration: const Duration(seconds: 3),
     )..repeat(reverse: true);
 
-    // Sequência de entrada
     _logoFadeCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 600));
     _taglineFadeCtrl = AnimationController(
@@ -92,8 +92,9 @@ class _LoginScreenState extends State<LoginScreen>
     _logoFade = Tween<double>(begin: 0, end: 1).animate(
         CurvedAnimation(parent: _logoFadeCtrl, curve: Curves.easeOut));
     _logoSlide =
-        Tween<Offset>(begin: const Offset(0, -0.3), end: Offset.zero).animate(
-            CurvedAnimation(parent: _logoFadeCtrl, curve: Curves.easeOutCubic));
+        Tween<Offset>(begin: const Offset(0, -0.3), end: Offset.zero)
+            .animate(CurvedAnimation(
+                parent: _logoFadeCtrl, curve: Curves.easeOutCubic));
 
     _taglineFade = Tween<double>(begin: 0, end: 1).animate(
         CurvedAnimation(parent: _taglineFadeCtrl, curve: Curves.easeOut));
@@ -101,22 +102,24 @@ class _LoginScreenState extends State<LoginScreen>
     _field1Fade = Tween<double>(begin: 0, end: 1).animate(
         CurvedAnimation(parent: _field1Ctrl, curve: Curves.easeOut));
     _field1Slide =
-        Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(
-            CurvedAnimation(parent: _field1Ctrl, curve: Curves.easeOutCubic));
+        Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero)
+            .animate(CurvedAnimation(
+                parent: _field1Ctrl, curve: Curves.easeOutCubic));
 
     _field2Fade = Tween<double>(begin: 0, end: 1).animate(
         CurvedAnimation(parent: _field2Ctrl, curve: Curves.easeOut));
     _field2Slide =
-        Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(
-            CurvedAnimation(parent: _field2Ctrl, curve: Curves.easeOutCubic));
+        Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero)
+            .animate(CurvedAnimation(
+                parent: _field2Ctrl, curve: Curves.easeOutCubic));
 
     _btnFade = Tween<double>(begin: 0, end: 1).animate(
         CurvedAnimation(parent: _btnCtrl, curve: Curves.easeOut));
     _btnSlide =
-        Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
-            CurvedAnimation(parent: _btnCtrl, curve: Curves.easeOutCubic));
+        Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero)
+            .animate(CurvedAnimation(
+                parent: _btnCtrl, curve: Curves.easeOutCubic));
 
-    // Dispara em cascata
     _logoFadeCtrl.forward();
     Future.delayed(const Duration(milliseconds: 200),
         () { if (mounted) _taglineFadeCtrl.forward(); });
@@ -171,6 +174,149 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
+  // ── NOVO: Dialog de permissão personalizado ───────────────────
+  Future<void> _askNotificationPermission() async {
+    final prefs = await SharedPreferences.getInstance();
+    final alreadyAsked =
+        prefs.getBool('notif_permission_asked') ?? false;
+    if (alreadyAsked) return;
+
+    await prefs.setBool('notif_permission_asked', true);
+
+    if (!mounted) return;
+
+    final userWantsNotif = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0A0A0A),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: AppColors.primaryOrange.withOpacity(0.35),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primaryOrange.withOpacity(0.15),
+                blurRadius: 40,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: AppColors.orangeGradient,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primaryOrange.withOpacity(0.4),
+                      blurRadius: 20,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.notifications_active_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Fique por dentro!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Ative as notificações para receber as últimas notícias do Horizonte News assim que forem publicadas.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF9E9E9E),
+                  fontSize: 13,
+                  height: 1.6,
+                ),
+              ),
+              const SizedBox(height: 28),
+              // Botão Ativar
+              SizedBox(
+                width: double.infinity,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context, true),
+                  child: Container(
+                    height: 50,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: AppColors.orangeGradient,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primaryOrange.withOpacity(0.4),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'ATIVAR NOTIFICAÇÕES',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Botão Agora não
+              SizedBox(
+                width: double.infinity,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context, false),
+                  child: Container(
+                    height: 46,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: const Color(0xFF2A2A2A)),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'Agora não',
+                        style: TextStyle(
+                          color: Color(0xFF666666),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (userWantsNotif == true) {
+      await NotificationService.requestPermission();
+    }
+  }
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
@@ -184,6 +330,10 @@ class _LoginScreenState extends State<LoginScreen>
         password: _passwordController.text.trim(),
       );
       await _handleCredentialStorage();
+
+      // Pede permissão de notificação apenas na primeira vez
+      await _askNotificationPermission();
+
       if (mounted) {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
       }
@@ -203,10 +353,12 @@ class _LoginScreenState extends State<LoginScreen>
             _errorMessage = 'Esta conta foi desativada.';
             break;
           case 'too-many-requests':
-            _errorMessage = 'Muitas tentativas. Aguarde e tente novamente.';
+            _errorMessage =
+                'Muitas tentativas. Aguarde e tente novamente.';
             break;
           default:
-            _errorMessage = 'Erro ao autenticar. Verifique suas credenciais.';
+            _errorMessage =
+                'Erro ao autenticar. Verifique suas credenciais.';
         }
       });
     } finally {
@@ -222,7 +374,6 @@ class _LoginScreenState extends State<LoginScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Fundo com partículas
           AnimatedBuilder(
             animation: _bgAnimController,
             builder: (_, __) => CustomPaint(
@@ -230,7 +381,6 @@ class _LoginScreenState extends State<LoginScreen>
               painter: _LoginBgPainter(_bgAnimController.value),
             ),
           ),
-
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -301,7 +451,8 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                   child: child,
                 ),
-                child: const Icon(Icons.public, size: 48, color: Colors.white),
+                child: const Icon(
+                    Icons.public, size: 48, color: Colors.white),
               ),
             ),
             const SizedBox(height: 18),
@@ -362,7 +513,6 @@ class _LoginScreenState extends State<LoginScreen>
       ),
       child: Stack(
         children: [
-          // Linha brilhante no topo do card
           Positioned(
             top: 0,
             left: 40,
@@ -384,13 +534,11 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.all(28.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Título e subtítulo do card
                 const Text(
                   'Entrar',
                   style: TextStyle(
@@ -409,8 +557,6 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 ),
                 const SizedBox(height: 28),
-
-                // Campo e-mail com fade-in
                 FadeTransition(
                   opacity: _field1Fade,
                   child: SlideTransition(
@@ -422,7 +568,8 @@ class _LoginScreenState extends State<LoginScreen>
                       icon: Icons.alternate_email_rounded,
                       keyboardType: TextInputType.emailAddress,
                       validator: (v) {
-                        if (v == null || v.isEmpty) return 'Informe seu e-mail';
+                        if (v == null || v.isEmpty)
+                          return 'Informe seu e-mail';
                         if (!v.contains('@')) return 'E-mail inválido';
                         return null;
                       },
@@ -430,8 +577,6 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // Campo senha com fade-in
                 FadeTransition(
                   opacity: _field2Fade,
                   child: SlideTransition(
@@ -454,7 +599,8 @@ class _LoginScreenState extends State<LoginScreen>
                             () => _obscurePassword = !_obscurePassword),
                       ),
                       validator: (v) {
-                        if (v == null || v.isEmpty) return 'Informe sua senha';
+                        if (v == null || v.isEmpty)
+                          return 'Informe sua senha';
                         if (v.length < 6) return 'Mínimo 6 caracteres';
                         return null;
                       },
@@ -462,9 +608,7 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 ),
                 const SizedBox(height: 16),
-
                 _buildRememberMeRow(),
-
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
@@ -488,12 +632,9 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 ),
                 const SizedBox(height: 24),
-
                 if (_errorMessage != null)
                   _buildErrorBanner(_errorMessage!),
                 if (_errorMessage != null) const SizedBox(height: 16),
-
-                // Botão com fade-in
                 FadeTransition(
                   opacity: _btnFade,
                   child: SlideTransition(
@@ -520,8 +661,9 @@ class _LoginScreenState extends State<LoginScreen>
             height: 22,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(6),
-              color:
-                  _rememberMe ? AppColors.primaryOrange : Colors.transparent,
+              color: _rememberMe
+                  ? AppColors.primaryOrange
+                  : Colors.transparent,
               border: Border.all(
                 color: _rememberMe
                     ? AppColors.primaryOrange
@@ -538,7 +680,8 @@ class _LoginScreenState extends State<LoginScreen>
                   : null,
             ),
             child: _rememberMe
-                ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                ? const Icon(Icons.check_rounded,
+                    size: 14, color: Colors.white)
                 : null,
           ),
           const SizedBox(width: 10),
@@ -581,8 +724,8 @@ class _LoginScreenState extends State<LoginScreen>
           style: const TextStyle(color: Colors.white, fontSize: 15),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle:
-                const TextStyle(color: Color(0xFF424242), fontSize: 15),
+            hintStyle: const TextStyle(
+                color: Color(0xFF424242), fontSize: 15),
             prefixIcon:
                 Icon(icon, color: AppColors.primaryOrange, size: 20),
             suffixIcon: suffixIcon,
@@ -600,21 +743,21 @@ class _LoginScreenState extends State<LoginScreen>
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide:
-                  const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+              borderSide: const BorderSide(
+                  color: AppColors.primaryOrange, width: 1.5),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide:
-                  const BorderSide(color: AppColors.emergencyRed, width: 1.5),
+              borderSide: const BorderSide(
+                  color: AppColors.emergencyRed, width: 1.5),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide:
-                  const BorderSide(color: AppColors.emergencyRed, width: 1.5),
+              borderSide: const BorderSide(
+                  color: AppColors.emergencyRed, width: 1.5),
             ),
-            errorStyle:
-                const TextStyle(color: AppColors.emergencyRed, fontSize: 11),
+            errorStyle: const TextStyle(
+                color: AppColors.emergencyRed, fontSize: 11),
           ),
           validator: validator,
         ),
@@ -682,7 +825,8 @@ class _LoginScreenState extends State<LoginScreen>
 
   Widget _buildErrorBanner(String message) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.emergencyRed.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
@@ -742,21 +886,23 @@ class _LoginScreenState extends State<LoginScreen>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// FUNDO ANIMADO COM PARTÍCULAS E GRADE
+// FUNDO ANIMADO
 // ═══════════════════════════════════════════════════════════════════
 class _LoginBgPainter extends CustomPainter {
   final double t;
   _LoginBgPainter(this.t);
 
   static final _rng = math.Random(7);
-  static final _particles = List.generate(28, (i) => _ParticleData(
-        x: _rng.nextDouble(),
-        y: _rng.nextDouble(),
-        size: 0.8 + _rng.nextDouble() * 1.4,
-        speed: 0.02 + _rng.nextDouble() * 0.05,
-        opacity: 0.08 + _rng.nextDouble() * 0.25,
-        phase: _rng.nextDouble(),
-      ));
+  static final _particles = List.generate(
+      28,
+      (i) => _ParticleData(
+            x: _rng.nextDouble(),
+            y: _rng.nextDouble(),
+            size: 0.8 + _rng.nextDouble() * 1.4,
+            speed: 0.02 + _rng.nextDouble() * 0.05,
+            opacity: 0.08 + _rng.nextDouble() * 0.25,
+            phase: _rng.nextDouble(),
+          ));
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -765,7 +911,6 @@ class _LoginBgPainter extends CustomPainter {
       Paint()..color = Colors.black,
     );
 
-    // Grade digital sutil
     final gridPaint = Paint()
       ..color = const Color(0xFFFF6B00).withOpacity(0.025)
       ..strokeWidth = 0.5;
@@ -776,7 +921,6 @@ class _LoginBgPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    // Orbs de fundo
     final orbs = [
       _OrbData(
         cx: 0.2 + 0.12 * math.sin(t * 2 * math.pi),
@@ -809,13 +953,16 @@ class _LoginBgPainter extends CustomPainter {
       );
     }
 
-    // Partículas flutuantes
     for (final p in _particles) {
       final dy = (p.y - t * p.speed + p.phase) % 1.0;
-      final dx =
-          p.x + 0.02 * math.sin(t * 2 * math.pi * 0.5 + p.phase * 6.28);
+      final dx = p.x +
+          0.02 *
+              math.sin(t * 2 * math.pi * 0.5 + p.phase * 6.28);
       final opacity = p.opacity *
-          (0.5 + 0.5 * math.sin(t * 2 * math.pi * 0.8 + p.phase * 6.28));
+          (0.5 +
+              0.5 *
+                  math.sin(
+                      t * 2 * math.pi * 0.8 + p.phase * 6.28));
 
       canvas.drawCircle(
         Offset(dx * size.width, dy * size.height),
@@ -826,8 +973,8 @@ class _LoginBgPainter extends CustomPainter {
       );
     }
 
-    // Pontos luminosos conectados (rede de informação)
-    final dotPaint = Paint()..color = const Color(0xFFFF6B00).withOpacity(0.12);
+    final dotPaint = Paint()
+      ..color = const Color(0xFFFF6B00).withOpacity(0.12);
     final linePaint2 = Paint()
       ..color = const Color(0xFFFF6B00).withOpacity(0.05)
       ..strokeWidth = 0.5;
@@ -890,7 +1037,8 @@ class _CyberLoaderState extends State<_CyberLoader>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 900))
+        vsync: this,
+        duration: const Duration(milliseconds: 900))
       ..repeat();
   }
 
