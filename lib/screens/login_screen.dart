@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_colors.dart';
@@ -29,7 +31,6 @@ class _LoginScreenState extends State<LoginScreen>
   late AnimationController _bgAnimController;
   late AnimationController _pulseController;
   late AnimationController _glowController;
-
   late AnimationController _logoFadeCtrl;
   late AnimationController _taglineFadeCtrl;
   late AnimationController _field1Ctrl;
@@ -72,47 +73,56 @@ class _LoginScreenState extends State<LoginScreen>
     )..repeat(reverse: true);
 
     _logoFadeCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 600));
+        vsync: this,
+        duration: const Duration(milliseconds: 600));
     _taglineFadeCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 500));
+        vsync: this,
+        duration: const Duration(milliseconds: 500));
     _field1Ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 450));
+        vsync: this,
+        duration: const Duration(milliseconds: 450));
     _field2Ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 450));
+        vsync: this,
+        duration: const Duration(milliseconds: 450));
     _btnCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 450));
+        vsync: this,
+        duration: const Duration(milliseconds: 450));
 
     _pulseAnim = Tween<double>(begin: 0.95, end: 1.05).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+      CurvedAnimation(
+          parent: _pulseController, curve: Curves.easeInOut),
     );
     _glowAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
-      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
+      CurvedAnimation(
+          parent: _glowController, curve: Curves.easeInOut),
     );
-
     _logoFade = Tween<double>(begin: 0, end: 1).animate(
-        CurvedAnimation(parent: _logoFadeCtrl, curve: Curves.easeOut));
+        CurvedAnimation(
+            parent: _logoFadeCtrl, curve: Curves.easeOut));
     _logoSlide =
         Tween<Offset>(begin: const Offset(0, -0.3), end: Offset.zero)
             .animate(CurvedAnimation(
-                parent: _logoFadeCtrl, curve: Curves.easeOutCubic));
-
+                parent: _logoFadeCtrl,
+                curve: Curves.easeOutCubic));
     _taglineFade = Tween<double>(begin: 0, end: 1).animate(
-        CurvedAnimation(parent: _taglineFadeCtrl, curve: Curves.easeOut));
-
+        CurvedAnimation(
+            parent: _taglineFadeCtrl, curve: Curves.easeOut));
     _field1Fade = Tween<double>(begin: 0, end: 1).animate(
-        CurvedAnimation(parent: _field1Ctrl, curve: Curves.easeOut));
+        CurvedAnimation(
+            parent: _field1Ctrl, curve: Curves.easeOut));
     _field1Slide =
         Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero)
             .animate(CurvedAnimation(
-                parent: _field1Ctrl, curve: Curves.easeOutCubic));
-
+                parent: _field1Ctrl,
+                curve: Curves.easeOutCubic));
     _field2Fade = Tween<double>(begin: 0, end: 1).animate(
-        CurvedAnimation(parent: _field2Ctrl, curve: Curves.easeOut));
+        CurvedAnimation(
+            parent: _field2Ctrl, curve: Curves.easeOut));
     _field2Slide =
         Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero)
             .animate(CurvedAnimation(
-                parent: _field2Ctrl, curve: Curves.easeOutCubic));
-
+                parent: _field2Ctrl,
+                curve: Curves.easeOutCubic));
     _btnFade = Tween<double>(begin: 0, end: 1).animate(
         CurvedAnimation(parent: _btnCtrl, curve: Curves.easeOut));
     _btnSlide =
@@ -133,8 +143,10 @@ class _LoginScreenState extends State<LoginScreen>
 
   Future<void> _loadSavedCredentials() async {
     final email = await _secureStorage.read(key: 'saved_email');
-    final password = await _secureStorage.read(key: 'saved_password');
-    final remember = await _secureStorage.read(key: 'remember_me');
+    final password =
+        await _secureStorage.read(key: 'saved_password');
+    final remember =
+        await _secureStorage.read(key: 'remember_me');
 
     if (remember == 'true' && email != null && password != null) {
       setState(() {
@@ -148,14 +160,18 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _handleCredentialStorage() async {
     if (_rememberMe) {
       await _secureStorage.write(
-          key: 'saved_email', value: _emailController.text.trim());
+          key: 'saved_email',
+          value: _emailController.text.trim());
       await _secureStorage.write(
-          key: 'saved_password', value: _passwordController.text.trim());
-      await _secureStorage.write(key: 'remember_me', value: 'true');
+          key: 'saved_password',
+          value: _passwordController.text.trim());
+      await _secureStorage.write(
+          key: 'remember_me', value: 'true');
     } else {
       await _secureStorage.delete(key: 'saved_email');
       await _secureStorage.delete(key: 'saved_password');
-      await _secureStorage.write(key: 'remember_me', value: 'false');
+      await _secureStorage.write(
+          key: 'remember_me', value: 'false');
     }
   }
 
@@ -174,14 +190,44 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  // ── NOVO: Dialog de permissão personalizado ───────────────────
+  // ── Verifica permissão real do sistema ───────────────────────
+  Future<bool> _systemNotifEnabled() async {
+    try {
+      final plugin = FlutterLocalNotificationsPlugin();
+      if (Platform.isAndroid) {
+        final android = plugin
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>();
+        return await android?.areNotificationsEnabled() ?? false;
+      } else if (Platform.isIOS) {
+        final ios = plugin
+            .resolvePlatformSpecificImplementation<
+                IOSFlutterLocalNotificationsPlugin>();
+        final settings = await ios?.checkPermissions();
+        return settings?.isEnabled ?? false;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  // ── Dialog de permissão personalizado ────────────────────────
   Future<void> _askNotificationPermission() async {
     final prefs = await SharedPreferences.getInstance();
     final alreadyAsked =
         prefs.getBool('notif_permission_asked') ?? false;
     if (alreadyAsked) return;
 
+    // Verifica se o sistema já tem permissão concedida
+    final jaTemPermissao = await _systemNotifEnabled();
+
+    // Marca como já perguntado
     await prefs.setBool('notif_permission_asked', true);
+
+    // Se já tem permissão no sistema, só registra o token
+    if (jaTemPermissao) {
+      await NotificationService.requestPermission();
+      return;
+    }
 
     if (!mounted) return;
 
@@ -217,7 +263,8 @@ class _LoginScreenState extends State<LoginScreen>
                   gradient: AppColors.orangeGradient,
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primaryOrange.withOpacity(0.4),
+                      color:
+                          AppColors.primaryOrange.withOpacity(0.4),
                       blurRadius: 20,
                     ),
                   ],
@@ -248,7 +295,6 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
               ),
               const SizedBox(height: 28),
-              // Botão Ativar
               SizedBox(
                 width: double.infinity,
                 child: GestureDetector(
@@ -260,7 +306,8 @@ class _LoginScreenState extends State<LoginScreen>
                       gradient: AppColors.orangeGradient,
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primaryOrange.withOpacity(0.4),
+                          color: AppColors.primaryOrange
+                              .withOpacity(0.4),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                         ),
@@ -281,7 +328,6 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
               ),
               const SizedBox(height: 12),
-              // Botão Agora não
               SizedBox(
                 width: double.infinity,
                 child: GestureDetector(
@@ -330,8 +376,6 @@ class _LoginScreenState extends State<LoginScreen>
         password: _passwordController.text.trim(),
       );
       await _handleCredentialStorage();
-
-      // Pede permissão de notificação apenas na primeira vez
       await _askNotificationPermission();
 
       if (mounted) {
@@ -341,7 +385,8 @@ class _LoginScreenState extends State<LoginScreen>
       setState(() {
         switch (e.code) {
           case 'user-not-found':
-            _errorMessage = 'Nenhuma conta encontrada com este e-mail.';
+            _errorMessage =
+                'Nenhuma conta encontrada com este e-mail.';
             break;
           case 'wrong-password':
             _errorMessage = 'Senha incorreta. Tente novamente.';
@@ -378,7 +423,8 @@ class _LoginScreenState extends State<LoginScreen>
             animation: _bgAnimController,
             builder: (_, __) => CustomPaint(
               size: size,
-              painter: _LoginBgPainter(_bgAnimController.value),
+              painter:
+                  _LoginBgPainter(_bgAnimController.value),
             ),
           ),
           SafeArea(
@@ -390,7 +436,8 @@ class _LoginScreenState extends State<LoginScreen>
                   key: _formKey,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.stretch,
                     children: [
                       _buildLogo(),
                       const SizedBox(height: 32),
@@ -417,8 +464,8 @@ class _LoginScreenState extends State<LoginScreen>
           children: [
             AnimatedBuilder(
               animation: _pulseAnim,
-              builder: (_, child) =>
-                  Transform.scale(scale: _pulseAnim.value, child: child),
+              builder: (_, child) => Transform.scale(
+                  scale: _pulseAnim.value, child: child),
               child: AnimatedBuilder(
                 animation: _glowAnim,
                 builder: (_, child) => Container(
@@ -437,13 +484,15 @@ class _LoginScreenState extends State<LoginScreen>
                     boxShadow: [
                       BoxShadow(
                         color: AppColors.primaryOrange
-                            .withOpacity(0.65 * _glowAnim.value),
+                            .withOpacity(
+                                0.65 * _glowAnim.value),
                         blurRadius: 36,
                         spreadRadius: 10,
                       ),
                       BoxShadow(
                         color: const Color(0xFFE65100)
-                            .withOpacity(0.25 * _glowAnim.value),
+                            .withOpacity(
+                                0.25 * _glowAnim.value),
                         blurRadius: 60,
                         spreadRadius: 4,
                       ),
@@ -451,13 +500,14 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                   child: child,
                 ),
-                child: const Icon(
-                    Icons.public, size: 48, color: Colors.white),
+                child: const Icon(Icons.public,
+                    size: 48, color: Colors.white),
               ),
             ),
             const SizedBox(height: 18),
             ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
+              shaderCallback: (bounds) =>
+                  const LinearGradient(
                 colors: [
                   Color(0xFFFF6D00),
                   Color(0xFFFFB74D),
@@ -525,8 +575,8 @@ class _LoginScreenState extends State<LoginScreen>
                   gradient: LinearGradient(
                     colors: [
                       Colors.transparent,
-                      AppColors.primaryOrange
-                          .withOpacity(0.8 * _glowAnim.value),
+                      AppColors.primaryOrange.withOpacity(
+                          0.8 * _glowAnim.value),
                       Colors.transparent,
                     ],
                   ),
@@ -570,7 +620,8 @@ class _LoginScreenState extends State<LoginScreen>
                       validator: (v) {
                         if (v == null || v.isEmpty)
                           return 'Informe seu e-mail';
-                        if (!v.contains('@')) return 'E-mail inválido';
+                        if (!v.contains('@'))
+                          return 'E-mail inválido';
                         return null;
                       },
                     ),
@@ -595,13 +646,14 @@ class _LoginScreenState extends State<LoginScreen>
                           color: const Color(0xFF616161),
                           size: 20,
                         ),
-                        onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword),
+                        onPressed: () => setState(() =>
+                            _obscurePassword = !_obscurePassword),
                       ),
                       validator: (v) {
                         if (v == null || v.isEmpty)
                           return 'Informe sua senha';
-                        if (v.length < 6) return 'Mínimo 6 caracteres';
+                        if (v.length < 6)
+                          return 'Mínimo 6 caracteres';
                         return null;
                       },
                     ),
@@ -616,7 +668,8 @@ class _LoginScreenState extends State<LoginScreen>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 4, vertical: 4),
                       minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      tapTargetSize:
+                          MaterialTapTargetSize.shrinkWrap,
                     ),
                     onPressed: () => Navigator.pushNamed(
                         context, AppRoutes.forgotPassword),
@@ -634,7 +687,8 @@ class _LoginScreenState extends State<LoginScreen>
                 const SizedBox(height: 24),
                 if (_errorMessage != null)
                   _buildErrorBanner(_errorMessage!),
-                if (_errorMessage != null) const SizedBox(height: 16),
+                if (_errorMessage != null)
+                  const SizedBox(height: 16),
                 FadeTransition(
                   opacity: _btnFade,
                   child: SlideTransition(
@@ -652,7 +706,8 @@ class _LoginScreenState extends State<LoginScreen>
 
   Widget _buildRememberMeRow() {
     return GestureDetector(
-      onTap: () => setState(() => _rememberMe = !_rememberMe),
+      onTap: () =>
+          setState(() => _rememberMe = !_rememberMe),
       child: Row(
         children: [
           AnimatedContainer(
@@ -673,7 +728,8 @@ class _LoginScreenState extends State<LoginScreen>
               boxShadow: _rememberMe
                   ? [
                       BoxShadow(
-                        color: AppColors.primaryOrange.withOpacity(0.4),
+                        color: AppColors.primaryOrange
+                            .withOpacity(0.4),
                         blurRadius: 8,
                       ),
                     ]
@@ -687,7 +743,8 @@ class _LoginScreenState extends State<LoginScreen>
           const SizedBox(width: 10),
           const Text(
             'Lembrar minha conta',
-            style: TextStyle(color: Color(0xFF9E9E9E), fontSize: 13),
+            style: TextStyle(
+                color: Color(0xFF9E9E9E), fontSize: 13),
           ),
         ],
       ),
@@ -721,13 +778,14 @@ class _LoginScreenState extends State<LoginScreen>
           controller: controller,
           keyboardType: keyboardType,
           obscureText: obscureText,
-          style: const TextStyle(color: Colors.white, fontSize: 15),
+          style: const TextStyle(
+              color: Colors.white, fontSize: 15),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(
                 color: Color(0xFF424242), fontSize: 15),
-            prefixIcon:
-                Icon(icon, color: AppColors.primaryOrange, size: 20),
+            prefixIcon: Icon(icon,
+                color: AppColors.primaryOrange, size: 20),
             suffixIcon: suffixIcon,
             filled: true,
             fillColor: const Color(0xFF0F0F0F),
@@ -735,11 +793,13 @@ class _LoginScreenState extends State<LoginScreen>
                 horizontal: 16, vertical: 18),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFF1E1E1E)),
+              borderSide:
+                  const BorderSide(color: Color(0xFF1E1E1E)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFF1E1E1E)),
+              borderSide:
+                  const BorderSide(color: Color(0xFF1E1E1E)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
@@ -825,8 +885,8 @@ class _LoginScreenState extends State<LoginScreen>
 
   Widget _buildErrorBanner(String message) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(
+          horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.emergencyRed.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
@@ -861,16 +921,19 @@ class _LoginScreenState extends State<LoginScreen>
       children: [
         const Text(
           'Ainda não tem conta?',
-          style: TextStyle(color: Color(0xFF757575), fontSize: 13),
+          style: TextStyle(
+              color: Color(0xFF757575), fontSize: 13),
         ),
         TextButton(
           style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8),
             minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            tapTargetSize:
+                MaterialTapTargetSize.shrinkWrap,
           ),
-          onPressed: () =>
-              Navigator.pushNamed(context, AppRoutes.register),
+          onPressed: () => Navigator.pushNamed(
+              context, AppRoutes.register),
           child: const Text(
             'Criar conta',
             style: TextStyle(
@@ -915,10 +978,12 @@ class _LoginBgPainter extends CustomPainter {
       ..color = const Color(0xFFFF6B00).withOpacity(0.025)
       ..strokeWidth = 0.5;
     for (double x = 0; x < size.width; x += 50) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+      canvas.drawLine(
+          Offset(x, 0), Offset(x, size.height), gridPaint);
     }
     for (double y = 0; y < size.height; y += 50) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+      canvas.drawLine(
+          Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
     final orbs = [
@@ -929,15 +994,18 @@ class _LoginBgPainter extends CustomPainter {
         opacity: 0.07,
       ),
       _OrbData(
-        cx: 0.82 + 0.08 * math.cos(t * 2 * math.pi + 1.5),
-        cy: 0.72 + 0.08 * math.sin(t * 2 * math.pi + 1.5),
+        cx: 0.82 +
+            0.08 * math.cos(t * 2 * math.pi + 1.5),
+        cy: 0.72 +
+            0.08 * math.sin(t * 2 * math.pi + 1.5),
         r: 0.45,
         opacity: 0.05,
       ),
     ];
 
     for (final o in orbs) {
-      final center = Offset(o.cx * size.width, o.cy * size.height);
+      final center =
+          Offset(o.cx * size.width, o.cy * size.height);
       final radius = o.r * size.width;
       canvas.drawCircle(
         center,
@@ -945,24 +1013,27 @@ class _LoginBgPainter extends CustomPainter {
         Paint()
           ..shader = RadialGradient(
             colors: [
-              const Color(0xFFFF6B00).withOpacity(o.opacity),
+              const Color(0xFFFF6B00)
+                  .withOpacity(o.opacity),
               Colors.transparent,
             ],
-          ).createShader(
-              Rect.fromCircle(center: center, radius: radius)),
+          ).createShader(Rect.fromCircle(
+              center: center, radius: radius)),
       );
     }
 
     for (final p in _particles) {
-      final dy = (p.y - t * p.speed + p.phase) % 1.0;
+      final dy =
+          (p.y - t * p.speed + p.phase) % 1.0;
       final dx = p.x +
           0.02 *
-              math.sin(t * 2 * math.pi * 0.5 + p.phase * 6.28);
+              math.sin(
+                  t * 2 * math.pi * 0.5 + p.phase * 6.28);
       final opacity = p.opacity *
           (0.5 +
               0.5 *
-                  math.sin(
-                      t * 2 * math.pi * 0.8 + p.phase * 6.28));
+                  math.sin(t * 2 * math.pi * 0.8 +
+                      p.phase * 6.28));
 
       canvas.drawCircle(
         Offset(dx * size.width, dy * size.height),
@@ -1055,7 +1126,8 @@ class _CyberLoaderState extends State<_CyberLoader>
       height: 22,
       child: CircularProgressIndicator(
         strokeWidth: 2.5,
-        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+        valueColor:
+            AlwaysStoppedAnimation<Color>(Colors.white),
       ),
     );
   }
