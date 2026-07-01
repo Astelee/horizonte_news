@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'config/app_theme.dart';
 import 'config/app_routes.dart';
 import 'providers/posts_provider.dart';
@@ -11,8 +12,12 @@ import 'providers/theme_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/user_xp_provider.dart';
 import 'features/admin/providers/admin_provider.dart';
-import 'services/notification_service.dart';
+import 'services/news_notification_service.dart';
 import 'services/presence_service.dart';
+import 'services/background_service.dart';
+
+// Chave global para navegação a partir de notificações
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,10 +32,19 @@ void main() async {
     ),
   );
 
+  // Inicializa notificações
   try {
     await NotificationService.init();
   } catch (e) {
     debugPrint('Aviso: erro ao inicializar notificações: $e');
+  }
+
+  // Inicializa WorkManager
+  try {
+    await BackgroundService.init();
+    await BackgroundService.scheduleNewsCheck();
+  } catch (e) {
+    debugPrint('Aviso: erro ao inicializar WorkManager: $e');
   }
 
   runApp(
@@ -47,8 +61,36 @@ void main() async {
   );
 }
 
-class HorizonteNewsApp extends StatelessWidget {
+class HorizonteNewsApp extends StatefulWidget {
   const HorizonteNewsApp({Key? key}) : super(key: key);
+
+  @override
+  State<HorizonteNewsApp> createState() => _HorizonteNewsAppState();
+}
+
+class _HorizonteNewsAppState extends State<HorizonteNewsApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Verifica se há uma notícia pendente para abrir
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPendingNotification();
+    });
+  }
+
+  Future<void> _checkPendingNotification() async {
+    final prefs = await SharedPreferences.getInstance();
+    final url = prefs.getString('pending_news_url');
+    if (url != null && url.isNotEmpty) {
+      await prefs.remove('pending_news_url');
+      // Aguarda o app estar pronto para navegar
+      await Future.delayed(const Duration(milliseconds: 800));
+      navigatorKey.currentState?.pushNamed(
+        AppRoutes.webView, // use a rota que abre URLs externas no seu app
+        arguments: url,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +99,7 @@ class HorizonteNewsApp extends StatelessWidget {
     return MaterialApp(
       title: 'Horizonte News',
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.currentTheme,
@@ -84,7 +127,7 @@ class HorizonteNewsApp extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// AUTH GATE — gerencia ciclo de vida do PresenceService
+// AUTH GATE
 // ═══════════════════════════════════════════════════════════════════
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
@@ -100,17 +143,15 @@ class _AuthGate extends StatelessWidget {
 
         if (snapshot.hasData && snapshot.data != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            // Inicia XP e Admin
-            Provider.of<UserXpProvider>(context, listen: false).initialize();
-            Provider.of<AdminProvider>(context, listen: false).initialize();
-
-            // Inicia presença — APÓS Firebase já estar inicializado
+            Provider.of<UserXpProvider>(context, listen: false)
+                .initialize();
+            Provider.of<AdminProvider>(context, listen: false)
+                .initialize();
             PresenceService.instance.start();
           });
           return AppRoutes.routes[AppRoutes.home]!(context);
         }
 
-        // Logout — para a presença e limpa estado
         WidgetsBinding.instance.addPostFrameCallback((_) {
           PresenceService.instance.stop();
           Provider.of<AdminProvider>(context, listen: false).reset();
@@ -123,7 +164,7 @@ class _AuthGate extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SPLASH PREMIUM
+// SPLASH PREMIUM (igual ao original)
 // ═══════════════════════════════════════════════════════════════════
 class _SplashLoading extends StatefulWidget {
   const _SplashLoading();
@@ -186,7 +227,8 @@ class _SplashLoadingState extends State<_SplashLoading>
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
     _progressAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _progressCtrl, curve: Curves.easeInOut),
+      CurvedAnimation(
+          parent: _progressCtrl, curve: Curves.easeInOut),
     );
     _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut),
@@ -287,7 +329,8 @@ class _SplashLoadingState extends State<_SplashLoading>
                   ),
                   const SizedBox(height: 28),
                   ShaderMask(
-                    shaderCallback: (bounds) => const LinearGradient(
+                    shaderCallback: (bounds) =>
+                        const LinearGradient(
                       colors: [
                         Color(0xFFFF6D00),
                         Color(0xFFFFB74D),
@@ -330,7 +373,8 @@ class _SplashLoadingState extends State<_SplashLoading>
                   ),
                   const SizedBox(height: 48),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 48),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 48),
                     child: AnimatedBuilder(
                       animation: _progressAnim,
                       builder: (_, __) => Stack(
@@ -340,14 +384,17 @@ class _SplashLoadingState extends State<_SplashLoading>
                             width: size.width - 96,
                             decoration: BoxDecoration(
                               color: const Color(0xFF1A1A1A),
-                              borderRadius: BorderRadius.circular(2),
+                              borderRadius:
+                                  BorderRadius.circular(2),
                             ),
                           ),
                           Container(
                             height: 2,
-                            width: (size.width - 96) * _progressAnim.value,
+                            width: (size.width - 96) *
+                                _progressAnim.value,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(2),
+                              borderRadius:
+                                  BorderRadius.circular(2),
                               gradient: const LinearGradient(
                                 colors: [
                                   Color(0xFFBF360C),
@@ -392,7 +439,7 @@ class _SplashLoadingState extends State<_SplashLoading>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// PARTÍCULAS DO SPLASH
+// PARTÍCULAS DO SPLASH (igual ao original)
 // ═══════════════════════════════════════════════════════════════════
 class _SplashParticlePainter extends CustomPainter {
   final double t;
@@ -422,10 +469,12 @@ class _SplashParticlePainter extends CustomPainter {
       ..color = const Color(0xFFFF6B00).withOpacity(0.03)
       ..strokeWidth = 0.5;
     for (double x = 0; x < size.width; x += 40) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+      canvas.drawLine(
+          Offset(x, 0), Offset(x, size.height), gridPaint);
     }
     for (double y = 0; y < size.height; y += 40) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+      canvas.drawLine(
+          Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
     final orbPaint = Paint()
@@ -446,13 +495,15 @@ class _SplashParticlePainter extends CustomPainter {
 
     for (final p in _particles) {
       final dy = (p.y + t * p.speed + p.phase) % 1.0;
-      final dx =
-          p.x + 0.03 * math.sin((t * 2 * math.pi) + p.phase * 6.28);
+      final dx = p.x +
+          0.03 *
+              math.sin(
+                  (t * 2 * math.pi) + p.phase * 6.28);
       final opacity = p.opacity *
           (0.5 +
               0.5 *
-                  math.sin(
-                      t * 2 * math.pi * p.speed * 10 + p.phase));
+                  math.sin(t * 2 * math.pi * p.speed * 10 +
+                      p.phase));
       canvas.drawCircle(
         Offset(dx * size.width, dy * size.height),
         p.size,
@@ -468,8 +519,8 @@ class _SplashParticlePainter extends CustomPainter {
     for (int i = 0; i < 3; i++) {
       final progress = (t + i * 0.33) % 1.0;
       final x = size.width * progress;
-      linePaint.color =
-          const Color(0xFFFF6B00).withOpacity(0.06 * (1 - progress));
+      linePaint.color = const Color(0xFFFF6B00)
+          .withOpacity(0.06 * (1 - progress));
       canvas.drawLine(
         Offset(x - 80, 0),
         Offset(x + 80, size.height),
