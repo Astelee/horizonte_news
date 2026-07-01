@@ -3,13 +3,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'blogger_rss_service.dart';
-import 'news_notification_service.dart';
 
 const String kCheckNewsTask = 'checkNewBloggerPost';
 
-// ═══════════════════════════════════════════════════════════════════
-// OBRIGATÓRIO: função top-level com @pragma
-// ═══════════════════════════════════════════════════════════════════
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
@@ -22,7 +18,6 @@ void callbackDispatcher() {
 
 Future<void> _checkAndNotify() async {
   try {
-    // Inicializa notificações locais no isolate do background
     final localNotif = FlutterLocalNotificationsPlugin();
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -41,22 +36,22 @@ Future<void> _checkAndNotify() async {
           ),
         );
 
-    // Busca posts via RSS
     final posts = await BloggerRssService.fetchLatestPosts();
     if (posts == null || posts.isEmpty) return;
 
     final latestPost = posts.first;
 
-    // Verifica se já notificou este post
     final prefs = await SharedPreferences.getInstance();
-    final lastNotifiedId = prefs.getString('last_notified_post_id') ?? '';
+    final lastNotifiedId =
+        prefs.getString('last_notified_post_id') ?? '';
 
     if (latestPost.id == lastNotifiedId) return;
 
-    // Salva o ID do post notificado
+    // Salva ID, título e URL para navegação ao tocar
     await prefs.setString('last_notified_post_id', latestPost.id);
+    await prefs.setString('pending_news_title', latestPost.title);
+    await prefs.setString('pending_news_url', latestPost.url);
 
-    // Dispara a notificação
     await localNotif.show(
       latestPost.id.hashCode,
       latestPost.title,
@@ -79,7 +74,5 @@ Future<void> _checkAndNotify() async {
       ),
       payload: latestPost.url,
     );
-  } catch (_) {
-    // Nunca deixa o background travar
-  }
+  } catch (_) {}
 }
