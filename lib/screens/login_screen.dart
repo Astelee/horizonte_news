@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../services/news_notification_service.dart';
@@ -211,17 +210,19 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   // ── Dialog de permissão personalizado ────────────────────────
+  // ATUALIZADO: usa FlutterSecureStorage em vez de SharedPreferences
+  // para evitar restauração pelo backup automático do Android.
   Future<void> _askNotificationPermission() async {
-    final prefs = await SharedPreferences.getInstance();
     final alreadyAsked =
-        prefs.getBool('notif_permission_asked') ?? false;
-    if (alreadyAsked) return;
+        await _secureStorage.read(key: 'notif_permission_asked');
+    if (alreadyAsked == 'true') return;
 
     // Verifica se o sistema já tem permissão concedida
     final jaTemPermissao = await _systemNotifEnabled();
 
-    // Marca como já perguntado
-    await prefs.setBool('notif_permission_asked', true);
+    // Marca como já perguntado (em SecureStorage — não restaurável)
+    await _secureStorage.write(
+        key: 'notif_permission_asked', value: 'true');
 
     // Se já tem permissão no sistema, só registra o token
     if (jaTemPermissao) {
@@ -363,6 +364,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  // ── ATUALIZADO: pede permissão ANTES de navegar ───────────────
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
@@ -376,6 +378,8 @@ class _LoginScreenState extends State<LoginScreen>
         password: _passwordController.text.trim(),
       );
       await _handleCredentialStorage();
+
+      // Pede permissão ANTES de navegar para home
       await _askNotificationPermission();
 
       if (mounted) {
