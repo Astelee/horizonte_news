@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'dart:io';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -88,10 +91,8 @@ class _HorizonteNewsAppState extends State<HorizonteNewsApp> {
     await prefs.remove('pending_news_url');
     await prefs.remove('pending_news_title');
 
-    // Aguarda o app estar pronto para navegar
     await Future.delayed(const Duration(milliseconds: 800));
 
-    // Cria um PostModel mínimo com os dados da notificação
     final post = PostModel(
       id: url.split('/').last.replaceAll('.html', ''),
       title: title,
@@ -143,10 +144,194 @@ class _HorizonteNewsAppState extends State<HorizonteNewsApp> {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// AUTH GATE
+// AUTH GATE — agora gerencia o dialog de notificação
 // ═══════════════════════════════════════════════════════════════════
-class _AuthGate extends StatelessWidget {
+class _AuthGate extends StatefulWidget {
   const _AuthGate();
+
+  @override
+  State<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<_AuthGate> {
+  final _secureStorage = const FlutterSecureStorage();
+  bool _notifChecked = false;
+
+  // ── Verifica permissão real do sistema ───────────────────────────
+  Future<bool> _systemNotifEnabled() async {
+    try {
+      final plugin = FlutterLocalNotificationsPlugin();
+      if (Platform.isAndroid) {
+        final android = plugin
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>();
+        return await android?.areNotificationsEnabled() ?? false;
+      } else if (Platform.isIOS) {
+        final ios = plugin
+            .resolvePlatformSpecificImplementation<
+                IOSFlutterLocalNotificationsPlugin>();
+        final settings = await ios?.checkPermissions();
+        return settings?.isEnabled ?? false;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  // ── Dialog de permissão ──────────────────────────────────────────
+  Future<void> _askNotificationPermission() async {
+    if (_notifChecked) return;
+    _notifChecked = true;
+
+    final alreadyAsked =
+        await _secureStorage.read(key: 'notif_permission_asked');
+    if (alreadyAsked == 'true') return;
+
+    final jaTemPermissao = await _systemNotifEnabled();
+
+    // Marca como já perguntado antes de mostrar o dialog
+    await _secureStorage.write(
+        key: 'notif_permission_asked', value: 'true');
+
+    if (jaTemPermissao) {
+      await NotificationService.requestPermission();
+      return;
+    }
+
+    if (!mounted) return;
+
+    final userWantsNotif = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0A0A0A),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: const Color(0xFFFF6B00).withOpacity(0.35),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF6B00).withOpacity(0.15),
+                blurRadius: 40,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF6B00), Color(0xFFFF8C3A)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF6B00).withOpacity(0.4),
+                      blurRadius: 20,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.notifications_active_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Fique por dentro!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Ative as notificações para receber as últimas notícias do Horizonte News assim que forem publicadas.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF9E9E9E),
+                  fontSize: 13,
+                  height: 1.6,
+                ),
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context, true),
+                  child: Container(
+                    height: 50,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF6B00), Color(0xFFFF8C3A)],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF6B00).withOpacity(0.4),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'ATIVAR NOTIFICAÇÕES',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context, false),
+                  child: Container(
+                    height: 46,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: const Color(0xFF2A2A2A)),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'Agora não',
+                        style: TextStyle(
+                          color: Color(0xFF666666),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (userWantsNotif == true) {
+      await NotificationService.requestPermission();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -164,6 +349,9 @@ class _AuthGate extends StatelessWidget {
             Provider.of<AdminProvider>(context, listen: false)
                 .initialize();
             PresenceService.instance.start();
+
+            // ── Pede notificação após login/sessão restaurada ──────
+            _askNotificationPermission();
           });
           return AppRoutes.routes[AppRoutes.home]!(context);
         }
