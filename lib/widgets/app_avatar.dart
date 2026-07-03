@@ -1,14 +1,12 @@
 // lib/widgets/app_avatar.dart
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/avatar_catalog.dart';
 
 /// Widget reutilizável que renderiza um avatar ilustrado a partir do avatarId.
-/// Usa uma cascata de fallback de 3 níveis para nunca quebrar mesmo que
-/// nem todas as 104 ilustrações existam ainda em assets/avatars/:
-///
-///   1º) tenta a ilustração específica do avatar   (ex: animais_07.png)
-///   2º) se não existir, tenta a padrão da categoria (ex: animais_01.png)
-///   3º) se não existir, usa o placeholder global    (placeholder.png)
+/// A ilustração é gerada dinamicamente via URL (DiceBear) e cacheada
+/// localmente pelo CachedNetworkImage — não depende de nenhum arquivo
+/// em assets/, então qualquer um dos 16 avatarIds já funciona sem upload.
 ///
 /// Use em qualquer lugar que hoje mostra a "foto" do usuário: perfil,
 /// comentários, aba amigos, card de conversas, menus de contexto, etc.
@@ -57,7 +55,33 @@ class AppAvatar extends StatelessWidget {
           ),
         ],
       ),
-      child: _AvatarIllustration(avatar: avatar, size: size),
+      child: CachedNetworkImage(
+        imageUrl: avatar.networkUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        fadeInDuration: const Duration(milliseconds: 200),
+        placeholder: (context, url) => Container(
+          width: size,
+          height: size,
+          color: const Color(0xFF1A1A1A),
+          child: Center(
+            child: SizedBox(
+              width: size * 0.35,
+              height: size * 0.35,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: avatar.rarity.accentColor.withOpacity(0.6),
+              ),
+            ),
+          ),
+        ),
+        errorWidget: (context, url, error) => Container(
+          width: size,
+          height: size,
+          color: const Color(0xFF1A1A1A),
+        ),
+      ),
     );
 
     if (onTap == null) return content;
@@ -65,52 +89,6 @@ class AppAvatar extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: content,
-    );
-  }
-}
-
-/// Faz a cascata de fallback entre 3 imagens usando errorBuilder,
-/// sem nunca exibir emoji, ícone ou caractere unicode como avatar.
-class _AvatarIllustration extends StatelessWidget {
-  final AvatarData avatar;
-  final double size;
-
-  const _AvatarIllustration({required this.avatar, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return Image.asset(
-      avatar.assetPath,
-      width: size,
-      height: size,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        // 2º nível: ilustração padrão da categoria
-        return Image.asset(
-          avatar.categoryFallbackAssetPath,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            // 3º nível: placeholder global — sempre deve existir
-            return Image.asset(
-              AvatarData.globalPlaceholderAssetPath,
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                // Último recurso, caso nem o placeholder exista ainda:
-                // fundo sólido sem emoji/ícone/unicode.
-                return Container(
-                  width: size,
-                  height: size,
-                  color: const Color(0xFF1A1A1A),
-                );
-              },
-            );
-          },
-        );
-      },
     );
   }
 }
