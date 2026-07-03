@@ -10,6 +10,7 @@ import '../screens/amigos_modelos.dart';
 import '../screens/amigos_perfil.dart';
 import 'badge_widgets.dart';
 import 'avatar_frame.dart';
+import 'app_avatar.dart';
 
 class CommentModel {
   final String id;
@@ -19,6 +20,7 @@ class CommentModel {
   final DateTime createdAt;
   final int userLevel;
   final List<String> userAchievements;
+  final String userAvatarId;
 
   CommentModel({
     required this.id,
@@ -28,6 +30,7 @@ class CommentModel {
     required this.createdAt,
     this.userLevel = 1,
     this.userAchievements = const [],
+    this.userAvatarId = 'animais_01',
   });
 
   factory CommentModel.fromDoc(DocumentSnapshot doc) {
@@ -40,6 +43,7 @@ class CommentModel {
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       userLevel: (data['userLevel'] as num?)?.toInt() ?? 1,
       userAchievements: List<String>.from(data['userAchievements'] ?? []),
+      userAvatarId: (data['userAvatarId'] as String?) ?? 'animais_01',
     );
   }
 }
@@ -52,7 +56,7 @@ class _CommentUserProfileSheet extends StatefulWidget {
   final String userName;
   final int userLevel;
   final List<String> userAchievements;
-  final String initials;
+  final String avatarId;
 
   const _CommentUserProfileSheet({
     Key? key,
@@ -60,7 +64,7 @@ class _CommentUserProfileSheet extends StatefulWidget {
     required this.userName,
     required this.userLevel,
     required this.userAchievements,
-    required this.initials,
+    required this.avatarId,
   }) : super(key: key);
 
   @override
@@ -168,6 +172,8 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
   Widget build(BuildContext context) {
     final username = (_userData?['username'] as String?) ?? '';
     final totalXp = (_userData?['totalXp'] as num?)?.toInt() ?? 0;
+    final avatarIdAtual =
+        (_userData?['avatarId'] as String?) ?? widget.avatarId;
 
     return Container(
       decoration: const BoxDecoration(
@@ -205,21 +211,9 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
               AvatarFrame(
                 level: widget.userLevel,
                 size: 60,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(0xFF1A0800),
-                  ),
-                  child: Center(
-                    child: Text(
-                      widget.initials,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
+                child: AppAvatar(
+                  avatarId: avatarIdAtual,
+                  size: 60,
                 ),
               ),
               const SizedBox(width: 16),
@@ -567,6 +561,7 @@ class _CommentsSectionState extends State<CommentsSection>
       final xpProvider = Provider.of<UserXpProvider>(context, listen: false);
       final userLevel = xpProvider.data.level;
       final userAchievements = xpProvider.data.achievements;
+      final userAvatarId = xpProvider.data.avatarId;
 
       await _commentsRef.add({
         'userId': user.uid,
@@ -575,6 +570,7 @@ class _CommentsSectionState extends State<CommentsSection>
         'createdAt': FieldValue.serverTimestamp(),
         'userLevel': userLevel,
         'userAchievements': userAchievements,
+        'userAvatarId': userAvatarId,
       });
 
       _controller.clear();
@@ -601,7 +597,6 @@ class _CommentsSectionState extends State<CommentsSection>
   }
 
   void _openUserProfile(CommentModel comment) {
-    final initials = _initials(comment.userName);
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -611,7 +606,7 @@ class _CommentsSectionState extends State<CommentsSection>
         userName: comment.userName,
         userLevel: comment.userLevel,
         userAchievements: comment.userAchievements,
-        initials: initials,
+        avatarId: comment.userAvatarId,
       ),
     );
   }
@@ -758,9 +753,7 @@ class _CommentsSectionState extends State<CommentsSection>
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildInputAvatar(
-                  user?.displayName ?? user?.email?.split('@').first ?? '?',
-                ),
+                _buildInputAvatar(),
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextField(
@@ -864,29 +857,17 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
-  // Avatar do campo de digitar comentário — usa nível 1 fixo (provider
-  // resolve o nível real só ao enviar; aqui é só feedback visual leve)
-  Widget _buildInputAvatar(String name) {
+  // Avatar do campo de digitar comentário — usa o avatar real do
+  // usuário logado, já refletindo qualquer troca feita no perfil.
+  Widget _buildInputAvatar() {
     return Consumer<UserXpProvider>(
       builder: (context, xpProvider, _) {
         return AvatarFrame(
           level: xpProvider.data.level,
           size: 36,
-          child: Container(
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Color(0xFF1A0800),
-            ),
-            child: Center(
-              child: Text(
-                _initials(name),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
+          child: AppAvatar(
+            avatarId: xpProvider.data.avatarId,
+            size: 36,
           ),
         );
       },
@@ -932,7 +913,6 @@ class _CommentsSectionState extends State<CommentsSection>
           itemCount: comments.length,
           itemBuilder: (context, index) => _CommentTile(
             comment: comments[index],
-            initials: _initials(comments[index].userName),
             timeAgo: _timeAgo(comments[index].createdAt),
             currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
             isAdmin: isAdmin,
@@ -970,7 +950,6 @@ class _CommentsSectionState extends State<CommentsSection>
 // ═══════════════════════════════════════════════════════════════════
 class _CommentTile extends StatefulWidget {
   final CommentModel comment;
-  final String initials;
   final String timeAgo;
   final String currentUserId;
   final bool isAdmin;
@@ -980,7 +959,6 @@ class _CommentTile extends StatefulWidget {
   const _CommentTile({
     Key? key,
     required this.comment,
-    required this.initials,
     required this.timeAgo,
     required this.currentUserId,
     required this.isAdmin,
@@ -1059,28 +1037,16 @@ class _CommentTileState extends State<_CommentTile>
     );
   }
 
-  // ── Avatar com moldura por raridade — leve mesmo em miniatura ───
+  // ── Avatar com moldura por raridade — usa o avatar real do autor ─
   Widget _buildAvatar() {
     return GestureDetector(
       onTap: widget.onTapUser,
       child: AvatarFrame(
         level: widget.comment.userLevel,
         size: 36,
-        child: Container(
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: Color(0xFF1A0800),
-          ),
-          child: Center(
-            child: Text(
-              widget.initials,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
+        child: AppAvatar(
+          avatarId: widget.comment.userAvatarId,
+          size: 36,
         ),
       ),
     );
