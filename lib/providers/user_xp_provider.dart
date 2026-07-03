@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/xp_service.dart';
+import '../services/avatar_service.dart';
 
 class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   final XpService _service = XpService();
+  final AvatarService _avatarService = AvatarService();
 
   UserXpData _data = UserXpData.empty();
   bool _isLoading = true;
@@ -24,7 +26,7 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     _isLoading = true;
     notifyListeners();
 
-    // loadUserXpData já aplica adminOverride internamente
+    // loadUserXpData já aplica adminOverride e avatarId internamente
     _data = await _service.loadUserXpData();
     _isLoading = false;
     notifyListeners();
@@ -85,7 +87,7 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
 
     final oldLevel = _data.level;
     // addXpForTime → _incrementXpAndSave → loadUserXpData
-    // toda a cadeia já respeita o override
+    // toda a cadeia já respeita o override e o avatarId
     final updated = await _service.addXpForTime(seconds);
     _data = updated;
     notifyListeners();
@@ -124,6 +126,27 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   }
 
   Future<void> onComment() async => addXpForComment();
+
+  /// Troca o avatar: salva no Firestore e atualiza o estado local
+  /// imediatamente, propagando pra toda a árvore de widgets que escuta
+  /// este provider (perfil, comentários, amigos, notificações, etc).
+  Future<bool> updateAvatar(String avatarId) async {
+    final previous = _data.avatarId;
+
+    // Atualização otimista — a UI muda na hora, em todas as telas
+    _data = _data.copyWith(avatarId: avatarId);
+    notifyListeners();
+
+    final success = await _avatarService.saveAvatarId(avatarId);
+
+    if (!success) {
+      // reverte se falhar ao salvar
+      _data = _data.copyWith(avatarId: previous);
+      notifyListeners();
+    }
+
+    return success;
+  }
 
   Future<void> reload() async {
     _isLoading = true;
