@@ -44,7 +44,7 @@ extension AvatarCategoryExt on AvatarCategory {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// RARIDADE — já estruturado para desbloqueios futuros
+// RARIDADE
 // ═══════════════════════════════════════════════════════════════════
 enum AvatarRarity { comum, raro, epico, lendario }
 
@@ -86,20 +86,33 @@ extension AvatarRarityExt on AvatarRarity {
 // ═══════════════════════════════════════════════════════════════════
 class AvatarData {
   final String id;
-  final String emoji;
   final AvatarCategory category;
   final AvatarRarity rarity;
   final int requiredLevel; // nível mínimo para desbloquear (0 = liberado)
 
   const AvatarData({
     required this.id,
-    required this.emoji,
     required this.category,
     required this.rarity,
     this.requiredLevel = 0,
   });
 
   bool isUnlockedFor(int userLevel) => userLevel >= requiredLevel;
+
+  /// Caminho da ilustração deste avatar específico.
+  /// Ex: assets/avatars/animais_07.png
+  String get assetPath => 'assets/avatars/$id.png';
+
+  /// Caminho da ilustração "padrão" da categoria (primeiro item, 01).
+  /// Usado como fallback quando o arquivo específico ainda não existe.
+  /// Ex: assets/avatars/animais_01.png
+  String get categoryFallbackAssetPath =>
+      'assets/avatars/${category.name}_01.png';
+
+  /// Placeholder global — usado quando nem o arquivo específico nem o
+  /// padrão da categoria existem ainda.
+  static const String globalPlaceholderAssetPath =
+      'assets/avatars/placeholder.png';
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -111,127 +124,127 @@ class AvatarCatalog {
 
   static const String defaultAvatarId = 'animais_01';
 
-  // emoji, raridade, nível mínimo — nessa ordem, por categoria
+  // raridade, nível mínimo — nessa ordem, por categoria (13 itens cada)
   static const Map<AvatarCategory, List<List<Object>>> _raw = {
     AvatarCategory.animais: [
-      ['🦁', AvatarRarity.comum, 0],
-      ['🐯', AvatarRarity.comum, 0],
-      ['🐺', AvatarRarity.comum, 0],
-      ['🦊', AvatarRarity.comum, 0],
-      ['🐻', AvatarRarity.comum, 0],
-      ['🐼', AvatarRarity.comum, 0],
-      ['🐨', AvatarRarity.comum, 0],
-      ['🐸', AvatarRarity.comum, 0],
-      ['🐵', AvatarRarity.raro, 5],
-      ['🐶', AvatarRarity.raro, 5],
-      ['🐱', AvatarRarity.raro, 5],
-      ['🦉', AvatarRarity.epico, 10],
-      ['🦄', AvatarRarity.lendario, 20],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.lendario, 20],
     ],
     AvatarCategory.robos: [
-      ['🤖', AvatarRarity.comum, 0],
-      ['⚙️', AvatarRarity.comum, 0],
-      ['🔧', AvatarRarity.comum, 0],
-      ['💾', AvatarRarity.comum, 0],
-      ['🖥️', AvatarRarity.comum, 0],
-      ['🔋', AvatarRarity.comum, 0],
-      ['📡', AvatarRarity.comum, 0],
-      ['🧲', AvatarRarity.comum, 0],
-      ['👾', AvatarRarity.raro, 5],
-      ['🛰️', AvatarRarity.raro, 5],
-      ['🦾', AvatarRarity.epico, 10],
-      ['🦿', AvatarRarity.epico, 10],
-      ['🧠', AvatarRarity.lendario, 20],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.lendario, 20],
     ],
     AvatarCategory.personagens: [
-      ['🤠', AvatarRarity.comum, 0],
-      ['🕵️', AvatarRarity.comum, 0],
-      ['👻', AvatarRarity.comum, 0],
-      ['🎭', AvatarRarity.comum, 0],
-      ['🧑‍🚀', AvatarRarity.comum, 0],
-      ['🥷', AvatarRarity.comum, 0],
-      ['🧛', AvatarRarity.comum, 0],
-      ['🧟', AvatarRarity.comum, 0],
-      ['🧝', AvatarRarity.raro, 5],
-      ['🧞', AvatarRarity.raro, 5],
-      ['🦸', AvatarRarity.epico, 10],
-      ['🦹', AvatarRarity.epico, 10],
-      ['🧙', AvatarRarity.lendario, 20],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.lendario, 20],
     ],
     AvatarCategory.esportes: [
-      ['⚽', AvatarRarity.comum, 0],
-      ['🏀', AvatarRarity.comum, 0],
-      ['🏈', AvatarRarity.comum, 0],
-      ['⚾', AvatarRarity.comum, 0],
-      ['🎾', AvatarRarity.comum, 0],
-      ['🏐', AvatarRarity.comum, 0],
-      ['🥋', AvatarRarity.comum, 0],
-      ['⛹️', AvatarRarity.comum, 0],
-      ['🚴', AvatarRarity.raro, 5],
-      ['🏄', AvatarRarity.raro, 5],
-      ['🏂', AvatarRarity.epico, 10],
-      ['🥊', AvatarRarity.epico, 10],
-      ['🏆', AvatarRarity.lendario, 20],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.lendario, 20],
     ],
     AvatarCategory.tecnologia: [
-      ['💻', AvatarRarity.comum, 0],
-      ['📱', AvatarRarity.comum, 0],
-      ['⌨️', AvatarRarity.comum, 0],
-      ['🖱️', AvatarRarity.comum, 0],
-      ['🖨️', AvatarRarity.comum, 0],
-      ['🔌', AvatarRarity.comum, 0],
-      ['📊', AvatarRarity.comum, 0],
-      ['🎮', AvatarRarity.comum, 0],
-      ['🕹️', AvatarRarity.raro, 5],
-      ['🔬', AvatarRarity.raro, 5],
-      ['🧬', AvatarRarity.epico, 10],
-      ['📡', AvatarRarity.epico, 10],
-      ['💡', AvatarRarity.lendario, 20],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.lendario, 20],
     ],
     AvatarCategory.natureza: [
-      ['🌵', AvatarRarity.comum, 0],
-      ['🌲', AvatarRarity.comum, 0],
-      ['🍁', AvatarRarity.comum, 0],
-      ['🌸', AvatarRarity.comum, 0],
-      ['🍄', AvatarRarity.comum, 0],
-      ['☀️', AvatarRarity.comum, 0],
-      ['🌙', AvatarRarity.comum, 0],
-      ['❄️', AvatarRarity.comum, 0],
-      ['🌊', AvatarRarity.raro, 5],
-      ['🌈', AvatarRarity.raro, 5],
-      ['⚡', AvatarRarity.epico, 10],
-      ['🌋', AvatarRarity.epico, 10],
-      ['🔥', AvatarRarity.lendario, 20],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.lendario, 20],
     ],
     AvatarCategory.espaco: [
-      ['⭐', AvatarRarity.comum, 0],
-      ['🌍', AvatarRarity.comum, 0],
-      ['🌑', AvatarRarity.comum, 0],
-      ['☄️', AvatarRarity.comum, 0],
-      ['🌠', AvatarRarity.comum, 0],
-      ['🔭', AvatarRarity.comum, 0],
-      ['🛰️', AvatarRarity.comum, 0],
-      ['🌟', AvatarRarity.comum, 0],
-      ['🪐', AvatarRarity.raro, 5],
-      ['🚀', AvatarRarity.raro, 5],
-      ['🌌', AvatarRarity.epico, 10],
-      ['🛸', AvatarRarity.epico, 10],
-      ['👽', AvatarRarity.lendario, 20],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.lendario, 20],
     ],
     AvatarCategory.fantasia: [
-      ['⚔️', AvatarRarity.comum, 0],
-      ['🛡️', AvatarRarity.comum, 0],
-      ['🗡️', AvatarRarity.comum, 0],
-      ['🏰', AvatarRarity.comum, 0],
-      ['🧿', AvatarRarity.comum, 0],
-      ['🦂', AvatarRarity.comum, 0],
-      ['💎', AvatarRarity.comum, 0],
-      ['🪄', AvatarRarity.comum, 0],
-      ['🔮', AvatarRarity.raro, 5],
-      ['🧚', AvatarRarity.raro, 5],
-      ['👑', AvatarRarity.epico, 10],
-      ['🐲', AvatarRarity.epico, 10],
-      ['🐉', AvatarRarity.lendario, 20],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.comum, 0],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.raro, 5],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.epico, 10],
+      [AvatarRarity.lendario, 20],
     ],
   };
 
@@ -241,12 +254,10 @@ class AvatarCatalog {
     final list = <AvatarData>[];
     _raw.forEach((category, items) {
       for (int i = 0; i < items.length; i++) {
-        final emoji = items[i][0] as String;
-        final rarity = items[i][1] as AvatarRarity;
-        final level = items[i][2] as int;
+        final rarity = items[i][0] as AvatarRarity;
+        final level = items[i][1] as int;
         list.add(AvatarData(
           id: '${category.name}_${(i + 1).toString().padLeft(2, '0')}',
-          emoji: emoji,
           category: category,
           rarity: rarity,
           requiredLevel: level,
