@@ -8,9 +8,6 @@
     <!-- Notificações (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
-    <!-- WorkManager precisa disso para reagendar após reinicialização -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-
     <application
         android:label="Horizonte News"
         android:name="${applicationName}"
@@ -36,12 +33,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-
-        <!-- WorkManager -->
-        <service
-            android:name="androidx.work.impl.foreground.SystemForegroundService"
-            android:foregroundServiceType="shortService"
-            android:exported="false"/>
 
         <meta-data
             android:name="flutterEmbedding"
