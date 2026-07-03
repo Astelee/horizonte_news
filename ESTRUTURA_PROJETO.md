@@ -1,14 +1,11 @@
-# Horizonte News - Estrutura do Projeto
+Horizonte News - Estrutura do Projeto
+Flutter App
 
-## Flutter App
+Arquivo Principal
+lib/
+└── main.dart
 
-### Arquivo Principal
-lib/main.dart
-
----
-
-## Configurações
-
+Configurações
 lib/config/
 ├── app_colors.dart
 ├── app_routes.dart
@@ -16,32 +13,47 @@ lib/config/
 ├── badge_config.dart
 └── blogger_config.dart
 
----
+Features
+lib/features/
+└── admin/
+    ├── models/
+    │   └── admin_log_model.dart
+    ├── providers/
+    ├── screens/
+    │   ├── admin_panel_screen.dart
+    │   └── tabs/
+    │       ├── banned_tab.dart
+    │       ├── comments_tab.dart
+    │       ├── poderes_tab.dart
+    │       ├── users_tab.dart
+    │       └── views_tab.dart
+    ├── services/
+    │   ├── admin_comment_service.dart
+    │   ├── admin_user_service.dart
+    │   └── admin_views_service.dart
+    └── widgets/
+        ├── admin_banned_tile.dart
+        ├── admin_comment_tile.dart
+        ├── admin_shared_widgets.dart
+        ├── admin_user_tile.dart
+        └── ban_user_dialog.dart
 
-## Models
-
+Models
 lib/models/
 ├── category_model.dart
 └── post_model.dart
 
----
-
-## Providers
-
+Providers
 lib/providers/
-├── admin_provider.dart
 ├── favorites_provider.dart
 ├── posts_provider.dart
 ├── theme_provider.dart
 └── user_xp_provider.dart
 
----
-
-## Screens
-
+Screens
 lib/screens/
 
-### Sistema de Amigos
+Sistema de Amigos
 ├── amigos_tela.dart
 ├── amigos_aba_lista.dart
 ├── amigos_aba_pedidos.dart
@@ -51,7 +63,7 @@ lib/screens/
 ├── amigos_modelos.dart
 └── amigos_widgets.dart
 
-### Notícias
+Notícias
 ├── home_screen.dart
 ├── post_detail_screen.dart
 ├── category_screen.dart
@@ -62,113 +74,94 @@ lib/screens/
 ├── horizon_now_screen.dart
 └── events_screen.dart
 
-### Usuário
+Usuário
 ├── login_screen.dart
 ├── register_screen.dart
 ├── forgot_password_screen.dart
 ├── profile_screen.dart
-├── settings_screen.dart
+└── settings_screen.dart
 
-### Administração
-├── admin_panel_screen.dart
-├── post_editor_screen.dart
-
-### Outros
+Outros
 ├── chat_screen.dart
-└── contact_screen.dart
+├── contact_screen.dart
+└── post_editor_screen.dart
 
----
-
-## Services
-
+Services
 lib/services/
-├── admin_service.dart
+├── blogger_rss_service.dart
 ├── blogger_service.dart
 ├── favorites_service.dart
 ├── firebase_service.dart
 ├── notification_service.dart
+├── presence_service.dart
 └── xp_service.dart
 
----
-
-## Widgets
-
+Widgets
 lib/widgets/
 ├── app_drawer.dart
+├── avatar_frame.dart
 ├── badge_widgets.dart
 ├── breaking_news_banner.dart
 ├── category_bar.dart
 ├── comments_section.dart
 ├── featured_carousel.dart
+├── level_up_overlay.dart
 ├── news_card.dart
 └── relative_time_text.dart
 
----
-
-## Utils
-
+Utils
 lib/utils/
 └── blogger_cleaner.dart
 
----
-
-## Assets
-
+Assets
 assets/
 
-### Imagens
-├── images/icon_app.png
+Imagens
+└── images/
+    └── icon_app.png
 
-### Sons
-├── sounds/ambient.mp3
+Sons
+└── sounds/
+    └── ambient.mp3
 
-### Ícones
+Ícones
 └── icons/
 
----
-
-## Firebase Functions
-
+Firebase Functions
 functions/
 └── index.js
 
----
-
-## Android
-
+Android
 android/
 ├── build.gradle
 ├── gradle.properties
 ├── settings.gradle
-├── gradle/wrapper/
-│   └── gradle-wrapper.properties
+├── gradle/
+│   └── wrapper/
+│       └── gradle-wrapper.properties
 └── app/
     ├── build.gradle
     ├── google-services.json
-    └── src/main/
-        ├── AndroidManifest.xml
-        ├── kotlin/
-        │   └── MainActivity.kt
-        └── res/
-            ├── drawable/
-            │   ├── launch_background.xml
-            │   └── splash.png
-            ├── values/
-            │   ├── colors.xml
-            │   └── styles.xml
-            └── values-v31/
-                └── styles.xml
+    └── src/
+        └── main/
+            ├── AndroidManifest.xml
+            ├── kotlin/
+            │   └── MainActivity.kt
+            └── res/
+                ├── drawable/
+                │   ├── launch_background.xml
+                │   └── splash.png
+                ├── values/
+                │   ├── colors.xml
+                │   └── styles.xml
+                └── values-v31/
+                    └── styles.xml
 
----
+GitHub Actions
+.github/
+└── workflows/
+    └── build_apk.yml
 
-## GitHub Actions
-
-.github/workflows/
-└── build_apk.yml
-
----
-
-## Testes
-
+Testes
 test/
 └── widget_test.dart
