@@ -62,6 +62,7 @@ class FriendModel {
   final String uid;
   final String username;
   final String displayName;
+  final String avatarId;
   final int level;
   final int totalXp;
   final int xpForNextLevel;
@@ -82,6 +83,7 @@ class FriendModel {
     required this.uid,
     required this.username,
     required this.displayName,
+    this.avatarId = 'animais_01',
     required this.level,
     required this.totalXp,
     required this.xpForNextLevel,
@@ -120,11 +122,13 @@ class FriendModel {
     String? chatId,
     bool? isFavorite,
     FriendStatus? status,
+    String? avatarId,
   }) {
     return FriendModel(
       uid: uid,
       username: username,
       displayName: displayName,
+      avatarId: avatarId ?? this.avatarId,
       level: level,
       totalXp: totalXp,
       xpForNextLevel: xpForNextLevel,
@@ -156,6 +160,7 @@ class FriendModel {
       uid:            doc.id,
       username:       (d['username']    as String?) ?? '',
       displayName:    (d['displayName'] as String?) ?? 'Usuário',
+      avatarId:       (d['avatarId']    as String?) ?? 'animais_01',
       level:          lvl,
       totalXp:        xp,
       xpForNextLevel: nextXp,
