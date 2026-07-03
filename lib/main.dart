@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -10,13 +11,12 @@ import 'providers/posts_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/user_xp_provider.dart';
-import 'providers/admin_provider.dart';
+import 'features/admin/providers/admin_provider.dart';
 import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase
   await Firebase.initializeApp(
     options: const FirebaseOptions(
       apiKey: 'AIzaSyAAzDgrlLGUTsu3helestO6USQ5UMC8N3A',
@@ -27,7 +27,6 @@ void main() async {
     ),
   );
 
-  // OneSignal — único sistema de notificações
   await NotificationService.init();
 
   runApp(
@@ -106,10 +105,8 @@ class _AuthGate extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SPLASH — igual ao anterior, mantido completo
+// SPLASH
 // ═══════════════════════════════════════════════════════════════════
-import 'dart:math' as math;
-
 class _SplashLoading extends StatefulWidget {
   const _SplashLoading();
 
@@ -217,8 +214,8 @@ class _SplashLoadingState extends State<_SplashLoading>
                 children: [
                   AnimatedBuilder(
                     animation: _pulseAnim,
-                    builder: (_, child) =>
-                        Transform.scale(scale: _pulseAnim.value, child: child),
+                    builder: (_, child) => Transform.scale(
+                        scale: _pulseAnim.value, child: child),
                     child: AnimatedBuilder(
                       animation: _pulseCtrl,
                       builder: (_, child) {
@@ -305,42 +302,37 @@ class _SplashLoadingState extends State<_SplashLoading>
                     padding: const EdgeInsets.symmetric(horizontal: 48),
                     child: AnimatedBuilder(
                       animation: _progressAnim,
-                      builder: (_, __) => Column(
+                      builder: (_, __) => Stack(
                         children: [
-                          Stack(
-                            children: [
-                              Container(
-                                height: 2,
-                                width: size.width - 96,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1A1A1A),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
+                          Container(
+                            height: 2,
+                            width: size.width - 96,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A1A1A),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          Container(
+                            height: 2,
+                            width: (size.width - 96) * _progressAnim.value,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xFFBF360C),
+                                  Color(0xFFFF6B00),
+                                  Color(0xFFFFB74D),
+                                ],
                               ),
-                              Container(
-                                height: 2,
-                                width: (size.width - 96) *
-                                    _progressAnim.value,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(2),
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFFBF360C),
-                                      Color(0xFFFF6B00),
-                                      Color(0xFFFFB74D),
-                                    ],
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFFF6B00)
-                                          .withOpacity(0.8),
-                                      blurRadius: 8,
-                                      spreadRadius: 1,
-                                    ),
-                                  ],
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFFF6B00)
+                                      .withOpacity(0.8),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -424,7 +416,10 @@ class _SplashParticlePainter extends CustomPainter {
       final dx =
           p.x + 0.03 * math.sin((t * 2 * math.pi) + p.phase * 6.28);
       final opacity = p.opacity *
-          (0.5 + 0.5 * math.sin(t * 2 * math.pi * p.speed * 10 + p.phase));
+          (0.5 +
+              0.5 *
+                  math.sin(
+                      t * 2 * math.pi * p.speed * 10 + p.phase));
 
       canvas.drawCircle(
         Offset(dx * size.width, dy * size.height),
