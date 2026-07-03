@@ -167,7 +167,19 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  // ── Pede permissão de notificação com dialog bonito ───────────
+  // ─────────────────────────────────────────────────────────────────
+  // PERMISSÃO DE NOTIFICAÇÃO
+  //
+  // CORREÇÃO DO BUG: o diálogo era chamado DEPOIS do signIn, momento
+  // em que o authStateChanges() já desmontava a LoginScreen antes do
+  // showDialog ter chance de aparecer (mounted == false).
+  //
+  // A solução é chamar _pedirPermissaoNotificacao() ANTES do signIn,
+  // enquanto o contexto da LoginScreen ainda está garantidamente
+  // montado. Isso não muda nada para usuários que já responderam o
+  // diálogo — jaFoiPedidoPermissao() retorna true e a função sai
+  // imediatamente, sem atrasar o login nem nenhum segundo.
+  // ─────────────────────────────────────────────────────────────────
   Future<void> _pedirPermissaoNotificacao() async {
     final jaFoiPedido =
         await NotificationService.jaFoiPedidoPermissao();
@@ -180,16 +192,28 @@ class _LoginScreenState extends State<LoginScreen>
       builder: (_) => const _DialogPermissaoNotificacao(),
     );
 
+    if (!mounted) return;
+
     if (aceito == true) {
       await NotificationService.pedirPermissao();
     } else {
-      // Marca como pedido mesmo se recusou, para não perguntar de novo
       await NotificationService.marcarPermissaoJaPedida();
     }
   }
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // ✅ CORREÇÃO: pede permissão ANTES do signIn, enquanto a
+    // LoginScreen ainda está montada e o contexto é válido.
+    // Se já foi perguntado antes, este método retorna em < 1ms
+    // sem bloquear nada nem exibir nenhum diálogo.
+    await _pedirPermissaoNotificacao();
+
+    // Se o usuário desmontou a tela de alguma forma antes de
+    // terminar o diálogo, aborta o login.
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -202,9 +226,10 @@ class _LoginScreenState extends State<LoginScreen>
       );
       await _handleCredentialStorage();
 
-      // Pede permissão ANTES de navegar para a home
-      await _pedirPermissaoNotificacao();
-
+      // O _AuthGate já detecta o authStateChanges e redireciona
+      // automaticamente para home — o pushReplacementNamed abaixo
+      // é um fallback para garantir a navegação mesmo que o rebuild
+      // do _AuthGate demore um frame.
       if (mounted) {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
       }
@@ -781,7 +806,6 @@ class _DialogPermissaoNotificacao extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Ícone com glow
             Container(
               width: 80,
               height: 80,
@@ -846,7 +870,6 @@ class _DialogPermissaoNotificacao extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 28),
-            // Botão ativar
             GestureDetector(
               onTap: () => Navigator.pop(context, true),
               child: Container(
@@ -893,7 +916,6 @@ class _DialogPermissaoNotificacao extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            // Botão agora não
             GestureDetector(
               onTap: () => Navigator.pop(context, false),
               child: Container(
