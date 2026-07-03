@@ -21,9 +21,14 @@ jobs:
       - name: Configurar Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.x'
+          flutter-version: '3.24.x'
           channel: 'stable'
-          cache: true
+          cache: false
+
+      - name: Limpar cache do Gradle
+        run: |
+          rm -rf ~/.gradle/caches
+          rm -rf ~/.gradle/wrapper/dists
 
       - name: Decodificar Keystore
         run: |
