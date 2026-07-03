@@ -5,6 +5,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/badge_config.dart';
 import '../widgets/avatar_frame.dart';
+import '../widgets/app_avatar.dart';
 import 'amigos_modelos.dart';
 import 'amigos_perfil.dart';
 import 'chat_screen.dart';
@@ -59,14 +60,6 @@ class _AmigoAvatarState extends State<AmigoAvatar>
     super.dispose();
   }
 
-  String _getInitial() {
-    final name = widget.friend.displayName.trim();
-    if (name.isNotEmpty) return name[0].toUpperCase();
-    final username = widget.friend.username.trim();
-    if (username.isNotEmpty) return username[0].toUpperCase();
-    return '?';
-  }
-
   @override
   Widget build(BuildContext context) {
     final s = widget.size;
@@ -82,13 +75,9 @@ class _AmigoAvatarState extends State<AmigoAvatar>
           level: widget.friend.level,
           size: s,
           child: Container(
+            padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
               border: Border.all(color: borderColor, width: 2),
               boxShadow: [
                 BoxShadow(
@@ -97,15 +86,9 @@ class _AmigoAvatarState extends State<AmigoAvatar>
                 ),
               ],
             ),
-            child: Center(
-              child: Text(
-                _getInitial(),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: s * 0.36,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
+            child: AppAvatar(
+              avatarId: widget.friend.avatarId,
+              size: s - 4,
             ),
           ),
         ),
@@ -889,7 +872,6 @@ class _SkeletonCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Avatar skeleton
           Container(
             width: 50,
             height: 50,
