@@ -5,40 +5,22 @@ import 'package:flutter/material.dart';
 // CATEGORIAS
 // ═══════════════════════════════════════════════════════════════════
 enum AvatarCategory {
-  animais,
-  robos,
-  personagens,
-  esportes,
-  tecnologia,
-  natureza,
-  espaco,
-  fantasia,
+  homem,
+  mulher,
 }
 
 extension AvatarCategoryExt on AvatarCategory {
   String get label {
     switch (this) {
-      case AvatarCategory.animais:     return 'Animais';
-      case AvatarCategory.robos:       return 'Robôs';
-      case AvatarCategory.personagens: return 'Personagens';
-      case AvatarCategory.esportes:    return 'Esportes';
-      case AvatarCategory.tecnologia:  return 'Tecnologia';
-      case AvatarCategory.natureza:    return 'Natureza';
-      case AvatarCategory.espaco:      return 'Espaço';
-      case AvatarCategory.fantasia:    return 'Fantasia';
+      case AvatarCategory.homem:  return 'Homem';
+      case AvatarCategory.mulher: return 'Mulher';
     }
   }
 
   IconData get tabIcon {
     switch (this) {
-      case AvatarCategory.animais:     return Icons.pets_rounded;
-      case AvatarCategory.robos:       return Icons.smart_toy_rounded;
-      case AvatarCategory.personagens: return Icons.theater_comedy_rounded;
-      case AvatarCategory.esportes:    return Icons.sports_basketball_rounded;
-      case AvatarCategory.tecnologia:  return Icons.memory_rounded;
-      case AvatarCategory.natureza:    return Icons.eco_rounded;
-      case AvatarCategory.espaco:      return Icons.rocket_launch_rounded;
-      case AvatarCategory.fantasia:    return Icons.auto_awesome_rounded;
+      case AvatarCategory.homem:  return Icons.man_rounded;
+      case AvatarCategory.mulher: return Icons.woman_rounded;
     }
   }
 }
@@ -99,150 +81,44 @@ class AvatarData {
 
   bool isUnlockedFor(int userLevel) => userLevel >= requiredLevel;
 
-  /// Caminho da ilustração deste avatar específico.
-  /// Ex: assets/avatars/animais_07.png
-  String get assetPath => 'assets/avatars/$id.png';
-
-  /// Caminho da ilustração "padrão" da categoria (primeiro item, 01).
-  /// Usado como fallback quando o arquivo específico ainda não existe.
-  /// Ex: assets/avatars/animais_01.png
-  String get categoryFallbackAssetPath =>
-      'assets/avatars/${category.name}_01.png';
-
-  /// Placeholder global — usado quando nem o arquivo específico nem o
-  /// padrão da categoria existem ainda.
-  static const String globalPlaceholderAssetPath =
-      'assets/avatars/placeholder.png';
+  /// URL da ilustração gerada dinamicamente via DiceBear.
+  /// Cada avatarId funciona como "seed": sempre gera a mesma ilustração
+  /// para o mesmo id, sem precisar de nenhum arquivo local.
+  /// Estilo "personas" = pessoa ilustrada estilo flat/mascote,
+  /// nunca emoji, ícone ou caractere unicode.
+  String get networkUrl =>
+      'https://api.dicebear.com/9.x/personas/png?seed=$id&backgroundColor=transparent&size=256';
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// CATÁLOGO — 104 avatares, 13 por categoria
+// CATÁLOGO — 2 categorias (Homem/Mulher), 8 avatares cada = 16 no total
 // Fácil de estender: só adicionar itens em _raw, sem tocar no resto do app
 // ═══════════════════════════════════════════════════════════════════
 class AvatarCatalog {
   AvatarCatalog._();
 
-  static const String defaultAvatarId = 'animais_01';
+  static const String defaultAvatarId = 'homem_01';
 
-  // raridade, nível mínimo — nessa ordem, por categoria (13 itens cada)
+  // raridade, nível mínimo — nessa ordem, por categoria (8 itens cada)
+  // Distribuição: 4 Comum, 2 Raro, 1 Épico, 1 Lendário
   static const Map<AvatarCategory, List<List<Object>>> _raw = {
-    AvatarCategory.animais: [
+    AvatarCategory.homem: [
       [AvatarRarity.comum, 0],
       [AvatarRarity.comum, 0],
       [AvatarRarity.comum, 0],
       [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.raro, 5],
       [AvatarRarity.raro, 5],
       [AvatarRarity.raro, 5],
       [AvatarRarity.epico, 10],
       [AvatarRarity.lendario, 20],
     ],
-    AvatarCategory.robos: [
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.lendario, 20],
-    ],
-    AvatarCategory.personagens: [
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
+    AvatarCategory.mulher: [
       [AvatarRarity.comum, 0],
       [AvatarRarity.comum, 0],
       [AvatarRarity.comum, 0],
       [AvatarRarity.comum, 0],
       [AvatarRarity.raro, 5],
       [AvatarRarity.raro, 5],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.lendario, 20],
-    ],
-    AvatarCategory.esportes: [
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.lendario, 20],
-    ],
-    AvatarCategory.tecnologia: [
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.lendario, 20],
-    ],
-    AvatarCategory.natureza: [
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.lendario, 20],
-    ],
-    AvatarCategory.espaco: [
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.lendario, 20],
-    ],
-    AvatarCategory.fantasia: [
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.epico, 10],
       [AvatarRarity.epico, 10],
       [AvatarRarity.lendario, 20],
     ],
