@@ -280,8 +280,6 @@ class _AvatarTileState extends State<_AvatarTile>
 
   @override
   Widget build(BuildContext context) {
-    final rarity = widget.avatar.rarity;
-
     return FadeTransition(
       opacity: _fade,
       child: ScaleTransition(
@@ -292,11 +290,6 @@ class _AvatarTileState extends State<_AvatarTile>
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: rarity.gradient,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
               border: Border.all(
                 color: widget.isSelected
                     ? const Color(0xFFFF6B00)
@@ -318,9 +311,9 @@ class _AvatarTileState extends State<_AvatarTile>
               children: [
                 Opacity(
                   opacity: widget.isUnlocked ? 1.0 : 0.35,
-                  child: Text(
-                    widget.avatar.emoji,
-                    style: const TextStyle(fontSize: 26),
+                  child: AppAvatar(
+                    avatarId: widget.avatar.id,
+                    size: 56,
                   ),
                 ),
                 if (!widget.isUnlocked)
