@@ -15,6 +15,7 @@ class UserXpData {
   final List<String> achievements;
   final Map<String, dynamic> stats;
   final Map<String, dynamic> dailyMissions;
+  final String avatarId;
 
   const UserXpData({
     required this.totalXp,
@@ -27,6 +28,7 @@ class UserXpData {
     this.achievements = const [],
     this.stats = const {},
     this.dailyMissions = const {},
+    this.avatarId = 'animais_01',
   });
 
   factory UserXpData.empty() => const UserXpData(
@@ -36,10 +38,11 @@ class UserXpData {
         xpForNextLevel: 100,
         progressPercent: 0.0,
         totalSecondsOnline: 0,
+        avatarId: 'animais_01',
       );
 
-  // ── copyWith para substituir o nível sem mexer no XP real ────────
-  UserXpData copyWith({int? level}) {
+  // ── copyWith para substituir o nível ou avatar sem mexer no resto ─
+  UserXpData copyWith({int? level, String? avatarId}) {
     return UserXpData(
       totalXp: totalXp,
       level: level ?? this.level,
@@ -51,6 +54,7 @@ class UserXpData {
       achievements: achievements,
       stats: stats,
       dailyMissions: dailyMissions,
+      avatarId: avatarId ?? this.avatarId,
     );
   }
 
@@ -129,7 +133,8 @@ class XpService {
     List<String> achievements = const [],
     Map<String, dynamic> stats = const {},
     Map<String, dynamic> dailyMissions = const {},
-    int? overrideLevel, // <-- NOVO: nível forçado pelo admin
+    int? overrideLevel,
+    String avatarId = 'animais_01',
   }) {
     final calculatedLevel = levelFromXp(totalXp);
     final level = overrideLevel ?? calculatedLevel;
@@ -153,6 +158,7 @@ class XpService {
       achievements: achievements,
       stats: stats,
       dailyMissions: dailyMissions,
+      avatarId: avatarId,
     );
   }
 
@@ -197,6 +203,8 @@ class XpService {
           Map<String, dynamic>.from(dataUpdated['dailyMissions'] ?? {});
       final lastActivity =
           (dataUpdated['lastActivity'] as Timestamp?)?.toDate();
+      final avatarId =
+          (dataUpdated['avatarId'] as String?) ?? 'animais_01';
 
       // ── Lê override do admin ─────────────────────────────────────
       final overrideActive = dataUpdated['adminOverrideActive'] == true;
@@ -212,7 +220,8 @@ class XpService {
         achievements: achievements,
         stats: stats,
         dailyMissions: dailyMissions,
-        overrideLevel: overrideLevel, // <-- passa o override
+        overrideLevel: overrideLevel,
+        avatarId: avatarId,
       );
 
       // Só sincroniza level no Firestore se NÃO houver override ativo
@@ -290,6 +299,7 @@ class XpService {
       'totalXp': 0,
       'level': 1,
       'totalSecondsOnline': 0,
+      'avatarId': 'animais_01',
       'lastActivity': FieldValue.serverTimestamp(),
       'createdAt': FieldValue.serverTimestamp(),
       'achievements': ['first_login'],
