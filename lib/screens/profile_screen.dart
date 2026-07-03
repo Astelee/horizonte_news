@@ -10,7 +10,9 @@ import '../providers/user_xp_provider.dart';
 import '../services/xp_service.dart';
 import '../widgets/badge_widgets.dart';
 import '../widgets/avatar_frame.dart';
+import '../widgets/app_avatar.dart';
 import '../widgets/level_up_overlay.dart';
+import 'avatar_picker_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -188,6 +190,15 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
+  Future<void> _abrirSeletorDeAvatar() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AvatarPickerScreen()),
+    );
+    // Não precisa recarregar manualmente: o UserXpProvider já propaga
+    // a mudança automaticamente via notifyListeners().
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -285,26 +296,46 @@ class _ProfileScreenState extends State<ProfileScreen>
               right: 0,
               child: Column(
                 children: [
-                  AvatarFrame(
-                    level: data.level,
-                    size: 84,
-                    enableEntryAnimation: true,
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF1A0800),
-                      ),
-                      child: Center(
-                        child: Text(
-                          _getInitials(
-                              user?.displayName ?? user?.email),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
+                  GestureDetector(
+                    onTap: _abrirSeletorDeAvatar,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        AvatarFrame(
+                          level: data.level,
+                          size: 84,
+                          enableEntryAnimation: true,
+                          child: AppAvatar(
+                            avatarId: data.avatarId,
+                            size: 84,
                           ),
                         ),
-                      ),
+                        Positioned(
+                          bottom: 2,
+                          right: 2,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.primaryOrange,
+                              border: Border.all(
+                                  color: const Color(0xFF1A0800), width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primaryOrange
+                                      .withOpacity(0.5),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.edit_rounded,
+                              size: 12,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -317,6 +348,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  GestureDetector(
+                    onTap: _abrirSeletorDeAvatar,
+                    child: const Text(
+                      'ALTERAR AVATAR',
+                      style: TextStyle(
+                        color: AppColors.primaryOrange,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.5,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -1072,6 +1116,12 @@ class _ProfileScreenState extends State<ProfileScreen>
       child: Column(
         children: [
           _ActionButton(
+            icon: Icons.face_retouching_natural_rounded,
+            label: 'Alterar Avatar',
+            onTap: _abrirSeletorDeAvatar,
+          ),
+          const SizedBox(height: 10),
+          _ActionButton(
             icon: Icons.settings_outlined,
             label: 'Configurações',
             onTap: () =>
@@ -1087,14 +1137,6 @@ class _ProfileScreenState extends State<ProfileScreen>
         ],
       ),
     );
-  }
-
-  String _getInitials(String? name) {
-    if (name == null || name.isEmpty) return '?';
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2)
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    return name[0].toUpperCase();
   }
 }
 
