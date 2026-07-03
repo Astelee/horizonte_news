@@ -3,8 +3,15 @@ import 'package:flutter/material.dart';
 import '../models/avatar_catalog.dart';
 
 /// Widget reutilizável que renderiza um avatar ilustrado a partir do avatarId.
-/// Use em qualquer lugar que hoje mostra iniciais ou foto: perfil, comentários,
-/// aba amigos, seguidores, notificações etc.
+/// Usa uma cascata de fallback de 3 níveis para nunca quebrar mesmo que
+/// nem todas as 104 ilustrações existam ainda em assets/avatars/:
+///
+///   1º) tenta a ilustração específica do avatar   (ex: animais_07.png)
+///   2º) se não existir, tenta a padrão da categoria (ex: animais_01.png)
+///   3º) se não existir, usa o placeholder global    (placeholder.png)
+///
+/// Use em qualquer lugar que hoje mostra a "foto" do usuário: perfil,
+/// comentários, aba amigos, card de conversas, menus de contexto, etc.
 class AppAvatar extends StatelessWidget {
   final String? avatarId;
   final double size;
@@ -28,6 +35,7 @@ class AppAvatar extends StatelessWidget {
     final content = Container(
       width: size,
       height: size,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
@@ -49,12 +57,7 @@ class AppAvatar extends StatelessWidget {
           ),
         ],
       ),
-      child: Center(
-        child: Text(
-          avatar.emoji,
-          style: TextStyle(fontSize: size * 0.5),
-        ),
-      ),
+      child: _AvatarIllustration(avatar: avatar, size: size),
     );
 
     if (onTap == null) return content;
@@ -62,6 +65,52 @@ class AppAvatar extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: content,
+    );
+  }
+}
+
+/// Faz a cascata de fallback entre 3 imagens usando errorBuilder,
+/// sem nunca exibir emoji, ícone ou caractere unicode como avatar.
+class _AvatarIllustration extends StatelessWidget {
+  final AvatarData avatar;
+  final double size;
+
+  const _AvatarIllustration({required this.avatar, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      avatar.assetPath,
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        // 2º nível: ilustração padrão da categoria
+        return Image.asset(
+          avatar.categoryFallbackAssetPath,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            // 3º nível: placeholder global — sempre deve existir
+            return Image.asset(
+              AvatarData.globalPlaceholderAssetPath,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                // Último recurso, caso nem o placeholder exista ainda:
+                // fundo sólido sem emoji/ícone/unicode.
+                return Container(
+                  width: size,
+                  height: size,
+                  color: const Color(0xFF1A1A1A),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 }
