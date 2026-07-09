@@ -9,8 +9,8 @@ class AvatarData {
 
   const AvatarData({required this.id, required this.seed});
 
-  /// URL via Multiavatar — ilustrações coloridas únicas por seed
-  String get networkUrl => 'https://api.multiavatar.com/$seed.png';
+  /// URL via Multiavatar — SVG ilustrado colorido único por seed
+String get networkUrl => 'https://api.multiavatar.com/$seed.svg';
 }
 
 // ═══════════════════════════════════════════════════════════════════
