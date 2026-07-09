@@ -28,12 +28,7 @@ class AppAvatar extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        // ✅ Gradiente fixo laranja — sem rarity
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: const Color(0xFF1A1A1A),
         border: showBorder
             ? Border.all(
                 color: borderColor ?? const Color(0xFFFF6B00),
@@ -42,9 +37,8 @@ class AppAvatar extends StatelessWidget {
             : null,
         boxShadow: [
           BoxShadow(
-            // ✅ Sombra fixa laranja — sem rarity
-            color: const Color(0xFFFF6B00).withOpacity(0.25),
-            blurRadius: size * 0.25,
+            color: const Color(0xFFFF6B00).withOpacity(0.2),
+            blurRadius: size * 0.2,
             spreadRadius: 0.5,
           ),
         ],
@@ -74,6 +68,11 @@ class AppAvatar extends StatelessWidget {
           width: size,
           height: size,
           color: const Color(0xFF1A1A1A),
+          child: Icon(
+            Icons.person_rounded,
+            color: const Color(0xFFFF6B00).withOpacity(0.5),
+            size: size * 0.5,
+          ),
         ),
       ),
     );
