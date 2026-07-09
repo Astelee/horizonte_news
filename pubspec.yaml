@@ -24,6 +24,7 @@ dependencies:
   # Rede e Imagem
   http: ^1.2.1
   cached_network_image: ^3.3.1
+  flutter_svg: ^2.0.10
 
   # Funcionalidades
   url_launcher: ^6.3.0
@@ -52,7 +53,7 @@ dependencies:
   # WebView para vídeos YouTube
   webview_flutter: ^4.7.0
 
-  # XML para RSS (mantido caso use em outro lugar)
+  # XML para RSS
   xml: ^6.5.0
 
 dependency_overrides:
