@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 
 // ═══════════════════════════════════════════════════════════════════
-// MODELO DE AVATAR — sem raridade, todos liberados desde o início
+// MODELO DE AVATAR
 // ═══════════════════════════════════════════════════════════════════
 class AvatarData {
   final String id;
+  final String seed; // nome usado na URL do Multiavatar
 
-  const AvatarData({required this.id});
+  const AvatarData({required this.id, required this.seed});
 
-  /// URL via DiceBear "personas" — ilustrações flat coloridas,
-  /// estilo próximo ao Google Play Games.
-  String get networkUrl =>
-      'https://api.dicebear.com/9.x/personas/png?seed=$id&size=256';
+  /// URL via Multiavatar — ilustrações coloridas únicas por seed
+  String get networkUrl => 'https://api.multiavatar.com/$seed.png';
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // CATÁLOGO — 32 avatares, todos liberados, sem raridade
+// Cada seed diferente gera um personagem completamente diferente.
 // ═══════════════════════════════════════════════════════════════════
 class AvatarCatalog {
   AvatarCatalog._();
@@ -23,38 +23,38 @@ class AvatarCatalog {
   static const String defaultAvatarId = 'avatar_01';
 
   static final List<AvatarData> all = const [
-    AvatarData(id: 'avatar_01'),
-    AvatarData(id: 'avatar_02'),
-    AvatarData(id: 'avatar_03'),
-    AvatarData(id: 'avatar_04'),
-    AvatarData(id: 'avatar_05'),
-    AvatarData(id: 'avatar_06'),
-    AvatarData(id: 'avatar_07'),
-    AvatarData(id: 'avatar_08'),
-    AvatarData(id: 'avatar_09'),
-    AvatarData(id: 'avatar_10'),
-    AvatarData(id: 'avatar_11'),
-    AvatarData(id: 'avatar_12'),
-    AvatarData(id: 'avatar_13'),
-    AvatarData(id: 'avatar_14'),
-    AvatarData(id: 'avatar_15'),
-    AvatarData(id: 'avatar_16'),
-    AvatarData(id: 'avatar_17'),
-    AvatarData(id: 'avatar_18'),
-    AvatarData(id: 'avatar_19'),
-    AvatarData(id: 'avatar_20'),
-    AvatarData(id: 'avatar_21'),
-    AvatarData(id: 'avatar_22'),
-    AvatarData(id: 'avatar_23'),
-    AvatarData(id: 'avatar_24'),
-    AvatarData(id: 'avatar_25'),
-    AvatarData(id: 'avatar_26'),
-    AvatarData(id: 'avatar_27'),
-    AvatarData(id: 'avatar_28'),
-    AvatarData(id: 'avatar_29'),
-    AvatarData(id: 'avatar_30'),
-    AvatarData(id: 'avatar_31'),
-    AvatarData(id: 'avatar_32'),
+    AvatarData(id: 'avatar_01', seed: 'Felix'),
+    AvatarData(id: 'avatar_02', seed: 'Luna'),
+    AvatarData(id: 'avatar_03', seed: 'Zara'),
+    AvatarData(id: 'avatar_04', seed: 'Orion'),
+    AvatarData(id: 'avatar_05', seed: 'Nova'),
+    AvatarData(id: 'avatar_06', seed: 'Blaze'),
+    AvatarData(id: 'avatar_07', seed: 'Cleo'),
+    AvatarData(id: 'avatar_08', seed: 'Titan'),
+    AvatarData(id: 'avatar_09', seed: 'Mila'),
+    AvatarData(id: 'avatar_10', seed: 'Dex'),
+    AvatarData(id: 'avatar_11', seed: 'Aria'),
+    AvatarData(id: 'avatar_12', seed: 'Rex'),
+    AvatarData(id: 'avatar_13', seed: 'Ivy'),
+    AvatarData(id: 'avatar_14', seed: 'Thor'),
+    AvatarData(id: 'avatar_15', seed: 'Sage'),
+    AvatarData(id: 'avatar_16', seed: 'Kira'),
+    AvatarData(id: 'avatar_17', seed: 'Axel'),
+    AvatarData(id: 'avatar_18', seed: 'Neon'),
+    AvatarData(id: 'avatar_19', seed: 'Pixel'),
+    AvatarData(id: 'avatar_20', seed: 'Storm'),
+    AvatarData(id: 'avatar_21', seed: 'Ember'),
+    AvatarData(id: 'avatar_22', seed: 'Cruz'),
+    AvatarData(id: 'avatar_23', seed: 'Vega'),
+    AvatarData(id: 'avatar_24', seed: 'Lyra'),
+    AvatarData(id: 'avatar_25', seed: 'Onyx'),
+    AvatarData(id: 'avatar_26', seed: 'Echo'),
+    AvatarData(id: 'avatar_27', seed: 'Bolt'),
+    AvatarData(id: 'avatar_28', seed: 'Jade'),
+    AvatarData(id: 'avatar_29', seed: 'Ryuu'),
+    AvatarData(id: 'avatar_30', seed: 'Koda'),
+    AvatarData(id: 'avatar_31', seed: 'Zion'),
+    AvatarData(id: 'avatar_32', seed: 'Mako'),
   ];
 
   static AvatarData byId(String? id) {
