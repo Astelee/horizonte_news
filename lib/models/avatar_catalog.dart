@@ -1,29 +1,4 @@
-// lib/models/avatar_catalog.dart
 import 'package:flutter/material.dart';
-
-// ═══════════════════════════════════════════════════════════════════
-// CATEGORIAS
-// ═══════════════════════════════════════════════════════════════════
-enum AvatarCategory {
-  homem,
-  mulher,
-}
-
-extension AvatarCategoryExt on AvatarCategory {
-  String get label {
-    switch (this) {
-      case AvatarCategory.homem:  return 'Homem';
-      case AvatarCategory.mulher: return 'Mulher';
-    }
-  }
-
-  IconData get tabIcon {
-    switch (this) {
-      case AvatarCategory.homem:  return Icons.man_rounded;
-      case AvatarCategory.mulher: return Icons.woman_rounded;
-    }
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════
 // RARIDADE
@@ -61,90 +36,99 @@ extension AvatarRarityExt on AvatarRarity {
       case AvatarRarity.lendario: return const Color(0xFFFFD700);
     }
   }
+
+  Color get badgeBg {
+    switch (this) {
+      case AvatarRarity.comum:    return const Color(0xFF2A2A2A);
+      case AvatarRarity.raro:     return const Color(0xFF0D2A3A);
+      case AvatarRarity.epico:    return const Color(0xFF2A0D3A);
+      case AvatarRarity.lendario: return const Color(0xFF3A2800);
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// MODELO DE UM AVATAR
+// MODELO DE AVATAR
 // ═══════════════════════════════════════════════════════════════════
 class AvatarData {
   final String id;
-  final AvatarCategory category;
   final AvatarRarity rarity;
-  final int requiredLevel; // nível mínimo para desbloquear (0 = liberado)
+  final int requiredLevel;
 
   const AvatarData({
     required this.id,
-    required this.category,
     required this.rarity,
     this.requiredLevel = 0,
   });
 
   bool isUnlockedFor(int userLevel) => userLevel >= requiredLevel;
 
-  /// URL da ilustração gerada dinamicamente via DiceBear.
-  /// Cada avatarId funciona como "seed": sempre gera a mesma ilustração
-  /// para o mesmo id, sem precisar de nenhum arquivo local.
-  /// Estilo "personas" = pessoa ilustrada estilo flat/mascote,
-  /// nunca emoji, ícone ou caractere unicode.
+  /// URL ilustrada via DiceBear "adventurer" — personagens estilo
+  /// mascote/fantasia (animais, criaturas, heróis), nunca foto ou emoji.
+  /// Cada seed gera sempre o mesmo personagem.
   String get networkUrl =>
-      'https://api.dicebear.com/9.x/personas/png?seed=$id&backgroundColor=transparent&size=256';
+      'https://api.dicebear.com/9.x/adventurer/png?seed=$id&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf&size=256';
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// CATÁLOGO — 2 categorias (Homem/Mulher), 8 avatares cada = 16 no total
-// Fácil de estender: só adicionar itens em _raw, sem tocar no resto do app
+// CATÁLOGO — 32 avatares, sem categoria de sexo
+// Distribuição por raridade:
+//   Comum    (nv 0):  16 avatares — liberados desde o início
+//   Raro     (nv 5):   8 avatares — desbloqueiam no nível 5
+//   Épico    (nv 10):  6 avatares — desbloqueiam no nível 10
+//   Lendário (nv 20):  2 avatares — desbloqueiam no nível 20
 // ═══════════════════════════════════════════════════════════════════
 class AvatarCatalog {
   AvatarCatalog._();
 
-  static const String defaultAvatarId = 'homem_01';
+  static const String defaultAvatarId = 'horizonte_fox';
 
-  // raridade, nível mínimo — nessa ordem, por categoria (8 itens cada)
-  // Distribuição: 4 Comum, 2 Raro, 1 Épico, 1 Lendário
-  static const Map<AvatarCategory, List<List<Object>>> _raw = {
-    AvatarCategory.homem: [
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.lendario, 20],
-    ],
-    AvatarCategory.mulher: [
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.comum, 0],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.raro, 5],
-      [AvatarRarity.epico, 10],
-      [AvatarRarity.lendario, 20],
-    ],
-  };
+  static final List<AvatarData> all = const [
 
-  static final List<AvatarData> all = _build();
+    // ── COMUM (nível 0) ─────────────────────────────────────────
+    AvatarData(id: 'horizonte_fox',      rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_bear',     rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_wolf',     rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_cat',      rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_rabbit',   rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_owl',      rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_panda',    rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_penguin',  rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_lion',     rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_deer',     rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_koala',    rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_frog',     rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_duck',     rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_hamster',  rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_sloth',    rarity: AvatarRarity.comum, requiredLevel: 0),
+    AvatarData(id: 'horizonte_hedgehog', rarity: AvatarRarity.comum, requiredLevel: 0),
 
-  static List<AvatarData> _build() {
-    final list = <AvatarData>[];
-    _raw.forEach((category, items) {
-      for (int i = 0; i < items.length; i++) {
-        final rarity = items[i][0] as AvatarRarity;
-        final level = items[i][1] as int;
-        list.add(AvatarData(
-          id: '${category.name}_${(i + 1).toString().padLeft(2, '0')}',
-          category: category,
-          rarity: rarity,
-          requiredLevel: level,
-        ));
-      }
-    });
-    return list;
-  }
+    // ── RARO (nível 5) ──────────────────────────────────────────
+    AvatarData(id: 'horizonte_pirate',   rarity: AvatarRarity.raro, requiredLevel: 5),
+    AvatarData(id: 'horizonte_ninja',    rarity: AvatarRarity.raro, requiredLevel: 5),
+    AvatarData(id: 'horizonte_wizard',   rarity: AvatarRarity.raro, requiredLevel: 5),
+    AvatarData(id: 'horizonte_viking',   rarity: AvatarRarity.raro, requiredLevel: 5),
+    AvatarData(id: 'horizonte_robot',    rarity: AvatarRarity.raro, requiredLevel: 5),
+    AvatarData(id: 'horizonte_ghost',    rarity: AvatarRarity.raro, requiredLevel: 5),
+    AvatarData(id: 'horizonte_skull',    rarity: AvatarRarity.raro, requiredLevel: 5),
+    AvatarData(id: 'horizonte_alien',    rarity: AvatarRarity.raro, requiredLevel: 5),
 
-  static List<AvatarData> byCategory(AvatarCategory category) =>
-      all.where((a) => a.category == category).toList();
+    // ── ÉPICO (nível 10) ────────────────────────────────────────
+    AvatarData(id: 'horizonte_dragon',   rarity: AvatarRarity.epico, requiredLevel: 10),
+    AvatarData(id: 'horizonte_unicorn',  rarity: AvatarRarity.epico, requiredLevel: 10),
+    AvatarData(id: 'horizonte_phoenix',  rarity: AvatarRarity.epico, requiredLevel: 10),
+    AvatarData(id: 'horizonte_werewolf', rarity: AvatarRarity.epico, requiredLevel: 10),
+    AvatarData(id: 'horizonte_mermaid',  rarity: AvatarRarity.epico, requiredLevel: 10),
+    AvatarData(id: 'horizonte_samurai',  rarity: AvatarRarity.epico, requiredLevel: 10),
+
+    // ── LENDÁRIO (nível 20) ─────────────────────────────────────
+    AvatarData(id: 'horizonte_titan',    rarity: AvatarRarity.lendario, requiredLevel: 20),
+    AvatarData(id: 'horizonte_god',      rarity: AvatarRarity.lendario, requiredLevel: 20),
+  ];
+
+  // Filtra por raridade (usado na tela do picker por seção)
+  static List<AvatarData> byRarity(AvatarRarity rarity) =>
+      all.where((a) => a.rarity == rarity).toList();
 
   static AvatarData byId(String? id) {
     if (id == null) return all.first;
