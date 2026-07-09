@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../models/avatar_catalog.dart';
 
 class AppAvatar extends StatelessWidget {
@@ -43,13 +43,13 @@ class AppAvatar extends StatelessWidget {
           ),
         ],
       ),
-      child: CachedNetworkImage(
-        imageUrl: avatar.networkUrl,
+      // ✅ SvgPicture.network renderiza SVG do Multiavatar corretamente
+      child: SvgPicture.network(
+        avatar.networkUrl,
         width: size,
         height: size,
         fit: BoxFit.cover,
-        fadeInDuration: const Duration(milliseconds: 200),
-        placeholder: (context, url) => Container(
+        placeholderBuilder: (context) => Container(
           width: size,
           height: size,
           color: const Color(0xFF1A1A1A),
@@ -62,16 +62,6 @@ class AppAvatar extends StatelessWidget {
                 color: const Color(0xFFFF6B00).withOpacity(0.6),
               ),
             ),
-          ),
-        ),
-        errorWidget: (context, url, error) => Container(
-          width: size,
-          height: size,
-          color: const Color(0xFF1A1A1A),
-          child: Icon(
-            Icons.person_rounded,
-            color: const Color(0xFFFF6B00).withOpacity(0.5),
-            size: size * 0.5,
           ),
         ),
       ),
