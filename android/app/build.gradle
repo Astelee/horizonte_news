@@ -13,7 +13,8 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace "com.astelee.horizonte_news"
     compileSdkVersion 35
-    ndkVersion "25.1.8937393"
+    // ✅ CORRIGIDO: atualizado para versão exigida pelos plugins
+    ndkVersion "27.0.12077973"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
