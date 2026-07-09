@@ -1,15 +1,7 @@
-// lib/widgets/app_avatar.dart
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/avatar_catalog.dart';
 
-/// Widget reutilizável que renderiza um avatar ilustrado a partir do avatarId.
-/// A ilustração é gerada dinamicamente via URL (DiceBear) e cacheada
-/// localmente pelo CachedNetworkImage — não depende de nenhum arquivo
-/// em assets/, então qualquer um dos 16 avatarIds já funciona sem upload.
-///
-/// Use em qualquer lugar que hoje mostra a "foto" do usuário: perfil,
-/// comentários, aba amigos, card de conversas, menus de contexto, etc.
 class AppAvatar extends StatelessWidget {
   final String? avatarId;
   final double size;
@@ -36,8 +28,9 @@ class AppAvatar extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: avatar.rarity.gradient,
+        // ✅ Gradiente fixo laranja — sem rarity
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -49,7 +42,8 @@ class AppAvatar extends StatelessWidget {
             : null,
         boxShadow: [
           BoxShadow(
-            color: avatar.rarity.accentColor.withOpacity(0.25),
+            // ✅ Sombra fixa laranja — sem rarity
+            color: const Color(0xFFFF6B00).withOpacity(0.25),
             blurRadius: size * 0.25,
             spreadRadius: 0.5,
           ),
@@ -71,7 +65,7 @@ class AppAvatar extends StatelessWidget {
               height: size * 0.35,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: avatar.rarity.accentColor.withOpacity(0.6),
+                color: const Color(0xFFFF6B00).withOpacity(0.6),
               ),
             ),
           ),
@@ -85,10 +79,6 @@ class AppAvatar extends StatelessWidget {
     );
 
     if (onTap == null) return content;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: content,
-    );
+    return GestureDetector(onTap: onTap, child: content);
   }
 }
