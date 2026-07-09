@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../models/avatar_catalog.dart';
 import '../providers/user_xp_provider.dart';
 import '../widgets/app_avatar.dart';
@@ -13,8 +12,7 @@ class AvatarPickerScreen extends StatefulWidget {
   State<AvatarPickerScreen> createState() => _AvatarPickerScreenState();
 }
 
-class _AvatarPickerScreenState extends State<AvatarPickerScreen>
-    with SingleTickerProviderStateMixin {
+class _AvatarPickerScreenState extends State<AvatarPickerScreen> {
   late String _selectedId;
   bool _saving = false;
 
@@ -52,14 +50,11 @@ class _AvatarPickerScreenState extends State<AvatarPickerScreen>
 
   @override
   Widget build(BuildContext context) {
-    final userLevel = context.watch<UserXpProvider>().data.level;
-    final selecionado = AvatarCatalog.byId(_selectedId);
-
     return Scaffold(
       backgroundColor: Colors.black,
       body: Column(
         children: [
-          // ── AppBar customizada ──────────────────────────────────
+          // ── AppBar ──────────────────────────────────────────────
           Container(
             padding: EdgeInsets.only(
               top: MediaQuery.of(context).padding.top + 8,
@@ -69,12 +64,14 @@ class _AvatarPickerScreenState extends State<AvatarPickerScreen>
             ),
             decoration: const BoxDecoration(
               color: Color(0xFF080808),
-              border: Border(bottom: BorderSide(color: Color(0xFF1A1A1A))),
+              border:
+                  Border(bottom: BorderSide(color: Color(0xFF1A1A1A))),
             ),
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Colors.white),
+                  icon: const Icon(Icons.close_rounded,
+                      color: Colors.white),
                   onPressed: () => Navigator.pop(context),
                 ),
                 const Expanded(
@@ -88,7 +85,7 @@ class _AvatarPickerScreenState extends State<AvatarPickerScreen>
                     textAlign: TextAlign.center,
                   ),
                 ),
-                const SizedBox(width: 48), // balanceia o botão de fechar
+                const SizedBox(width: 48),
               ],
             ),
           ),
@@ -97,103 +94,65 @@ class _AvatarPickerScreenState extends State<AvatarPickerScreen>
           Container(
             padding: const EdgeInsets.symmetric(vertical: 24),
             width: double.infinity,
-            decoration: BoxDecoration(
-              color: const Color(0xFF080808),
-              border: const Border(
+            decoration: const BoxDecoration(
+              color: Color(0xFF080808),
+              border: Border(
                   bottom: BorderSide(color: Color(0xFF1A1A1A))),
-              boxShadow: [
-                BoxShadow(
-                  color: selecionado.rarity.accentColor.withOpacity(0.15),
-                  blurRadius: 40,
-                  spreadRadius: 4,
-                ),
-              ],
             ),
-            child: Column(
-              children: [
-                // Glow atrás do avatar
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: selecionado.rarity.accentColor
-                            .withOpacity(0.45),
-                        blurRadius: 36,
-                        spreadRadius: 6,
-                      ),
-                    ],
-                  ),
-                  child: TweenAnimationBuilder<double>(
-                    key: ValueKey(_selectedId),
-                    tween: Tween(begin: 0.7, end: 1.0),
-                    duration: const Duration(milliseconds: 350),
-                    curve: Curves.elasticOut,
-                    builder: (_, scale, child) =>
-                        Transform.scale(scale: scale, child: child),
-                    child: AppAvatar(
-                      avatarId: _selectedId,
-                      size: 110,
-                      showBorder: true,
-                      borderColor: selecionado.rarity.accentColor,
-                    ),
-                  ),
+            child: Center(
+              child: TweenAnimationBuilder<double>(
+                key: ValueKey(_selectedId),
+                tween: Tween(begin: 0.7, end: 1.0),
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.elasticOut,
+                builder: (_, scale, child) =>
+                    Transform.scale(scale: scale, child: child),
+                child: AppAvatar(
+                  avatarId: _selectedId,
+                  size: 110,
+                  showBorder: true,
+                  borderColor: const Color(0xFFFF6B00),
                 ),
-                const SizedBox(height: 12),
-                // Badge de raridade
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  child: Container(
-                    key: ValueKey(_selectedId),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 5),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      color: selecionado.rarity.badgeBg,
-                      border: Border.all(
-                          color: selecionado.rarity.accentColor
-                              .withOpacity(0.5)),
-                    ),
-                    child: Text(
-                      selecionado.rarity.label.toUpperCase(),
-                      style: TextStyle(
-                        color: selecionado.rarity.accentColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
 
-          // ── Lista de avatares por seção de raridade ─────────────
+          // ── Grade de avatares ───────────────────────────────────
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-              children: AvatarRarity.values.map((rarity) {
-                final lista = AvatarCatalog.byRarity(rarity);
-                return _SecaoRaridade(
-                  rarity: rarity,
-                  avatares: lista,
-                  selectedId: _selectedId,
-                  userLevel: userLevel,
-                  onSelect: (id) {
+            child: GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+                childAspectRatio: 1,
+              ),
+              itemCount: AvatarCatalog.all.length,
+              itemBuilder: (context, i) {
+                final avatar = AvatarCatalog.all[i];
+                final selecionado = avatar.id == _selectedId;
+
+                return _AvatarTile(
+                  avatar: avatar,
+                  isSelected: selecionado,
+                  index: i,
+                  onTap: () {
                     HapticFeedback.selectionClick();
-                    setState(() => _selectedId = id);
+                    setState(() => _selectedId = avatar.id);
                   },
                 );
-              }).toList(),
+              },
             ),
           ),
 
           // ── Botão Salvar ─────────────────────────────────────────
           Container(
             padding: EdgeInsets.fromLTRB(
-                16, 12, 16, 16 + MediaQuery.of(context).padding.bottom),
+                16,
+                12,
+                16,
+                16 + MediaQuery.of(context).padding.bottom),
             decoration: const BoxDecoration(
               color: Color(0xFF080808),
               border:
@@ -201,8 +160,7 @@ class _AvatarPickerScreenState extends State<AvatarPickerScreen>
             ),
             child: GestureDetector(
               onTap: _salvar,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+              child: Container(
                 height: 54,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
@@ -257,166 +215,17 @@ class _AvatarPickerScreenState extends State<AvatarPickerScreen>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SEÇÃO POR RARIDADE
-// ═══════════════════════════════════════════════════════════════════
-class _SecaoRaridade extends StatelessWidget {
-  final AvatarRarity rarity;
-  final List<AvatarData> avatares;
-  final String selectedId;
-  final int userLevel;
-  final ValueChanged<String> onSelect;
-
-  const _SecaoRaridade({
-    required this.rarity,
-    required this.avatares,
-    required this.selectedId,
-    required this.userLevel,
-    required this.onSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Cabeçalho da seção
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: rarity.accentColor,
-                  boxShadow: [
-                    BoxShadow(
-                        color: rarity.accentColor.withOpacity(0.6),
-                        blurRadius: 8)
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                rarity.label.toUpperCase(),
-                style: TextStyle(
-                  color: rarity.accentColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  height: 1,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        rarity.accentColor.withOpacity(0.4),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              if (rarity != AvatarRarity.comum) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    color: rarity.badgeBg,
-                    border: Border.all(
-                        color: rarity.accentColor.withOpacity(0.4)),
-                  ),
-                  child: Text(
-                    'Nv. ${avatares.first.requiredLevel}+',
-                    style: TextStyle(
-                      color: rarity.accentColor,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-
-        // Grid de avatares
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1,
-          ),
-          itemCount: avatares.length,
-          itemBuilder: (context, i) {
-            final avatar = avatares[i];
-            final desbloqueado = avatar.isUnlockedFor(userLevel);
-            final selecionado = avatar.id == selectedId;
-
-            return _AvatarTile(
-              avatar: avatar,
-              isSelected: selecionado,
-              isUnlocked: desbloqueado,
-              index: i,
-              onTap: () {
-                if (!desbloqueado) {
-                  HapticFeedback.heavyImpact();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          Icon(Icons.lock_rounded,
-                              color: rarity.accentColor, size: 16),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Desbloqueia no nível ${avatar.requiredLevel}',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ],
-                      ),
-                      backgroundColor: const Color(0xFF1A1A1A),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                  return;
-                }
-                onSelect(avatar.id);
-              },
-            );
-          },
-        ),
-        const SizedBox(height: 28),
-      ],
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// TILE INDIVIDUAL DO AVATAR
+// TILE INDIVIDUAL
 // ═══════════════════════════════════════════════════════════════════
 class _AvatarTile extends StatefulWidget {
   final AvatarData avatar;
   final bool isSelected;
-  final bool isUnlocked;
   final int index;
   final VoidCallback onTap;
 
   const _AvatarTile({
     required this.avatar,
     required this.isSelected,
-    required this.isUnlocked,
     required this.index,
     required this.onTap,
   });
@@ -435,15 +244,17 @@ class _AvatarTileState extends State<_AvatarTile>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 350));
-    _fade = Tween<double>(begin: 0, end: 1)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+        vsync: this,
+        duration: const Duration(milliseconds: 350));
+    _fade = Tween<double>(begin: 0, end: 1).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
     _scale = Tween<double>(begin: 0.7, end: 1.0).animate(
         CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
 
     Future.delayed(
-        Duration(milliseconds: 20 * (widget.index % 8)),
-        () { if (mounted) _ctrl.forward(); });
+      Duration(milliseconds: 20 * (widget.index % 8)),
+      () { if (mounted) _ctrl.forward(); },
+    );
   }
 
   @override
@@ -454,8 +265,6 @@ class _AvatarTileState extends State<_AvatarTile>
 
   @override
   Widget build(BuildContext context) {
-    final rarity = widget.avatar.rarity;
-
     return FadeTransition(
       opacity: _fade,
       child: ScaleTransition(
@@ -468,14 +277,14 @@ class _AvatarTileState extends State<_AvatarTile>
               shape: BoxShape.circle,
               border: Border.all(
                 color: widget.isSelected
-                    ? rarity.accentColor
+                    ? const Color(0xFFFF6B00)
                     : Colors.transparent,
                 width: 3,
               ),
               boxShadow: widget.isSelected
                   ? [
                       BoxShadow(
-                        color: rarity.accentColor.withOpacity(0.6),
+                        color: const Color(0xFFFF6B00).withOpacity(0.6),
                         blurRadius: 16,
                         spreadRadius: 2,
                       ),
@@ -485,36 +294,13 @@ class _AvatarTileState extends State<_AvatarTile>
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Avatar com opacidade reduzida se bloqueado
-                Opacity(
-                  opacity: widget.isUnlocked ? 1.0 : 0.3,
-                  child: AppAvatar(
-                    avatarId: widget.avatar.id,
-                    size: 64,
-                    showBorder: false,
-                  ),
+                AppAvatar(
+                  avatarId: widget.avatar.id,
+                  size: 64,
+                  showBorder: false,
                 ),
-
-                // Cadeado se bloqueado
-                if (!widget.isUnlocked)
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withOpacity(0.5),
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Icons.lock_rounded,
-                        size: 22,
-                        color: rarity.accentColor.withOpacity(0.8),
-                      ),
-                    ),
-                  ),
-
                 // Checkmark se selecionado
-                if (widget.isSelected && widget.isUnlocked)
+                if (widget.isSelected)
                   Positioned(
                     bottom: 0,
                     right: 0,
@@ -523,7 +309,7 @@ class _AvatarTileState extends State<_AvatarTile>
                       height: 20,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: rarity.accentColor,
+                        color: const Color(0xFFFF6B00),
                         border: Border.all(
                             color: Colors.black, width: 2),
                       ),
