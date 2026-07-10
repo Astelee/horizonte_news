@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
+import '../../../models/avatar_catalog.dart';
 import '../../../services/xp_service.dart';
+import '../../../widgets/app_avatar.dart';
 import 'admin_shared_widgets.dart';
 
 class AdminUserTile extends StatelessWidget {
@@ -13,6 +15,28 @@ class AdminUserTile extends StatelessWidget {
     required this.data,
     Key? key,
   }) : super(key: key);
+
+  String _lastSeenLabel(DateTime? lastSeen) {
+    if (lastSeen == null) return 'Nunca visto';
+    final diff = DateTime.now().difference(lastSeen);
+    if (diff.inSeconds < 60) return 'Online agora';
+    if (diff.inMinutes < 60) return 'Há ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'Há ${diff.inHours}h';
+    if (diff.inDays == 1) return 'Ontem';
+    if (diff.inDays < 7) return 'Há ${diff.inDays} dias';
+    if (diff.inDays < 30) return 'Há ${(diff.inDays / 7).floor()} sem.';
+    if (diff.inDays < 365) return 'Há ${(diff.inDays / 30).floor()} meses';
+    return 'Há mais de 1 ano';
+  }
+
+  Color _lastSeenColor(DateTime? lastSeen) {
+    if (lastSeen == null) return AppColors.textMuted;
+    final diff = DateTime.now().difference(lastSeen);
+    if (diff.inMinutes < 5) return const Color(0xFF43B581);
+    if (diff.inHours < 1) return const Color(0xFF66BB6A);
+    if (diff.inHours < 24) return const Color(0xFFFFCA28);
+    return AppColors.textMuted;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,8 +74,7 @@ class AdminUserTile extends StatelessWidget {
             (d['stats']?['articlesRead'] as num?)?.toInt() ??
                 (d['articlesRead'] as num?)?.toInt() ??
                 0;
-        final createdAt =
-            (d['createdAt'] as Timestamp?)?.toDate();
+        final createdAt = (d['createdAt'] as Timestamp?)?.toDate();
         final createdStr = createdAt != null
             ? 'Desde ${createdAt.day.toString().padLeft(2, '0')}/'
                 '${createdAt.month.toString().padLeft(2, '0')}/'
@@ -60,53 +83,116 @@ class AdminUserTile extends StatelessWidget {
         final lvlTitle = XpService.levelTitle(level);
         final lvlIcon = XpService.levelIcon(level);
 
+        // ── Último visto ────────────────────────────────────────
+        final lastSeenAt = (d['lastSeenAt'] as Timestamp?)?.toDate();
+        final lastSeenLabel = _lastSeenLabel(lastSeenAt);
+        final lastSeenColor = _lastSeenColor(lastSeenAt);
+        final isOnline = lastSeenAt != null &&
+            DateTime.now().difference(lastSeenAt).inMinutes < 5;
+
+        // ── Avatar ──────────────────────────────────────────────
+        final avatarId = d['avatarId'] as String?;
+
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(
             color: const Color(0xFF0A0A0A),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.borderDark),
+            border: Border.all(
+              color: isOnline
+                  ? const Color(0xFF43B581).withOpacity(0.4)
+                  : AppColors.borderDark,
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor:
-                      AppColors.primaryOrange.withOpacity(0.15),
-                  child: Text(
-                    name[0].toUpperCase(),
-                    style: const TextStyle(
-                      color: AppColors.primaryOrange,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
+                // Avatar com indicador online
+                Stack(
+                  children: [
+                    AppAvatar(
+                      avatarId: avatarId ?? AvatarCatalog.defaultAvatarId,
+                      size: 46,
+                      showBorder: false,
                     ),
-                  ),
+                    if (isOnline)
+                      Positioned(
+                        bottom: 1,
+                        right: 1,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF43B581),
+                            border: Border.all(
+                                color: const Color(0xFF0A0A0A), width: 2),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          )),
+                      // Nome + último visto
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isOnline
+                                    ? Icons.circle
+                                    : Icons.access_time_rounded,
+                                size: 9,
+                                color: lastSeenColor,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                lastSeenLabel,
+                                style: TextStyle(
+                                  color: lastSeenColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                       if (email.isNotEmpty)
-                        Text(email,
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 11,
-                            )),
+                        Text(
+                          email,
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 11,
+                          ),
+                        ),
                       if (createdStr.isNotEmpty)
-                        Text(createdStr,
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 11,
-                            )),
+                        Text(
+                          createdStr,
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 11,
+                          ),
+                        ),
                       const SizedBox(height: 6),
                       Row(
                         children: [
