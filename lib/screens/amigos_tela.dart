@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:ui';
+import '../config/app_routes.dart';
+import '../models/avatar_catalog.dart';
+import '../widgets/app_avatar.dart';
 import 'amigos_modelos.dart';
 import 'amigos_aba_conversas.dart';
 import 'amigos_aba_pedidos.dart';
@@ -69,6 +72,15 @@ class _TelaAmigosState extends State<TelaAmigos>
     );
   }
 
+  // ── Deriva status online a partir do lastSeenAt ────────────────
+  // Considera online se visto há menos de 5 minutos
+  FriendStatus _statusFromLastSeen(DateTime? lastSeen) {
+    if (lastSeen == null) return FriendStatus.offline;
+    final diff = DateTime.now().difference(lastSeen);
+    if (diff.inMinutes < 5) return FriendStatus.online;
+    return FriendStatus.offline;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -80,7 +92,9 @@ class _TelaAmigosState extends State<TelaAmigos>
           AnimatedSize(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOutCubic,
-            child: _buscaAberta ? _buildBarraBusca() : const SizedBox.shrink(),
+            child: _buscaAberta
+                ? _buildBarraBusca()
+                : const SizedBox.shrink(),
           ),
           AnimatedSize(
             duration: const Duration(milliseconds: 200),
@@ -132,11 +146,14 @@ class _TelaAmigosState extends State<TelaAmigos>
       stream: _db.collection('users_xp').doc(_myUid).snapshots(),
       builder: (context, snap) {
         final data = snap.data?.data() as Map<String, dynamic>?;
-        final displayName =
-            (data?['displayName'] as String?) ?? 'Você';
-        final initial = displayName.isNotEmpty
-            ? displayName[0].toUpperCase()
-            : '?';
+        final displayName = (data?['displayName'] as String?) ?? 'Você';
+        final avatarId = (data?['avatarId'] as String?) ??
+            AvatarCatalog.defaultAvatarId;
+
+        // ── Status real baseado em lastSeenAt ──────────────────
+        final lastSeenAt = (data?['lastSeenAt'] as Timestamp?)?.toDate();
+        final myStatus = _statusFromLastSeen(lastSeenAt);
+        final isOnline = myStatus == FriendStatus.online;
 
         return StreamBuilder<QuerySnapshot>(
           stream: _db
@@ -145,8 +162,7 @@ class _TelaAmigosState extends State<TelaAmigos>
               .where('status', isEqualTo: 'pending')
               .snapshots(),
           builder: (context, pedidosSnap) {
-            final pedidosCount =
-                pedidosSnap.data?.docs.length ?? 0;
+            final pedidosCount = pedidosSnap.data?.docs.length ?? 0;
 
             return StreamBuilder<QuerySnapshot>(
               stream: _db
@@ -155,8 +171,7 @@ class _TelaAmigosState extends State<TelaAmigos>
                   .where('participants', arrayContains: _myUid)
                   .snapshots(),
               builder: (context, amigosSnap) {
-                final amigosCount =
-                    amigosSnap.data?.docs.length ?? 0;
+                final amigosCount = amigosSnap.data?.docs.length ?? 0;
 
                 return Container(
                   padding: EdgeInsets.only(
@@ -182,86 +197,115 @@ class _TelaAmigosState extends State<TelaAmigos>
                         onPressed: () => Navigator.pop(context),
                       ),
 
-                      // Avatar do usuário logado
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFFFF6B00),
-                              Color(0xFFCC4400)
-                            ],
-                          ),
-                          border: Border.all(
-                              color: const Color(0xFF43B581),
-                              width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF43B581)
-                                  .withOpacity(0.3),
-                              blurRadius: 8,
+                      // ── Avatar clicável para abrir perfil ────
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          Navigator.pushNamed(
+                              context, AppRoutes.profile);
+                        },
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isOnline
+                                      ? const Color(0xFF43B581)
+                                      : const Color(0xFF333333),
+                                  width: 2,
+                                ),
+                                boxShadow: isOnline
+                                    ? [
+                                        BoxShadow(
+                                          color: const Color(0xFF43B581)
+                                              .withOpacity(0.3),
+                                          blurRadius: 8,
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: AppAvatar(
+                                avatarId: avatarId,
+                                size: 36,
+                                showBorder: false,
+                              ),
+                            ),
+                            // Bolinha de status
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: Container(
+                                width: 11,
+                                height: 11,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isOnline
+                                      ? const Color(0xFF43B581)
+                                      : const Color(0xFF555555),
+                                  border: Border.all(
+                                      color: Colors.black, width: 1.5),
+                                ),
+                              ),
                             ),
                           ],
-                        ),
-                        child: Center(
-                          child: Text(
-                            initial,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
 
-                      // Título + contadores
+                      // Título + contadores — clicável p/ perfil
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'CONVERSAS',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 2,
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                Text(
-                                  '$amigosCount amigo${amigosCount != 1 ? 's' : ''}',
-                                  style: const TextStyle(
-                                      color: Color(0xFF555555),
-                                      fontSize: 10),
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            Navigator.pushNamed(
+                                context, AppRoutes.profile);
+                          },
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'CONVERSAS',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 2,
                                 ),
-                                if (pedidosCount > 0) ...[
-                                  const Text(' · ',
-                                      style: TextStyle(
-                                          color: Color(0xFF333333),
-                                          fontSize: 10)),
+                              ),
+                              Row(
+                                children: [
                                   Text(
-                                    '$pedidosCount pedido${pedidosCount != 1 ? 's' : ''}',
+                                    '$amigosCount amigo${amigosCount != 1 ? 's' : ''}',
                                     style: const TextStyle(
-                                        color: Color(0xFFFF6B00),
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600),
+                                        color: Color(0xFF555555),
+                                        fontSize: 10),
                                   ),
+                                  if (pedidosCount > 0) ...[
+                                    const Text(' · ',
+                                        style: TextStyle(
+                                            color: Color(0xFF333333),
+                                            fontSize: 10)),
+                                    Text(
+                                      '$pedidosCount pedido${pedidosCount != 1 ? 's' : ''}',
+                                      style: const TextStyle(
+                                          color: Color(0xFFFF6B00),
+                                          fontSize: 10,
+                                          fontWeight:
+                                              FontWeight.w600),
+                                    ),
+                                  ],
                                 ],
-                              ],
-                            ),
-                          ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
 
-                      // Menu 3 pontinhos com badge de pedidos
+                      // Menu 3 pontinhos
                       _MenuTresPontinhos(
                         pedidosCount: pedidosCount,
                         onPedidosTap: _abrirPedidos,
@@ -297,8 +341,8 @@ class _TelaAmigosState extends State<TelaAmigos>
               autofocus: true,
               onChanged: (v) =>
                   setState(() => _busca = v.toLowerCase()),
-              style:
-                  const TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
                 hintText: _tabController.index == 1
                     ? 'Buscar amigos...'
@@ -379,13 +423,11 @@ class _TelaAmigosState extends State<TelaAmigos>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    f.$3,
-                    size: 12,
-                    color: ativo
-                        ? Colors.white
-                        : const Color(0xFF666666),
-                  ),
+                  Icon(f.$3,
+                      size: 12,
+                      color: ativo
+                          ? Colors.white
+                          : const Color(0xFF666666)),
                   const SizedBox(width: 5),
                   Text(
                     f.$2,
@@ -465,8 +507,7 @@ class _MenuTresPontinhos extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: const Color(0xFFED4245),
-                  border:
-                      Border.all(color: Colors.black, width: 1.5),
+                  border: Border.all(color: Colors.black, width: 1.5),
                 ),
               ),
             ),
