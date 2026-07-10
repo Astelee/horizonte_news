@@ -12,16 +12,13 @@ class PresenceService with WidgetsBindingObserver {
   final _rtdb      = FirebaseDatabase.instance;
   final _firestore = FirebaseFirestore.instance;
 
-  static const Duration _awayAfter      = Duration(minutes: 2);
   static const Duration _mirrorDebounce = Duration(seconds: 1);
 
   StreamSubscription<DatabaseEvent>? _connectedSub;
   StreamSubscription<DatabaseEvent>? _ownStatusSub;
-  Timer? _awayTimer;
   Timer? _mirrorDebounceTimer;
 
-  bool _initialized     = false;
-  bool _appInForeground = true;
+  bool _initialized         = false;
   String _lastMirroredState = '';
 
   String? get _uid => _auth.currentUser?.uid;
@@ -52,8 +49,6 @@ class PresenceService with WidgetsBindingObserver {
         .ref('.info/connected')
         .onValue
         .listen(_onConnectionChanged);
-
-    _startAwayTimer();
   }
 
   Future<void> stop() async {
@@ -61,7 +56,6 @@ class PresenceService with WidgetsBindingObserver {
     _initialized = false;
 
     WidgetsBinding.instance.removeObserver(this);
-    _awayTimer?.cancel();
     _mirrorDebounceTimer?.cancel();
     await _connectedSub?.cancel();
     await _ownStatusSub?.cancel();
@@ -77,29 +71,31 @@ class PresenceService with WidgetsBindingObserver {
       } catch (_) {}
     }
 
-    // Desconecta o socket explicitamente no logout
     _rtdb.goOffline();
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // CONEXÃO COM O SERVIDOR
+  // CONEXÃO — CORREÇÃO DO PROBLEMA 4
+  // ✅ async + await onDisconnect() ANTES de gravar 'online'.
+  //    Não existe mais janela onde o servidor fica sem saber
+  //    o que fazer se a conexão cair.
   // ═══════════════════════════════════════════════════════════════
 
-  void _onConnectionChanged(DatabaseEvent event) {
+  Future<void> _onConnectionChanged(DatabaseEvent event) async {
     final connected = event.snapshot.value == true;
     if (!connected) return;
 
     final ref = _statusRef;
     if (ref == null) return;
 
-    // Registra o que o servidor faz quando o socket cair
-    ref.onDisconnect().set({
+    // 1️⃣ Registra o fallback no servidor PRIMEIRO
+    await ref.onDisconnect().set({
       'state':       'offline',
       'lastChanged': ServerValue.timestamp,
     });
 
-    // Marca online imediatamente
-    ref.set({
+    // 2️⃣ Só agora marca online — servidor já tem o handler salvo
+    await ref.set({
       'state':       'online',
       'lastChanged': ServerValue.timestamp,
     });
@@ -151,74 +147,43 @@ class PresenceService with WidgetsBindingObserver {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // ATIVIDADE DO USUÁRIO
+  // ATIVIDADE — CORREÇÃO DO PROBLEMA 3
+  // ✅ Removido o timer "away" de 2 minutos.
+  //    Status é agora puramente Online/Offline baseado no socket RTDB.
+  //    registerActivity() mantido por compatibilidade de chamadas
+  //    existentes no código, mas não altera mais o estado.
   // ═══════════════════════════════════════════════════════════════
 
   void registerActivity() {
-    if (!_initialized) return;
-    _startAwayTimer();
-
-    if (_lastMirroredState == 'away') {
-      _setRtdbState('online');
-    }
-  }
-
-  void _setRtdbState(String state) {
-    final ref = _statusRef;
-    if (ref == null) return;
-    ref.update({
-      'state':       state,
-      'lastChanged': ServerValue.timestamp,
-    }).catchError((_) {});
+    // Sem efeito. Status é controlado pelo ciclo de vida do app.
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // CICLO DE VIDA DO APP — CORREÇÃO PRINCIPAL
+  // CICLO DE VIDA DO APP
   // ═══════════════════════════════════════════════════════════════
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
-        _appInForeground = true;
-        // Reconecta o socket — _onConnectionChanged vai disparar
-        // e registrar o onDisconnect + marcar online novamente
+        // Reconecta — _onConnectionChanged dispara e registra
+        // onDisconnect + marca online na sequência correta.
         _rtdb.goOnline();
-        registerActivity();
         break;
 
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
-        _appInForeground = false;
-        _awayTimer?.cancel();
-        // ✅ CORREÇÃO PRINCIPAL:
-        // goOffline() força o socket a cair AGORA.
-        // Isso faz o servidor Firebase disparar o onDisconnect
-        // imediatamente, gravando 'offline' sem esperar o processo morrer.
+        // goOffline() força o socket a cair AGORA,
+        // disparando imediatamente o onDisconnect no servidor
+        // sem precisar esperar o processo morrer.
         _rtdb.goOffline();
         break;
 
       case AppLifecycleState.inactive:
-        // inactive é temporário (chegada de notificação, ligação)
-        // não desconecta para não piscar o status
-        _appInForeground = false;
-        _awayTimer?.cancel();
+        // Temporário (ligação, notificação) — não pisca o status.
         break;
     }
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // TIMER DE AWAY
-  // ═══════════════════════════════════════════════════════════════
-
-  void _startAwayTimer() {
-    _awayTimer?.cancel();
-    _awayTimer = Timer(_awayAfter, () {
-      if (_appInForeground && _initialized) {
-        _setRtdbState('away');
-      }
-    });
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -227,7 +192,6 @@ class PresenceService with WidgetsBindingObserver {
 
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _awayTimer?.cancel();
     _mirrorDebounceTimer?.cancel();
     _connectedSub?.cancel();
     _ownStatusSub?.cancel();
