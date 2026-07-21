@@ -6,8 +6,6 @@ import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../providers/user_xp_provider.dart';
 import '../features/admin/providers/admin_provider.dart';
-import '../screens/amigos_modelos.dart';
-import '../screens/amigos_perfil.dart';
 import 'badge_widgets.dart';
 import 'avatar_frame.dart';
 import 'app_avatar.dart';
@@ -76,9 +74,7 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
   final _db = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
 
-  String? _friendRequestStatus;
-  bool _loadingStatus = true;
-  bool _sendingRequest = false;
+  bool _loading = true;
   Map<String, dynamic>? _userData;
 
   String get _myUid => _auth.currentUser?.uid ?? '';
@@ -87,15 +83,7 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
   @override
   void initState() {
     super.initState();
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    await Future.wait([
-      _loadUserData(),
-      _loadFriendStatus(),
-    ]);
-    if (mounted) setState(() => _loadingStatus = false);
+    _loadUserData();
   }
 
   Future<void> _loadUserData() async {
@@ -105,67 +93,7 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
         setState(() => _userData = doc.data());
       }
     } catch (_) {}
-  }
-
-  Future<void> _loadFriendStatus() async {
-    if (_myUid.isEmpty || _isMe) return;
-    try {
-      final snap = await _db
-          .collection('friend_requests')
-          .where('participants', arrayContains: _myUid)
-          .get();
-
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        final participants = List<String>.from(data['participants'] ?? []);
-        if (participants.contains(widget.userId)) {
-          if (mounted) {
-            setState(() => _friendRequestStatus = data['status'] as String?);
-          }
-          return;
-        }
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _sendFriendRequest() async {
-    if (_myUid.isEmpty) return;
-    setState(() => _sendingRequest = true);
-    HapticFeedback.mediumImpact();
-    try {
-      await _db.collection('friend_requests').add({
-        'fromUid': _myUid,
-        'toUid': widget.userId,
-        'participants': [_myUid, widget.userId],
-        'status': 'pending',
-        'sentAt': FieldValue.serverTimestamp(),
-      });
-      if (mounted) {
-        setState(() {
-          _friendRequestStatus = 'pending';
-          _sendingRequest = false;
-        });
-        HapticFeedback.heavyImpact();
-      }
-    } catch (_) {
-      if (mounted) setState(() => _sendingRequest = false);
-    }
-  }
-
-  Future<void> _openFullProfile() async {
-    final rootNav = Navigator.of(context, rootNavigator: true);
-
-    final doc = await _db.collection('users_xp').doc(widget.userId).get();
-    if (!doc.exists) return;
-
-    final friend = FriendModel.fromDoc(doc);
-
-    rootNav.pop();
-    rootNav.push(
-      MaterialPageRoute(
-        builder: (_) => TelaPerfilAmigo(friend: friend),
-      ),
-    );
+    if (mounted) setState(() => _loading = false);
   }
 
   @override
@@ -278,14 +206,13 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
 
           const SizedBox(height: 20),
 
-          // Botões de ação
           if (_isMe)
             _InfoBanner(
               icon: Icons.person_rounded,
               text: 'Este é o seu perfil',
               color: AppColors.primaryOrange,
             )
-          else if (_loadingStatus)
+          else if (_loading)
             const SizedBox(
               height: 44,
               child: Center(
@@ -298,105 +225,7 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                   ),
                 ),
               ),
-            )
-          else ...[
-            if (_friendRequestStatus == 'accepted')
-              _InfoBanner(
-                icon: Icons.people_rounded,
-                text: 'Vocês já são amigos!',
-                color: const Color(0xFF43B581),
-              )
-            else if (_friendRequestStatus == 'pending')
-              _InfoBanner(
-                icon: Icons.hourglass_top_rounded,
-                text: 'Solicitação enviada',
-                color: const Color(0xFFFAA61A),
-              )
-            else
-              GestureDetector(
-                onTap: _sendingRequest ? null : _sendFriendRequest,
-                child: Container(
-                  width: double.infinity,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF6B00), Color(0xFFCC4400)],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primaryOrange.withOpacity(0.4),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: _sendingRequest
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.person_add_rounded,
-                                  color: Colors.white, size: 18),
-                              SizedBox(width: 8),
-                              Text(
-                                'ADICIONAR AMIGO',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
-              ),
-
-            const SizedBox(height: 10),
-
-            // Botão ver perfil completo
-            GestureDetector(
-              onTap: _openFullProfile,
-              child: Container(
-                width: double.infinity,
-                height: 44,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  color: const Color(0xFF111111),
-                  border: Border.all(
-                    color: AppColors.primaryOrange.withOpacity(0.2),
-                  ),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.person_rounded,
-                        color: AppColors.primaryOrange, size: 16),
-                    SizedBox(width: 8),
-                    Text(
-                      'VER PERFIL COMPLETO',
-                      style: TextStyle(
-                        color: AppColors.primaryOrange,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
-          ],
 
           const SizedBox(height: 8),
         ],
@@ -494,14 +323,6 @@ class _CommentsSectionState extends State<CommentsSection>
       .collection('comments')
       .doc(widget.postId)
       .collection('postComments');
-
-  String _initials(String name) {
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    return name.isNotEmpty ? name[0].toUpperCase() : '?';
-  }
 
   String _timeAgo(DateTime date) {
     final diff = DateTime.now().difference(date);
@@ -709,7 +530,8 @@ class _CommentsSectionState extends State<CommentsSection>
               ),
               const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   color: AppColors.primaryOrange.withOpacity(0.15),
@@ -769,7 +591,8 @@ class _CommentsSectionState extends State<CommentsSection>
                           ? '💭 O que você achou desta notícia?'
                           : 'Faça login para comentar',
                       hintStyle: TextStyle(
-                          color: Colors.white.withOpacity(0.25), fontSize: 14),
+                          color: Colors.white.withOpacity(0.25),
+                          fontSize: 14),
                       border: InputBorder.none,
                       counterStyle: const TextStyle(
                           color: AppColors.textMuted, fontSize: 10),
@@ -792,8 +615,8 @@ class _CommentsSectionState extends State<CommentsSection>
                     const SizedBox(width: 4),
                     const Text(
                       'Ganhe XP ao comentar',
-                      style:
-                          TextStyle(color: AppColors.textMuted, fontSize: 11),
+                      style: TextStyle(
+                          color: AppColors.textMuted, fontSize: 11),
                     ),
                   ],
                 ),
@@ -807,15 +630,17 @@ class _CommentsSectionState extends State<CommentsSection>
                           horizontal: 16, vertical: 9),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(10),
-                        gradient: _isSending ? null : AppColors.orangeGradient,
-                        color:
-                            _isSending ? AppColors.backgroundElevated : null,
+                        gradient:
+                            _isSending ? null : AppColors.orangeGradient,
+                        color: _isSending
+                            ? AppColors.backgroundElevated
+                            : null,
                         boxShadow: _isSending
                             ? null
                             : [
                                 BoxShadow(
-                                  color:
-                                      AppColors.primaryOrange.withOpacity(0.4),
+                                  color: AppColors.primaryOrange
+                                      .withOpacity(0.4),
                                   blurRadius: 12,
                                   offset: const Offset(0, 3),
                                 ),
@@ -857,8 +682,6 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
-  // Avatar do campo de digitar comentário — usa o avatar real do
-  // usuário logado, já refletindo qualquer troca feita no perfil.
   Widget _buildInputAvatar() {
     return Consumer<UserXpProvider>(
       builder: (context, xpProvider, _) {
@@ -932,7 +755,8 @@ class _CommentsSectionState extends State<CommentsSection>
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.chat_bubble_outline_rounded,
-                size: 40, color: AppColors.primaryOrange.withOpacity(0.3)),
+                size: 40,
+                color: AppColors.primaryOrange.withOpacity(0.3)),
             const SizedBox(height: 12),
             const Text(
               'Seja o primeiro a comentar!',
@@ -1013,8 +837,8 @@ class _CommentTileState extends State<_CommentTile>
           widget.isAdmin && !_isOwner
               ? 'Você está excluindo o comentário de ${widget.comment.userName} como administrador.'
               : 'Esta ação não pode ser desfeita.',
-          style:
-              const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+          style: const TextStyle(
+              color: AppColors.textSecondary, fontSize: 14),
         ),
         actions: [
           TextButton(
@@ -1037,7 +861,6 @@ class _CommentTileState extends State<_CommentTile>
     );
   }
 
-  // ── Avatar com moldura por raridade — usa o avatar real do autor ─
   Widget _buildAvatar() {
     return GestureDetector(
       onTap: widget.onTapUser,
@@ -1130,7 +953,8 @@ class _CommentTileState extends State<_CommentTile>
                                 ),
                               ],
                               const SizedBox(width: 5),
-                              LevelBadgeInline(level: widget.comment.userLevel),
+                              LevelBadgeInline(
+                                  level: widget.comment.userLevel),
                               if (widget.comment.userAchievements.isNotEmpty)
                                 UnlockedBadgesRow(
                                   unlockedAchievements:
@@ -1157,7 +981,8 @@ class _CommentTileState extends State<_CommentTile>
                                   Icons.delete_outline_rounded,
                                   size: 15,
                                   color: widget.isAdmin && !_isOwner
-                                      ? AppColors.emergencyRed.withOpacity(0.7)
+                                      ? AppColors.emergencyRed
+                                          .withOpacity(0.7)
                                       : AppColors.textMuted,
                                 ),
                               ),
