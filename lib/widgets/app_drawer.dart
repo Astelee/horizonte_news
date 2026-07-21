@@ -1,8 +1,5 @@
-// app_drawer.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../providers/user_xp_provider.dart';
@@ -24,7 +21,6 @@ class _AppDrawerState extends State<AppDrawer>
   static const List<_NavItem> _mainItems = [
     _NavItem(icon: Icons.home_rounded, label: 'Início', route: AppRoutes.home),
     _NavItem(icon: Icons.person_rounded, label: 'Meu Perfil', route: AppRoutes.profile),
-    _NavItem(icon: Icons.people_rounded, label: 'Amigos', route: AppRoutes.friends),
     _NavItem(icon: Icons.bookmark_rounded, label: 'Notícias Salvas', route: AppRoutes.favorites),
     _NavItem(icon: Icons.play_circle_rounded, label: 'Vídeos / Reportagens', route: AppRoutes.videos),
     _NavItem(icon: Icons.search_rounded, label: 'Pesquisar', route: AppRoutes.search),
@@ -131,12 +127,9 @@ class _AppDrawerState extends State<AppDrawer>
                               isActive: currentRoute == e.value.route,
                               delay: e.key * 45,
                               onTap: () => _navigate(context, e.value.route),
-                              // ── Badge inteligente por rota ──────
                               badge: e.value.route == AppRoutes.profile
                                   ? _XpBadge()
-                                  : e.value.route == AppRoutes.friends
-                                      ? _AmigoBadge() // ← substituído aqui
-                                      : null,
+                                  : null,
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -396,164 +389,6 @@ class _AppDrawerState extends State<AppDrawer>
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// BADGE COMBINADO — MENSAGENS NÃO LIDAS + PEDIDOS PENDENTES
-// ═══════════════════════════════════════════════════════════════════
-class _AmigoBadge extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-    if (uid.isEmpty) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // ── Badge de mensagens não lidas ──────────────────────
-        StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('chats')
-              .where('participants', arrayContains: uid)
-              .snapshots(),
-          builder: (context, snap) {
-            int totalNaoLidas = 0;
-            if (snap.hasData) {
-              for (final doc in snap.data!.docs) {
-                final data = doc.data() as Map<String, dynamic>;
-                // Ignora chats ocultos
-                final hiddenFor =
-                    List<String>.from(data['hiddenFor'] ?? []);
-                if (hiddenFor.contains(uid)) continue;
-                // Ignora msgs enviadas por mim
-                final lastBy =
-                    (data['lastMessageBy'] as String?) ?? '';
-                if (lastBy == uid) continue;
-                final count =
-                    (data['unreadCount_$uid'] as num?)?.toInt() ?? 0;
-                totalNaoLidas += count;
-              }
-            }
-
-            if (totalNaoLidas == 0) return const SizedBox.shrink();
-
-            return _BadgePilula(
-              texto: totalNaoLidas > 99 ? '99+' : '$totalNaoLidas',
-              corFundo: const Color(0xFFFF6B00),
-              icone: Icons.chat_bubble_rounded,
-            );
-          },
-        ),
-
-        // ── Badge de pedidos pendentes ────────────────────────
-        StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('friend_requests')
-              .where('toUid', isEqualTo: uid)
-              .where('status', isEqualTo: 'pending')
-              .snapshots(),
-          builder: (context, snap) {
-            final count = snap.data?.docs.length ?? 0;
-            if (count == 0) return const SizedBox.shrink();
-
-            return Padding(
-              // Espaço entre os dois badges quando ambos aparecem
-              padding: const EdgeInsets.only(left: 4),
-              child: _BadgePilula(
-                texto: count > 99 ? '99+' : '$count',
-                corFundo: AppColors.emergencyRed,
-                icone: Icons.person_add_rounded,
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// PILULA DE BADGE REUTILIZÁVEL
-// ═══════════════════════════════════════════════════════════════════
-class _BadgePilula extends StatefulWidget {
-  final String texto;
-  final Color corFundo;
-  final IconData icone;
-
-  const _BadgePilula({
-    required this.texto,
-    required this.corFundo,
-    required this.icone,
-  });
-
-  @override
-  State<_BadgePilula> createState() => _BadgePilulaState();
-}
-
-class _BadgePilulaState extends State<_BadgePilula>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _scale = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut),
-    );
-    _ctrl.forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ScaleTransition(
-      scale: _scale,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: widget.corFundo,
-          boxShadow: [
-            BoxShadow(
-              color: widget.corFundo.withOpacity(0.45),
-              blurRadius: 8,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              widget.icone,
-              size: 8,
-              color: Colors.white,
-            ),
-            const SizedBox(width: 3),
-            Text(
-              widget.texto,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 9,
-                fontWeight: FontWeight.w900,
-                height: 1,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
