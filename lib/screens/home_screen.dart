@@ -1,10 +1,7 @@
-// home_screen.dart
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/posts_provider.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
@@ -13,8 +10,6 @@ import '../widgets/featured_carousel.dart';
 import '../widgets/breaking_news_banner.dart';
 import '../widgets/news_card.dart';
 import '../widgets/app_drawer.dart';
-import 'chat_screen.dart';
-import 'amigos_modelos.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -89,100 +84,92 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
-
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
       extendBodyBehindAppBar: true,
-      appBar: _buildAppBar(context, myUid),
+      appBar: _buildAppBar(context),
       drawer: const AppDrawer(),
-      body: Stack(
-        children: [
-          FadeTransition(
-            opacity: _fadeAnim,
-            child: RefreshIndicator(
-              color: AppColors.primaryOrange,
-              backgroundColor: AppColors.backgroundElevated,
-              strokeWidth: 2.5,
-              onRefresh: () async {
-                await Provider.of<PostsProvider>(context, listen: false)
-                    .loadInitialPosts();
-              },
-              child: Consumer<PostsProvider>(
-                builder: (context, provider, child) {
-                  if (provider.isLoading && provider.posts.isEmpty) {
-                    return _buildSkeletonState();
-                  }
-                  if (provider.errorMessage.isNotEmpty &&
-                      provider.posts.isEmpty) {
-                    return _buildErrorState(context, provider);
-                  }
+      body: FadeTransition(
+        opacity: _fadeAnim,
+        child: RefreshIndicator(
+          color: AppColors.primaryOrange,
+          backgroundColor: AppColors.backgroundElevated,
+          strokeWidth: 2.5,
+          onRefresh: () async {
+            await Provider.of<PostsProvider>(context, listen: false)
+                .loadInitialPosts();
+          },
+          child: Consumer<PostsProvider>(
+            builder: (context, provider, child) {
+              if (provider.isLoading && provider.posts.isEmpty) {
+                return _buildSkeletonState();
+              }
+              if (provider.errorMessage.isNotEmpty &&
+                  provider.posts.isEmpty) {
+                return _buildErrorState(context, provider);
+              }
 
-                  final feedPosts =
-                      provider.posts.where((p) => !_isVideoPost(p)).toList();
-                  final featuredPosts = feedPosts.take(3).toList();
-                  final recentPosts =
-                      feedPosts.length > 3 ? feedPosts.skip(3).toList() : [];
+              final feedPosts =
+                  provider.posts.where((p) => !_isVideoPost(p)).toList();
+              final featuredPosts = feedPosts.take(3).toList();
+              final recentPosts =
+                  feedPosts.length > 3 ? feedPosts.skip(3).toList() : [];
 
-                  final urgentPost = feedPosts.any((p) => p.categories.any(
-                          (c) =>
-                              c.name.toLowerCase() == 'urgente' ||
-                              c.name.toLowerCase() == 'plantão'))
-                      ? feedPosts.firstWhere((p) => p.categories.any((c) =>
+              final urgentPost = feedPosts.any((p) => p.categories.any(
+                      (c) =>
                           c.name.toLowerCase() == 'urgente' ||
                           c.name.toLowerCase() == 'plantão'))
-                      : null;
+                  ? feedPosts.firstWhere((p) => p.categories.any((c) =>
+                      c.name.toLowerCase() == 'urgente' ||
+                      c.name.toLowerCase() == 'plantão'))
+                  : null;
 
-                  return CustomScrollView(
-                    controller: _scrollController,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      const SliverToBoxAdapter(
-                        child: SizedBox(height: kToolbarHeight + 50),
+              return CustomScrollView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: kToolbarHeight + 50),
+                  ),
+                  const SliverToBoxAdapter(child: CategoryBar()),
+                  if (urgentPost != null)
+                    SliverToBoxAdapter(
+                      child: BreakingNewsBanner(urgentPost: urgentPost),
+                    ),
+                  SliverToBoxAdapter(
+                    child: FeaturedCarousel(featuredPosts: featuredPosts),
+                  ),
+                  SliverToBoxAdapter(
+                    child: _buildSectionTitle('ÚLTIMAS NOTÍCIAS'),
+                  ),
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => _AnimatedCardWrapper(
+                        index: index,
+                        child: NewsCard(post: recentPosts[index]),
                       ),
-                      const SliverToBoxAdapter(child: CategoryBar()),
-                      if (urgentPost != null)
-                        SliverToBoxAdapter(
-                          child: BreakingNewsBanner(urgentPost: urgentPost),
-                        ),
-                      SliverToBoxAdapter(
-                        child: FeaturedCarousel(featuredPosts: featuredPosts),
+                      childCount: recentPosts.length,
+                    ),
+                  ),
+                  if (provider.hasMore)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Center(child: _NeoLoader()),
                       ),
-                      SliverToBoxAdapter(
-                        child: _buildSectionTitle('ÚLTIMAS NOTÍCIAS'),
-                      ),
-                      SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) => _AnimatedCardWrapper(
-                            index: index,
-                            child: NewsCard(post: recentPosts[index]),
-                          ),
-                          childCount: recentPosts.length,
-                        ),
-                      ),
-                      if (provider.hasMore)
-                        const SliverToBoxAdapter(
-                          child: Padding(
-                            padding: EdgeInsets.all(20),
-                            child: Center(child: _NeoLoader()),
-                          ),
-                        ),
-                      const SliverToBoxAdapter(
-                          child: SizedBox(height: 80)),
-                    ],
-                  );
-                },
-              ),
-            ),
+                    ),
+                  const SliverToBoxAdapter(
+                      child: SizedBox(height: 80)),
+                ],
+              );
+            },
           ),
-          if (myUid.isNotEmpty)
-            _BolhaMensagem(myUid: myUid),
-        ],
+        ),
       ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context, String myUid) {
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
     return PreferredSize(
       preferredSize: const Size.fromHeight(kToolbarHeight),
       child: AnimatedContainer(
@@ -221,19 +208,12 @@ class _HomeScreenState extends State<HomeScreen>
             AppBar(
               backgroundColor: Colors.transparent,
               elevation: 0,
-              leading: myUid.isEmpty
-                  ? _NeoIconButton(
-                      icon: Icons.menu_rounded,
-                      onTap: () => Scaffold.of(context).openDrawer(),
-                    )
-                  : Builder(
-                      builder: (context) {
-                        return _BotaoMenuComBadge(
-                          myUid: myUid,
-                          onTap: () => Scaffold.of(context).openDrawer(),
-                        );
-                      },
-                    ),
+              leading: Builder(
+                builder: (context) => _NeoIconButton(
+                  icon: Icons.menu_rounded,
+                  onTap: () => Scaffold.of(context).openDrawer(),
+                ),
+              ),
               title: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -505,728 +485,6 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// BOTÃO MENU COM DOIS BADGES DIFERENCIADOS
-// ═══════════════════════════════════════════════════════════════════
-class _BotaoMenuComBadge extends StatefulWidget {
-  final String myUid;
-  final VoidCallback onTap;
-
-  const _BotaoMenuComBadge({
-    required this.myUid,
-    required this.onTap,
-  });
-
-  @override
-  State<_BotaoMenuComBadge> createState() => _BotaoMenuComBadgeState();
-}
-
-class _BotaoMenuComBadgeState extends State<_BotaoMenuComBadge>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _pulseCtrl;
-  late Animation<double> _pulseAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    // Pulso suave no ícone quando há notificações
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    );
-    _pulseAnim = Tween<double>(begin: 1.0, end: 1.08).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _pulseCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // ── Stream 1: mensagens não lidas ──────────────────────────
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('chats')
-          .where('participants', arrayContains: widget.myUid)
-          .snapshots(),
-      builder: (context, snapChats) {
-        int totalMsgs = 0;
-        if (snapChats.hasData) {
-          for (final doc in snapChats.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            final hiddenFor =
-                List<String>.from(data['hiddenFor'] ?? []);
-            if (hiddenFor.contains(widget.myUid)) continue;
-            final lastBy =
-                (data['lastMessageBy'] as String?) ?? '';
-            if (lastBy == widget.myUid) continue;
-            final count =
-                (data['unreadCount_${widget.myUid}'] as num?)
-                        ?.toInt() ??
-                    0;
-            totalMsgs += count;
-          }
-        }
-
-        // ── Stream 2: solicitações pendentes ───────────────────
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('friend_requests')
-              .where('toUid', isEqualTo: widget.myUid)
-              .where('status', isEqualTo: 'pending')
-              .snapshots(),
-          builder: (context, snapPedidos) {
-            final totalPedidos =
-                snapPedidos.data?.docs.length ?? 0;
-
-            final temQualquer = totalMsgs > 0 || totalPedidos > 0;
-
-            // Ativa/desativa pulso conforme notificações
-            if (temQualquer && !_pulseCtrl.isAnimating) {
-              _pulseCtrl.repeat(reverse: true);
-            } else if (!temQualquer && _pulseCtrl.isAnimating) {
-              _pulseCtrl.stop();
-              _pulseCtrl.value = 1.0;
-            }
-
-            return GestureDetector(
-              onTap: widget.onTap,
-              child: SizedBox(
-                width: 46,
-                height: 46,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
-                  children: [
-                    // Ícone de menu com pulso suave
-                    AnimatedBuilder(
-                      animation: _pulseAnim,
-                      builder: (_, child) => Transform.scale(
-                        scale: temQualquer ? _pulseAnim.value : 1.0,
-                        child: child,
-                      ),
-                      child: const Icon(
-                        Icons.menu_rounded,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                    ),
-
-                    // ── Badge LARANJA: mensagens ────────────────
-                    // Fica no canto superior DIREITO
-                    if (totalMsgs > 0)
-                      Positioned(
-                        right: 0,
-                        top: 2,
-                        child: _BadgeMinimo(
-                          texto: totalMsgs > 99
-                              ? '99+'
-                              : '$totalMsgs',
-                          cor: const Color(0xFFFF6B00),
-                          icone: Icons.chat_bubble_rounded,
-                        ),
-                      ),
-
-                    // ── Badge VERMELHO: solicitações ────────────
-                    // Fica no canto superior ESQUERDO
-                    // (ou abaixo do laranja se ambos existirem)
-                    if (totalPedidos > 0)
-                      Positioned(
-                        left: totalMsgs > 0 ? null : 0,
-                        right: totalMsgs > 0 ? 0 : null,
-                        top: totalMsgs > 0 ? 18 : 2,
-                        child: _BadgeMinimo(
-                          texto: totalPedidos > 99
-                              ? '99+'
-                              : '$totalPedidos',
-                          cor: const Color(0xFFED4245),
-                          icone: Icons.person_add_rounded,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// BADGE MÍNIMO — bolinha com ícone + número
-// ═══════════════════════════════════════════════════════════════════
-class _BadgeMinimo extends StatefulWidget {
-  final String texto;
-  final Color cor;
-  final IconData icone;
-
-  const _BadgeMinimo({
-    required this.texto,
-    required this.cor,
-    required this.icone,
-  });
-
-  @override
-  State<_BadgeMinimo> createState() => _BadgeMinimoState();
-}
-
-class _BadgeMinimoState extends State<_BadgeMinimo>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 450),
-    );
-    _scale = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut),
-    );
-    _ctrl.forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ScaleTransition(
-      scale: _scale,
-      child: Container(
-        constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        decoration: BoxDecoration(
-          color: widget.cor,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: AppColors.backgroundDark,
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: widget.cor.withOpacity(0.55),
-              blurRadius: 6,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(widget.icone, size: 7, color: Colors.white),
-            const SizedBox(width: 2),
-            Text(
-              widget.texto,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 8,
-                fontWeight: FontWeight.w900,
-                height: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// BOLHA FLUTUANTE DE MENSAGEM NOVA
-// ═══════════════════════════════════════════════════════════════════
-class _BolhaMensagem extends StatefulWidget {
-  final String myUid;
-  const _BolhaMensagem({required this.myUid});
-
-  @override
-  State<_BolhaMensagem> createState() => _BolhaMensagemState();
-}
-
-class _BolhaMensagemState extends State<_BolhaMensagem>
-    with TickerProviderStateMixin {
-  late AnimationController _pulseCtrl;
-  late AnimationController _particleCtrl;
-  late AnimationController _entryCtrl;
-  late AnimationController _sairCtrl;
-
-  late Animation<double> _pulseAnim;
-  late Animation<double> _entryAnim;
-  late Animation<double> _sairAnim;
-
-  _DadosBolha? _dadosAtual;
-  bool _visivel = false;
-  bool _dispensada = false;
-  String? _ultimoChatAberto;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
-
-    _particleCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..repeat();
-
-    _entryCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
-
-    _sairCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-
-    _pulseAnim = Tween<double>(begin: 1.0, end: 1.12).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
-    );
-
-    _entryAnim = CurvedAnimation(
-      parent: _entryCtrl,
-      curve: Curves.elasticOut,
-    );
-
-    _sairAnim = CurvedAnimation(
-      parent: _sairCtrl,
-      curve: Curves.easeInBack,
-    );
-  }
-
-  @override
-  void dispose() {
-    _pulseCtrl.dispose();
-    _particleCtrl.dispose();
-    _entryCtrl.dispose();
-    _sairCtrl.dispose();
-    super.dispose();
-  }
-
-  void _mostrar(_DadosBolha dados) {
-    if (!mounted) return;
-    if (_dadosAtual?.chatId == dados.chatId &&
-        _dadosAtual?.ultimaMsgId == dados.ultimaMsgId) return;
-    if (_ultimoChatAberto == dados.chatId) return;
-
-    setState(() {
-      _dadosAtual = dados;
-      _visivel = true;
-      _dispensada = false;
-    });
-    _sairCtrl.reset();
-    _entryCtrl.forward(from: 0);
-
-    Future.delayed(const Duration(seconds: 6), () {
-      if (mounted && _visivel && !_dispensada) _dispensar();
-    });
-  }
-
-  void _dispensar() {
-    if (!mounted || !_visivel) return;
-    setState(() => _dispensada = true);
-    _sairCtrl.forward().then((_) {
-      if (mounted) setState(() => _visivel = false);
-    });
-  }
-
-  void _abrirChat() {
-    if (_dadosAtual == null) return;
-    HapticFeedback.mediumImpact();
-    _ultimoChatAberto = _dadosAtual!.chatId;
-    _dispensar();
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(friend: _dadosAtual!.remetente),
-      ),
-    ).then((_) {
-      _ultimoChatAberto = null;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('chats')
-          .where('participants', arrayContains: widget.myUid)
-          .snapshots(),
-      builder: (context, snapChats) {
-        if (!snapChats.hasData) return const SizedBox.shrink();
-
-        return StreamBuilder<_DadosBolha?>(
-          stream: _streamMensagemNova(snapChats.data!.docs),
-          builder: (context, snapMsg) {
-            if (snapMsg.hasData && snapMsg.data != null) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _mostrar(snapMsg.data!);
-              });
-            }
-
-            if (!_visivel || _dadosAtual == null) {
-              return const SizedBox.shrink();
-            }
-
-            return Positioned(
-              bottom: 24,
-              right: 16,
-              left: 16,
-              child: _dispensada
-                  ? ScaleTransition(
-                      scale: Tween<double>(begin: 1.0, end: 0.0)
-                          .animate(_sairAnim),
-                      child: FadeTransition(
-                        opacity: Tween<double>(begin: 1.0, end: 0.0)
-                            .animate(_sairCtrl),
-                        child: _conteudoBolha(),
-                      ),
-                    )
-                  : ScaleTransition(
-                      scale: _entryAnim,
-                      child: _conteudoBolha(),
-                    ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _conteudoBolha() {
-    final dados = _dadosAtual!;
-    final initial = dados.remetente.displayName.isNotEmpty
-        ? dados.remetente.displayName[0].toUpperCase()
-        : '?';
-
-    return GestureDetector(
-      onTap: _abrirChat,
-      onHorizontalDragEnd: (details) {
-        if (details.primaryVelocity != null &&
-            details.primaryVelocity!.abs() > 200) {
-          _dispensar();
-        }
-      },
-      child: AnimatedBuilder(
-        animation: Listenable.merge([_pulseCtrl, _particleCtrl]),
-        builder: (_, child) => Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: const Color(0xFF0C0C0C),
-            border: Border.all(
-              color: const Color(0xFFFF6B00).withOpacity(0.5),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFFF6B00)
-                    .withOpacity(0.25 * _pulseCtrl.value),
-                blurRadius: 24,
-                spreadRadius: 2,
-              ),
-              BoxShadow(
-                color: Colors.black.withOpacity(0.6),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _BolhaParticlePainter(_particleCtrl.value),
-                  ),
-                ),
-                Positioned(
-                  top: 0,
-                  left: 40,
-                  right: 40,
-                  child: Container(
-                    height: 1.5,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          const Color(0xFFFF6B00)
-                              .withOpacity(0.8 * _pulseCtrl.value),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      AnimatedBuilder(
-                        animation: _pulseAnim,
-                        builder: (_, child) => Transform.scale(
-                          scale: _pulseAnim.value,
-                          child: child,
-                        ),
-                        child: Stack(
-                          children: [
-                            Container(
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFFFF6B00)
-                                        .withOpacity(0.5 * _pulseCtrl.value),
-                                    blurRadius: 16,
-                                    spreadRadius: 4,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFFFF6B00),
-                                    Color(0xFFCC4400),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                border: Border.all(
-                                  color: const Color(0xFFFF6B00),
-                                  width: 2,
-                                ),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  initial,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              right: 1,
-                              bottom: 1,
-                              child: Container(
-                                width: 14,
-                                height: 14,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: const Color(0xFF43B581),
-                                  border: Border.all(
-                                      color: Colors.black, width: 2),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Color(0xFFFF6B00),
-                                  ),
-                                ),
-                                const SizedBox(width: 5),
-                                const Text(
-                                  'NOVA MENSAGEM',
-                                  style: TextStyle(
-                                    color: Color(0xFFFF6B00),
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              dados.remetente.displayName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              dados.ultimaMensagem,
-                              style: const TextStyle(
-                                color: Color(0xFF9E9E9E),
-                                fontSize: 12,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: _dispensar,
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFF1A1A1A),
-                            border: Border.all(
-                                color: const Color(0xFF2A2A2A)),
-                          ),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            size: 14,
-                            color: Color(0xFF666666),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Stream<_DadosBolha?> _streamMensagemNova(
-      List<QueryDocumentSnapshot> chatDocs) async* {
-    final db = FirebaseFirestore.instance;
-
-    for (final chatDoc in chatDocs) {
-      final data = chatDoc.data() as Map<String, dynamic>;
-      final unread =
-          (data['unreadCount_${widget.myUid}'] as num?)?.toInt() ?? 0;
-      if (unread == 0) continue;
-
-      final lastMsgBy = data['lastMessageBy'] as String? ?? '';
-      if (lastMsgBy == widget.myUid) continue;
-
-      final lastMsg = data['lastMessage'] as String? ?? '';
-      final participants = List<String>.from(data['participants'] ?? []);
-      final friendUid = participants.firstWhere(
-          (p) => p != widget.myUid,
-          orElse: () => '');
-      if (friendUid.isEmpty) continue;
-
-      final userDoc =
-          await db.collection('users_xp').doc(friendUid).get();
-      if (!userDoc.exists) continue;
-
-      final remetente = FriendModel.fromDoc(userDoc);
-
-      final msgSnap = await db
-          .collection('chats')
-          .doc(chatDoc.id)
-          .collection('messages')
-          .orderBy('sentAt', descending: true)
-          .limit(1)
-          .get();
-
-      final ultimaMsgId =
-          msgSnap.docs.isNotEmpty ? msgSnap.docs.first.id : '';
-
-      yield _DadosBolha(
-        chatId: chatDoc.id,
-        remetente: remetente,
-        ultimaMensagem: lastMsg,
-        ultimaMsgId: ultimaMsgId,
-      );
-      return;
-    }
-
-    yield null;
-  }
-}
-
-class _DadosBolha {
-  final String chatId;
-  final FriendModel remetente;
-  final String ultimaMensagem;
-  final String ultimaMsgId;
-
-  _DadosBolha({
-    required this.chatId,
-    required this.remetente,
-    required this.ultimaMensagem,
-    required this.ultimaMsgId,
-  });
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// PAINTER DE PARTÍCULAS DA BOLHA
-// ═══════════════════════════════════════════════════════════════════
-class _BolhaParticlePainter extends CustomPainter {
-  final double t;
-  _BolhaParticlePainter(this.t);
-
-  static final _rng = math.Random(13);
-  static final _particles = List.generate(
-      12,
-      (i) => [
-            _rng.nextDouble(),
-            _rng.nextDouble(),
-            0.5 + _rng.nextDouble() * 1.0,
-            0.02 + _rng.nextDouble() * 0.04,
-            _rng.nextDouble(),
-          ]);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint();
-    for (final p in _particles) {
-      final dx = p[0] * size.width;
-      final dy = ((p[1] - t * p[3] + p[4]) % 1.0) * size.height;
-      final opacity =
-          0.06 + 0.08 * math.sin((t + p[4]) * 2 * math.pi);
-      paint.color =
-          const Color(0xFFFF6B00).withOpacity(opacity.clamp(0.0, 0.2));
-      canvas.drawCircle(Offset(dx, dy), p[2], paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_BolhaParticlePainter old) => old.t != t;
 }
 
 // ═══════════════════════════════════════════════════════════════════
