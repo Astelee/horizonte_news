@@ -26,6 +26,7 @@ class _AppDrawerState extends State<AppDrawer>
   static const List<_NavItem> _mainItems = [
     _NavItem(icon: Icons.home_rounded, label: 'Início', route: AppRoutes.home),
     _NavItem(icon: Icons.person_rounded, label: 'Meu Perfil', route: AppRoutes.profile),
+    _NavItem(icon: Icons.emoji_events_rounded, label: 'Ranking', route: AppRoutes.ranking),
     _NavItem(icon: Icons.bookmark_rounded, label: 'Notícias Salvas', route: AppRoutes.favorites),
     _NavItem(icon: Icons.play_circle_rounded, label: 'Vídeos / Reportagens', route: AppRoutes.videos),
     _NavItem(icon: Icons.search_rounded, label: 'Pesquisar', route: AppRoutes.search),
@@ -106,7 +107,6 @@ class _AppDrawerState extends State<AppDrawer>
         ),
         child: Stack(
           children: [
-            // ── Partículas de fundo ──────────────────────────
             Positioned.fill(
               child: AnimatedBuilder(
                 animation: _particleCtrl,
@@ -115,8 +115,6 @@ class _AppDrawerState extends State<AppDrawer>
                 ),
               ),
             ),
-
-            // ── Borda direita brilhante ──────────────────────
             Positioned(
               top: 0,
               right: 0,
@@ -142,8 +140,6 @@ class _AppDrawerState extends State<AppDrawer>
                 ),
               ),
             ),
-
-            // ── Orbe de glow no topo ─────────────────────────
             Positioned(
               top: -60,
               left: -60,
@@ -165,8 +161,6 @@ class _AppDrawerState extends State<AppDrawer>
                 ),
               ),
             ),
-
-            // ── Conteúdo principal ───────────────────────────
             SafeArea(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,13 +250,11 @@ class _AppDrawerState extends State<AppDrawer>
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
       child: Row(
         children: [
-          // Logo com fogo animado
           AnimatedBuilder(
             animation: Listenable.merge([_fireCtrl, _glowAnim]),
             builder: (_, __) => Stack(
               alignment: Alignment.center,
               children: [
-                // Glow externo pulsando
                 Container(
                   width: 68,
                   height: 68,
@@ -284,7 +276,6 @@ class _AppDrawerState extends State<AppDrawer>
                     ],
                   ),
                 ),
-                // Anel de fogo
                 Container(
                   width: 58,
                   height: 58,
@@ -304,7 +295,6 @@ class _AppDrawerState extends State<AppDrawer>
                     ),
                   ),
                 ),
-                // Logo
                 Container(
                   width: 52,
                   height: 52,
@@ -335,9 +325,7 @@ class _AppDrawerState extends State<AppDrawer>
               ],
             ),
           ),
-
           const SizedBox(width: 14),
-
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -365,7 +353,6 @@ class _AppDrawerState extends State<AppDrawer>
                 ),
               ),
               const SizedBox(height: 7),
-              // Badge AO VIVO animado
               AnimatedBuilder(
                 animation: _glowAnim,
                 builder: (_, __) => Container(
@@ -513,7 +500,6 @@ class _DrawerParticlePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Grade sutil
     final gridPaint = Paint()
       ..color = const Color(0xFFFF6B00).withOpacity(0.025)
       ..strokeWidth = 0.5;
@@ -525,14 +511,12 @@ class _DrawerParticlePainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    // Partículas subindo (efeito fogo)
     for (final p in _particles) {
       final dy = 1.0 - ((p.y + t * p.speed + p.phase) % 1.0);
       final dx = p.x + 0.02 * math.sin((t * 2 * math.pi * 0.5) + p.phase * 6.28);
       final opacity = p.opacity *
           (0.5 + 0.5 * math.sin(t * 2 * math.pi * p.speed * 12 + p.phase));
 
-      // Cor baseada na altura — mais baixo = mais vermelho (fogo)
       final fireRatio = 1.0 - dy;
       final color = Color.lerp(
         const Color(0xFFFF6B00),
@@ -547,7 +531,6 @@ class _DrawerParticlePainter extends CustomPainter {
       );
     }
 
-    // Linhas de energia diagonal
     final linePaint = Paint()
       ..strokeWidth = 0.7
       ..style = PaintingStyle.stroke;
@@ -710,7 +693,6 @@ class _DrawerTileState extends State<_DrawerTile>
                   ),
                   child: Row(
                     children: [
-                      // Ícone com efeito de fogo quando ativo
                       Stack(
                         alignment: Alignment.center,
                         children: [
@@ -762,9 +744,7 @@ class _DrawerTileState extends State<_DrawerTile>
                           ),
                         ],
                       ),
-
                       const SizedBox(width: 13),
-
                       Expanded(
                         child: Text(
                           widget.item.label,
@@ -780,13 +760,10 @@ class _DrawerTileState extends State<_DrawerTile>
                           ),
                         ),
                       ),
-
                       if (widget.badge != null) ...[
                         const SizedBox(width: 8),
                         widget.badge!,
                       ],
-
-                      // Indicador ativo — chama de fogo
                       if (isActive) ...[
                         const SizedBox(width: 6),
                         _FireDot(fireCtrl: widget.fireCtrl),
