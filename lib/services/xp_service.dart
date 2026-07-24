@@ -16,6 +16,7 @@ class UserXpData {
   final Map<String, dynamic> stats;
   final Map<String, dynamic> dailyMissions;
   final String avatarId;
+  final String? customTitle;
 
   const UserXpData({
     required this.totalXp,
@@ -29,6 +30,7 @@ class UserXpData {
     this.stats = const {},
     this.dailyMissions = const {},
     this.avatarId = 'animais_01',
+    this.customTitle,
   });
 
   factory UserXpData.empty() => const UserXpData(
@@ -39,10 +41,11 @@ class UserXpData {
         progressPercent: 0.0,
         totalSecondsOnline: 0,
         avatarId: 'animais_01',
+        customTitle: null,
       );
 
-  // ── copyWith para substituir o nível ou avatar sem mexer no resto ─
-  UserXpData copyWith({int? level, String? avatarId}) {
+  // ── copyWith para substituir o nível, avatar ou título ────────────
+  UserXpData copyWith({int? level, String? avatarId, String? customTitle}) {
     return UserXpData(
       totalXp: totalXp,
       level: level ?? this.level,
@@ -55,6 +58,7 @@ class UserXpData {
       stats: stats,
       dailyMissions: dailyMissions,
       avatarId: avatarId ?? this.avatarId,
+      customTitle: customTitle ?? this.customTitle,
     );
   }
 
@@ -135,6 +139,7 @@ class XpService {
     Map<String, dynamic> dailyMissions = const {},
     int? overrideLevel,
     String avatarId = 'animais_01',
+    String? customTitle,
   }) {
     final calculatedLevel = levelFromXp(totalXp);
     final level = overrideLevel ?? calculatedLevel;
@@ -159,6 +164,7 @@ class XpService {
       stats: stats,
       dailyMissions: dailyMissions,
       avatarId: avatarId,
+      customTitle: customTitle,
     );
   }
 
@@ -206,12 +212,19 @@ class XpService {
       final avatarId =
           (dataUpdated['avatarId'] as String?) ?? 'animais_01';
 
-      // ── Lê override do admin ─────────────────────────────────────
+      // ── Lê override de nível do admin ────────────────────────────
       final overrideActive = dataUpdated['adminOverrideActive'] == true;
       final overrideLevel =
           overrideActive
               ? (dataUpdated['adminOverrideLevel'] as num?)?.toInt()
               : null;
+
+      // ── Lê título/tag customizada do admin ───────────────────────
+      final titleOverrideActive =
+          dataUpdated['adminOverrideTitleActive'] == true;
+      final customTitle = titleOverrideActive
+          ? (dataUpdated['adminOverrideTitleLevel'] as String?)
+          : null;
 
       final xpData = buildXpData(
         totalXp: totalXp,
@@ -222,6 +235,7 @@ class XpService {
         dailyMissions: dailyMissions,
         overrideLevel: overrideLevel,
         avatarId: avatarId,
+        customTitle: customTitle,
       );
 
       // Só sincroniza level no Firestore se NÃO houver override ativo
