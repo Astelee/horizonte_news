@@ -21,7 +21,12 @@ class BadgeConfig {
     if (level <= 18) return 'Guardião das Notícias';
     if (level <= 22) return 'Mestre da Informação';
     if (level <= 27) return 'Oráculo';
-    return 'Lenda Suprema';
+    if (level <= 30) return 'Fenômeno';
+    if (level <= 40) return 'Mítico Absoluto';
+    if (level <= 50) return 'Chama Suprema';
+    if (level <= 70) return 'Elite Flamejante';
+    if (level <= 90) return 'Elite Radiante';
+    return 'Horizonte Elite';
   }
 
   static IconData levelIcon(int level) {
@@ -40,68 +45,94 @@ class BadgeConfig {
     if (level <= 18) return FontAwesomeIcons.shieldHalved;
     if (level <= 22) return FontAwesomeIcons.infinity;
     if (level <= 27) return FontAwesomeIcons.wandMagicSparkles;
-    return FontAwesomeIcons.meteor;
+    if (level <= 30) return FontAwesomeIcons.gem;
+    if (level <= 40) return FontAwesomeIcons.meteor;
+    if (level <= 50) return FontAwesomeIcons.fireFlameCurved;
+    if (level <= 70) return FontAwesomeIcons.sun;
+    if (level <= 90) return FontAwesomeIcons.bolt;
+    return FontAwesomeIcons.crown;
   }
 
+  // ── CORES POR NÍVEL — progressão vívida do 1 ao 99+ ──────────────
+  // Cada faixa tem uma identidade cromática própria, sem repetir tons
+  // "seguros"/apagados nos níveis baixos.
   static Color levelColor(int level) {
-    if (level <= 1)  return const Color(0xFF78909C);
-    if (level <= 2)  return const Color(0xFF64B5F6);
-    if (level <= 3)  return const Color(0xFF4FC3F7);
-    if (level <= 4)  return const Color(0xFF4DB6AC);
-    if (level <= 5)  return const Color(0xFF81C784);
-    if (level <= 6)  return const Color(0xFFFF8A65);
-    if (level <= 7)  return const Color(0xFFFF6B00);
-    if (level <= 8)  return const Color(0xFFBA68C8);
-    if (level <= 9)  return const Color(0xFFFFCA28);
-    if (level <= 10) return const Color(0xFFFFD700);
-    if (level <= 12) return const Color(0xFF26C6DA);
-    if (level <= 15) return const Color(0xFFEC407A);
-    if (level <= 18) return const Color(0xFF7E57C2);
-    if (level <= 22) return const Color(0xFFFF5722);
-    if (level <= 27) return const Color(0xFF00E5FF);
-    return const Color(0xFFFFFFFF);
+    if (level <= 1)  return const Color(0xFF90A4AE); // Visitante — cinza-azulado claro
+    if (level <= 2)  return const Color(0xFF4FC3F7); // Leitor — azul-céu
+    if (level <= 3)  return const Color(0xFF29B6F6); // Acompanhante — azul vívido
+    if (level <= 4)  return const Color(0xFF26C6DA); // Seguidor — ciano
+    if (level <= 5)  return const Color(0xFF66BB6A); // Entusiasta — verde vivo
+    if (level <= 6)  return const Color(0xFF9CCC65); // Explorador — verde-lima
+    if (level <= 7)  return const Color(0xFFFFCA28); // Super Leitor — âmbar
+    if (level <= 8)  return const Color(0xFFFFA726); // Fã da Informação — laranja
+    if (level <= 9)  return const Color(0xFFFF7043); // Membro Destaque — laranja-fogo
+    if (level <= 10) return const Color(0xFFFFD700); // Lenda das Notícias — dourado
+    if (level <= 12) return const Color(0xFF26A69A); // Analista — verde-azulado
+    if (level <= 15) return const Color(0xFFEC407A); // Cronista — rosa vívido
+    if (level <= 18) return const Color(0xFF7E57C2); // Guardião — roxo
+    if (level <= 22) return const Color(0xFFFF5722); // Mestre da Informação — vermelho-laranja
+    if (level <= 27) return const Color(0xFF00E5FF); // Oráculo — ciano elétrico
+    if (level <= 30) return const Color(0xFFE040FB); // Fenômeno — magenta vívido
+    if (level <= 40) return const Color(0xFF7C4DFF); // Mítico Absoluto — violeta cósmico
+    if (level <= 50) return const Color(0xFFFF3D00); // Chama Suprema — vermelho-fogo
+    if (level <= 70) return const Color(0xFFFFC400); // Elite Flamejante — dourado intenso
+    if (level <= 90) return const Color(0xFFFFD54F); // Elite Radiante — âmbar dourado
+    return const Color(0xFFFFEA00); // Horizonte Elite — dourado-branco brilhante
   }
 
   static List<Color> levelGradient(int level) {
-    if (level <= 1)  return [const Color(0xFF455A64), const Color(0xFF78909C)];
-    if (level <= 2)  return [const Color(0xFF1565C0), const Color(0xFF64B5F6)];
-    if (level <= 3)  return [const Color(0xFF0277BD), const Color(0xFF4FC3F7)];
-    if (level <= 4)  return [const Color(0xFF00695C), const Color(0xFF4DB6AC)];
-    if (level <= 5)  return [const Color(0xFF2E7D32), const Color(0xFF81C784)];
-    if (level <= 6)  return [const Color(0xFFBF360C), const Color(0xFFFF8A65)];
-    if (level <= 7)  return [const Color(0xFFE65100), const Color(0xFFFF9800)];
-    if (level <= 8)  return [const Color(0xFF6A1B9A), const Color(0xFFCE93D8)];
-    if (level <= 9)  return [const Color(0xFFF57F17), const Color(0xFFFFEE58)];
+    if (level <= 1)  return [const Color(0xFF546E7A), const Color(0xFF90A4AE)];
+    if (level <= 2)  return [const Color(0xFF0288D1), const Color(0xFF4FC3F7)];
+    if (level <= 3)  return [const Color(0xFF0277BD), const Color(0xFF29B6F6)];
+    if (level <= 4)  return [const Color(0xFF00838F), const Color(0xFF26C6DA)];
+    if (level <= 5)  return [const Color(0xFF2E7D32), const Color(0xFF66BB6A)];
+    if (level <= 6)  return [const Color(0xFF558B2F), const Color(0xFF9CCC65)];
+    if (level <= 7)  return [const Color(0xFFF57F17), const Color(0xFFFFCA28)];
+    if (level <= 8)  return [const Color(0xFFE65100), const Color(0xFFFFA726)];
+    if (level <= 9)  return [const Color(0xFFBF360C), const Color(0xFFFF7043)];
     if (level <= 10) return [const Color(0xFFB8860B), const Color(0xFFFFD700)];
-    if (level <= 12) return [const Color(0xFF006064), const Color(0xFF26C6DA)];
-    if (level <= 15) return [const Color(0xFF880E4F), const Color(0xFFF48FB1)];
-    if (level <= 18) return [const Color(0xFF311B92), const Color(0xFFB39DDB)];
-    if (level <= 22) return [const Color(0xFFBF360C), const Color(0xFFFF7043)];
+    if (level <= 12) return [const Color(0xFF00695C), const Color(0xFF26A69A)];
+    if (level <= 15) return [const Color(0xFF880E4F), const Color(0xFFEC407A)];
+    if (level <= 18) return [const Color(0xFF4527A0), const Color(0xFF7E57C2)];
+    if (level <= 22) return [const Color(0xFFBF360C), const Color(0xFFFF5722)];
     if (level <= 27) return [const Color(0xFF006064), const Color(0xFF00E5FF)];
-    return [const Color(0xFF424242), const Color(0xFFFFFFFF)];
+    // ── Sequência de fogo crescente — cada tier mais quente que o anterior ──
+    if (level <= 30) return [const Color(0xFF6A1B9A), const Color(0xFFE040FB)];
+    if (level <= 40) return [const Color(0xFF311B92), const Color(0xFF7C4DFF)];
+    if (level <= 50) return [const Color(0xFFBF360C), const Color(0xFFFF3D00)];
+    if (level <= 70) return [const Color(0xFFE65100), const Color(0xFFFFC400)];
+    if (level <= 90) return [const Color(0xFFFF6D00), const Color(0xFFFFD54F)];
+    return [const Color(0xFFFF3D00), const Color(0xFFFFEA00)];
   }
 
-  // ✅ CORRIGIDO — espelhado com FrameRarityExt.fromLevel()
+  // ── RARIDADE — faixas reorganizadas, mais granulares no início ───
   static String levelRarity(int level) {
-    if (level <= 5)  return 'COMUM';
-    if (level <= 10) return 'INCOMUM';
-    if (level <= 15) return 'RARO';
-    if (level <= 20) return 'ÉPICO';
-    if (level <= 30) return 'LENDÁRIO';
-    if (level <= 40) return 'MÍTICO';
+    if (level <= 3)  return 'COMUM';
+    if (level <= 6)  return 'INCOMUM';
+    if (level <= 10) return 'RARO';
+    if (level <= 15) return 'ÉPICO';
+    if (level <= 22) return 'LENDÁRIO';
+    if (level <= 30) return 'MÍTICO';
     if (level <= 50) return 'SUPREMO';
     return 'HORIZONTE ELITE';
   }
 
   static String nextLevelUnlock(int currentLevel) {
     final next = currentLevel + 1;
+    if (next <= 2)  return 'Cor de nível personalizada';
     if (next <= 3)  return 'Nova tag exclusiva';
-    if (next <= 5)  return 'Moldura animada + tag rara';
-    if (next <= 7)  return 'Glow especial no avatar';
-    if (next <= 8)  return 'Tag Épica com partículas';
-    if (next <= 9)  return 'Perfil em destaque na comunidade';
-    if (next <= 10) return '🏆 Tag LENDÁRIA + efeitos únicos';
-    return 'Título exclusivo de elite';
+    if (next <= 5)  return 'Primeiras partículas no avatar';
+    if (next <= 7)  return 'Moldura animada + tag Rara';
+    if (next <= 10) return 'Anel giratório + glow especial';
+    if (next <= 12) return '🏆 Tag ÉPICA + brilho intenso';
+    if (next <= 15) return 'Efeitos de partículas avançados';
+    if (next <= 18) return 'Tag LENDÁRIA + pulso no avatar';
+    if (next <= 22) return 'Aura expandida ao redor do avatar';
+    if (next <= 27) return 'Halo cósmico + estrelas orbitais';
+    if (next <= 30) return '✨ Tag MÍTICA + efeitos únicos';
+    if (next <= 40) return 'Aura 360° dinâmica';
+    if (next <= 50) return 'Marca exclusiva de Elite';
+    return 'Título máximo de Horizonte Elite';
   }
 
   // ── CONQUISTAS ───────────────────────────────────────────────────
