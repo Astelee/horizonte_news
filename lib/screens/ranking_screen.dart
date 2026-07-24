@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -54,7 +55,7 @@ class RankingScreen extends StatefulWidget {
 }
 
 class _RankingScreenState extends State<RankingScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _particleCtrl;
   late AnimationController _fireCtrl;
   late AnimationController _glowCtrl;
@@ -62,9 +63,16 @@ class _RankingScreenState extends State<RankingScreen>
 
   final String _myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
+  // ── Áudio ambiente (mesmo padrão do perfil) ─────────────────────
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _audioStarted = false;
+
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addObserver(this);
+
     _particleCtrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 10),
@@ -83,10 +91,57 @@ class _RankingScreenState extends State<RankingScreen>
     _glowAnim = Tween<double>(begin: 0.5, end: 1.0).animate(
       CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startAudio();
+    });
+  }
+
+  Future<void> _startAudio() async {
+    try {
+      await _audioPlayer.setReleaseMode(ReleaseMode.loop);
+      await _audioPlayer.setVolume(0.4);
+      await _audioPlayer.play(AssetSource('sounds/ranking.mp3'));
+      _audioStarted = true;
+    } catch (e) {
+      debugPrint('Erro ao iniciar áudio: $e');
+    }
+  }
+
+  Future<void> _stopAudio() async {
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.release();
+    } catch (e) {
+      debugPrint('Erro ao parar áudio: $e');
+    }
+  }
+
+  // ── Pausa/retoma o áudio conforme o app vai para background ─────
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        _audioPlayer.pause();
+        break;
+      case AppLifecycleState.resumed:
+        if (_audioStarted && mounted) {
+          _audioPlayer.resume();
+        }
+        break;
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _stopAudio();
+    _audioPlayer.dispose();
+
     _particleCtrl.dispose();
     _fireCtrl.dispose();
     _glowCtrl.dispose();
@@ -443,8 +498,6 @@ class _PodiumSpotState extends State<_PodiumSpot>
                 ),
               ),
             const SizedBox(height: 6),
-
-            // Avatar + fogo por trás do campeão
             Stack(
               alignment: Alignment.center,
               clipBehavior: Clip.none,
@@ -509,7 +562,6 @@ class _PodiumSpotState extends State<_PodiumSpot>
                 ),
               ],
             ),
-
             const SizedBox(height: 12),
             Text(
               widget.user.name,
@@ -530,8 +582,6 @@ class _PodiumSpotState extends State<_PodiumSpot>
             const SizedBox(height: 4),
             FrameRarityTag(level: widget.user.level, fontSize: 7),
             const SizedBox(height: 10),
-
-            // Base do pódio
             AnimatedBuilder(
               animation: widget.glowCtrl,
               builder: (_, __) => Container(
