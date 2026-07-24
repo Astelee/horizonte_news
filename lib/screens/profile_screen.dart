@@ -418,7 +418,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   size: 12, color: Colors.white),
               const SizedBox(width: 7),
               Text(
-                BadgeConfig.levelTitle(data.level),
+                data.customTitle ?? BadgeConfig.levelTitle(data.level),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 13,
