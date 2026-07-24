@@ -103,8 +103,8 @@ class _UsersTabState extends State<UsersTab> {
                       final doc = docs[i];
                       return AdminUserTile(
                         userId: doc.id,
-                        data:
-                            doc.data() as Map<String, dynamic>,
+                        data: doc.data() as Map<String, dynamic>,
+                        userService: widget.userService, // <- Adicionado aqui
                       );
                     },
                   ),
