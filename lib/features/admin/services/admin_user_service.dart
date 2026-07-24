@@ -58,7 +58,15 @@ class AdminUserService {
     return (await getBanData(userId)) != null;
   }
 
-  // ── Override de nível (aba Poderes) ────────────────────────────
+  // ── Dados brutos de um usuário (para carregar o painel Poderes) ──
+
+  Future<Map<String, dynamic>?> getUserData(String uid) async {
+    final doc = await _db.collection('users_xp').doc(uid).get();
+    if (!doc.exists) return null;
+    return doc.data();
+  }
+
+  // ── Override de NÍVEL (moldura, XP, cor) ─────────────────────────
 
   Future<void> applyLevelOverride(String uid, int level) async {
     await _db.collection('users_xp').doc(uid).update({
@@ -76,6 +84,26 @@ class AdminUserService {
       'adminOverrideLevel': FieldValue.delete(),
     });
     await _log('level_reset', uid);
+  }
+
+  // ── Override de TAG/TÍTULO (independente do nível) ───────────────
+
+  Future<void> applyTitleOverride(String uid, int titleLevel) async {
+    // titleLevel é o nível "de referência" cujo título/ícone será copiado —
+    // não altera o nível real do usuário, só o texto exibido.
+    await _db.collection('users_xp').doc(uid).update({
+      'adminOverrideTitleLevel': titleLevel,
+      'adminOverrideTitleActive': true,
+    });
+    await _log('title_override', uid, extra: {'titleLevel': titleLevel});
+  }
+
+  Future<void> resetTitleOverride(String uid) async {
+    await _db.collection('users_xp').doc(uid).update({
+      'adminOverrideTitleActive': false,
+      'adminOverrideTitleLevel': FieldValue.delete(),
+    });
+    await _log('title_reset', uid);
   }
 
   Future<void> syncAllUserLevels() async {
