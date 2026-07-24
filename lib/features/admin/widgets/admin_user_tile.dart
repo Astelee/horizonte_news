@@ -4,15 +4,19 @@ import '../../../config/app_colors.dart';
 import '../../../models/avatar_catalog.dart';
 import '../../../services/xp_service.dart';
 import '../../../widgets/app_avatar.dart';
+import '../services/admin_user_service.dart';
 import 'admin_shared_widgets.dart';
+import 'poderes_panel.dart';
 
 class AdminUserTile extends StatelessWidget {
   final String userId;
   final Map<String, dynamic> data;
+  final AdminUserService userService;
 
   const AdminUserTile({
     required this.userId,
     required this.data,
+    required this.userService,
     Key? key,
   }) : super(key: key);
 
@@ -36,6 +40,51 @@ class AdminUserTile extends StatelessWidget {
     if (diff.inHours < 1) return const Color(0xFF66BB6A);
     if (diff.inHours < 24) return const Color(0xFFFFCA28);
     return AppColors.textMuted;
+  }
+
+  void _abrirPoderes(BuildContext context, String name) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF080808),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF222222),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  child: PoderesPanel(
+                    key: ValueKey(userId),
+                    uid: userId,
+                    userService: userService,
+                    displayName: name,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -83,6 +132,9 @@ class AdminUserTile extends StatelessWidget {
         final lvlTitle = XpService.levelTitle(level);
         final lvlIcon = XpService.levelIcon(level);
 
+        final hasOverride = d['adminOverrideActive'] == true;
+        final hasTitleOverride = d['adminOverrideTitleActive'] == true;
+
         // ── Último visto ────────────────────────────────────────
         final lastSeenAt = (d['lastSeenAt'] as Timestamp?)?.toDate();
         final lastSeenLabel = _lastSeenLabel(lastSeenAt);
@@ -106,126 +158,173 @@ class AdminUserTile extends StatelessWidget {
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
-            child: Row(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar com indicador online
-                Stack(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    AppAvatar(
-                      avatarId: avatarId ?? AvatarCatalog.defaultAvatarId,
-                      size: 46,
-                      showBorder: false,
-                    ),
-                    if (isOnline)
-                      Positioned(
-                        bottom: 1,
-                        right: 1,
-                        child: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFF43B581),
-                            border: Border.all(
-                                color: const Color(0xFF0A0A0A), width: 2),
-                          ),
+                    // Avatar com indicador online
+                    Stack(
+                      children: [
+                        AppAvatar(
+                          avatarId:
+                              avatarId ?? AvatarCatalog.defaultAvatarId,
+                          size: 46,
+                          showBorder: false,
                         ),
-                      ),
-                  ],
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Nome + último visto
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              name,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                        if (isOnline)
+                          Positioned(
+                            bottom: 1,
+                            right: 1,
+                            child: Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xFF43B581),
+                                border: Border.all(
+                                    color: const Color(0xFF0A0A0A),
+                                    width: 2),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Nome + último visto
                           Row(
-                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(
-                                isOnline
-                                    ? Icons.circle
-                                    : Icons.access_time_rounded,
-                                size: 9,
-                                color: lastSeenColor,
-                              ),
-                              const SizedBox(width: 3),
-                              Text(
-                                lastSeenLabel,
-                                style: TextStyle(
-                                  color: lastSeenColor,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
+                              Expanded(
+                                child: Text(
+                                  name,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
+                              ),
+                              const SizedBox(width: 8),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isOnline
+                                        ? Icons.circle
+                                        : Icons.access_time_rounded,
+                                    size: 9,
+                                    color: lastSeenColor,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    lastSeenLabel,
+                                    style: TextStyle(
+                                      color: lastSeenColor,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          if (email.isNotEmpty)
+                            Text(
+                              email,
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11,
+                              ),
+                            ),
+                          if (createdStr.isNotEmpty)
+                            Text(
+                              createdStr,
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11,
+                              ),
+                            ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              AdminStatChip(
+                                icon: Icons.star_rounded,
+                                label: '$lvlIcon Nv $level · $lvlTitle',
+                                color: AppColors.primaryOrange,
+                              ),
+                              if (hasOverride || hasTitleOverride) ...[
+                                const SizedBox(width: 6),
+                                AdminStatChip(
+                                  icon: Icons.auto_awesome_rounded,
+                                  label: 'CUSTOM',
+                                  color: const Color(0xFFFFD700),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              AdminStatChip(
+                                icon: Icons.bolt_rounded,
+                                label: '$xp XP',
+                                color: const Color(0xFFFFD54F),
+                              ),
+                              const SizedBox(width: 6),
+                              AdminStatChip(
+                                icon: Icons.chat_bubble_rounded,
+                                label: '$comments',
+                                color: const Color(0xFF4FC3F7),
+                              ),
+                              const SizedBox(width: 6),
+                              AdminStatChip(
+                                icon: Icons.article_rounded,
+                                label: '$articles',
+                                color: const Color(0xFF66BB6A),
                               ),
                             ],
                           ),
                         ],
                       ),
-                      if (email.isNotEmpty)
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // ── Botão Poderes ─────────────────────────────────
+                GestureDetector(
+                  onTap: () => _abrirPoderes(context, name),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: AppColors.primaryOrange.withOpacity(0.08),
+                      border: Border.all(
+                          color: AppColors.primaryOrange.withOpacity(0.3)),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.auto_awesome_rounded,
+                            color: AppColors.primaryOrange, size: 14),
+                        SizedBox(width: 6),
                         Text(
-                          email,
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 11,
-                          ),
-                        ),
-                      if (createdStr.isNotEmpty)
-                        Text(
-                          createdStr,
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 11,
-                          ),
-                        ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          AdminStatChip(
-                            icon: Icons.star_rounded,
-                            label: '$lvlIcon Nv $level · $lvlTitle',
+                          'PODERES',
+                          style: TextStyle(
                             color: AppColors.primaryOrange,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          AdminStatChip(
-                            icon: Icons.bolt_rounded,
-                            label: '$xp XP',
-                            color: const Color(0xFFFFD54F),
-                          ),
-                          const SizedBox(width: 6),
-                          AdminStatChip(
-                            icon: Icons.chat_bubble_rounded,
-                            label: '$comments',
-                            color: const Color(0xFF4FC3F7),
-                          ),
-                          const SizedBox(width: 6),
-                          AdminStatChip(
-                            icon: Icons.article_rounded,
-                            label: '$articles',
-                            color: const Color(0xFF66BB6A),
-                          ),
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
