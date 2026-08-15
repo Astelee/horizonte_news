@@ -8,6 +8,7 @@ import '../models/post_model.dart';
 import '../providers/favorites_provider.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../services/sound_service.dart';
 
 class NewsCard extends StatefulWidget {
   final PostModel post;
@@ -68,6 +69,7 @@ class _NewsCardState extends State<NewsCard>
       onTapUp: (_) {
         setState(() => _pressed = false);
         _pressCtrl.reverse();
+        SoundService.instance.playSystemClick();
         Navigator.pushNamed(
           context,
           AppRoutes.postDetail,
@@ -350,7 +352,6 @@ class _NewsThumb extends StatelessWidget {
                 ),
               ),
             ),
-            // Gradiente sutil sobre a imagem
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -497,6 +498,7 @@ class _FavButtonState extends State<_FavButton>
       onTap: () {
         _ctrl.forward().then((_) => _ctrl.reverse());
         HapticFeedback.lightImpact();
+        SoundService.instance.playSystemClick();
         widget.onTap();
       },
       child: AnimatedBuilder(
