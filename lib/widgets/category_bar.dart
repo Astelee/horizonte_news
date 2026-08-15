@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../services/sound_service.dart';
 
 class CategoryBar extends StatefulWidget {
   const CategoryBar({Key? key}) : super(key: key);
@@ -87,6 +88,7 @@ class _CategoryBarState extends State<CategoryBar> {
             entryDelay: index * 40,
             onTap: () {
               HapticFeedback.selectionClick();
+              SoundService.instance.playSystemClick();
               setState(() =>
                   _selected = isSelected ? null : cat['label'] as String);
               Navigator.pushNamed(
@@ -139,7 +141,6 @@ class _CategoryChipState extends State<_CategoryChip>
   void initState() {
     super.initState();
 
-    // Animação de entrada
     _entryCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 380),
@@ -156,7 +157,6 @@ class _CategoryChipState extends State<_CategoryChip>
       if (mounted) _entryCtrl.forward();
     });
 
-    // Animação de seleção (glow pulsante quando selecionado)
     _selectCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -239,7 +239,6 @@ class _CategoryChipState extends State<_CategoryChip>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Ícone com fundo circular
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 220),
                   width: 22,
@@ -267,7 +266,6 @@ class _CategoryChipState extends State<_CategoryChip>
                   ),
                 ),
                 const SizedBox(width: 7),
-                // Label
                 AnimatedDefaultTextStyle(
                   duration: const Duration(milliseconds: 220),
                   style: TextStyle(
