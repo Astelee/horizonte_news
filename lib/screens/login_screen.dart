@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../services/auth_service.dart';
+import '../services/sound_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -19,6 +21,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _rememberMe = false;
   String? _errorMessage;
 
   late AnimationController _bgAnimController;
@@ -76,6 +79,20 @@ class _LoginScreenState extends State<LoginScreen>
     Future.delayed(const Duration(milliseconds: 200), () {
       if (mounted) _formAnimController.forward();
     });
+
+    _loadSavedEmail();
+  }
+
+  // ✅ Pré-preenche o e-mail se "Lembrar login" estava ativo antes.
+  Future<void> _loadSavedEmail() async {
+    final remembered = await AuthService.instance.isRememberEnabled();
+    final savedEmail = await AuthService.instance.getSavedEmail();
+    if (mounted && remembered && savedEmail != null) {
+      setState(() {
+        _emailController.text = savedEmail;
+        _rememberMe = true;
+      });
+    }
   }
 
   @override
@@ -98,10 +115,14 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      // ✅ Login agora passa pelo AuthService, que aplica a preferência
+      // de "Lembrar login" automaticamente.
+      await AuthService.instance.signIn(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
+        remember: _rememberMe,
       );
+      SoundService.instance.playSystemClick();
       if (mounted) {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
       }
@@ -353,7 +374,9 @@ class _LoginScreenState extends State<LoginScreen>
                     return null;
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
+                _buildRememberMeRow(),
+                const SizedBox(height: 4),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
@@ -386,6 +409,54 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ✅ Checkbox "Lembrar login"
+  Widget _buildRememberMeRow() {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () {
+        SoundService.instance.playSystemClick();
+        setState(() => _rememberMe = !_rememberMe);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(5),
+                color: _rememberMe
+                    ? AppColors.primaryOrange
+                    : Colors.transparent,
+                border: Border.all(
+                  color: _rememberMe
+                      ? AppColors.primaryOrange
+                      : const Color(0xFF424242),
+                  width: 1.5,
+                ),
+              ),
+              child: _rememberMe
+                  ? const Icon(Icons.check_rounded,
+                      size: 15, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Lembrar login',
+              style: TextStyle(
+                color: Color(0xFFB0B0B0),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
