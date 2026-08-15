@@ -6,6 +6,7 @@ import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../providers/user_xp_provider.dart';
 import '../features/admin/providers/admin_provider.dart';
+import '../services/sound_service.dart';
 
 class AppDrawer extends StatefulWidget {
   const AppDrawer({Key? key}) : super(key: key);
@@ -80,6 +81,7 @@ class _AppDrawerState extends State<AppDrawer>
 
   void _navigate(BuildContext context, String route) {
     HapticFeedback.lightImpact();
+    SoundService.instance.playSystemClick();
     Navigator.pop(context);
     if (route == AppRoutes.home) {
       Navigator.pushReplacementNamed(context, route);
