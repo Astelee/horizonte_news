@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({Key? key}) : super(key: key);
+  const SettingsScreen({super.key});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -38,38 +38,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  // ── Verifica o status real da permissão de notificação ────────────
+  // ── Verifica o status real usando o NotificationService ──────────
   Future<void> _checkNotificationStatus() async {
-    final settings =
-        await FirebaseMessaging.instance.getNotificationSettings();
-    final granted =
-        settings.authorizationStatus == AuthorizationStatus.authorized ||
-        settings.authorizationStatus == AuthorizationStatus.provisional;
+    final enabled = await NotificationService.areNotificationsEnabled();
     if (mounted) {
       setState(() {
-        _notificationsEnabled = granted;
+        _notificationsEnabled = enabled;
         _loadingNotifications = false;
       });
     }
   }
 
-  // ── Solicita permissão ou abre configurações do sistema ───────────
+  // ── Solicita permissão usando o NotificationService ──────────────
   Future<void> _toggleNotifications(bool value) async {
     HapticFeedback.lightImpact();
 
     if (value) {
-      // Tenta pedir permissão
-      final settings =
-          await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-
-      final granted =
-          settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional;
-
+      final granted = await NotificationService.requestPermission();
       if (mounted) setState(() => _notificationsEnabled = granted);
 
       if (!granted && mounted) {
@@ -79,14 +64,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       } else if (granted && mounted) {
         _showSnack(
-          'Notificações ativadas com sucesso!',
+          'Notificações ativadas!',
           icon: Icons.notifications_active_rounded,
           success: true,
         );
       }
     } else {
-      // Não tem como desativar programaticamente no Android —
-      // direciona para as configurações do sistema
       setState(() => _notificationsEnabled = false);
       _showSnack(
         'Para desativar, vá em Configurações do celular → Aplicativos → Horizonte News.',
@@ -228,19 +211,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         children: [
           // ── CONTA ─────────────────────────────────────────────────
-          _SectionHeader(label: 'CONTA'),
+          const _SectionHeader(label: 'CONTA'),
           _SettingsTile(
             icon: Icons.badge_outlined,
             label: 'Nome de usuário',
             subtitle: _getUsernameSubtitle(),
             onTap: _editUsername,
           ),
-          _Divider(),
+          const _Divider(),
 
           // ── NOTIFICAÇÕES ──────────────────────────────────────────
-          _SectionHeader(label: 'NOTIFICAÇÕES'),
+          const _SectionHeader(label: 'NOTIFICAÇÕES'),
           _loadingNotifications
-              ? _LoadingTile(label: 'Notificações de notícias')
+              ? const _LoadingTile(label: 'Notificações de notícias')
               : _SettingsTile(
                   icon: Icons.notifications_outlined,
                   label: 'Notificações de notícias',
@@ -255,10 +238,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     inactiveTrackColor: const Color(0xFF222222),
                   ),
                 ),
-          _Divider(),
+          const _Divider(),
 
           // ── DADOS E ARMAZENAMENTO ─────────────────────────────────
-          _SectionHeader(label: 'DADOS E ARMAZENAMENTO'),
+          const _SectionHeader(label: 'DADOS E ARMAZENAMENTO'),
           _SettingsTile(
             icon: Icons.data_saver_on_outlined,
             label: 'Economia de dados',
@@ -320,10 +303,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     : const Icon(Icons.check_rounded,
                         color: Color(0xFF4CAF50), size: 18),
           ),
-          _Divider(),
+          const _Divider(),
 
           // ── SOBRE ─────────────────────────────────────────────────
-          _SectionHeader(label: 'SOBRE'),
+          const _SectionHeader(label: 'SOBRE'),
           _SettingsTile(
             icon: Icons.shield_outlined,
             label: 'Política de privacidade',
@@ -336,16 +319,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () => _openUrl(
                 'https://horizontenews.com.br/termos-de-uso'),
           ),
-          _SettingsTile(
+          const _SettingsTile(
             icon: Icons.info_outline_rounded,
             label: 'Versão do app',
             subtitle: '1.0.0',
             showArrow: false,
           ),
-          _Divider(),
+          const _Divider(),
 
           // ── SESSÃO ────────────────────────────────────────────────
-          _SectionHeader(label: 'SESSÃO'),
+          const _SectionHeader(label: 'SESSÃO'),
           _SettingsTile(
             icon: Icons.logout_rounded,
             label: 'Sair da conta',
@@ -700,6 +683,8 @@ class _LoadingTile extends StatelessWidget {
 }
 
 class _Divider extends StatelessWidget {
+  const _Divider();
+
   @override
   Widget build(BuildContext context) {
     return Container(
