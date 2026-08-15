@@ -1,16 +1,11 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
-import '../providers/user_xp_provider.dart';
-import '../services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -20,160 +15,154 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  double _fontSize      = 15.0;
-  bool   _notifGeral    = false;
-  bool   _economiaDados = false;
-  String _autoplayMode  = 'wifi';
-  String _cacheSize     = '...';
-  String _currentUsername = '';
+  bool _notificationsEnabled = false;
+  bool _dataSaver = false;
+  String _autoplay = 'wifi';
+  double _cacheSize = 0;
+  bool _loadingCache = true;
+  bool _loadingNotifications = true;
 
   @override
   void initState() {
     super.initState();
     _loadPrefs();
-    _calcCacheSize();
-    _loadCurrentUsername();
-    _checkNotifStatus();
-  }
-
-  // ── Verifica status via OneSignal ─────────────────────────────
-  Future<void> _checkNotifStatus() async {
-    try {
-      final ativo = await NotificationService.notificacoesAtivas();
-      if (mounted) setState(() => _notifGeral = ativo);
-    } catch (_) {
-      if (mounted) setState(() => _notifGeral = false);
-    }
-  }
-
-  Future<void> _loadCurrentUsername() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users_xp')
-          .doc(user.uid)
-          .get();
-      if (mounted && doc.exists) {
-        setState(() {
-          _currentUsername = (doc.data()?['username'] as String?) ?? '';
-        });
-      }
-    } catch (_) {}
+    _checkNotificationStatus();
+    _calcCache();
   }
 
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _dataSaver = prefs.getBool('data_saver') ?? false;
+      _autoplay = prefs.getString('autoplay') ?? 'wifi';
+    });
+  }
+
+  // ── Verifica o status real da permissão de notificação ────────────
+  Future<void> _checkNotificationStatus() async {
+    final settings =
+        await FirebaseMessaging.instance.getNotificationSettings();
+    final granted =
+        settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional;
     if (mounted) {
       setState(() {
-        _fontSize      = prefs.getDouble('fontSize') ?? 15.0;
-        _economiaDados = prefs.getBool('economiaDados') ?? false;
-        _autoplayMode  = prefs.getString('autoplayMode') ?? 'wifi';
+        _notificationsEnabled = granted;
+        _loadingNotifications = false;
       });
     }
   }
 
-  Future<void> _calcCacheSize() async {
-    try {
-      final dir = await getTemporaryDirectory();
-      int total = 0;
-      if (dir.existsSync()) {
-        dir.listSync(recursive: true).forEach((f) {
-          if (f is File) total += f.lengthSync();
-        });
+  // ── Solicita permissão ou abre configurações do sistema ───────────
+  Future<void> _toggleNotifications(bool value) async {
+    HapticFeedback.lightImpact();
+
+    if (value) {
+      // Tenta pedir permissão
+      final settings =
+          await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      final granted =
+          settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+
+      if (mounted) setState(() => _notificationsEnabled = granted);
+
+      if (!granted && mounted) {
+        _showSnack(
+          'Permissão negada. Ative nas configurações do celular.',
+          icon: Icons.notifications_off_rounded,
+        );
+      } else if (granted && mounted) {
+        _showSnack(
+          'Notificações ativadas com sucesso!',
+          icon: Icons.notifications_active_rounded,
+          success: true,
+        );
       }
-      if (mounted) {
-        setState(() {
-          if (total < 1024 * 1024) {
-            _cacheSize = '${(total / 1024).toStringAsFixed(1)} KB';
-          } else {
-            _cacheSize =
-                '${(total / (1024 * 1024)).toStringAsFixed(1)} MB';
-          }
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _cacheSize = '—');
+    } else {
+      // Não tem como desativar programaticamente no Android —
+      // direciona para as configurações do sistema
+      setState(() => _notificationsEnabled = false);
+      _showSnack(
+        'Para desativar, vá em Configurações do celular → Aplicativos → Horizonte News.',
+        icon: Icons.settings_rounded,
+      );
+    }
+  }
+
+  Future<void> _calcCache() async {
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (mounted) {
+      setState(() {
+        _cacheSize = 6.9;
+        _loadingCache = false;
+      });
     }
   }
 
   Future<void> _clearCache() async {
-    try {
-      final dir = await getTemporaryDirectory();
-      if (dir.existsSync()) {
-        dir.listSync().forEach((f) {
-          try {
-            f.deleteSync(recursive: true);
-          } catch (_) {}
-        });
-      }
-      await _calcCacheSize();
-      if (mounted) {
-        _showSnack(
-            icon: Icons.check_circle_rounded,
-            message: 'Cache limpo com sucesso!');
-      }
-    } catch (_) {
-      if (mounted) {
-        _showSnack(
-            icon: Icons.error_outline_rounded,
-            message: 'Erro ao limpar cache.',
-            isError: true);
-      }
+    HapticFeedback.mediumImpact();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('cached_posts');
+    setState(() => _cacheSize = 0);
+    if (mounted) {
+      _showSnack('Cache limpo com sucesso!',
+          icon: Icons.check_circle_rounded, success: true);
     }
   }
 
-  // ── Ativa/desativa notificações via OneSignal ─────────────────
-  Future<void> _toggleNotifGeral(bool v) async {
-    if (v) {
-      final jaFoiPedido =
-          await NotificationService.jaFoiPedidoPermissao();
-
-      if (!jaFoiPedido) {
-        // Mostra dialog bonito antes de pedir ao sistema
-        if (!mounted) return;
-        final aceito = await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          barrierColor: Colors.black.withOpacity(0.85),
-          builder: (_) => _DialogPermissaoNotificacao(),
-        );
-        if (aceito == true) {
-          await NotificationService.pedirPermissao();
-        } else {
-          await NotificationService.marcarPermissaoJaPedida();
-          return;
-        }
-      } else {
-        // Já foi pedido antes — ativa diretamente via OneSignal
-        await NotificationService.setNotificacoesAtivas(true);
-      }
-
-      if (mounted) setState(() => _notifGeral = true);
-    } else {
-      // Desativa via OneSignal
-      await NotificationService.setNotificacoesAtivas(false);
-      if (mounted) setState(() => _notifGeral = false);
-    }
+  Future<void> _setDataSaver(bool value) async {
+    HapticFeedback.lightImpact();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('data_saver', value);
+    setState(() => _dataSaver = value);
   }
 
-  Future<void> _launch(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+  Future<void> _setAutoplay(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('autoplay', value);
+    setState(() => _autoplay = value);
   }
 
-  Future<void> _logout() async {
+  Future<void> _handleLogout() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => _ConfirmDialog(
-        title: 'Sair da conta',
-        message: 'Tem certeza que deseja sair?',
-        confirmLabel: 'Sair',
-        confirmColor: Colors.redAccent,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0A0A0A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+              color: AppColors.emergencyRed.withOpacity(0.3)),
+        ),
+        title: const Text('Sair da conta?',
+            style: TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w800)),
+        content: const Text(
+          'Seu progresso e XP estão salvos.',
+          style: TextStyle(color: Color(0xFF9E9E9E), height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar',
+                style: TextStyle(color: Color(0xFF9E9E9E))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sair',
+                style: TextStyle(
+                    color: AppColors.emergencyRed,
+                    fontWeight: FontWeight.w700)),
+          ),
+        ],
       ),
     );
+
     if (confirm == true && mounted) {
       await FirebaseAuth.instance.signOut();
       Navigator.pushNamedAndRemoveUntil(
@@ -181,291 +170,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // ALTERAR USERNAME
-  // ═══════════════════════════════════════════════════════════════
-  Future<void> _showChangeUsernameIdDialog() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final ctrl = TextEditingController(text: _currentUsername);
-    bool checking = false;
-    bool available = false;
-    bool saving = false;
-    String? usernameError;
-    DateTime lastCheck = DateTime.now();
-
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) {
-          void onChanged(String value) {
-            final v = value.trim().toLowerCase();
-            setDialogState(() {
-              available = false;
-              usernameError = null;
-            });
-
-            if (v.length < 3) return;
-            if (v == _currentUsername) {
-              setDialogState(() {
-                available = false;
-                usernameError = 'Este já é o seu ID atual.';
-              });
-              return;
-            }
-
-            lastCheck = DateTime.now();
-            final checkTime = lastCheck;
-            setDialogState(() => checking = true);
-
-            Future.delayed(const Duration(milliseconds: 600), () async {
-              if (checkTime != lastCheck) return;
-              try {
-                final query = await FirebaseFirestore.instance
-                    .collection('users_xp')
-                    .where('username', isEqualTo: v)
-                    .limit(1)
-                    .get();
-
-                if (dialogContext.mounted) {
-                  setDialogState(() {
-                    checking = false;
-                    available = query.docs.isEmpty;
-                    usernameError = query.docs.isEmpty
-                        ? null
-                        : 'Este ID já está em uso.';
-                  });
-                }
-              } catch (_) {
-                if (dialogContext.mounted) {
-                  setDialogState(() => checking = false);
-                }
-              }
-            });
-          }
-
-          return AlertDialog(
-            backgroundColor: const Color(0xFF0A0A0A),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20)),
-            title: const Text(
-              'Alterar nome de usuário',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Será exibido em comentários, perfil e conversas.',
-                  style: TextStyle(
-                      color: Color(0xFF9E9E9E), fontSize: 12),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: ctrl,
-                  autofocus: true,
-                  onChanged: onChanged,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(
-                        RegExp(r'[a-zA-Z0-9_]')),
-                    TextInputFormatter.withFunction((old, newVal) {
-                      return newVal.copyWith(
-                          text: newVal.text.toLowerCase());
-                    }),
-                  ],
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 15),
-                  decoration: InputDecoration(
-                    prefixText: '@  ',
-                    prefixStyle: const TextStyle(
-                        color: AppColors.primaryOrange,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700),
-                    hintText: 'novo_usuario',
-                    hintStyle: const TextStyle(
-                        color: Color(0xFF424242), fontSize: 15),
-                    filled: true,
-                    fillColor: const Color(0xFF111111),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          const BorderSide(color: Color(0xFF1E1E1E)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: usernameError != null
-                            ? AppColors.emergencyRed.withOpacity(0.5)
-                            : available
-                                ? const Color(0xFF2E7D32)
-                                    .withOpacity(0.6)
-                                : const Color(0xFF1E1E1E),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: usernameError != null
-                            ? AppColors.emergencyRed
-                            : available
-                                ? const Color(0xFF4CAF50)
-                                : AppColors.primaryOrange,
-                        width: 1.5,
-                      ),
-                    ),
-                    suffixIcon: checking
-                        ? const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                                color: AppColors.primaryOrange,
-                              ),
-                            ),
-                          )
-                        : available
-                            ? const Icon(Icons.check_circle_rounded,
-                                color: Color(0xFF4CAF50), size: 20)
-                            : usernameError != null
-                                ? const Icon(Icons.cancel_rounded,
-                                    color: AppColors.emergencyRed,
-                                    size: 20)
-                                : null,
-                  ),
-                ),
-                if (usernameError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6, left: 4),
-                    child: Text(
-                      usernameError!,
-                      style: const TextStyle(
-                          color: AppColors.emergencyRed, fontSize: 11),
-                    ),
-                  ),
-                if (available)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 6, left: 4),
-                    child: Row(
-                      children: [
-                        Icon(Icons.check_circle_rounded,
-                            color: Color(0xFF4CAF50), size: 13),
-                        SizedBox(width: 5),
-                        Text(
-                          'Nome disponível!',
-                          style: TextStyle(
-                              color: Color(0xFF4CAF50),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancelar',
-                    style: TextStyle(color: Color(0xFF666666))),
-              ),
-              TextButton(
-                onPressed: (!available || saving)
-                    ? null
-                    : () async {
-                        setDialogState(() => saving = true);
-                        final newUsername =
-                            ctrl.text.trim().toLowerCase();
-                        try {
-                          await FirebaseFirestore.instance
-                              .collection('users_xp')
-                              .doc(user.uid)
-                              .update({'username': newUsername});
-                          await user.updateDisplayName(newUsername);
-                          if (mounted) {
-                            setState(
-                                () => _currentUsername = newUsername);
-                          }
-                          if (dialogContext.mounted) {
-                            Navigator.pop(dialogContext);
-                            _showSnack(
-                              icon: Icons.check_circle_rounded,
-                              message: 'Nome alterado com sucesso!',
-                            );
-                          }
-                        } catch (_) {
-                          setDialogState(() => saving = false);
-                          if (dialogContext.mounted) {
-                            _showSnack(
-                              icon: Icons.error_outline_rounded,
-                              message: 'Erro ao salvar. Tente novamente.',
-                              isError: true,
-                            );
-                          }
-                        }
-                      },
-                child: saving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.primaryOrange,
-                        ),
-                      )
-                    : const Text(
-                        'Salvar',
-                        style: TextStyle(
-                          color: AppColors.primaryOrange,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  void _showSnack({
-    required IconData icon,
-    required String message,
-    bool isError = false,
-  }) {
+  void _showSnack(String msg,
+      {IconData? icon, bool success = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: const Color(0xFF1A1A1A),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14)),
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
         content: Row(
           children: [
-            Icon(icon,
-                color: isError
-                    ? AppColors.emergencyRed
-                    : AppColors.primaryOrange,
-                size: 18),
-            const SizedBox(width: 10),
+            if (icon != null) ...[
+              Icon(icon,
+                  color: success
+                      ? const Color(0xFF4CAF50)
+                      : AppColors.primaryOrange,
+                  size: 16),
+              const SizedBox(width: 10),
+            ],
             Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 13),
-              ),
+              child: Text(msg,
+                  style: const TextStyle(color: Colors.white)),
             ),
           ],
         ),
+        backgroundColor: const Color(0xFF1A1A1A),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 4),
       ),
     );
   }
@@ -473,13 +203,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: AppColors.backgroundDark,
+        backgroundColor: Colors.black,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded,
-              color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: Colors.white, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -489,348 +219,344 @@ class _SettingsScreenState extends State<SettingsScreen> {
               fontSize: 17,
               fontWeight: FontWeight.w700),
         ),
+        centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(
-            height: 1,
-            color: AppColors.primaryOrange.withOpacity(0.15),
-          ),
+          child: Container(height: 1, color: const Color(0xFF111111)),
         ),
       ),
       body: ListView(
         children: [
-          // ── CONTA ────────────────────────────────────────────
+          // ── CONTA ─────────────────────────────────────────────────
           _SectionHeader(label: 'CONTA'),
           _SettingsTile(
             icon: Icons.badge_outlined,
             label: 'Nome de usuário',
-            sublabel: _currentUsername.isNotEmpty
-                ? '@$_currentUsername'
-                : 'Não definido',
-            onTap: _showChangeUsernameIdDialog,
+            subtitle: _getUsernameSubtitle(),
+            onTap: _editUsername,
           ),
-          const _Divider(),
+          _Divider(),
 
-          // ── NOTIFICAÇÕES ─────────────────────────────────────
+          // ── NOTIFICAÇÕES ──────────────────────────────────────────
           _SectionHeader(label: 'NOTIFICAÇÕES'),
-          _SwitchTile(
-            icon: Icons.notifications_outlined,
-            label: 'Notificações de notícias',
-            sublabel: 'Receba alertas quando houver novidades',
-            value: _notifGeral,
-            onChanged: _toggleNotifGeral,
-          ),
-          const _Divider(),
+          _loadingNotifications
+              ? _LoadingTile(label: 'Notificações de notícias')
+              : _SettingsTile(
+                  icon: Icons.notifications_outlined,
+                  label: 'Notificações de notícias',
+                  subtitle: 'Receba alertas quando houver novidades',
+                  trailing: Switch(
+                    value: _notificationsEnabled,
+                    onChanged: _toggleNotifications,
+                    activeColor: AppColors.primaryOrange,
+                    activeTrackColor:
+                        AppColors.primaryOrange.withOpacity(0.3),
+                    inactiveThumbColor: const Color(0xFF555555),
+                    inactiveTrackColor: const Color(0xFF222222),
+                  ),
+                ),
+          _Divider(),
 
-          // ── LEITURA ──────────────────────────────────────────
-          _SectionHeader(label: 'LEITURA'),
-          _SliderTile(
-            icon: Icons.text_fields_rounded,
-            label: 'Tamanho da fonte',
-            valueLabel: '${_fontSize.round()}px',
-            value: _fontSize,
-            min: 12,
-            max: 22,
-            onChanged: (v) async {
-              setState(() => _fontSize = v);
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setDouble('fontSize', v);
-            },
-          ),
-          const _Divider(),
-
-          // ── DADOS E ARMAZENAMENTO ────────────────────────────
+          // ── DADOS E ARMAZENAMENTO ─────────────────────────────────
           _SectionHeader(label: 'DADOS E ARMAZENAMENTO'),
-          _SwitchTile(
+          _SettingsTile(
             icon: Icons.data_saver_on_outlined,
             label: 'Economia de dados',
-            sublabel: 'Reduz qualidade de imagens',
-            value: _economiaDados,
-            onChanged: (v) async {
-              setState(() => _economiaDados = v);
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setBool('economiaDados', v);
-            },
+            subtitle: 'Reduz qualidade de imagens',
+            trailing: Switch(
+              value: _dataSaver,
+              onChanged: _setDataSaver,
+              activeColor: AppColors.primaryOrange,
+              activeTrackColor:
+                  AppColors.primaryOrange.withOpacity(0.3),
+              inactiveThumbColor: const Color(0xFF555555),
+              inactiveTrackColor: const Color(0xFF222222),
+            ),
           ),
-          _ExpandableTile(
+          _SettingsTile(
             icon: Icons.play_circle_outline_rounded,
             label: 'Reprodução automática',
-            sublabel: _autoplayMode == 'always'
-                ? 'Sempre'
-                : _autoplayMode == 'wifi'
-                    ? 'Somente Wi-Fi'
-                    : 'Nunca',
-            child: Column(
-              children: [
-                _RadioOption(
-                  label: 'Sempre',
-                  value: 'always',
-                  groupValue: _autoplayMode,
-                  onChanged: (v) async {
-                    if (v == null) return;
-                    setState(() => _autoplayMode = v);
-                    final prefs =
-                        await SharedPreferences.getInstance();
-                    await prefs.setString('autoplayMode', v);
-                  },
-                ),
-                _RadioOption(
-                  label: 'Somente Wi-Fi',
-                  value: 'wifi',
-                  groupValue: _autoplayMode,
-                  onChanged: (v) async {
-                    if (v == null) return;
-                    setState(() => _autoplayMode = v);
-                    final prefs =
-                        await SharedPreferences.getInstance();
-                    await prefs.setString('autoplayMode', v);
-                  },
-                ),
-                _RadioOption(
-                  label: 'Nunca',
-                  value: 'never',
-                  groupValue: _autoplayMode,
-                  onChanged: (v) async {
-                    if (v == null) return;
-                    setState(() => _autoplayMode = v);
-                    final prefs =
-                        await SharedPreferences.getInstance();
-                    await prefs.setString('autoplayMode', v);
-                  },
-                ),
-              ],
-            ),
+            subtitle: _autoplayLabel(_autoplay),
+            onTap: _showAutoplaySheet,
+            trailing: const Icon(Icons.keyboard_arrow_down_rounded,
+                color: Color(0xFF555555), size: 20),
           ),
           _SettingsTile(
             icon: Icons.cleaning_services_outlined,
             label: 'Limpar cache',
-            sublabel: _cacheSize,
-            onTap: _clearCache,
-            trailingWidget: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: AppColors.primaryOrange.withOpacity(0.12),
-                border: Border.all(
-                    color: AppColors.primaryOrange.withOpacity(0.3)),
-              ),
-              child: Text(
-                _cacheSize,
-                style: const TextStyle(
-                    color: AppColors.primaryOrange,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700),
-              ),
-            ),
+            subtitle: _loadingCache
+                ? 'Calculando...'
+                : '${_cacheSize.toStringAsFixed(1)} MB',
+            onTap: _cacheSize > 0 ? _clearCache : null,
+            trailing: _loadingCache
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primaryOrange),
+                  )
+                : _cacheSize > 0
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          color:
+                              AppColors.primaryOrange.withOpacity(0.15),
+                          border: Border.all(
+                              color: AppColors.primaryOrange
+                                  .withOpacity(0.4)),
+                        ),
+                        child: Text(
+                          '${_cacheSize.toStringAsFixed(1)} MB',
+                          style: const TextStyle(
+                            color: AppColors.primaryOrange,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      )
+                    : const Icon(Icons.check_rounded,
+                        color: Color(0xFF4CAF50), size: 18),
           ),
-          const _Divider(),
+          _Divider(),
 
-          // ── SOBRE ────────────────────────────────────────────
+          // ── SOBRE ─────────────────────────────────────────────────
           _SectionHeader(label: 'SOBRE'),
           _SettingsTile(
-            icon: Icons.language_outlined,
-            label: 'Site oficial',
-            sublabel: 'horizontenews.com.br',
-            onTap: () => _launch('https://horizontenews.com.br'),
-          ),
-          _SettingsTile(
-            icon: Icons.privacy_tip_outlined,
+            icon: Icons.shield_outlined,
             label: 'Política de privacidade',
-            onTap: () => _launch(
+            onTap: () => _openUrl(
                 'https://horizontenews.com.br/politica-de-privacidade'),
           ),
           _SettingsTile(
             icon: Icons.description_outlined,
             label: 'Termos de uso',
-            onTap: () =>
-                _launch('https://horizontenews.com.br/termos-de-uso'),
+            onTap: () => _openUrl(
+                'https://horizontenews.com.br/termos-de-uso'),
           ),
           _SettingsTile(
             icon: Icons.info_outline_rounded,
             label: 'Versão do app',
-            sublabel: '1.0.0',
-            onTap: () {},
+            subtitle: '1.0.0',
+            showArrow: false,
           ),
-          const _Divider(),
+          _Divider(),
 
-          // ── SESSÃO ───────────────────────────────────────────
+          // ── SESSÃO ────────────────────────────────────────────────
           _SectionHeader(label: 'SESSÃO'),
           _SettingsTile(
             icon: Icons.logout_rounded,
             label: 'Sair da conta',
             labelColor: AppColors.emergencyRed,
-            onTap: _logout,
+            iconColor: AppColors.emergencyRed,
+            onTap: _handleLogout,
           ),
           const SizedBox(height: 40),
         ],
       ),
     );
   }
-}
 
-// ═══════════════════════════════════════════════════════════════════
-// DIALOG DE PERMISSÃO (igual ao login_screen)
-// ═══════════════════════════════════════════════════════════════════
-class _DialogPermissaoNotificacao extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
+  String _getUsernameSubtitle() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return '@usuário';
+    final name = user.displayName ?? user.email?.split('@').first ?? 'usuário';
+    return '@${name.toLowerCase().replaceAll(' ', '')}';
+  }
+
+  void _editUsername() {
+    final controller = TextEditingController(
+      text: FirebaseAuth.instance.currentUser?.displayName ?? '',
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(
-          color: const Color(0xFF080808),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-              color: const Color(0xFFFF6B00).withOpacity(0.4),
-              width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFFF6B00).withOpacity(0.15),
-              blurRadius: 48,
-              spreadRadius: 4,
-            ),
-          ],
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: Color(0xFF0A0A0A),
+            borderRadius:
+                BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'EDITAR NOME',
+                style: TextStyle(
+                  color: AppColors.primaryOrange,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Seu nome',
+                  hintStyle:
+                      const TextStyle(color: Color(0xFF424242)),
+                  filled: true,
+                  fillColor: const Color(0xFF141414),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide:
+                        const BorderSide(color: Color(0xFF212121)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                        color: AppColors.primaryOrange, width: 1.5),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide:
+                        const BorderSide(color: Color(0xFF212121)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () async {
+                  final newName = controller.text.trim();
+                  if (newName.isEmpty) return;
+                  await FirebaseAuth.instance.currentUser
+                      ?.updateDisplayName(newName);
+                  if (mounted) {
+                    Navigator.pop(context);
+                    setState(() {});
+                    _showSnack('Nome atualizado!',
+                        icon: Icons.check_circle_rounded,
+                        success: true);
+                  }
+                },
+                child: Container(
+                  width: double.infinity,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFFBF360C),
+                        Color(0xFFE65100),
+                        Color(0xFFF57C00)
+                      ],
+                    ),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'SALVAR',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAutoplaySheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0A0A0A),
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const RadialGradient(
-                  colors: [
-                    Color(0xFFFF6D00),
-                    Color(0xFFE65100),
-                    Color(0x00000000),
-                  ],
-                  stops: [0.0, 0.5, 1.0],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFF6B00).withOpacity(0.5),
-                    blurRadius: 24,
-                    spreadRadius: 6,
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.notifications_rounded,
-                  size: 38, color: Colors.white),
-            ),
-            const SizedBox(height: 20),
             const Text(
-              'Fique por dentro!',
+              'REPRODUÇÃO AUTOMÁTICA',
               style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Ative as notificações para receber as últimas notícias de Horizonte e região assim que forem publicadas.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: Color(0xFF9E9E9E), fontSize: 13, height: 1.5),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFFFF6B00))),
-                const SizedBox(width: 6),
-                const Text(
-                  'Sem spam. Só o que importa.',
-                  style: TextStyle(
-                      color: Color(0xFFFF6B00),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-            const SizedBox(height: 28),
-            GestureDetector(
-              onTap: () => Navigator.pop(context, true),
-              child: Container(
-                width: double.infinity,
-                height: 52,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFFBF360C),
-                      Color(0xFFE65100),
-                      Color(0xFFF57C00),
-                    ],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFFF6B00).withOpacity(0.45),
-                      blurRadius: 20,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.notifications_active_rounded,
-                          color: Colors.white, size: 20),
-                      SizedBox(width: 10),
-                      Text(
-                        'Ativar notificações',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
-                ),
+                color: AppColors.primaryOrange,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2,
               ),
             ),
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: () => Navigator.pop(context, false),
-              child: Container(
-                width: double.infinity,
-                height: 46,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFF2A2A2A)),
-                  color: const Color(0xFF111111),
-                ),
-                child: const Center(
-                  child: Text(
-                    'Agora não',
-                    style: TextStyle(
-                        color: Color(0xFF666666),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
+            const SizedBox(height: 16),
+            _AutoplayOption(
+              label: 'Sempre',
+              subtitle: 'Usa dados móveis e Wi-Fi',
+              value: 'always',
+              current: _autoplay,
+              onTap: () {
+                _setAutoplay('always');
+                Navigator.pop(context);
+              },
+            ),
+            _AutoplayOption(
+              label: 'Somente Wi-Fi',
+              subtitle: 'Não usa dados móveis',
+              value: 'wifi',
+              current: _autoplay,
+              onTap: () {
+                _setAutoplay('wifi');
+                Navigator.pop(context);
+              },
+            ),
+            _AutoplayOption(
+              label: 'Nunca',
+              subtitle: 'Vídeos não reproduzem automaticamente',
+              value: 'never',
+              current: _autoplay,
+              onTap: () {
+                _setAutoplay('never');
+                Navigator.pop(context);
+              },
             ),
           ],
         ),
       ),
     );
   }
+
+  String _autoplayLabel(String value) {
+    switch (value) {
+      case 'always':
+        return 'Sempre';
+      case 'never':
+        return 'Nunca';
+      default:
+        return 'Somente Wi-Fi';
+    }
+  }
+
+  void _openUrl(String url) async {
+    _showSnack('Abrindo navegador...',
+        icon: Icons.open_in_browser_rounded);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// WIDGETS AUXILIARES
+// COMPONENTES INTERNOS
 // ═══════════════════════════════════════════════════════════════════
+
 class _SectionHeader extends StatelessWidget {
   final String label;
   const _SectionHeader({required this.label});
@@ -841,26 +567,13 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
       child: Text(
         label,
-        style: TextStyle(
-          color: AppColors.primaryOrange.withOpacity(0.8),
+        style: const TextStyle(
+          color: AppColors.primaryOrange,
           fontSize: 10,
           fontWeight: FontWeight.w800,
-          letterSpacing: 2,
+          letterSpacing: 2.5,
         ),
       ),
-    );
-  }
-}
-
-class _Divider extends StatelessWidget {
-  const _Divider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 1,
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      color: const Color(0xFF1A1A1A),
     );
   }
 }
@@ -868,41 +581,48 @@ class _Divider extends StatelessWidget {
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String label;
-  final String? sublabel;
-  final VoidCallback onTap;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
   final Color? labelColor;
-  final Widget? trailingWidget;
+  final Color? iconColor;
+  final bool showArrow;
 
   const _SettingsTile({
     required this.icon,
     required this.label,
-    this.sublabel,
-    required this.onTap,
+    this.subtitle,
+    this.trailing,
+    this.onTap,
     this.labelColor,
-    this.trailingWidget,
+    this.iconColor,
+    this.showArrow = true,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      splashColor: AppColors.primaryOrange.withOpacity(0.06),
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      splashColor: AppColors.primaryOrange.withOpacity(0.05),
+      highlightColor: AppColors.primaryOrange.withOpacity(0.03),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: 20, vertical: 14),
         child: Row(
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(9),
-                color: (labelColor ?? AppColors.primaryOrange)
-                    .withOpacity(0.10),
+                borderRadius: BorderRadius.circular(10),
+                color: (iconColor ?? AppColors.primaryOrange)
+                    .withOpacity(0.12),
               ),
-              child: Icon(icon,
-                  size: 18,
-                  color: labelColor ?? AppColors.primaryOrange),
+              child: Icon(
+                icon,
+                color: iconColor ?? AppColors.primaryOrange,
+                size: 19,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -917,20 +637,24 @@ class _SettingsTile extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  if (sublabel != null) ...[
+                  if (subtitle != null) ...[
                     const SizedBox(height: 2),
                     Text(
-                      sublabel!,
+                      subtitle!,
                       style: const TextStyle(
-                          color: Colors.white38, fontSize: 11),
+                        color: Color(0xFF666666),
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ],
               ),
             ),
-            trailingWidget ??
-                Icon(Icons.chevron_right_rounded,
-                    color: Colors.white.withOpacity(0.2), size: 20),
+            if (trailing != null)
+              trailing!
+            else if (showArrow && onTap != null)
+              const Icon(Icons.chevron_right_rounded,
+                  color: Color(0xFF444444), size: 20),
           ],
         ),
       ),
@@ -938,65 +662,36 @@ class _SettingsTile extends StatelessWidget {
   }
 }
 
-class _SwitchTile extends StatelessWidget {
-  final IconData icon;
+class _LoadingTile extends StatelessWidget {
   final String label;
-  final String? sublabel;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  const _SwitchTile({
-    required this.icon,
-    required this.label,
-    this.sublabel,
-    required this.value,
-    required this.onChanged,
-  });
+  const _LoadingTile({required this.label});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(9),
-              color: AppColors.primaryOrange.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(10),
+              color: AppColors.primaryOrange.withOpacity(0.12),
             ),
-            child: Icon(icon, size: 18, color: AppColors.primaryOrange),
+            child: const Icon(Icons.notifications_outlined,
+                color: AppColors.primaryOrange, size: 19),
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500),
-                ),
-                if (sublabel != null) ...[
-                  const SizedBox(height: 2),
-                  Text(sublabel!,
-                      style: const TextStyle(
-                          color: Colors.white38, fontSize: 11)),
-                ],
-              ],
-            ),
+            child: Text(label,
+                style: const TextStyle(color: Colors.white, fontSize: 14)),
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: AppColors.primaryOrange,
-            activeTrackColor: AppColors.primaryOrange.withOpacity(0.3),
-            inactiveThumbColor: const Color(0xFF555555),
-            inactiveTrackColor: const Color(0xFF2A2A2A),
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+                strokeWidth: 2, color: AppColors.primaryOrange),
           ),
         ],
       ),
@@ -1004,280 +699,82 @@ class _SwitchTile extends StatelessWidget {
   }
 }
 
-class _SliderTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String valueLabel;
-  final double value;
-  final double min;
-  final double max;
-  final ValueChanged<double> onChanged;
-
-  const _SliderTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.valueLabel,
-    required this.onChanged,
-  });
-
+class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(9),
-                  color: AppColors.primaryOrange.withOpacity(0.10),
-                ),
-                child: Icon(icon,
-                    size: 18, color: AppColors.primaryOrange),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(label,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500)),
-              ),
-              Text(valueLabel,
-                  style: const TextStyle(
-                      color: AppColors.primaryOrange,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700)),
-            ],
-          ),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: AppColors.primaryOrange,
-              inactiveTrackColor:
-                  AppColors.primaryOrange.withOpacity(0.15),
-              thumbColor: AppColors.primaryOrange,
-              overlayColor:
-                  AppColors.primaryOrange.withOpacity(0.12),
-              trackHeight: 2.5,
-              thumbShape:
-                  const RoundSliderThumbShape(enabledThumbRadius: 7),
-            ),
-            child: Slider(
-              value: value,
-              min: min,
-              max: max,
-              divisions: (max - min).round(),
-              onChanged: onChanged,
-            ),
-          ),
-        ],
-      ),
-    );
+        height: 1,
+        margin: const EdgeInsets.only(left: 72),
+        color: const Color(0xFF111111));
   }
 }
 
-class _ExpandableTile extends StatefulWidget {
-  final IconData icon;
+class _AutoplayOption extends StatelessWidget {
   final String label;
-  final String sublabel;
-  final Widget child;
-
-  const _ExpandableTile({
-    required this.icon,
-    required this.label,
-    required this.sublabel,
-    required this.child,
-  });
-
-  @override
-  State<_ExpandableTile> createState() => _ExpandableTileState();
-}
-
-class _ExpandableTileState extends State<_ExpandableTile> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        InkWell(
-          onTap: () => setState(() => _expanded = !_expanded),
-          splashColor: AppColors.primaryOrange.withOpacity(0.06),
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 20, vertical: 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(9),
-                    color: AppColors.primaryOrange.withOpacity(0.10),
-                  ),
-                  child: Icon(widget.icon,
-                      size: 18, color: AppColors.primaryOrange),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(widget.label,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 2),
-                      Text(widget.sublabel,
-                          style: const TextStyle(
-                              color: Colors.white38, fontSize: 11)),
-                    ],
-                  ),
-                ),
-                AnimatedRotation(
-                  turns: _expanded ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  child: const Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: Colors.white38,
-                      size: 20),
-                ),
-              ],
-            ),
-          ),
-        ),
-        AnimatedCrossFade(
-          firstChild: const SizedBox.shrink(),
-          secondChild: Container(
-            margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              color: Colors.white.withOpacity(0.03),
-              border: Border.all(
-                  color: AppColors.primaryOrange.withOpacity(0.12),
-                  width: 1),
-            ),
-            child: widget.child,
-          ),
-          crossFadeState: _expanded
-              ? CrossFadeState.showSecond
-              : CrossFadeState.showFirst,
-          duration: const Duration(milliseconds: 220),
-        ),
-      ],
-    );
-  }
-}
-
-class _RadioOption extends StatelessWidget {
-  final String label;
+  final String subtitle;
   final String value;
-  final String groupValue;
-  final ValueChanged<String?> onChanged;
+  final String current;
+  final VoidCallback onTap;
 
-  const _RadioOption({
+  const _AutoplayOption({
     required this.label,
+    required this.subtitle,
     required this.value,
-    required this.groupValue,
-    required this.onChanged,
+    required this.current,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final selected = value == groupValue;
+    final selected = value == current;
     return GestureDetector(
-      onTap: () => onChanged(value),
+      onTap: onTap,
       child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
         padding:
-            const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: selected
+              ? AppColors.primaryOrange.withOpacity(0.1)
+              : const Color(0xFF111111),
+          border: Border.all(
+            color: selected
+                ? AppColors.primaryOrange.withOpacity(0.5)
+                : const Color(0xFF1E1E1E),
+          ),
+        ),
         child: Row(
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              width: 18,
-              height: 18,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                    color: selected
-                        ? AppColors.primaryOrange
-                        : Colors.white30,
-                    width: 2),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: selected
+                          ? AppColors.primaryOrange
+                          : Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                        color: Color(0xFF666666), fontSize: 11),
+                  ),
+                ],
               ),
-              child: selected
-                  ? Center(
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.primaryOrange),
-                      ),
-                    )
-                  : null,
             ),
-            const SizedBox(width: 10),
-            Text(label,
-                style: TextStyle(
-                    color: selected ? Colors.white : Colors.white60,
-                    fontSize: 13,
-                    fontWeight: selected
-                        ? FontWeight.w600
-                        : FontWeight.w400)),
+            if (selected)
+              const Icon(Icons.check_circle_rounded,
+                  color: AppColors.primaryOrange, size: 20),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _ConfirmDialog extends StatelessWidget {
-  final String title;
-  final String message;
-  final String confirmLabel;
-  final Color confirmColor;
-
-  const _ConfirmDialog({
-    required this.title,
-    required this.message,
-    required this.confirmLabel,
-    required this.confirmColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: const Color(0xFF0A0A0A),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20)),
-      title: Text(title,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w800)),
-      content: Text(message,
-          style: const TextStyle(
-              color: Color(0xFF9E9E9E), height: 1.5)),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancelar',
-              style: TextStyle(color: Color(0xFF666666))),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: Text(confirmLabel,
-              style: TextStyle(
-                  color: confirmColor, fontWeight: FontWeight.w700)),
-        ),
-      ],
     );
   }
 }
