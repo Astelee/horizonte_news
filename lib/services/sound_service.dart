@@ -1,26 +1,37 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Sons de interação disponíveis no app.
-/// Para adicionar um novo som: 1) coloque o arquivo em assets/sounds/
-/// 2) adicione uma entrada aqui.
+/// Sons de interaÃ§Ã£o disponÃ­veis no app.
+///
+/// IMPORTANTE: hoje sÃ³ existem dois arquivos reais em assets/sounds/:
+/// ambient.mp3 e ranking.mp3. Para cliques/toques comuns, usamos o som
+/// de sistema do celular (SystemSound.click), que nÃ£o depende de arquivo.
+///
+/// Quando vocÃª adicionar novos arquivos .mp3 em assets/sounds/, basta:
+/// 1) colocar o arquivo na pasta
+/// 2) adicionar uma entrada aqui no enum
+/// 3) trocar a chamada correspondente de playSystemClick() para play(AppSound.xxx)
 enum AppSound {
-  tap('tap.mp3'),
-  toggleOn('toggle_on.mp3'),
-  toggleOff('toggle_off.mp3'),
-  like('like.mp3'),
-  favorite('favorite.mp3'),
-  share('share.mp3'),
-  navigate('navigate.mp3'),
-  success('success.mp3'),
-  error('error.mp3');
+  ranking('ranking.mp3'),
+  ambient('ambient.mp3');
 
   final String fileName;
   const AppSound(this.fileName);
 }
 
-/// Serviço central de sons do app.
+/// ServiÃ§o central de sons do app.
+///
+/// Uso para som de sistema (clique simples, sem precisar de arquivo):
+///   SoundService.instance.playSystemClick();
+///
+/// Uso para som de arquivo especÃ­fico:
+///   SoundService.instance.play(AppSound.ranking);
+///
+/// Controle:
+///   SoundService.instance.setEnabled(false);
+///   SoundService.instance.setVolume(0.5);
 class SoundService {
   SoundService._internal();
   static final SoundService instance = SoundService._internal();
@@ -32,6 +43,7 @@ class SoundService {
   double _volume = 0.5;
   bool _initialized = false;
 
+  // Pool de players para permitir sons sobrepostos sem cortar um ao outro.
   final List<AudioPlayer> _pool = [];
   int _poolIndex = 0;
   static const int _poolSize = 4;
@@ -39,6 +51,7 @@ class SoundService {
   bool get isEnabled => _enabled;
   double get volume => _volume;
 
+  /// Deve ser chamado uma vez, no main.dart, antes do runApp.
   Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
@@ -48,7 +61,7 @@ class SoundService {
       _enabled = prefs.getBool(_enabledKey) ?? true;
       _volume = prefs.getDouble(_volumeKey) ?? 0.5;
     } catch (e) {
-      debugPrint('SoundService: erro ao carregar preferências: $e');
+      debugPrint('SoundService: erro ao carregar preferÃªncias: $e');
     }
 
     for (int i = 0; i < _poolSize; i++) {
@@ -58,6 +71,21 @@ class SoundService {
     }
   }
 
+  /// Toca o som de clique padrÃ£o do sistema operacional.
+  /// Ideal para botÃµes, abas, menus â€” nÃ£o depende de nenhum arquivo
+  /// de Ã¡udio, entÃ£o nunca falha por arquivo ausente.
+  void playSystemClick() {
+    if (!_enabled) return;
+    try {
+      SystemSound.play(SystemSoundType.click);
+    } catch (e) {
+      debugPrint('SoundService: erro ao tocar som de sistema: $e');
+    }
+  }
+
+  /// Toca um som de interaÃ§Ã£o a partir de um arquivo em assets/sounds/.
+  /// Silenciosamente ignora se os sons estiverem desativados ou se o
+  /// arquivo nÃ£o existir (nunca deve quebrar a experiÃªncia do usuÃ¡rio).
   Future<void> play(AppSound sound) async {
     if (!_enabled || !_initialized) return;
 
@@ -69,7 +97,7 @@ class SoundService {
       await player.setVolume(_volume);
       await player.play(AssetSource('sounds/${sound.fileName}'));
     } catch (e) {
-      debugPrint('SoundService: não foi possível tocar ${sound.fileName}: $e');
+      debugPrint('SoundService: nÃ£o foi possÃ­vel tocar ${sound.fileName}: $e');
     }
   }
 
