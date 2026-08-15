@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -38,37 +38,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  // ── Verifica o status real da permissão de notificação ────────────
+  // ── Verifica o status usando o NotificationService ────────────────
   Future<void> _checkNotificationStatus() async {
-    final settings =
-        await FirebaseMessaging.instance.getNotificationSettings();
-    final granted =
-        settings.authorizationStatus == AuthorizationStatus.authorized ||
-        settings.authorizationStatus == AuthorizationStatus.provisional;
+    final enabled = await NotificationService.areNotificationsEnabled();
     if (mounted) {
       setState(() {
-        _notificationsEnabled = granted;
+        _notificationsEnabled = enabled;
         _loadingNotifications = false;
       });
     }
   }
 
-  // ── Solicita permissão ou abre configurações do sistema ───────────
+  // ── Alterna as notificações usando o NotificationService ──────────
   Future<void> _toggleNotifications(bool value) async {
     HapticFeedback.lightImpact();
 
     if (value) {
-      final settings =
-          await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-
-      final granted =
-          settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional;
-
+      final granted = await NotificationService.requestPermission();
       if (mounted) setState(() => _notificationsEnabled = granted);
 
       if (!granted && mounted) {
@@ -78,7 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       } else if (granted && mounted) {
         _showSnack(
-          'Notificações ativadas com sucesso!',
+          'Notificações ativadas!',
           icon: Icons.notifications_active_rounded,
           success: true,
         );
