@@ -13,7 +13,8 @@ import 'providers/favorites_provider.dart';
 import 'providers/user_xp_provider.dart';
 import 'features/admin/providers/admin_provider.dart';
 import 'services/notification_service.dart';
-import 'services/presence_service.dart'; // ✅ Import adicionado
+import 'services/presence_service.dart';
+import 'services/sound_service.dart'; // ✅ Import adicionado
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,7 @@ void main() async {
   );
 
   await NotificationService.init();
+  await SoundService.instance.init(); // ✅ Linha adicionada
 
   runApp(
     MultiProvider(
