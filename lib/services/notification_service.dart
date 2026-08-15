@@ -43,4 +43,25 @@ class NotificationService {
   static Future<bool> notificacoesAtivas() async {
     return OneSignal.User.pushSubscription.optedIn ?? false;
   }
+
+  // ── Aliases usados por settings_screen.dart ────────────────────────
+
+  /// Verifica se as notificações estão habilitadas (permissão do SO
+  /// concedida e usuário opt-in no OneSignal).
+  static Future<bool> areNotificationsEnabled() async {
+    final permissionStatus = OneSignal.Notifications.permission;
+    final optedIn = OneSignal.User.pushSubscription.optedIn ?? false;
+    return permissionStatus && optedIn;
+  }
+
+  /// Solicita a permissão de notificação ao usuário e retorna se foi
+  /// concedida.
+  static Future<bool> requestPermission() async {
+    final granted = await OneSignal.Notifications.requestPermission(true);
+    await marcarPermissaoJaPedida();
+    if (granted) {
+      await OneSignal.User.pushSubscription.optIn();
+    }
+    return granted;
+  }
 }
