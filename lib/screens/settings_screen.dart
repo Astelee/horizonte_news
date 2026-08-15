@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../services/notification_service.dart';
+import '../services/auth_service.dart'; // ✅ Import adicionado
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -147,7 +148,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (confirm == true && mounted) {
-      await FirebaseAuth.instance.signOut();
+      // ✅ Usa o AuthService para também limpar os dados de
+      // "Lembrar login" persistidos no armazenamento seguro.
+      await AuthService.instance.signOut();
       Navigator.pushNamedAndRemoveUntil(
           context, AppRoutes.login, (_) => false);
     }
