@@ -14,7 +14,8 @@ import 'providers/user_xp_provider.dart';
 import 'features/admin/providers/admin_provider.dart';
 import 'services/notification_service.dart';
 import 'services/presence_service.dart';
-import 'services/sound_service.dart'; // ✅ Import adicionado
+import 'services/sound_service.dart';
+import 'services/auth_service.dart'; // ✅ Import adicionado
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,8 +30,12 @@ void main() async {
     ),
   );
 
+  // ✅ Verifica a preferência de "Lembrar login" ANTES de exibir
+  // qualquer tela, evitando piscar a Home antes de deslogar.
+  await AuthService.instance.enforceRememberPreference();
+
   await NotificationService.init();
-  await SoundService.instance.init(); // ✅ Linha adicionada
+  await SoundService.instance.init();
 
   runApp(
     MultiProvider(
