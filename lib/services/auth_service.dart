@@ -5,8 +5,11 @@ import 'package:flutter/foundation.dart';
 /// Serviço central de autenticação.
 ///
 /// Centraliza login, logout e a lógica de "Lembrar login".
-/// Nunca armazena senha — apenas um sinalizador (lembrar sim/não) e
-/// o e-mail, para pré-preencher o campo na próxima abertura.
+/// Quando "Lembrar login" está ativo, o e-mail e a senha ficam salvos
+/// de forma segura (flutter_secure_storage, com criptografia do
+/// sistema) mesmo depois de um logout manual — assim o usuário não
+/// precisa redigitar tudo no próximo login. Só são apagados quando o
+/// usuário desmarca a opção "Lembrar login".
 class AuthService {
   AuthService._internal();
   static final AuthService instance = AuthService._internal();
@@ -14,19 +17,18 @@ class AuthService {
   static const _storage = FlutterSecureStorage();
   static const String _rememberKey = 'remember_login';
   static const String _emailKey = 'saved_login_email';
+  static const String _passwordKey = 'saved_login_password';
 
-  /// Se o usuário optou por ser lembrado na última vez que fez login.
   Future<bool> isRememberEnabled() async {
     try {
       final value = await _storage.read(key: _rememberKey);
       return value == 'true';
     } catch (e) {
-      debugPrint('AuthService: erro ao ler preferência de lembrar login: $e');
+      debugPrint('AuthService: erro ao ler remember_login: $e');
       return false;
     }
   }
 
-  /// E-mail salvo (para pré-preencher o campo), se houver.
   Future<String?> getSavedEmail() async {
     try {
       return await _storage.read(key: _emailKey);
@@ -36,8 +38,16 @@ class AuthService {
     }
   }
 
-  /// Realiza o login com e-mail/senha e aplica a preferência de
-  /// "Lembrar login" (salva ou remove os dados persistidos).
+  Future<String?> getSavedPassword() async {
+    try {
+      return await _storage.read(key: _passwordKey);
+    } catch (e) {
+      debugPrint('AuthService: erro ao ler senha salva: $e');
+      return null;
+    }
+  }
+
+  /// Realiza o login e aplica a preferência de "Lembrar login".
   Future<UserCredential> signIn({
     required String email,
     required String password,
@@ -49,8 +59,13 @@ class AuthService {
     );
 
     if (remember) {
-      await _storage.write(key: _rememberKey, value: 'true');
-      await _storage.write(key: _emailKey, value: email);
+      try {
+        await _storage.write(key: _rememberKey, value: 'true');
+        await _storage.write(key: _emailKey, value: email);
+        await _storage.write(key: _passwordKey, value: password);
+      } catch (e) {
+        debugPrint('AuthService: erro ao salvar dados de lembrar login: $e');
+      }
     } else {
       await _clearRememberData();
     }
@@ -58,10 +73,9 @@ class AuthService {
     return credential;
   }
 
-  /// Deve ser chamado uma única vez, no início do app (antes de exibir
-  /// qualquer tela). O Firebase mantém a sessão ativa por padrão entre
-  /// aberturas do app; se o usuário NÃO marcou "Lembrar login" da última
-  /// vez, forçamos o logout aqui para respeitar a escolha dele.
+  /// Deve ser chamado uma única vez, no início do app. Se o usuário
+  /// não marcou "Lembrar login" da última vez, força o logout para
+  /// respeitar a escolha dele.
   Future<void> enforceRememberPreference() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -72,18 +86,26 @@ class AuthService {
     }
   }
 
-  /// Faz logout e remove qualquer dado persistido de "Lembrar login".
+  /// Logout manual (botão "Sair da conta"). Desloga da conta, mas
+  /// MANTÉM e-mail/senha salvos se "Lembrar login" estiver ativo —
+  /// assim o próximo login já vem pré-preenchido.
   Future<void> signOut() async {
-    await _clearRememberData();
     await FirebaseAuth.instance.signOut();
   }
 
+  /// Remove todos os dados salvos de login. Chamado quando o usuário
+  /// desmarca a opção "Lembrar login".
   Future<void> _clearRememberData() async {
     try {
       await _storage.delete(key: _rememberKey);
       await _storage.delete(key: _emailKey);
+      await _storage.delete(key: _passwordKey);
     } catch (e) {
       debugPrint('AuthService: erro ao limpar dados de login: $e');
     }
   }
+
+  /// Remove explicitamente os dados salvos (uso público, caso precise
+  /// de um botão separado de "esquecer dados salvos" no futuro).
+  Future<void> forgetSavedCredentials() => _clearRememberData();
 }
