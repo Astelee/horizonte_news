@@ -83,13 +83,19 @@ class _LoginScreenState extends State<LoginScreen>
     _loadSavedEmail();
   }
 
-  // ✅ Pré-preenche o e-mail se "Lembrar login" estava ativo antes.
+  // ✅ Pré-preenche e-mail e senha se "Lembrar login" estava ativo.
+  // Isso garante que, mesmo após um logout manual, o usuário não
+  // precise redigitar as credenciais — só precisa apertar ENTRAR.
   Future<void> _loadSavedEmail() async {
     final remembered = await AuthService.instance.isRememberEnabled();
     final savedEmail = await AuthService.instance.getSavedEmail();
+    final savedPassword = await AuthService.instance.getSavedPassword();
     if (mounted && remembered && savedEmail != null) {
       setState(() {
         _emailController.text = savedEmail;
+        if (savedPassword != null) {
+          _passwordController.text = savedPassword;
+        }
         _rememberMe = true;
       });
     }
