@@ -1,11 +1,3 @@
-// ============================================================
-// AdConfig — Configuração centralizada de anúncios
-// ============================================================
-// Para ativar/desativar um parceiro: mude isActive
-// Para trocar o banner:              mude assetPath
-// Para adicionar parceiro:           adicione um PartnerAd
-// ============================================================
-
 class PartnerAd {
   final String name;
   final String assetPath;
@@ -26,7 +18,7 @@ class AdConfig {
     PartnerAd(
       name: 'Parceiro A',
       assetPath: 'assets/ads/parceiros/parceiro_1.png',
-      isActive: false, // ← mude para true para ativar
+      isActive: false,
     ),
     PartnerAd(
       name: 'Parceiro B',
@@ -40,14 +32,9 @@ class AdConfig {
     ),
   ];
 
-  // ── AdMob IDs ─────────────────────────────────────────────
-  // IDs de TESTE — nunca geram tráfego inválido.
-  // Substitua pelos reais antes de publicar na loja.
+  // ── AdMob IDs reais ───────────────────────────────────────
   static const String admobBannerId =
-      'ca-app-pub-3940256099942544/6300978111'; // Android teste
-
-  // IDs REAIS (descomente e preencha antes de publicar):
-  // static const String admobBannerId = 'SEU_ADMOB_BANNER_ID';
+      'ca-app-pub-5015489666829491/6354307271';
 
   // ── Helpers ───────────────────────────────────────────────
 
