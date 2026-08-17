@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart'; // ✅ AdMob adicionado
 import 'config/app_theme.dart';
 import 'config/app_routes.dart';
 import 'providers/posts_provider.dart';
@@ -15,7 +16,7 @@ import 'features/admin/providers/admin_provider.dart';
 import 'services/notification_service.dart';
 import 'services/presence_service.dart';
 import 'services/sound_service.dart';
-import 'services/auth_service.dart'; // ✅ Import adicionado
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,9 @@ void main() async {
       storageBucket: 'horizontenews-6b48f.firebasestorage.app',
     ),
   );
+
+  // ✅ AdMob inicializado após Firebase
+  await MobileAds.instance.initialize();
 
   // ✅ Verifica a preferência de "Lembrar login" ANTES de exibir
   // qualquer tela, evitando piscar a Home antes de deslogar.
