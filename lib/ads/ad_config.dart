@@ -18,7 +18,7 @@ class AdConfig {
     PartnerAd(
       name: 'Parceiro A',
       assetPath: 'assets/ads/parceiros/parceiro_1.png',
-      isActive: false,
+      isActive: true,
     ),
     PartnerAd(
       name: 'Parceiro B',
