@@ -10,6 +10,7 @@ import '../widgets/featured_carousel.dart';
 import '../widgets/breaking_news_banner.dart';
 import '../widgets/news_card.dart';
 import '../widgets/app_drawer.dart';
+import '../ads/hybrid_banner_ad.dart'; // ✅ Banner de anúncios adicionado
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -89,6 +90,8 @@ class _HomeScreenState extends State<HomeScreen>
       extendBodyBehindAppBar: true,
       appBar: _buildAppBar(context),
       drawer: const AppDrawer(),
+      // ✅ Banner híbrido adicionado como rodapé fixo
+      bottomNavigationBar: const HybridBannerAd(),
       body: FadeTransition(
         opacity: _fadeAnim,
         child: RefreshIndicator(
