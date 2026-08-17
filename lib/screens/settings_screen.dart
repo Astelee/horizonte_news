@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../services/notification_service.dart';
-import '../services/auth_service.dart'; // ✅ Import adicionado
+import '../services/auth_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -39,7 +39,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  // ── Verifica o status usando o NotificationService ────────────────
   Future<void> _checkNotificationStatus() async {
     final enabled = await NotificationService.areNotificationsEnabled();
     if (mounted) {
@@ -50,7 +49,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // ── Alterna as notificações usando o NotificationService ──────────
   Future<void> _toggleNotifications(bool value) async {
     HapticFeedback.lightImpact();
 
@@ -148,11 +146,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (confirm == true && mounted) {
-      // ✅ Usa o AuthService para também limpar os dados de
-      // "Lembrar login" persistidos no armazenamento seguro.
       await AuthService.instance.signOut();
       Navigator.pushNamedAndRemoveUntil(
           context, AppRoutes.login, (_) => false);
+    }
+  }
+
+  // ✅ Exclusão de conta adicionada
+  Future<void> _handleDeleteAccount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0A0A0A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+              color: AppColors.emergencyRed.withOpacity(0.3)),
+        ),
+        title: const Text(
+          'Excluir conta permanentemente?',
+          style: TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+        content: const Text(
+          'Todos os seus dados serão apagados:\n\n• Perfil e nome de usuário\n• Nível e pontos de XP\n• Favoritos salvos\n• Comentários\n\nEssa ação não pode ser desfeita.',
+          style: TextStyle(color: Color(0xFF9E9E9E), height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar',
+                style: TextStyle(color: Color(0xFF9E9E9E))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'EXCLUIR',
+              style: TextStyle(
+                  color: AppColors.emergencyRed,
+                  fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final uid = user.uid;
+
+      // Apaga favoritos
+      final favs = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('favorites')
+          .get();
+      for (final doc in favs.docs) {
+        await doc.reference.delete();
+      }
+
+      // Apaga documento principal do usuário
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .delete();
+
+      // Apaga a conta do Firebase Auth
+      await user.delete();
+
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+            context, AppRoutes.login, (_) => false);
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        if (mounted) {
+          _showSnack(
+            'Por segurança, saia e entre novamente antes de excluir sua conta.',
+            icon: Icons.warning_amber_rounded,
+          );
+        }
+      } else {
+        if (mounted) {
+          _showSnack('Erro: ${e.message}',
+              icon: Icons.error_outline_rounded);
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        _showSnack('Erro inesperado. Tente novamente.',
+            icon: Icons.error_outline_rounded);
+      }
     }
   }
 
@@ -339,6 +427,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             iconColor: AppColors.emergencyRed,
             onTap: _handleLogout,
           ),
+
+          // ✅ Botão de excluir conta adicionado
+          _SettingsTile(
+            icon: Icons.delete_forever_rounded,
+            label: 'Excluir minha conta',
+            subtitle: 'Apaga todos os dados permanentemente',
+            labelColor: AppColors.emergencyRed,
+            iconColor: AppColors.emergencyRed,
+            onTap: _handleDeleteAccount,
+          ),
+
           const SizedBox(height: 40),
         ],
       ),
