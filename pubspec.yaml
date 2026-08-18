@@ -1,7 +1,7 @@
 name: horizonte_news
 description: Aplicativo de notícias profissional para o portal Horizonte News.
 
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
