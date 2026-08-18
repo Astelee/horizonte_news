@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../services/notification_service.dart';
@@ -152,7 +153,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // ✅ Exclusão de conta adicionada
+  // ✅ Exclusão de conta integrada diretamente no Firebase
   Future<void> _handleDeleteAccount() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -428,7 +429,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: _handleLogout,
           ),
 
-          // ✅ Botão de excluir conta adicionado
+          // ✅ Botão de exclusão de conta integrado com sucesso
           _SettingsTile(
             icon: Icons.delete_forever_rounded,
             label: 'Excluir minha conta',
