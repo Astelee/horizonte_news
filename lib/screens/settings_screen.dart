@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ adicionado
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../services/notification_service.dart';
@@ -153,7 +153,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // ✅ Exclusão de conta integrada diretamente no Firebase
+  // ✅ Exclusão completa e em cascata de todos os dados do usuário
   Future<void> _handleDeleteAccount() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -170,7 +170,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: Colors.white, fontWeight: FontWeight.w800),
         ),
         content: const Text(
-          'Todos os seus dados serão apagados:\n\n• Perfil e nome de usuário\n• Nível e pontos de XP\n• Favoritos salvos\n• Comentários\n\nEssa ação não pode ser desfeita.',
+          'Todos os seus dados serão apagados:\n\n• Perfil e nome de usuário\n• Nível e pontos de XP\n• Favoritos salvos\n• Comentários\n• Histórico de visualizações\n\nEssa ação não pode ser desfeita.',
           style: TextStyle(color: Color(0xFF9E9E9E), height: 1.6),
         ),
         actions: [
@@ -194,36 +194,88 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (confirm != true || !mounted) return;
 
+    // Mostra loading enquanto apaga
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primaryOrange,
+        ),
+      ),
+    );
+
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
       final uid = user.uid;
+      final db = FirebaseFirestore.instance;
 
-      // Apaga favoritos
-      final favs = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('favorites')
-          .get();
-      for (final doc in favs.docs) {
-        await doc.reference.delete();
+      // ── 1. Subcoleções do documento users/{uid} ──────────────
+      await _deleteSubcollection(db, 'users/$uid/favorites');
+      await _deleteSubcollection(db, 'users/$uid/notifications');
+      await _deleteSubcollection(db, 'users/$uid/friends');
+      await _deleteSubcollection(db, 'users/$uid/friend_requests');
+      await _deleteSubcollection(db, 'users/$uid/conversations');
+
+      // ── 2. Documento principal do usuário ────────────────────
+      await db.collection('users').doc(uid).delete();
+
+      // ── 3. XP e nível ────────────────────────────────────────
+      await db.collection('users_xp').doc(uid).delete();
+
+      // ── 4. Permissões de admin ───────────────────────────────
+      await db.collection('admins').doc(uid).delete();
+
+      // ── 5. Username reservado (evita ID travado) ─────────────
+      await db.collection('usernames').doc(uid).delete();
+
+      // ── 6. Remove o uid da subcoleção viewers em post_views ──
+      // Busca todos os posts onde este usuário aparece como viewer
+      final postViews = await db.collection('post_views').get();
+      for (final postDoc in postViews.docs) {
+        await postDoc.reference
+            .collection('viewers')
+            .doc(uid)
+            .delete();
       }
 
-      // Apaga documento principal do usuário
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .delete();
+      // ── 7. Remove comentários feitos pelo usuário ─────────────
+      // Em cada post que tiver comentários deste usuário
+      final comments = await db
+          .collectionGroup('comments')
+          .where('userId', isEqualTo: uid)
+          .get();
+      for (final commentDoc in comments.docs) {
+        await commentDoc.reference.delete();
+      }
 
-      // Apaga a conta do Firebase Auth
+      // ── 8. Remove logs de admin que referenciam este uid ─────
+      final adminLogs = await db
+          .collection('admin_logs')
+          .where('targetUid', isEqualTo: uid)
+          .get();
+      for (final log in adminLogs.docs) {
+        await log.reference.delete();
+      }
+
+      // ── 9. Remove da lista de banidos se estiver lá ───────────
+      await db.collection('banned_users').doc(uid).delete();
+
+      // ── 10. Remove presença online ────────────────────────────
+      await db.collection('presence').doc(uid).delete();
+
+      // ── 11. Apaga a conta do Firebase Auth ────────────────────
       await user.delete();
 
       if (mounted) {
+        Navigator.of(context).pop(); // fecha o loading
         Navigator.pushNamedAndRemoveUntil(
             context, AppRoutes.login, (_) => false);
       }
     } on FirebaseAuthException catch (e) {
+      if (mounted) Navigator.of(context).pop(); // fecha o loading
       if (e.code == 'requires-recent-login') {
         if (mounted) {
           _showSnack(
@@ -239,9 +291,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (_) {
       if (mounted) {
+        Navigator.of(context).pop(); // fecha o loading
         _showSnack('Erro inesperado. Tente novamente.',
             icon: Icons.error_outline_rounded);
       }
+    }
+  }
+
+  // ── Helper: apaga todos os documentos de uma subcoleção ──────────
+  Future<void> _deleteSubcollection(
+      FirebaseFirestore db, String path) async {
+    try {
+      final parts = path.split('/');
+      // Monta a referência correta para subcoleção
+      CollectionReference ref = db.collection(parts[0]);
+      for (int i = 1; i < parts.length; i++) {
+        if (i % 2 == 0) {
+          ref = ref.doc(parts[i - 1]).collection(parts[i]);
+        }
+      }
+      // Para caminho simples como 'users/uid/favorites'
+      final snap = await db.doc(path.split('/').take(2).join('/')).collection(parts.last).get();
+      for (final doc in snap.docs) {
+        await doc.reference.delete();
+      }
+    } catch (_) {
+      // Ignora se a subcoleção não existir
     }
   }
 
@@ -428,8 +503,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             iconColor: AppColors.emergencyRed,
             onTap: _handleLogout,
           ),
-
-          // ✅ Botão de exclusão de conta integrado com sucesso
           _SettingsTile(
             icon: Icons.delete_forever_rounded,
             label: 'Excluir minha conta',
@@ -438,7 +511,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             iconColor: AppColors.emergencyRed,
             onTap: _handleDeleteAccount,
           ),
-
           const SizedBox(height: 40),
         ],
       ),
