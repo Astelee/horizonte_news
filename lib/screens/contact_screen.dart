@@ -22,7 +22,7 @@ class _ContactScreenState extends State<ContactScreen>
   // ── LINKS CONFIGURADOS DO SEU CANAL ───────────────────────
   // Substitua o número do WhatsApp abaixo pelo número oficial da redação/comercial
   final String whatsappAnuncieUrl =
-      'https://wa.me/5585999999999?text=Olá!%20Gostaria%20de%20anunciar%20no%20Horizonte%20News.';
+      'https://wa.me/5585994130806?text=Olá!%20Gostaria%20de%20anunciar%20no%20Horizonte%20News.';
   final String siteFaleConoscoUrl =
       'https://astelee.github.io/horizonte_site/#contato'; // Site oficial com e-mail/telefone (exigência Google Play)
   final String instagramUrl = 'https://instagram.com/horizontenews';
