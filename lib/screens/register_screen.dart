@@ -39,10 +39,10 @@ class _RegisterScreenState extends State<RegisterScreen>
   // ── Novo: controla se o botão "Criar Conta" pode ser habilitado ──
   bool _canSubmit = false;
 
-  static const String _termsUrl =
-      'https://astelee.github.io/horizonte_site/#termos';
+    static const String _termsUrl =
+      'https://astelee.github.io/horizonte_termos/';
   static const String _privacyUrl =
-      'https://astelee.github.io/horizonte_site/#privacidade';
+      'https://astelee.github.io/horizonte-news-privacy/';
 
   late AnimationController _glowController;
   late Animation<double> _glowAnim;
