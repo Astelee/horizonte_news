@@ -260,8 +260,6 @@ class _RegisterScreenState extends State<RegisterScreen>
       return;
     }
 
-    // Defesa extra: mesmo com o botão desabilitado por padrão,
-    // garantimos que a data de nascimento e os termos foram validados.
     if (_birthDate == null) {
       setState(() => _errorMessage = 'Informe sua data de nascimento.');
       return;
@@ -283,7 +281,6 @@ class _RegisterScreenState extends State<RegisterScreen>
     });
 
     try {
-      // 1. Cria conta no Firebase Auth
       final credential =
           await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
@@ -292,10 +289,8 @@ class _RegisterScreenState extends State<RegisterScreen>
 
       final user = credential.user!;
 
-      // 2. Define o displayName como o username
       await user.updateDisplayName(username);
 
-      // 3. Cria documento no Firestore com o username e data de nascimento
       await FirebaseFirestore.instance
           .collection('users_xp')
           .doc(user.uid)
@@ -441,7 +436,6 @@ class _RegisterScreenState extends State<RegisterScreen>
                               crossAxisAlignment:
                                   CrossAxisAlignment.stretch,
                               children: [
-                                // ── Campo de ID / Username ──────────
                                 _buildUsernameField(),
                                 const SizedBox(height: 20),
 
@@ -461,7 +455,6 @@ class _RegisterScreenState extends State<RegisterScreen>
                                 ),
                                 const SizedBox(height: 20),
 
-                                // ── Novo: Data de nascimento ────────
                                 _buildBirthDateField(),
                                 const SizedBox(height: 20),
 
@@ -518,7 +511,6 @@ class _RegisterScreenState extends State<RegisterScreen>
                                 ),
                                 const SizedBox(height: 20),
 
-                                // ── Novo: Checkbox de Termos ────────
                                 _buildTermsCheckbox(),
                                 const SizedBox(height: 24),
 
@@ -574,7 +566,6 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
   }
 
-  // ── Novo: campo de data de nascimento com showDatePicker ──────────
   Widget _buildBirthDateField() {
     final hasDate = _birthDate != null;
     final showUnderageWarning = hasDate && !_isBirthDateValid;
@@ -642,7 +633,6 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
   }
 
-  // ── Novo: checkbox de aceite dos termos, com links individuais ───
   Widget _buildTermsCheckbox() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -725,7 +715,6 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
   }
 
-  // ── Botão "Criar Conta", agora controlado por _canSubmit ──────────
   Widget _buildSubmitButton() {
     final enabled = _canSubmit && !_isLoading;
 
@@ -796,7 +785,6 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
   }
 
-  // ── CAMPO DE USERNAME / ID ────────────────────────────────────────
   Widget _buildUsernameField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -823,7 +811,6 @@ class _RegisterScreenState extends State<RegisterScreen>
           controller: _usernameController,
           style: const TextStyle(color: Colors.white, fontSize: 15),
           inputFormatters: [
-            // Permite só letras minúsculas, números e _
             FilteringTextInputFormatter.allow(
                 RegExp(r'[a-zA-Z0-9_]')),
             TextInputFormatter.withFunction((old, newVal) {
@@ -905,8 +892,6 @@ class _RegisterScreenState extends State<RegisterScreen>
             return null;
           },
         ),
-
-        // Feedback de disponibilidade
         if (_usernameController.text.length >= 3)
           Padding(
             padding: const EdgeInsets.only(top: 6, left: 4),
@@ -1078,5 +1063,38 @@ class _RegisterScreenState extends State<RegisterScreen>
         ],
       ),
     );
+  }
+
+  // ── Novo: Método adicionado para resolver o sufixo do ID ─────────
+  Widget? _buildUsernameSuffix() {
+    if (_usernameController.text.length < 3) return null;
+    if (_checkingUsername) {
+      return const Padding(
+        padding: EdgeInsets.all(12.0),
+        child: SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.primaryOrange,
+          ),
+        ),
+      );
+    }
+    if (_usernameAvailable) {
+      return const Icon(
+        Icons.check_circle_rounded,
+        color: Color(0xFF4CAF50),
+        size: 20,
+      );
+    }
+    if (_usernameError != null) {
+      return const Icon(
+        Icons.cancel_rounded,
+        color: AppColors.emergencyRed,
+        size: 20,
+      );
+    }
+    return null;
   }
 }
