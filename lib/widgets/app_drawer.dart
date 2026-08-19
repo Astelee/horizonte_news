@@ -29,13 +29,12 @@ class _AppDrawerState extends State<AppDrawer>
     _NavItem(icon: Icons.person_rounded, label: 'Meu Perfil', route: AppRoutes.profile),
     _NavItem(icon: Icons.emoji_events_rounded, label: 'Ranking', route: AppRoutes.ranking),
     _NavItem(icon: Icons.bookmark_rounded, label: 'Notícias Salvas', route: AppRoutes.favorites),
-    _NavItem(icon: Icons.play_circle_rounded, label: 'Vídeos / Reportagens', route: AppRoutes.videos),
     _NavItem(icon: Icons.search_rounded, label: 'Pesquisar', route: AppRoutes.search),
     _NavItem(icon: Icons.local_fire_department_rounded, label: 'Mais Lidas', route: AppRoutes.mostRead),
   ];
 
   static const List<_NavItem> _supportItems = [
-    _NavItem(icon: Icons.contact_mail_rounded, label: 'Fale Conosco / Denúncias', route: AppRoutes.contact),
+    _NavItem(icon: Icons.contact_mail_rounded, label: 'Fale Conosco', route: AppRoutes.contact),
     _NavItem(icon: Icons.settings_rounded, label: 'Configurações', route: AppRoutes.settings),
   ];
 
@@ -480,9 +479,6 @@ class _AppDrawerState extends State<AppDrawer>
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// PAINTER DE PARTÍCULAS DO DRAWER
-// ═══════════════════════════════════════════════════════════════════
 class _DrawerParticlePainter extends CustomPainter {
   final double t;
   _DrawerParticlePainter(this.t);
@@ -566,9 +562,6 @@ class _PData {
   });
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// DRAWER TILE PREMIUM
-// ═══════════════════════════════════════════════════════════════════
 class _DrawerTile extends StatefulWidget {
   final _NavItem item;
   final bool isActive;
@@ -782,9 +775,6 @@ class _DrawerTileState extends State<_DrawerTile>
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// PONTO DE FOGO — INDICADOR DE ROTA ATIVA
-// ═══════════════════════════════════════════════════════════════════
 class _FireDot extends StatelessWidget {
   final AnimationController fireCtrl;
   const _FireDot({required this.fireCtrl});
@@ -826,9 +816,6 @@ class _FireDot extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// BADGE DE XP
-// ═══════════════════════════════════════════════════════════════════
 class _XpBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -871,9 +858,6 @@ class _XpBadge extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// BADGE ADM
-// ═══════════════════════════════════════════════════════════════════
 class _AdminBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -905,9 +889,6 @@ class _AdminBadge extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// NAV ITEM MODEL
-// ═══════════════════════════════════════════════════════════════════
 class _NavItem {
   final IconData icon;
   final String label;
