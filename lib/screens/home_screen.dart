@@ -77,12 +77,6 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  bool _isVideoPost(post) => post.categories.any(
-        (c) =>
-            c.name.toLowerCase() == 'vídeo' ||
-            c.name.toLowerCase() == 'video',
-      );
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -111,8 +105,7 @@ class _HomeScreenState extends State<HomeScreen>
                 return _buildErrorState(context, provider);
               }
 
-              final feedPosts =
-                  provider.posts.where((p) => !_isVideoPost(p)).toList();
+              final feedPosts = provider.posts;
               final featuredPosts = feedPosts.take(3).toList();
               final recentPosts =
                   feedPosts.length > 3 ? feedPosts.skip(3).toList() : [];
