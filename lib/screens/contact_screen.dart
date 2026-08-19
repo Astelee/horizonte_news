@@ -11,10 +11,22 @@ class ContactScreen extends StatefulWidget {
 }
 
 class _ContactScreenState extends State<ContactScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _animController;
   late Animation<double> _fadeIn;
   late Animation<Offset> _slideIn;
+
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnim;
+
+  // ── LINKS CONFIGURADOS DO SEU CANAL ───────────────────────
+  // Substitua o número do WhatsApp abaixo pelo número oficial da redação/comercial
+  final String whatsappAnuncieUrl =
+      'https://wa.me/5585999999999?text=Olá!%20Gostaria%20de%20anunciar%20no%20Horizonte%20News.';
+  final String siteFaleConoscoUrl =
+      'https://astelee.github.io/horizonte_site/#contato'; // Site oficial com e-mail/telefone (exigência Google Play)
+  final String instagramUrl = 'https://instagram.com/horizontenews';
+  final String emailComercial = 'mailto:diego.magno321@gmail.com';
 
   @override
   void initState() {
@@ -35,11 +47,20 @@ class _ContactScreenState extends State<ContactScreen>
       curve: Curves.easeOut,
     ));
     _animController.forward();
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.97, end: 1.03).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
   }
 
   @override
   void dispose() {
     _animController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -49,7 +70,7 @@ class _ContactScreenState extends State<ContactScreen>
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Não foi possível abrir o aplicativo.'),
+          content: const Text('Não foi possível abrir o link.'),
           backgroundColor: AppColors.backgroundElevated,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
@@ -90,7 +111,6 @@ class _ContactScreenState extends State<ContactScreen>
                     background: Stack(
                       fit: StackFit.expand,
                       children: [
-                        // Fundo gradiente
                         Container(
                           decoration: const BoxDecoration(
                             gradient: LinearGradient(
@@ -104,9 +124,7 @@ class _ContactScreenState extends State<ContactScreen>
                             ),
                           ),
                         ),
-                        // Grade decorativa
                         CustomPaint(painter: _GridPainter()),
-                        // Glow central
                         Center(
                           child: Container(
                             width: 180,
@@ -122,7 +140,6 @@ class _ContactScreenState extends State<ContactScreen>
                             ),
                           ),
                         ),
-                        // Conteúdo do header
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                           child: Column(
@@ -163,7 +180,6 @@ class _ContactScreenState extends State<ContactScreen>
                             ],
                           ),
                         ),
-                        // Overlay inferior
                         Container(
                           decoration: const BoxDecoration(
                             gradient: LinearGradient(
@@ -201,28 +217,128 @@ class _ContactScreenState extends State<ContactScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Chamada editorial
                         _buildEditorialCall(isDark),
                         const SizedBox(height: 28),
 
-                        // Label seção
                         _buildSectionLabel('CANAIS OFICIAIS'),
                         const SizedBox(height: 14),
 
-                        // WhatsApp
-                        _buildContactCard(
-                          context: context,
+                        // Portal de Notícias / Site Oficial — CARD OFICIAL DE CONTATO (animado)
+                        _StaggeredContactCard(
                           delay: 100,
-                          icon: Icons.chat_rounded,
-                          iconColor: const Color(0xFF25D366),
-                          glowColor: const Color(0xFF25D366),
-                          title: 'WhatsApp · Plantão 24h',
-                          subtitle:
-                              'Envie fotos, vídeos e flagrantes direto para a redação',
-                          tag: 'DENÚNCIAS',
-                          tagColor: const Color(0xFF25D366),
-                          onTap: () => _launchIntent(
-                              context, 'https://linktr.ee/Horizontenews'),
+                          child: AnimatedBuilder(
+                            animation: _pulseAnim,
+                            builder: (context, child) {
+                              return Transform.scale(
+                                scale: _pulseAnim.value,
+                                child: child,
+                              );
+                            },
+                            child: GestureDetector(
+                              onTap: () =>
+                                  _launchIntent(context, siteFaleConoscoUrl),
+                              child: Container(
+                                padding: const EdgeInsets.all(18),
+                                decoration: BoxDecoration(
+                                  gradient: AppColors.orangeGradient,
+                                  borderRadius: BorderRadius.circular(18),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primaryOrange
+                                          .withOpacity(0.45),
+                                      blurRadius: 24,
+                                      spreadRadius: 1,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 56,
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        borderRadius:
+                                            BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color:
+                                              Colors.white.withOpacity(0.5),
+                                          width: 1.2,
+                                        ),
+                                      ),
+                                      child: const Icon(
+                                        Icons.language_rounded,
+                                        color: Colors.white,
+                                        size: 28,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 7,
+                                                    vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white
+                                                  .withOpacity(0.22),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: const Text(
+                                              'SITE OFICIAL',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.w800,
+                                                letterSpacing: 0.8,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          const Text(
+                                            'Fale Conosco Oficial',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          const Text(
+                                            'E-mail e telefone de contato oficial da redação',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              height: 1.4,
+                                              color: Colors.white70,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.arrow_forward_ios_rounded,
+                                        size: 14,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 12),
 
@@ -238,8 +354,7 @@ class _ContactScreenState extends State<ContactScreen>
                               'Acompanhe as notícias em tempo real e mande DM',
                           tag: '@HORIZONTENEWS',
                           tagColor: const Color(0xFFE1306C),
-                          onTap: () => _launchIntent(
-                              context, 'https://instagram.com/horizontenews'),
+                          onTap: () => _launchIntent(context, instagramUrl),
                         ),
                         const SizedBox(height: 12),
 
@@ -248,20 +363,19 @@ class _ContactScreenState extends State<ContactScreen>
                           context: context,
                           delay: 300,
                           icon: Icons.email_rounded,
-                          iconColor: AppColors.primaryOrange,
-                          glowColor: AppColors.primaryOrange,
+                          iconColor: const Color(0xFF25D366),
+                          glowColor: const Color(0xFF25D366),
                           title: 'E-mail Comercial',
                           subtitle:
                               'Parcerias, publicidade e contato institucional',
                           tag: 'COMERCIAL',
-                          tagColor: AppColors.primaryOrange,
-                          onTap: () => _launchIntent(context,
-                              'mailto:diego.magno321@gmail.com'),
+                          tagColor: const Color(0xFF25D366),
+                          onTap: () => _launchIntent(context, emailComercial),
                         ),
 
                         const SizedBox(height: 32),
 
-                        // Banner promocional
+                        // Banner promocional (Anuncie Conosco via WhatsApp)
                         _buildPromoBanner(context),
                       ],
                     ),
@@ -313,7 +427,7 @@ class _ContactScreenState extends State<ContactScreen>
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Flagrou algo na cidade? Sua denúncia pode virar notícia. Entre em contato agora.',
+                  'Fale diretamente com nossa redação pelo site ou anuncie sua marca conosco via WhatsApp.',
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.5,
@@ -473,8 +587,7 @@ class _ContactScreenState extends State<ContactScreen>
 
   Widget _buildPromoBanner(BuildContext context) {
     return GestureDetector(
-      onTap: () =>
-          _launchIntent(context, 'https://linktr.ee/Horizontenews'),
+      onTap: () => _launchIntent(context, whatsappAnuncieUrl),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
@@ -564,7 +677,7 @@ class _ContactScreenState extends State<ContactScreen>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Falar com a equipe',
+                          'Chamar no WhatsApp',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 13,
@@ -572,7 +685,7 @@ class _ContactScreenState extends State<ContactScreen>
                           ),
                         ),
                         SizedBox(width: 6),
-                        Icon(Icons.arrow_forward_rounded,
+                        Icon(Icons.chat_rounded,
                             color: Colors.white, size: 16),
                       ],
                     ),
