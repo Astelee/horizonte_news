@@ -28,8 +28,8 @@ android {
         applicationId "com.astelee.horizonte_news"
         minSdkVersion 23
         targetSdkVersion 35
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
+        versionCode 3
+        versionName "1.0.2"
     }
 
     signingConfigs {
