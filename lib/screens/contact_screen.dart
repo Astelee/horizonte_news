@@ -46,6 +46,7 @@ class _ContactScreenState extends State<ContactScreen>
   Future<void> _launchIntent(BuildContext context, String urlString) async {
     final Uri url = Uri.parse(urlString);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Não foi possível abrir o aplicativo.'),
@@ -89,7 +90,7 @@ class _ContactScreenState extends State<ContactScreen>
                     background: Stack(
                       fit: StackFit.expand,
                       children: [
-                        // Fundo gradiente cyberpunk
+                        // Fundo gradiente
                         Container(
                           decoration: const BoxDecoration(
                             gradient: LinearGradient(
@@ -138,7 +139,7 @@ class _ContactScreenState extends State<ContactScreen>
                                       width: 1),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: Text(
+                                child: const Text(
                                   'HORIZONTE NEWS',
                                   style: TextStyle(
                                     color: AppColors.primaryOrange,
@@ -211,7 +212,7 @@ class _ContactScreenState extends State<ContactScreen>
                         // WhatsApp
                         _buildContactCard(
                           context: context,
-                          delay: 0,
+                          delay: 100,
                           icon: Icons.chat_rounded,
                           iconColor: const Color(0xFF25D366),
                           glowColor: const Color(0xFF25D366),
@@ -228,7 +229,7 @@ class _ContactScreenState extends State<ContactScreen>
                         // Instagram
                         _buildContactCard(
                           context: context,
-                          delay: 80,
+                          delay: 200,
                           icon: Icons.camera_alt_rounded,
                           iconColor: const Color(0xFFE1306C),
                           glowColor: const Color(0xFFE1306C),
@@ -245,7 +246,7 @@ class _ContactScreenState extends State<ContactScreen>
                         // E-mail
                         _buildContactCard(
                           context: context,
-                          delay: 160,
+                          delay: 300,
                           icon: Icons.email_rounded,
                           iconColor: AppColors.primaryOrange,
                           glowColor: AppColors.primaryOrange,
@@ -274,16 +275,11 @@ class _ContactScreenState extends State<ContactScreen>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // CHAMADA EDITORIAL
-  // ─────────────────────────────────────────────────────────────
   Widget _buildEditorialCall(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.backgroundElevated
-            : Colors.white,
+        color: isDark ? AppColors.backgroundElevated : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: AppColors.primaryOrange.withOpacity(0.2),
@@ -316,7 +312,7 @@ class _ContactScreenState extends State<ContactScreen>
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
+                const Text(
                   'Flagrou algo na cidade? Sua denúncia pode virar notícia. Entre em contato agora.',
                   style: TextStyle(
                     fontSize: 13,
@@ -332,9 +328,6 @@ class _ContactScreenState extends State<ContactScreen>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // LABEL DE SEÇÃO
-  // ─────────────────────────────────────────────────────────────
   Widget _buildSectionLabel(String label) {
     return Row(
       children: [
@@ -360,9 +353,6 @@ class _ContactScreenState extends State<ContactScreen>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // CARD DE CONTATO
-  // ─────────────────────────────────────────────────────────────
   Widget _buildContactCard({
     required BuildContext context,
     required int delay,
@@ -377,113 +367,110 @@ class _ContactScreenState extends State<ContactScreen>
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.backgroundElevated : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: glowColor.withOpacity(0.25),
-            width: 1,
+    return _StaggeredContactCard(
+      delay: delay,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.backgroundElevated : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: glowColor.withOpacity(0.25),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: glowColor.withOpacity(0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: glowColor.withOpacity(0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Ícone com glow
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: glowColor.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: glowColor.withOpacity(0.3),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: glowColor.withOpacity(0.2),
-                    blurRadius: 12,
+          child: Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: glowColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: glowColor.withOpacity(0.3),
+                    width: 1,
                   ),
-                ],
-              ),
-              child: Icon(icon, color: iconColor, size: 24),
-            ),
-            const SizedBox(width: 14),
-            // Textos
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: isDark
-                                ? AppColors.textPrimaryDark
-                                : AppColors.textPrimaryLight,
-                          ),
-                        ),
-                      ),
-                      // Tag
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: tagColor.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                              color: tagColor.withOpacity(0.3), width: 1),
-                        ),
-                        child: Text(
-                          tag,
-                          style: TextStyle(
-                            color: tagColor,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: AppColors.textSecondary,
+                  boxShadow: [
+                    BoxShadow(
+                      color: glowColor.withOpacity(0.2),
+                      blurRadius: 12,
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                child: Icon(icon, color: iconColor, size: 24),
               ),
-            ),
-            const SizedBox(width: 8),
-            Icon(Icons.arrow_forward_ios_rounded,
-                size: 14, color: glowColor.withOpacity(0.7)),
-          ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: isDark
+                                  ? AppColors.textPrimaryDark
+                                  : AppColors.textPrimaryLight,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: tagColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                                color: tagColor.withOpacity(0.3), width: 1),
+                          ),
+                          child: Text(
+                            tag,
+                            style: TextStyle(
+                              color: tagColor,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.arrow_forward_ios_rounded,
+                  size: 14, color: glowColor.withOpacity(0.7)),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // BANNER PROMOCIONAL
-  // ─────────────────────────────────────────────────────────────
   Widget _buildPromoBanner(BuildContext context) {
     return GestureDetector(
       onTap: () =>
@@ -594,7 +581,6 @@ class _ContactScreenState extends State<ContactScreen>
               ),
             ),
             const SizedBox(width: 12),
-            // Ícone decorativo
             Container(
               width: 64,
               height: 64,
@@ -618,9 +604,66 @@ class _ContactScreenState extends State<ContactScreen>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// PAINTER PARA GRADE DECORATIVA DO HEADER
-// ─────────────────────────────────────────────────────────────────
+class _StaggeredContactCard extends StatefulWidget {
+  final int delay;
+  final Widget child;
+
+  const _StaggeredContactCard({
+    Key? key,
+    required this.delay,
+    required this.child,
+  }) : super(key: key);
+
+  @override
+  State<_StaggeredContactCard> createState() => _StaggeredContactCardState();
+}
+
+class _StaggeredContactCardState extends State<_StaggeredContactCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _opacity;
+  late Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _opacity = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+    );
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+    );
+
+    Future.delayed(Duration(milliseconds: widget.delay), () {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(
+        position: _slide,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
