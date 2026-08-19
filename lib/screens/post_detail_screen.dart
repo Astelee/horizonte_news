@@ -49,13 +49,16 @@ class PostDetailScreen extends StatefulWidget {
 }
 
 class _PostDetailScreenState extends State<PostDetailScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   bool _showFloatingTitle = false;
   bool _articleReadRegistered = false;
   bool _viewRegistered = false;
   late AnimationController _animController;
   late Animation<double> _fadeIn;
+
+  late AnimationController _authorPulseController;
+  late Animation<double> _authorPulseAnim;
 
   @override
   void initState() {
@@ -68,6 +71,15 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     _fadeIn =
         CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _animController.forward();
+
+    _authorPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat(reverse: true);
+    _authorPulseAnim = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(
+          parent: _authorPulseController, curve: Curves.easeInOut),
+    );
 
     _scrollController.addListener(() {
       final show = _scrollController.offset > 220;
@@ -93,6 +105,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   void dispose() {
     _scrollController.dispose();
     _animController.dispose();
+    _authorPulseController.dispose();
     super.dispose();
   }
 
@@ -451,7 +464,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   }
 
   // ─────────────────────────────────────────────────────────────
-  // METADADOS
+  // METADADOS (autor + data + views + comentários)
   // ─────────────────────────────────────────────────────────────
   Widget _buildMeta(BuildContext context, PostModel post) {
     return Padding(
@@ -460,6 +473,32 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         spacing: 16,
         runSpacing: 8,
         children: [
+          // Autor (fixo, exigência de compliance do Google Play)
+          AnimatedBuilder(
+            animation: _authorPulseAnim,
+            builder: (context, child) {
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.person_rounded,
+                    size: 14,
+                    color: AppColors.primaryOrange
+                        .withOpacity(_authorPulseAnim.value),
+                  ),
+                  const SizedBox(width: 5),
+                  const Text(
+                    'Diego Magno',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
