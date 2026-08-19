@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 
@@ -13,7 +15,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -28,12 +30,32 @@ class _RegisterScreenState extends State<RegisterScreen>
   String? _errorMessage;
   String? _usernameError;
 
+  // ── Novo: data de nascimento ──────────────────────────────────────
+  DateTime? _birthDate;
+
+  // ── Novo: aceite dos termos ───────────────────────────────────────
+  bool _acceptedTerms = false;
+
+  // ── Novo: controla se o botão "Criar Conta" pode ser habilitado ──
+  bool _canSubmit = false;
+
+  static const String _termsUrl =
+      'https://astelee.github.io/horizonte_site/#termos';
+  static const String _privacyUrl =
+      'https://astelee.github.io/horizonte_site/#privacidade';
+
   late AnimationController _glowController;
   late Animation<double> _glowAnim;
+
+  // ── Novo: animação de entrada do formulário ───────────────────────
+  late AnimationController _formAnimController;
+  late Animation<double> _formFadeAnim;
+  late Animation<Offset> _formSlideAnim;
 
   @override
   void initState() {
     super.initState();
+
     _glowController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 3),
@@ -42,18 +64,43 @@ class _RegisterScreenState extends State<RegisterScreen>
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
 
+    _formAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _formFadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _formAnimController, curve: Curves.easeOut),
+    );
+    _formSlideAnim =
+        Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(
+      CurvedAnimation(
+          parent: _formAnimController, curve: Curves.easeOutCubic),
+    );
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (mounted) _formAnimController.forward();
+    });
+
     // Verifica disponibilidade do username com debounce
     _usernameController.addListener(_onUsernameChanged);
+
+    // Novo: revalida o formulário a cada mudança para controlar o botão
+    _emailController.addListener(_revalidate);
+    _passwordController.addListener(_revalidate);
+    _confirmPasswordController.addListener(_revalidate);
   }
 
   @override
   void dispose() {
     _usernameController.removeListener(_onUsernameChanged);
+    _emailController.removeListener(_revalidate);
+    _passwordController.removeListener(_revalidate);
+    _confirmPasswordController.removeListener(_revalidate);
     _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _glowController.dispose();
+    _formAnimController.dispose();
     super.dispose();
   }
 
@@ -66,6 +113,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       _usernameAvailable = false;
       _usernameError = null;
     });
+    _revalidate();
 
     if (value.length < 3) return;
 
@@ -98,6 +146,7 @@ class _RegisterScreenState extends State<RegisterScreen>
               query.docs.isEmpty ? null : 'Este ID já está em uso.';
           _checkingUsername = false;
         });
+        _revalidate();
       }
     } catch (_) {
       if (mounted) setState(() => _checkingUsername = false);
@@ -111,6 +160,95 @@ class _RegisterScreenState extends State<RegisterScreen>
         .replaceAll(RegExp(r'[^a-z0-9_]'), '');
   }
 
+  // ── Novo: cálculo correto de idade (considera mês/dia) ────────────
+  int _calculateAge(DateTime birthDate) {
+    final today = DateTime.now();
+    int age = today.year - birthDate.year;
+    final hasHadBirthdayThisYear = (today.month > birthDate.month) ||
+        (today.month == birthDate.month && today.day >= birthDate.day);
+    if (!hasHadBirthdayThisYear) age--;
+    return age;
+  }
+
+  String _formatDate(DateTime date) {
+    final d = date.day.toString().padLeft(2, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final y = date.year.toString();
+    return '$d/$m/$y';
+  }
+
+  bool get _isBirthDateValid =>
+      _birthDate != null && _calculateAge(_birthDate!) >= 16;
+
+  // ── Novo: revalida todas as condições para habilitar o botão ─────
+  void _revalidate() {
+    final usernameOk =
+        _usernameAvailable && _usernameController.text.trim().length >= 3;
+    final emailOk = _emailController.text.trim().isNotEmpty &&
+        _emailController.text.trim().contains('@');
+    final passwordOk = _passwordController.text.length >= 6;
+    final confirmOk = _confirmPasswordController.text.isNotEmpty &&
+        _confirmPasswordController.text == _passwordController.text;
+
+    final canSubmit = usernameOk &&
+        emailOk &&
+        passwordOk &&
+        confirmOk &&
+        _isBirthDateValid &&
+        _acceptedTerms;
+
+    if (canSubmit != _canSubmit) {
+      setState(() => _canSubmit = canSubmit);
+    }
+  }
+
+  // ── Novo: abre o seletor de data nativo, com tema do app ─────────
+  Future<void> _pickBirthDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(now.year - 18, now.month, now.day),
+      firstDate: DateTime(now.year - 120, 1, 1),
+      lastDate: now,
+      helpText: 'DATA DE NASCIMENTO',
+      cancelText: 'CANCELAR',
+      confirmText: 'CONFIRMAR',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppColors.primaryOrange,
+              onPrimary: Colors.white,
+              surface: Color(0xFF141414),
+              onSurface: Colors.white,
+            ),
+            dialogBackgroundColor: const Color(0xFF0A0A0A),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() => _birthDate = picked);
+      _revalidate();
+    }
+  }
+
+  // ── Novo: abre os links de Termos / Privacidade ──────────────────
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível abrir o link.')),
+        );
+      }
+    }
+  }
+
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -119,6 +257,23 @@ class _RegisterScreenState extends State<RegisterScreen>
     if (!_usernameAvailable) {
       setState(
           () => _errorMessage = 'Escolha um ID de usuário disponível.');
+      return;
+    }
+
+    // Defesa extra: mesmo com o botão desabilitado por padrão,
+    // garantimos que a data de nascimento e os termos foram validados.
+    if (_birthDate == null) {
+      setState(() => _errorMessage = 'Informe sua data de nascimento.');
+      return;
+    }
+    if (!_isBirthDateValid) {
+      setState(() => _errorMessage =
+          'Você precisa ter pelo menos 16 anos para se cadastrar');
+      return;
+    }
+    if (!_acceptedTerms) {
+      setState(() => _errorMessage =
+          'Você precisa aceitar os Termos de Serviço e a Política de Privacidade.');
       return;
     }
 
@@ -140,7 +295,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       // 2. Define o displayName como o username
       await user.updateDisplayName(username);
 
-      // 3. Cria documento no Firestore com o username
+      // 3. Cria documento no Firestore com o username e data de nascimento
       await FirebaseFirestore.instance
           .collection('users_xp')
           .doc(user.uid)
@@ -149,6 +304,8 @@ class _RegisterScreenState extends State<RegisterScreen>
         'username': username,
         'displayName': username,
         'email': user.email ?? '',
+        'birthDate': Timestamp.fromDate(_birthDate!),
+        'acceptedTermsAt': FieldValue.serverTimestamp(),
         'totalXp': 0,
         'level': 1,
         'totalSecondsOnline': 0,
@@ -204,262 +361,434 @@ class _RegisterScreenState extends State<RegisterScreen>
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(
               horizontal: 24.0, vertical: 8.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ShaderMask(
-                  shaderCallback: (bounds) => const LinearGradient(
-                    colors: [
-                      Color(0xFFFF6D00),
-                      Color(0xFFFFB74D),
-                      Color(0xFFE65100)
-                    ],
-                  ).createShader(bounds),
-                  child: const Text(
-                    'CRIAR CONTA',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: 3,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Cadastre-se para interagir e salvar notícias',
-                  style: TextStyle(
-                      color: Color(0xFF757575), fontSize: 13),
-                ),
-                const SizedBox(height: 32),
-
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    color: const Color(0xFF0A0A0A),
-                    border: Border.all(
-                      color: AppColors.primaryOrange.withOpacity(0.2),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color:
-                            AppColors.primaryOrange.withOpacity(0.06),
-                        blurRadius: 40,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        top: 0,
-                        left: 40,
-                        right: 40,
-                        child: AnimatedBuilder(
-                          animation: _glowAnim,
-                          builder: (_, __) => Container(
-                            height: 1,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.transparent,
-                                  AppColors.primaryOrange.withOpacity(
-                                      0.7 * _glowAnim.value),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(28.0),
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.stretch,
-                          children: [
-                            // ── Campo de ID / Username ──────────
-                            _buildUsernameField(),
-                            const SizedBox(height: 20),
-
-                            _buildField(
-                              controller: _emailController,
-                              label: 'E-MAIL',
-                              hint: 'seu@email.com',
-                              icon: Icons.alternate_email_rounded,
-                              keyboardType: TextInputType.emailAddress,
-                              validator: (v) {
-                                if (v == null || v.isEmpty)
-                                  return 'Informe seu e-mail';
-                                if (!v.contains('@'))
-                                  return 'E-mail inválido';
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 20),
-
-                            _buildField(
-                              controller: _passwordController,
-                              label: 'SENHA',
-                              hint: '••••••••',
-                              icon: Icons.lock_outline_rounded,
-                              obscureText: _obscurePassword,
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined,
-                                  color: const Color(0xFF616161),
-                                  size: 20,
-                                ),
-                                onPressed: () => setState(() =>
-                                    _obscurePassword =
-                                        !_obscurePassword),
-                              ),
-                              validator: (v) {
-                                if (v == null || v.isEmpty)
-                                  return 'Informe uma senha';
-                                if (v.length < 6)
-                                  return 'Mínimo 6 caracteres';
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 20),
-
-                            _buildField(
-                              controller: _confirmPasswordController,
-                              label: 'CONFIRMAR SENHA',
-                              hint: '••••••••',
-                              icon: Icons.lock_reset_rounded,
-                              obscureText: _obscureConfirm,
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscureConfirm
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined,
-                                  color: const Color(0xFF616161),
-                                  size: 20,
-                                ),
-                                onPressed: () => setState(() =>
-                                    _obscureConfirm = !_obscureConfirm),
-                              ),
-                              validator: (v) {
-                                if (v != _passwordController.text)
-                                  return 'As senhas não coincidem';
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 28),
-
-                            if (_errorMessage != null)
-                              _buildErrorBanner(_errorMessage!),
-                            if (_errorMessage != null)
-                              const SizedBox(height: 16),
-
-                            AnimatedBuilder(
-                              animation: _glowAnim,
-                              builder: (_, __) => Container(
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  borderRadius:
-                                      BorderRadius.circular(14),
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFFBF360C),
-                                      Color(0xFFE65100),
-                                      Color(0xFFF57C00)
-                                    ],
-                                    begin: Alignment.centerLeft,
-                                    end: Alignment.centerRight,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.primaryOrange
-                                          .withOpacity(
-                                              0.4 * _glowAnim.value),
-                                      blurRadius: 24,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    borderRadius:
-                                        BorderRadius.circular(14),
-                                    onTap: _isLoading
-                                        ? null
-                                        : _handleRegister,
-                                    splashColor:
-                                        Colors.white.withOpacity(0.1),
-                                    child: Center(
-                                      child: _isLoading
-                                          ? const SizedBox(
-                                              width: 22,
-                                              height: 22,
-                                              child:
-                                                  CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation(
-                                                        Colors.white),
-                                              ),
-                                            )
-                                          : const Text(
-                                              'CRIAR CONTA',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 15,
-                                                fontWeight:
-                                                    FontWeight.w800,
-                                                letterSpacing: 3,
-                                              ),
-                                            ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+          child: FadeTransition(
+            opacity: _formFadeAnim,
+            child: SlideTransition(
+              position: _formSlideAnim,
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [
+                          Color(0xFFFF6D00),
+                          Color(0xFFFFB74D),
+                          Color(0xFFE65100)
+                        ],
+                      ).createShader(bounds),
+                      child: const Text(
+                        'CRIAR CONTA',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 3,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
                     const Text(
-                      'Já tem uma conta?',
+                      'Cadastre-se para interagir e salvar notícias',
                       style: TextStyle(
                           color: Color(0xFF757575), fontSize: 13),
                     ),
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        'Entrar',
-                        style: TextStyle(
-                          color: AppColors.primaryOrange,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                    const SizedBox(height: 32),
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        color: const Color(0xFF0A0A0A),
+                        border: Border.all(
+                          color: AppColors.primaryOrange.withOpacity(0.2),
+                          width: 1,
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                AppColors.primaryOrange.withOpacity(0.06),
+                            blurRadius: 40,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Stack(
+                        children: [
+                          Positioned(
+                            top: 0,
+                            left: 40,
+                            right: 40,
+                            child: AnimatedBuilder(
+                              animation: _glowAnim,
+                              builder: (_, __) => Container(
+                                height: 1,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.transparent,
+                                      AppColors.primaryOrange.withOpacity(
+                                          0.7 * _glowAnim.value),
+                                      Colors.transparent,
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(28.0),
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.stretch,
+                              children: [
+                                // ── Campo de ID / Username ──────────
+                                _buildUsernameField(),
+                                const SizedBox(height: 20),
+
+                                _buildField(
+                                  controller: _emailController,
+                                  label: 'E-MAIL',
+                                  hint: 'seu@email.com',
+                                  icon: Icons.alternate_email_rounded,
+                                  keyboardType: TextInputType.emailAddress,
+                                  validator: (v) {
+                                    if (v == null || v.isEmpty)
+                                      return 'Informe seu e-mail';
+                                    if (!v.contains('@'))
+                                      return 'E-mail inválido';
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 20),
+
+                                // ── Novo: Data de nascimento ────────
+                                _buildBirthDateField(),
+                                const SizedBox(height: 20),
+
+                                _buildField(
+                                  controller: _passwordController,
+                                  label: 'SENHA',
+                                  hint: '••••••••',
+                                  icon: Icons.lock_outline_rounded,
+                                  obscureText: _obscurePassword,
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      color: const Color(0xFF616161),
+                                      size: 20,
+                                    ),
+                                    onPressed: () => setState(() =>
+                                        _obscurePassword =
+                                            !_obscurePassword),
+                                  ),
+                                  validator: (v) {
+                                    if (v == null || v.isEmpty)
+                                      return 'Informe uma senha';
+                                    if (v.length < 6)
+                                      return 'Mínimo 6 caracteres';
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 20),
+
+                                _buildField(
+                                  controller: _confirmPasswordController,
+                                  label: 'CONFIRMAR SENHA',
+                                  hint: '••••••••',
+                                  icon: Icons.lock_reset_rounded,
+                                  obscureText: _obscureConfirm,
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscureConfirm
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      color: const Color(0xFF616161),
+                                      size: 20,
+                                    ),
+                                    onPressed: () => setState(() =>
+                                        _obscureConfirm = !_obscureConfirm),
+                                  ),
+                                  validator: (v) {
+                                    if (v != _passwordController.text)
+                                      return 'As senhas não coincidem';
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 20),
+
+                                // ── Novo: Checkbox de Termos ────────
+                                _buildTermsCheckbox(),
+                                const SizedBox(height: 24),
+
+                                if (_errorMessage != null)
+                                  _buildErrorBanner(_errorMessage!),
+                                if (_errorMessage != null)
+                                  const SizedBox(height: 16),
+
+                                _buildSubmitButton(),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Já tem uma conta?',
+                          style: TextStyle(
+                              color: Color(0xFF757575), fontSize: 13),
+                        ),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text(
+                            'Entrar',
+                            style: TextStyle(
+                              color: AppColors.primaryOrange,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                   ],
                 ),
-                const SizedBox(height: 16),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Novo: campo de data de nascimento com showDatePicker ──────────
+  Widget _buildBirthDateField() {
+    final hasDate = _birthDate != null;
+    final showUnderageWarning = hasDate && !_isBirthDateValid;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'DATA DE NASCIMENTO',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF757575),
+            letterSpacing: 2.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: _pickBirthDate,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141414),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: showUnderageWarning
+                    ? AppColors.emergencyRed.withOpacity(0.6)
+                    : const Color(0xFF212121),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.cake_outlined,
+                    color: AppColors.primaryOrange, size: 20),
+                const SizedBox(width: 12),
+                Text(
+                  hasDate ? _formatDate(_birthDate!) : 'DD/MM/AAAA',
+                  style: TextStyle(
+                    color: hasDate ? Colors.white : const Color(0xFF424242),
+                    fontSize: 15,
+                  ),
+                ),
+                const Spacer(),
+                const Icon(Icons.calendar_month_rounded,
+                    color: Color(0xFF616161), size: 20),
               ],
+            ),
+          ),
+        ),
+        if (showUnderageWarning)
+          const Padding(
+            padding: EdgeInsets.only(top: 6, left: 4),
+            child: Text(
+              'Você precisa ter pelo menos 16 anos para se cadastrar',
+              style: TextStyle(
+                color: AppColors.emergencyRed,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── Novo: checkbox de aceite dos termos, com links individuais ───
+  Widget _buildTermsCheckbox() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () {
+            setState(() => _acceptedTerms = !_acceptedTerms);
+            _revalidate();
+          },
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2, right: 10),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(5),
+                color: _acceptedTerms
+                    ? AppColors.primaryOrange
+                    : Colors.transparent,
+                border: Border.all(
+                  color: _acceptedTerms
+                      ? AppColors.primaryOrange
+                      : const Color(0xFF424242),
+                  width: 1.5,
+                ),
+              ),
+              child: _acceptedTerms
+                  ? const Icon(Icons.check_rounded,
+                      size: 15, color: Colors.white)
+                  : null,
+            ),
+          ),
+        ),
+        Expanded(
+          child: GestureDetector(
+            onTap: () {
+              setState(() => _acceptedTerms = !_acceptedTerms);
+              _revalidate();
+            },
+            behavior: HitTestBehavior.translucent,
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  color: Color(0xFFB0B0B0),
+                  fontSize: 12.5,
+                  height: 1.4,
+                ),
+                children: [
+                  const TextSpan(text: 'Concordo com os '),
+                  TextSpan(
+                    text: 'Termos de Serviço',
+                    style: const TextStyle(
+                      color: AppColors.primaryOrange,
+                      fontWeight: FontWeight.w700,
+                      decoration: TextDecoration.underline,
+                      decorationColor: AppColors.primaryOrange,
+                    ),
+                    recognizer: TapGestureRecognizer()
+                      ..onTap = () => _openUrl(_termsUrl),
+                  ),
+                  const TextSpan(text: ' e a '),
+                  TextSpan(
+                    text: 'Política de Privacidade',
+                    style: const TextStyle(
+                      color: AppColors.primaryOrange,
+                      fontWeight: FontWeight.w700,
+                      decoration: TextDecoration.underline,
+                      decorationColor: AppColors.primaryOrange,
+                    ),
+                    recognizer: TapGestureRecognizer()
+                      ..onTap = () => _openUrl(_privacyUrl),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Botão "Criar Conta", agora controlado por _canSubmit ──────────
+  Widget _buildSubmitButton() {
+    final enabled = _canSubmit && !_isLoading;
+
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        height: 56,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: enabled
+              ? const LinearGradient(
+                  colors: [
+                    Color(0xFFBF360C),
+                    Color(0xFFE65100),
+                    Color(0xFFF57C00)
+                  ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                )
+              : const LinearGradient(
+                  colors: [Color(0xFF2A2A2A), Color(0xFF232323)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+          boxShadow: enabled
+              ? [
+                  BoxShadow(
+                    color: AppColors.primaryOrange
+                        .withOpacity(0.4 * _glowAnim.value),
+                    blurRadius: 24,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: enabled ? _handleRegister : null,
+            splashColor: Colors.white.withOpacity(0.1),
+            child: Center(
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(Colors.white),
+                      ),
+                    )
+                  : Text(
+                      'CRIAR CONTA',
+                      style: TextStyle(
+                        color: enabled
+                            ? Colors.white
+                            : const Color(0xFF6E6E6E),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 3,
+                      ),
+                    ),
             ),
           ),
         ),
@@ -646,31 +975,6 @@ class _RegisterScreenState extends State<RegisterScreen>
           ),
       ],
     );
-  }
-
-  Widget _buildUsernameSuffix() {
-    if (_checkingUsername) {
-      return const Padding(
-        padding: EdgeInsets.all(14),
-        child: SizedBox(
-          width: 16,
-          height: 16,
-          child: CircularProgressIndicator(
-            strokeWidth: 1.5,
-            color: AppColors.primaryOrange,
-          ),
-        ),
-      );
-    }
-    if (_usernameAvailable && _usernameController.text.length >= 3) {
-      return const Icon(Icons.check_circle_rounded,
-          color: Color(0xFF4CAF50), size: 20);
-    }
-    if (_usernameError != null) {
-      return const Icon(Icons.cancel_rounded,
-          color: AppColors.emergencyRed, size: 20);
-    }
-    return const SizedBox.shrink();
   }
 
   Widget _buildField({
