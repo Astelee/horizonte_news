@@ -30,6 +30,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const String _privacyPolicyUrl =
       'https://astelee.github.io/horizonte-news-privacy/';
 
+  // Link oficial dos Termos de Uso
+  static const String _termsOfUseUrl =
+      'https://astelee.github.io/horizonte_termos/';
+
   @override
   void initState() {
     super.initState();
@@ -709,7 +713,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             label: 'SOBRE',
           ),
 
-          // NOVO BOTÃO DE POLÍTICA DE PRIVACIDADE
           _SettingsTile(
             icon: Icons.shield_outlined,
             label: 'Política de privacidade',
@@ -720,11 +723,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
+          // BOTÃO DE TERMOS DE USO ATUALIZADO
           _SettingsTile(
             icon: Icons.description_outlined,
             label: 'Termos de uso',
+            subtitle: 'Leia nossos termos de uso',
             onTap: () => _openUrl(
-              'https://horizontenews.com.br/termos-de-uso',
+              _termsOfUseUrl,
             ),
           ),
 
