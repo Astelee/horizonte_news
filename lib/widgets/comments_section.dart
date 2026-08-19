@@ -292,12 +292,15 @@ class CommentsSection extends StatefulWidget {
 }
 
 class _CommentsSectionState extends State<CommentsSection>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _isSending = false;
   bool _xpAwarded = false;
+  bool _expanded = false;
   late AnimationController _sendAnim;
+  late AnimationController _expandCtrl;
+  late Animation<double> _expandAnim;
 
   @override
   void initState() {
@@ -309,6 +312,12 @@ class _CommentsSectionState extends State<CommentsSection>
       upperBound: 1.0,
       value: 1.0,
     );
+    _expandCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _expandAnim =
+        CurvedAnimation(parent: _expandCtrl, curve: Curves.easeOutCubic);
   }
 
   @override
@@ -316,6 +325,7 @@ class _CommentsSectionState extends State<CommentsSection>
     _controller.dispose();
     _focusNode.dispose();
     _sendAnim.dispose();
+    _expandCtrl.dispose();
     super.dispose();
   }
 
@@ -323,6 +333,16 @@ class _CommentsSectionState extends State<CommentsSection>
       .collection('comments')
       .doc(widget.postId)
       .collection('postComments');
+
+  void _toggleExpanded() {
+    HapticFeedback.selectionClick();
+    setState(() => _expanded = !_expanded);
+    if (_expanded) {
+      _expandCtrl.forward();
+    } else {
+      _expandCtrl.reverse();
+    }
+  }
 
   String _timeAgo(DateTime date) {
     final diff = DateTime.now().difference(date);
@@ -487,67 +507,82 @@ class _CommentsSectionState extends State<CommentsSection>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildHeader(),
-        _buildInputArea(user),
-        const SizedBox(height: 8),
-        _buildCommentsList(),
+        _buildToggleButton(),
+        SizeTransition(
+          sizeFactor: _expandAnim,
+          axisAlignment: -1.0,
+          child: FadeTransition(
+            opacity: _expandAnim,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 16),
+                _buildInputArea(user),
+                const SizedBox(height: 8),
+                _buildCommentsList(),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildHeader() {
+  // ── Botão único que abre/fecha os comentários ────────────────────
+  Widget _buildToggleButton() {
     return StreamBuilder<QuerySnapshot>(
       stream: _commentsRef.orderBy('createdAt', descending: true).snapshots(),
       builder: (context, snapshot) {
         final count = snapshot.data?.docs.length ?? 0;
         return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          child: Row(
-            children: [
-              Container(
-                width: 3,
-                height: 18,
-                decoration: BoxDecoration(
-                  gradient: AppColors.orangeVertical,
-                  borderRadius: BorderRadius.circular(2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primaryOrange.withOpacity(0.6),
-                      blurRadius: 8,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+          child: GestureDetector(
+            onTap: _toggleExpanded,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: const Color(0xFF0A0A0A),
+                border: Border.all(
+                  color: AppColors.primaryOrange
+                      .withOpacity(_expanded ? 0.45 : 0.2),
+                ),
+                boxShadow: _expanded
+                    ? [
+                        BoxShadow(
+                          color: AppColors.primaryOrange.withOpacity(0.12),
+                          blurRadius: 16,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.chat_bubble_outline_rounded,
+                      size: 17, color: AppColors.primaryOrange),
+                  const SizedBox(width: 10),
+                  Text(
+                    count > 0 ? 'Comentários ($count)' : 'Comentar',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'COMENTÁRIOS',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.8,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  color: AppColors.primaryOrange.withOpacity(0.15),
-                  border: Border.all(
-                      color: AppColors.primaryOrange.withOpacity(0.3)),
-                ),
-                child: Text(
-                  '$count',
-                  style: const TextStyle(
-                    color: AppColors.primaryOrange,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
                   ),
-                ),
+                  const Spacer(),
+                  AnimatedRotation(
+                    turns: _expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 250),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.primaryOrange.withOpacity(0.8),
+                      size: 20,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },
@@ -722,7 +757,7 @@ class _CommentsSectionState extends State<CommentsSection>
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _buildEmptyState();
+          return const SizedBox.shrink();
         }
 
         final comments = snapshot.data!.docs
@@ -744,27 +779,6 @@ class _CommentsSectionState extends State<CommentsSection>
           ),
         );
       },
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.chat_bubble_outline_rounded,
-                size: 40,
-                color: AppColors.primaryOrange.withOpacity(0.3)),
-            const SizedBox(height: 12),
-            const Text(
-              'Seja o primeiro a comentar!',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 14),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
