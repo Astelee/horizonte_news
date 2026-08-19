@@ -206,6 +206,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                               _buildGlowDivider(),
                               _buildHtmlContent(
                                   context, normalizedContent, isDark),
+                              _buildAuthorFooter(),
                               _buildGlowDivider(),
                               CommentsSection(
                                 postId: post.id,
@@ -464,7 +465,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   }
 
   // ─────────────────────────────────────────────────────────────
-  // METADADOS (autor + data + views + comentários)
+  // METADADOS (data + views + comentários)
   // ─────────────────────────────────────────────────────────────
   Widget _buildMeta(BuildContext context, PostModel post) {
     return Padding(
@@ -473,32 +474,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         spacing: 16,
         runSpacing: 8,
         children: [
-          // Autor (fixo, exigência de compliance do Google Play)
-          AnimatedBuilder(
-            animation: _authorPulseAnim,
-            builder: (context, child) {
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.person_rounded,
-                    size: 14,
-                    color: AppColors.primaryOrange
-                        .withOpacity(_authorPulseAnim.value),
-                  ),
-                  const SizedBox(width: 5),
-                  const Text(
-                    'Diego Magno',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -578,6 +553,48 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
     if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
     return '$n';
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // AUTOR (rodapé da matéria, após o texto)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildAuthorFooter() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+      child: AnimatedBuilder(
+        animation: _authorPulseAnim,
+        builder: (context, child) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.person_rounded,
+                size: 14,
+                color: AppColors.primaryOrange
+                    .withOpacity(_authorPulseAnim.value),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Redator: ',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Text(
+                'Diego Magno',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   // ─────────────────────────────────────────────────────────────
