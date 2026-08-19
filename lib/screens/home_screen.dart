@@ -10,7 +10,7 @@ import '../widgets/featured_carousel.dart';
 import '../widgets/breaking_news_banner.dart';
 import '../widgets/news_card.dart';
 import '../widgets/app_drawer.dart';
-import '../ads/hybrid_banner_ad.dart'; // ✅ Banner de anúncios adicionado
+import '../ads/hybrid_banner_ad.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -90,7 +90,6 @@ class _HomeScreenState extends State<HomeScreen>
       extendBodyBehindAppBar: true,
       appBar: _buildAppBar(context),
       drawer: const AppDrawer(),
-      // ✅ Banner híbrido adicionado como rodapé fixo
       bottomNavigationBar: const HybridBannerAd(),
       body: FadeTransition(
         opacity: _fadeAnim,
@@ -490,9 +489,6 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// PARTÍCULAS DO HEADER
-// ═══════════════════════════════════════════════════════════════════
 class _HeaderParticlePainter extends CustomPainter {
   final double progress;
   _HeaderParticlePainter({required this.progress});
@@ -526,9 +522,6 @@ class _HeaderParticlePainter extends CustomPainter {
       old.progress != progress;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// SKELETON CARD
-// ═══════════════════════════════════════════════════════════════════
 class _SkeletonCard extends StatefulWidget {
   final int delay;
   const _SkeletonCard({required this.delay});
@@ -584,9 +577,6 @@ class _SkeletonCardState extends State<_SkeletonCard>
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// SHIMMER GENÉRICO
-// ═══════════════════════════════════════════════════════════════════
 class _SkeletonShimmer extends StatefulWidget {
   const _SkeletonShimmer();
 
@@ -640,9 +630,6 @@ class _SkeletonShimmerState extends State<_SkeletonShimmer>
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// NEO ICON BUTTON
-// ═══════════════════════════════════════════════════════════════════
 class _NeoIconButton extends StatefulWidget {
   final IconData icon;
   final VoidCallback onTap;
@@ -690,9 +677,6 @@ class _NeoIconButtonState extends State<_NeoIconButton> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// NEO LOADER
-// ═══════════════════════════════════════════════════════════════════
 class _NeoLoader extends StatefulWidget {
   const _NeoLoader();
 
@@ -755,9 +739,6 @@ class _NeoLoaderState extends State<_NeoLoader>
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// ANIMATED CARD WRAPPER
-// ═══════════════════════════════════════════════════════════════════
 class _AnimatedCardWrapper extends StatefulWidget {
   final int index;
   final Widget child;
