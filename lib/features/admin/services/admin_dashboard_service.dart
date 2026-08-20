@@ -23,6 +23,7 @@ class DashboardSnapshot {
   final List<DashUser> mostRecentlyActive;
   final Map<int, int> levelDistribution; // faixa de nível -> contagem
   final List<DashPost> topPosts;
+  final List<DashPost> topShared;
 
   const DashboardSnapshot({
     required this.totalUsers,
@@ -40,6 +41,7 @@ class DashboardSnapshot {
     required this.mostRecentlyActive,
     required this.levelDistribution,
     required this.topPosts,
+    required this.topShared,
   });
 
   factory DashboardSnapshot.empty() => const DashboardSnapshot(
@@ -58,6 +60,7 @@ class DashboardSnapshot {
         mostRecentlyActive: [],
         levelDistribution: {},
         topPosts: [],
+        topShared: [],
       );
 }
 
@@ -120,8 +123,13 @@ class AdminDashboardService {
           .limit(10)
           .get();
       final suspSnap = await _db.collection('suspensions').get();
+      final sharesSnap = await _db
+          .collection('post_shares')
+          .orderBy('totalShares', descending: true)
+          .limit(10)
+          .get();
 
-      yield _build(usersSnap.docs, viewsSnap.docs, suspSnap.docs);
+      yield _build(usersSnap.docs, viewsSnap.docs, suspSnap.docs, sharesSnap.docs);
     }
   }
 
@@ -138,6 +146,7 @@ class AdminDashboardService {
     List<QueryDocumentSnapshot> userDocs,
     List<QueryDocumentSnapshot> viewDocs,
     List<QueryDocumentSnapshot> suspDocs,
+    List<QueryDocumentSnapshot> shareDocs,
   ) {
     int totalXp = 0;
     int totalComments = 0;
@@ -228,6 +237,18 @@ class AdminDashboardService {
       ));
     }
 
+    final topShared = <DashPost>[];
+    for (final doc in shareDocs) {
+      final d = doc.data() as Map<String, dynamic>;
+      final ts = (d['totalShares'] as num?)?.toInt() ?? 0;
+      topShared.add(DashPost(
+        postId: doc.id,
+        title: (d['postTitle'] as String?) ?? 'Sem título',
+        totalViews: ts,
+        uniqueViewers: 0,
+      ));
+    }
+
     return DashboardSnapshot(
       totalUsers: allUsers.length,
       onlineNow: onlineNow,
@@ -243,6 +264,7 @@ class AdminDashboardService {
       topByXp: topByXp,
       mostRecentlyActive: mostRecentlyActive.take(6).toList(),
       levelDistribution: levelDistribution,
+      topShared: topShared.take(5).toList(),
       topPosts: topPosts.take(5).toList(),
     );
   }
