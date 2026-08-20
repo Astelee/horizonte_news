@@ -56,7 +56,7 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     _updateLastSeen();
   }
 
-  // â”€â”€ Grava lastSeenAt no Firestore â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Grava lastSeenAt no Firestore ──────────────────────────────
   void _updateLastSeen() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -115,9 +115,9 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     if (_data.level > oldLevel) onLevelUp?.call(_data.level);
   }
 
-  Future<void> onShare() async {
+  Future<void> onShare({String? postId, String? postTitle}) async {
     final oldLevel = _data.level;
-    await _service.recordShare();
+    await _service.recordShare(postId: postId, postTitle: postTitle);
     _data = await _service.loadUserXpData();
     notifyListeners();
     if (_data.level > oldLevel) onLevelUp?.call(_data.level);
@@ -131,7 +131,7 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
       notifyListeners();
       if (_data.level > oldLevel) onLevelUp?.call(_data.level);
     } catch (e) {
-      debugPrint('Erro ao adicionar XP por comentÃ¡rio: $e');
+      debugPrint('Erro ao adicionar XP por comentário: $e');
     }
   }
 
