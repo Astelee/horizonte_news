@@ -28,7 +28,7 @@ android {
         applicationId "com.astelee.horizonte_news"
         minSdkVersion 23
         targetSdkVersion 36
-        versionCode 5
+        versionCode 6
         versionName "1.0.2"
     }
 
@@ -47,6 +47,9 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            ndk {
+                debugSymbolLevel 'FULL'
+            }
         }
     }
 
