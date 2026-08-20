@@ -15,7 +15,6 @@ import '../screens/most_read_screen.dart';
 import '../screens/horizon_now_screen.dart';
 import '../screens/events_screen.dart';
 import '../screens/ranking_screen.dart';
-import '../screens/delete_account_screen.dart'; // Import da nova tela de exclusão
 
 class AppRoutes {
   static const String home           = '/';
@@ -34,7 +33,6 @@ class AppRoutes {
   static const String horizonNow     = '/horizon-now';
   static const String events         = '/events';
   static const String ranking        = '/ranking';
-  static const String deleteAccount  = '/delete-account'; // Constante da rota
 
   static Map<String, WidgetBuilder> get routes => {
     home:           (context) => const HomeScreen(),
@@ -53,6 +51,5 @@ class AppRoutes {
     horizonNow:     (context) => const HorizonNowScreen(),
     events:         (context) => const EventsScreen(),
     ranking:        (context) => const RankingScreen(),
-    deleteAccount:  (context) => const DeleteAccountScreen(), // Mapeamento da rota
   };
 }
