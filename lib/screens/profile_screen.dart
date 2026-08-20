@@ -106,7 +106,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (mounted) showLevelUpOverlay(context, newLevel);
       };
 
-      // Inicia o áudio apenas depois do frame estar pronto
+      // Inicia o Ã¡udio apenas depois do frame estar pronto
       _startAudio();
     });
   }
@@ -118,7 +118,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       await _audioPlayer.play(AssetSource('sounds/ambient.mp3'));
       _audioStarted = true;
     } catch (e) {
-      debugPrint('Erro ao iniciar áudio: $e');
+      debugPrint('Erro ao iniciar Ã¡udio: $e');
     }
   }
 
@@ -127,11 +127,11 @@ class _ProfileScreenState extends State<ProfileScreen>
       await _audioPlayer.stop();
       await _audioPlayer.release();
     } catch (e) {
-      debugPrint('Erro ao parar áudio: $e');
+      debugPrint('Erro ao parar Ã¡udio: $e');
     }
   }
 
-  // ── Para o áudio quando o app vai para background ─────────────────
+  // â”€â”€ Para o Ã¡udio quando o app vai para background â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
@@ -143,7 +143,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         _audioPlayer.pause();
         break;
       case AppLifecycleState.resumed:
-        // Só retoma se o áudio foi iniciado e a tela ainda está montada
+        // SÃ³ retoma se o Ã¡udio foi iniciado e a tela ainda estÃ¡ montada
         if (_audioStarted && mounted) {
           _audioPlayer.resume();
         }
@@ -162,7 +162,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       xpProvider.onLevelUp = null;
     } catch (_) {}
 
-    // Para e libera o áudio
+    // Para e libera o Ã¡udio
     _stopAudio();
     _audioPlayer.dispose();
 
@@ -235,9 +235,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // SLIVER APP BAR
-  // ══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildSliverAppBar(User? user, UserXpData data) {
     final levelColor = BadgeConfig.levelColor(data.level);
 
@@ -293,7 +293,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     child: AppAvatar(
                       name: user?.displayName ??
                           user?.email?.split('@').first ??
-                          'Usuário',
+                          'UsuÃ¡rio',
                       seed: user?.uid,
                       size: 84,
                     ),
@@ -302,7 +302,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   Text(
                     user?.displayName ??
                         user?.email?.split('@').first ??
-                        'Usuário',
+                        'UsuÃ¡rio',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -382,9 +382,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // CARD DE XP
-  // ══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildXpCard(UserXpData data) {
     final levelColor = BadgeConfig.levelColor(data.level);
     final levelGradient = BadgeConfig.levelGradient(data.level);
@@ -415,7 +415,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'EXPERIÊNCIA',
+                      'EXPERIÃŠNCIA',
                       style: TextStyle(
                         color: AppColors.primaryOrange,
                         fontSize: 10,
@@ -519,7 +519,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       color: Color(0xFF9E9E9E), fontSize: 12),
                 ),
                 Text(
-                  'Faltam ${data.xpForNextLevel - data.xpInCurrentLevel} XP para Nível ${data.level + 1}',
+                  'Faltam ${data.xpForNextLevel - data.xpInCurrentLevel} XP para NÃ­vel ${data.level + 1}',
                   style: const TextStyle(
                     color: AppColors.primaryOrange,
                     fontSize: 11,
@@ -646,9 +646,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════
-  // PREVIEW DO PRÓXIMO NÍVEL
-  // ══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // PREVIEW DO PRÃ“XIMO NÃVEL
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildNextLevelPreview(UserXpData data) {
     final nextGradient = BadgeConfig.levelGradient(data.level + 1);
     final nextColor = BadgeConfig.levelColor(data.level + 1);
@@ -692,7 +692,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Próximo nível: ${BadgeConfig.levelTitle(data.level + 1)}',
+                    'PrÃ³ximo nÃ­vel: ${BadgeConfig.levelTitle(data.level + 1)}',
                     style: TextStyle(
                       color: nextColor,
                       fontSize: 12,
@@ -701,7 +701,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '🎁 Desbloqueia: $unlock',
+                    'ðŸŽ Desbloqueia: $unlock',
                     style: const TextStyle(
                         color: Color(0xFF9E9E9E), fontSize: 11),
                   ),
@@ -730,9 +730,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════
-  // GRADE DE ESTATÍSTICAS
-  // ══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // GRADE DE ESTATÃSTICAS
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildStatsGrid(UserXpData data) {
     final articles =
         (data.stats['articlesRead'] as num?)?.toInt() ?? 0;
@@ -769,7 +769,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               _AnimatedStatCard(
                 controller: _counterCtrl,
                 icon: Icons.chat_bubble_outline_rounded,
-                label: 'Comentá-\nrios',
+                label: 'ComentÃ¡-\nrios',
                 value: comments,
                 color: const Color(0xFFBA68C8),
               ),
@@ -781,7 +781,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               _AnimatedStatCard(
                 controller: _counterCtrl,
                 icon: Icons.local_fire_department_rounded,
-                label: 'Sequência\nAtual',
+                label: 'SequÃªncia\nAtual',
                 value: streak,
                 color: const Color(0xFFFF5722),
                 suffix: 'd',
@@ -810,9 +810,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════
-  // MISSÕES DIÁRIAS
-  // ══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // MISSÃ•ES DIÃRIAS
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildDailyMissions(UserXpData data) {
     final articles = data.dailyArticles.clamp(0, 5);
     final comments = data.dailyComments.clamp(0, 2);
@@ -847,7 +847,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         color: AppColors.primaryOrange, size: 13),
                     SizedBox(width: 8),
                     Text(
-                      'MISSÕES DIÁRIAS',
+                      'MISSÃ•ES DIÃRIAS',
                       style: TextStyle(
                         color: AppColors.primaryOrange,
                         fontSize: 10,
@@ -882,7 +882,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             const SizedBox(height: 16),
             _MissionTile(
               icon: FontAwesomeIcons.newspaper,
-              label: 'Ler 5 notícias',
+              label: 'Ler 5 notÃ­cias',
               xp: 25,
               progress: articles,
               total: 5,
@@ -892,7 +892,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             const SizedBox(height: 10),
             _MissionTile(
               icon: FontAwesomeIcons.comment,
-              label: 'Fazer 2 comentários',
+              label: 'Fazer 2 comentÃ¡rios',
               xp: 40,
               progress: comments,
               total: 2,
@@ -902,7 +902,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             const SizedBox(height: 10),
             _MissionTile(
               icon: FontAwesomeIcons.shareNodes,
-              label: 'Compartilhar 1 notícia',
+              label: 'Compartilhar 1 notÃ­cia',
               xp: 15,
               progress: shares,
               total: 1,
@@ -925,9 +925,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════
-  // SEÇÃO DE EMBLEMAS
-  // ══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // SEÃ‡ÃƒO DE EMBLEMAS
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildAchievementsSection(UserXpData data) {
     final xpService = XpService();
     final achievements = xpService.getAllAchievements(data.achievements);
@@ -1054,23 +1054,17 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════
-  // AÇÕES DA CONTA
-  // ══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // AÃ‡Ã•ES DA CONTA
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildAccountActions() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           _ActionButton(
-            icon: Icons.face_retouching_natural_rounded,
-            label: 'Alterar Avatar',
-            onTap: _abrirSeletorDeAvatar,
-          ),
-          const SizedBox(height: 10),
-          _ActionButton(
             icon: Icons.settings_outlined,
-            label: 'Configurações',
+            label: 'ConfiguraÃ§Ãµes',
             onTap: () =>
                 Navigator.pushNamed(context, AppRoutes.settings),
           ),
@@ -1087,9 +1081,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // STAT CARD COM CONTADOR ANIMADO
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _AnimatedStatCard extends StatelessWidget {
   final AnimationController controller;
   final IconData icon;
@@ -1159,9 +1153,9 @@ class _AnimatedStatCard extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // MISSION TILE
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _MissionTile extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1296,9 +1290,9 @@ class _MissionTile extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // EMBLEM CARD
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _EmblemCard extends StatefulWidget {
   final Achievement achievement;
   final bool unlocked;
@@ -1640,9 +1634,9 @@ class _EmblemCardState extends State<_EmblemCard>
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // ACTION BUTTON
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1693,9 +1687,9 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // PROFILE SKELETON
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _ProfileSkeleton extends StatelessWidget {
   const _ProfileSkeleton();
 
@@ -1714,9 +1708,9 @@ class _ProfileSkeleton extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // LOGOUT DIALOG
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _LogoutDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -1755,7 +1749,7 @@ class _LogoutDialog extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Seu progresso e XP estão salvos.\nVocê pode entrar novamente a qualquer momento.',
+              'Seu progresso e XP estÃ£o salvos.\nVocÃª pode entrar novamente a qualquer momento.',
               textAlign: TextAlign.center,
               style: TextStyle(
                   color: Color(0xFF9E9E9E),
