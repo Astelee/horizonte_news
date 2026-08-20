@@ -76,7 +76,6 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/sounds/
-    - assets/avatars/
     - assets/ads/parceiros/
 
 flutter_launcher_icons:
