@@ -14,7 +14,6 @@ import 'providers/favorites_provider.dart';
 import 'providers/user_xp_provider.dart';
 import 'features/admin/providers/admin_provider.dart';
 import 'services/notification_service.dart';
-import 'services/presence_service.dart';
 import 'services/sound_service.dart';
 import 'services/auth_service.dart';
 
@@ -67,18 +66,6 @@ class _HorizonteNewsAppState extends State<HorizonteNewsApp> {
   @override
   void initState() {
     super.initState();
-
-    // ✅ CORREÇÃO DO PROBLEMA 1:
-    // Escuta mudanças de autenticação e liga/desliga o PresenceService.
-    FirebaseAuth.instance.authStateChanges().listen((user) {
-      if (user != null) {
-        // Usuário logou — inicia presença
-        PresenceService.instance.start();
-      } else {
-        // Usuário deslogou — para presença e marca offline
-        PresenceService.instance.stop();
-      }
-    });
   }
 
   @override
