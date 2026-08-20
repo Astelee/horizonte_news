@@ -160,7 +160,6 @@ class BadgeConfig {
       case 'streak_100':     return FontAwesomeIcons.fireAlt;
       case 'level_5':        return FontAwesomeIcons.solidStar;
       case 'level_10':       return FontAwesomeIcons.crown;
-      case 'popular_friend': return FontAwesomeIcons.handshake;
       case 'collaborator':   return FontAwesomeIcons.circleCheck;
       default:               return FontAwesomeIcons.medal;
     }
@@ -189,7 +188,6 @@ class BadgeConfig {
       case 'streak_100':     return const Color(0xFFFF1744);
       case 'level_5':        return const Color(0xFFFFEE58);
       case 'level_10':       return const Color(0xFFFFD700);
-      case 'popular_friend': return const Color(0xFF4DB6AC);
       case 'collaborator':   return const Color(0xFF81C784);
       default:               return const Color(0xFFFF6B00);
     }
