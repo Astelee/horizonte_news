@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 import '../../../config/app_colors.dart';
 import '../providers/admin_provider.dart';
 import '../services/admin_comment_service.dart';
+import '../services/admin_dashboard_service.dart';
 import '../services/admin_user_service.dart';
 import '../services/admin_views_service.dart';
+import 'tabs/overview_tab.dart';
 import 'tabs/comments_tab.dart';
 import 'tabs/banned_tab.dart';
 import 'tabs/users_tab.dart';
@@ -25,17 +27,22 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   final _commentService = AdminCommentService();
   final _userService = AdminUserService();
   final _viewsService = AdminViewsService();
+  final _dashboardService = AdminDashboardService();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _goToTab(int index) {
+    _tabController.animateTo(index);
   }
 
   @override
@@ -69,6 +76,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               child: TabBarView(
                 controller: _tabController,
                 children: [
+                  OverviewTab(
+                    dashboardService: _dashboardService,
+                    userService: _userService,
+                    onGoToUsers: () => _goToTab(3),
+                    onGoToViews: () => _goToTab(4),
+                    onGoToBanned: () => _goToTab(2),
+                  ),
                   CommentsTab(
                     commentService: _commentService,
                     userService: _userService,
@@ -120,7 +134,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: const [
                 Text(
-                  'PAINEL ADMINISTRATIVO',
+                  'CENTRAL DE CONTROLE',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 13,
@@ -130,7 +144,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 ),
                 SizedBox(height: 1),
                 Text(
-                  'Horizonte News',
+                  'Horizonte News · Painel Administrativo',
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 11,
@@ -184,6 +198,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           letterSpacing: 0.6,
         ),
         tabs: const [
+          Tab(icon: Icon(Icons.dashboard_rounded, size: 18), text: 'VISÃO GERAL'),
           Tab(icon: Icon(Icons.chat_bubble_rounded, size: 18), text: 'COMENTÁRIOS'),
           Tab(icon: Icon(Icons.block_rounded, size: 18), text: 'BANIDOS'),
           Tab(icon: Icon(Icons.people_rounded, size: 18), text: 'USUÁRIOS'),
