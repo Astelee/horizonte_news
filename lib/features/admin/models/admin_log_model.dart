@@ -54,6 +54,10 @@ class AdminLogModel {
       case 'suspend_user':    return 'Baniu usuário';
       case 'unsuspend_user':  return 'Removeu banimento';
       case 'create_post':     return 'Publicou notícia';
+      case 'level_override':  return 'Aplicou override de nível';
+      case 'level_reset':     return 'Resetou nível para o real';
+      case 'title_override':  return 'Aplicou título customizado';
+      case 'title_reset':     return 'Resetou título customizado';
       default:                return action;
     }
   }
