@@ -142,7 +142,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     await Share.share(
         '${post.title}\n\nLeia a matéria completa em: ${post.url}');
     if (!mounted) return;
-    Provider.of<UserXpProvider>(context, listen: false).onShare();
+    Provider.of<UserXpProvider>(context, listen: false)
+        .onShare(postId: post.id, postTitle: post.title);
   }
 
   @override
