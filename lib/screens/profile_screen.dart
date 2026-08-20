@@ -44,7 +44,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   void initState() {
     super.initState();
 
-    // Registra observer para ciclo de vida do app
     WidgetsBinding.instance.addObserver(this);
 
     _glowCtrl = AnimationController(
@@ -122,7 +121,6 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (mounted) showLevelUpOverlay(context, newLevel);
       };
 
-      // Inicia o áudio apenas depois do frame estar pronto
       _startAudio();
     });
   }
@@ -147,7 +145,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
-  // ── Para o áudio quando o app vai para background ────────────────
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
@@ -159,7 +156,6 @@ class _ProfileScreenState extends State<ProfileScreen>
         _audioPlayer.pause();
         break;
       case AppLifecycleState.resumed:
-        // Só retoma se o áudio foi iniciado e a tela ainda está montada
         if (_audioStarted && mounted) {
           _audioPlayer.resume();
         }
@@ -171,13 +167,11 @@ class _ProfileScreenState extends State<ProfileScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
 
-    // Remove callback de level up
     try {
       final xpProvider = Provider.of<UserXpProvider>(context, listen: false);
       xpProvider.onLevelUp = null;
     } catch (_) {}
 
-    // Para e libera o áudio
     _stopAudio();
     _audioPlayer.dispose();
 
@@ -194,7 +188,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _handleLogout() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: () => _LogoutDialog(),
+      builder: (context) => _LogoutDialog(),
     );
     if (confirm == true && mounted) {
       await FirebaseAuth.instance.signOut();
@@ -252,9 +246,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // SLIVER APP BAR
-  // ════════════════════════════════════════════════════════════════
   Widget _buildSliverAppBar(User? user, UserXpData data) {
     final levelColor = BadgeConfig.levelColor(data.level);
 
@@ -398,9 +389,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // CARD DE XP
-  // ════════════════════════════════════════════════════════════════
   Widget _buildXpCard(UserXpData data) {
     final levelColor = BadgeConfig.levelColor(data.level);
     final levelGradient = BadgeConfig.levelGradient(data.level);
@@ -666,9 +654,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // PREVIEW DO PRÓXIMO NÍVEL
-  // ════════════════════════════════════════════════════════════════
   Widget _buildNextLevelPreview(UserXpData data) {
     final nextGradient = BadgeConfig.levelGradient(data.level + 1);
     final nextColor = BadgeConfig.levelColor(data.level + 1);
@@ -756,9 +741,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // GRADE DE ESTATÍSTICAS
-  // ════════════════════════════════════════════════════════════════
   Widget _buildStatsGrid(UserXpData data) {
     final articles = (data.stats['articlesRead'] as num?)?.toInt() ?? 0;
     final shares = (data.stats['articlesShared'] as num?)?.toInt() ?? 0;
@@ -832,9 +814,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // MISSÕES DIÁRIAS
-  // ════════════════════════════════════════════════════════════════
   Widget _buildDailyMissions(UserXpData data) {
     final articles = data.dailyArticles.clamp(0, 5);
     final comments = data.dailyComments.clamp(0, 2);
@@ -946,9 +925,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // SEÇÃO DE EMBLEMAS
-  // ════════════════════════════════════════════════════════════════
   Widget _buildAchievementsSection(UserXpData data) {
     final xpService = XpService();
     final achievements = xpService.getAllAchievements(data.achievements);
@@ -1078,9 +1054,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // AÇÕES DA CONTA
-  // ════════════════════════════════════════════════════════════════
   Widget _buildAccountActions() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1104,9 +1077,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 }
 
-// ════════════════════════════════════════════════════════════════
-// STAT CARD COM CONTADOR ANIMADO
-// ════════════════════════════════════════════════════════════════
 class _AnimatedStatCard extends StatelessWidget {
   final AnimationController controller;
   final IconData icon;
@@ -1174,9 +1144,6 @@ class _AnimatedStatCard extends StatelessWidget {
   }
 }
 
-// ════════════════════════════════════════════════════════════════
-// MISSION TILE
-// ════════════════════════════════════════════════════════════════
 class _MissionTile extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1300,9 +1267,6 @@ class _MissionTile extends StatelessWidget {
   }
 }
 
-// ════════════════════════════════════════════════════════════════
-// EMBLEM CARD
-// ════════════════════════════════════════════════════════════════
 class _EmblemCard extends StatefulWidget {
   final Achievement achievement;
   final bool unlocked;
@@ -1469,7 +1433,7 @@ class _EmblemCardState extends State<_EmblemCard>
     final rarity = BadgeConfig.achievementRarity(widget.achievement.icon);
     showDialog(
       context: context,
-      builder: () => Dialog(
+      builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
         child: Container(
           padding: const EdgeInsets.all(28),
@@ -1629,9 +1593,6 @@ class _EmblemCardState extends State<_EmblemCard>
   }
 }
 
-// ════════════════════════════════════════════════════════════════
-// ACTION BUTTON
-// ════════════════════════════════════════════════════════════════
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1686,9 +1647,6 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-// ════════════════════════════════════════════════════════════════
-// PROFILE SKELETON
-// ════════════════════════════════════════════════════════════════
 class _ProfileSkeleton extends StatelessWidget {
   const _ProfileSkeleton();
 
@@ -1706,9 +1664,6 @@ class _ProfileSkeleton extends StatelessWidget {
   }
 }
 
-// ════════════════════════════════════════════════════════════════
-// LOGOUT DIALOG
-// ════════════════════════════════════════════════════════════════
 class _LogoutDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
