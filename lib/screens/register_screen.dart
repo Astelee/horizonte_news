@@ -800,7 +800,7 @@ class _RegisterScreenState extends State<RegisterScreen>
         ),
         const SizedBox(height: 4),
         Text(
-          'Será usado para te identificar no chat.',
+          'Será usado para te identificar nos comentários e no ranking.',
           style: TextStyle(
             fontSize: 11,
             color: Colors.white.withOpacity(0.3),
@@ -861,9 +861,7 @@ class _RegisterScreenState extends State<RegisterScreen>
               borderSide: BorderSide(
                 color: _usernameError != null
                     ? AppColors.emergencyRed
-                    : _usernameAvailable
-                        ? const Color(0xFF4CAF50)
-                        : AppColors.primaryOrange,
+                    : AppColors.primaryOrange,
                 width: 1.5,
               ),
             ),
