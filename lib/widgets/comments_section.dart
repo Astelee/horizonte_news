@@ -54,7 +54,6 @@ class _CommentUserProfileSheet extends StatefulWidget {
   final String userName;
   final int userLevel;
   final List<String> userAchievements;
-  final String avatarId;
 
   const _CommentUserProfileSheet({
     Key? key,
@@ -62,7 +61,6 @@ class _CommentUserProfileSheet extends StatefulWidget {
     required this.userName,
     required this.userLevel,
     required this.userAchievements,
-    required this.avatarId,
   }) : super(key: key);
 
   @override
@@ -100,8 +98,6 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
   Widget build(BuildContext context) {
     final username = (_userData?['username'] as String?) ?? '';
     final totalXp = (_userData?['totalXp'] as num?)?.toInt() ?? 0;
-    final avatarIdAtual =
-        (_userData?['avatarId'] as String?) ?? widget.avatarId;
 
     return Container(
       decoration: const BoxDecoration(
@@ -140,7 +136,8 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                 level: widget.userLevel,
                 size: 60,
                 child: AppAvatar(
-                  avatarId: avatarIdAtual,
+                  name: widget.userName,
+                  seed: widget.userId,
                   size: 60,
                 ),
               ),
@@ -447,7 +444,6 @@ class _CommentsSectionState extends State<CommentsSection>
         userName: comment.userName,
         userLevel: comment.userLevel,
         userAchievements: comment.userAchievements,
-        avatarId: comment.userAvatarId,
       ),
     );
   }
@@ -718,13 +714,17 @@ class _CommentsSectionState extends State<CommentsSection>
   }
 
   Widget _buildInputAvatar() {
+    final currentUser = FirebaseAuth.instance.currentUser;
     return Consumer<UserXpProvider>(
       builder: (context, xpProvider, _) {
         return AvatarFrame(
           level: xpProvider.data.level,
           size: 36,
           child: AppAvatar(
-            avatarId: xpProvider.data.avatarId,
+            name: currentUser?.displayName ??
+                currentUser?.email?.split('@').first ??
+                'Leitor',
+            seed: currentUser?.uid,
             size: 36,
           ),
         );
@@ -882,7 +882,8 @@ class _CommentTileState extends State<_CommentTile>
         level: widget.comment.userLevel,
         size: 36,
         child: AppAvatar(
-          avatarId: widget.comment.userAvatarId,
+          name: widget.comment.userName,
+          seed: widget.comment.userId,
           size: 36,
         ),
       ),
