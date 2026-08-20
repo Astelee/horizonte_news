@@ -12,7 +12,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "com.astelee.horizonte_news"
-    compileSdkVersion 35
+    compileSdkVersion 36
     ndkVersion "27.0.12077973"
 
     compileOptions {
@@ -27,7 +27,7 @@ android {
     defaultConfig {
         applicationId "com.astelee.horizonte_news"
         minSdkVersion 23
-        targetSdkVersion 35
+        targetSdkVersion 36
         versionCode 4
         versionName "1.0.2"
     }
