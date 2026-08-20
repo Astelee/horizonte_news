@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import '../utils/initials_helper.dart';
 
-/// Avatar circular gerado inteiramente em tempo de execuÃ§Ã£o a partir das
-/// iniciais do nome do usuÃ¡rio â€” sem depender de imagens, emojis ou Ã­cones
-/// de pessoa. A cor de fundo Ã© determinÃ­stica: o mesmo [name] (ou [seed],
+/// Avatar circular gerado inteiramente em tempo de execução a partir das
+/// iniciais do nome do usuário — sem depender de imagens, emojis ou ícones
+/// de pessoa. A cor de fundo é determinística: o mesmo [name] (ou [seed],
 /// quando informado) sempre resulta na mesma cor.
 ///
-/// Ãšnico componente de avatar do app â€” reutilizado em perfil, ranking,
-/// comentÃ¡rios e telas administrativas.
+/// Único componente de avatar do app — reutilizado em perfil, ranking,
+/// comentários e telas administrativas.
 class AppAvatar extends StatelessWidget {
   /// Nome usado para gerar as iniciais exibidas no avatar.
   final String? name;
 
-  /// Chave estÃ¡vel opcional para determinar a cor (ex.: UID do usuÃ¡rio).
-  /// Quando ausente, a cor Ã© determinada pelo prÃ³prio [name].
+  /// Chave estável opcional para determinar a cor (ex.: UID do usuário).
+  /// Quando ausente, a cor é determinada pelo próprio [name].
   final String? seed;
 
   final double size;
@@ -31,9 +31,9 @@ class AppAvatar extends StatelessWidget {
     this.onTap,
   }) : super(key: key);
 
-  // â”€â”€ Paleta compatÃ­vel com a identidade visual do Horizonte News:
-  // tons escuros e variaÃ§Ãµes de laranja, mantendo contraste suficiente
-  // para o texto branco permanecer legÃ­vel.
+  // ── Paleta compatível com a identidade visual do Horizonte News:
+  // tons escuros e variações de laranja, mantendo contraste suficiente
+  // para o texto branco permanecer legível.
   static const List<Color> _palette = [
     Color(0xFFFF6B00), // laranja principal
     Color(0xFFCC4400), // laranja escuro
@@ -41,7 +41,7 @@ class AppAvatar extends StatelessWidget {
     Color(0xFF8A3B00), // marrom-laranja
     Color(0xFF2A2A2A), // grafite
     Color(0xFF3D3D3D), // cinza escuro
-    Color(0xFF4A2A00), // Ã¢mbar escuro
+    Color(0xFF4A2A00), // âmbar escuro
     Color(0xFF662200), // ferrugem
   ];
 
