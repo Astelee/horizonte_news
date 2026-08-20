@@ -17,21 +17,17 @@ dependencies:
   provider: ^6.1.2
 
   # UI e Widgets
-  google_nav_bar: ^5.0.6
-  shimmer: ^3.0.0
   flutter_html: ^3.0.0-beta.2
   font_awesome_flutter: ^10.6.0
 
   # Rede e Imagem
   http: ^1.2.1
   cached_network_image: ^3.3.1
-  flutter_svg: ^2.0.10
 
   # Funcionalidades
   url_launcher: ^6.3.0
   share_plus: ^9.0.0
   shared_preferences: ^2.2.3
-  path_provider: ^2.1.2
   intl: ^0.19.0
 
   # Armazenamento seguro
@@ -43,19 +39,12 @@ dependencies:
   firebase_analytics: ^11.1.1
   cloud_firestore: ^5.1.0
   firebase_database: ^11.1.0
-  firebase_storage: ^12.2.0
 
   # OneSignal — sistema único de notificações
   onesignal_flutter: ^5.2.4
 
   # Som ambiente
   audioplayers: ^6.1.0
-
-  # WebView para vídeos YouTube
-  webview_flutter: ^4.7.0
-
-  # XML para RSS
-  xml: ^6.5.0
 
   # Anúncios — Google AdMob
   google_mobile_ads: ^5.1.0
