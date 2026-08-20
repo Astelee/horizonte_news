@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
-import '../../../models/avatar_catalog.dart';
 import '../../../services/xp_service.dart';
 import '../../../widgets/app_avatar.dart';
 import '../services/admin_user_service.dart';
@@ -142,9 +141,6 @@ class AdminUserTile extends StatelessWidget {
         final isOnline = lastSeenAt != null &&
             DateTime.now().difference(lastSeenAt).inMinutes < 5;
 
-        // ── Avatar ──────────────────────────────────────────────
-        final avatarId = d['avatarId'] as String?;
-
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(
@@ -168,8 +164,8 @@ class AdminUserTile extends StatelessWidget {
                     Stack(
                       children: [
                         AppAvatar(
-                          avatarId:
-                              avatarId ?? AvatarCatalog.defaultAvatarId,
+                          name: name,
+                          seed: userId,
                           size: 46,
                           showBorder: false,
                         ),
