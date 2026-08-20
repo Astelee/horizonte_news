@@ -1,11 +1,11 @@
-name: Compilar Flutter AAB
+name: Compilar Flutter (APK e AAB)
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    name: Configurar Ambiente e Gerar AAB
+    name: Configurar Ambiente e Gerar Builds
     runs-on: ubuntu-latest
 
     steps:
@@ -44,12 +44,22 @@ jobs:
       - name: Gerar Ícones
         run: flutter pub run flutter_launcher_icons
 
-      - name: Compilar App Bundle (AAB) Release
-        run: flutter build appbundle --release
-
-      - name: Renomear AAB
+      - name: Compilar APK e AAB Release
         run: |
+          flutter build apk --release
+          flutter build appbundle --release
+
+      - name: Renomear Arquivos
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Horizonte-News.apk
           mv build/app/outputs/bundle/release/app-release.aab build/app/outputs/bundle/release/Horizonte-News.aab
+
+      - name: Disponibilizar APK para Download
+        uses: actions/upload-artifact@v4
+        with:
+          name: Horizonte-News-APK
+          path: build/app/outputs/flutter-apk/Horizonte-News.apk
+          retention-days: 7
 
       - name: Disponibilizar AAB para Download
         uses: actions/upload-artifact@v4
