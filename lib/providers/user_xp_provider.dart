@@ -3,11 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/xp_service.dart';
-import '../services/avatar_service.dart';
 
 class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   final XpService _service = XpService();
-  final AvatarService _avatarService = AvatarService();
 
   UserXpData _data = UserXpData.empty();
   bool _isLoading = true;
@@ -58,7 +56,7 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     _updateLastSeen();
   }
 
-  // ── Grava lastSeenAt no Firestore ──────────────────────────────
+  // â”€â”€ Grava lastSeenAt no Firestore â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void _updateLastSeen() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -133,27 +131,11 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
       notifyListeners();
       if (_data.level > oldLevel) onLevelUp?.call(_data.level);
     } catch (e) {
-      debugPrint('Erro ao adicionar XP por comentário: $e');
+      debugPrint('Erro ao adicionar XP por comentÃ¡rio: $e');
     }
   }
 
   Future<void> onComment() async => addXpForComment();
-
-  Future<bool> updateAvatar(String avatarId) async {
-    final previous = _data.avatarId;
-
-    _data = _data.copyWith(avatarId: avatarId);
-    notifyListeners();
-
-    final success = await _avatarService.saveAvatarId(avatarId);
-
-    if (!success) {
-      _data = _data.copyWith(avatarId: previous);
-      notifyListeners();
-    }
-
-    return success;
-  }
 
   Future<void> reload() async {
     _isLoading = true;
