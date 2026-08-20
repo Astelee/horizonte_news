@@ -12,7 +12,6 @@ import '../widgets/badge_widgets.dart';
 import '../widgets/avatar_frame.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/level_up_overlay.dart';
-import 'avatar_picker_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -190,15 +189,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
-  Future<void> _abrirSeletorDeAvatar() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const AvatarPickerScreen()),
-    );
-    // Não precisa recarregar manualmente: o UserXpProvider já propaga
-    // a mudança automaticamente via notifyListeners().
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -296,46 +286,16 @@ class _ProfileScreenState extends State<ProfileScreen>
               right: 0,
               child: Column(
                 children: [
-                  GestureDetector(
-                    onTap: _abrirSeletorDeAvatar,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        AvatarFrame(
-                          level: data.level,
-                          size: 84,
-                          enableEntryAnimation: true,
-                          child: AppAvatar(
-                            avatarId: data.avatarId,
-                            size: 84,
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 2,
-                          right: 2,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.primaryOrange,
-                              border: Border.all(
-                                  color: const Color(0xFF1A0800), width: 2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primaryOrange
-                                      .withOpacity(0.5),
-                                  blurRadius: 8,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.edit_rounded,
-                              size: 12,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
+                  AvatarFrame(
+                    level: data.level,
+                    size: 84,
+                    enableEntryAnimation: true,
+                    child: AppAvatar(
+                      name: user?.displayName ??
+                          user?.email?.split('@').first ??
+                          'Usuário',
+                      seed: user?.uid,
+                      size: 84,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -350,20 +310,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       letterSpacing: 0.5,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  GestureDetector(
-                    onTap: _abrirSeletorDeAvatar,
-                    child: const Text(
-                      'ALTERAR AVATAR',
-                      style: TextStyle(
-                        color: AppColors.primaryOrange,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 10),
                   AnimatedBuilder(
                     animation: _badgeSlideAnim,
                     builder: (_, child) => Transform.translate(
