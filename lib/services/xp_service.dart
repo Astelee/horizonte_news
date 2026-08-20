@@ -408,7 +408,7 @@ class XpService {
     } catch (_) {}
   }
 
-  Future<void> recordShare() async {
+  Future<void> recordShare({String? postId, String? postTitle}) async {
     try {
       final updated = await _incrementXpAndSave(
         xpGained: 15,
@@ -419,6 +419,27 @@ class XpService {
       );
       await _checkMissionRewards(updated);
       await _checkAchievements(updated);
+      if (postId != null && postId.isNotEmpty) {
+        await _recordPostShare(postId: postId, postTitle: postTitle ?? '');
+      }
+    } catch (_) {}
+  }
+
+  // ── Registra QUAL post foi compartilhado (usado no Dashboard ADM) ──
+  Future<void> _recordPostShare({
+    required String postId,
+    required String postTitle,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    try {
+      final shareRef = _db.collection('post_shares').doc(postId);
+      await shareRef.set({
+        'postId': postId,
+        'postTitle': postTitle,
+        'totalShares': FieldValue.increment(1),
+        'lastSharedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     } catch (_) {}
   }
 
