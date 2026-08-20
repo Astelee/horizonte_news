@@ -106,6 +106,8 @@ class _OverviewTabState extends State<OverviewTab> {
                 const SizedBox(height: 22),
                 _buildTopPosts(data),
                 const SizedBox(height: 22),
+                _buildTopShared(data),
+                const SizedBox(height: 22),
                 _buildRecentActivity(),
                 const SizedBox(height: 22),
                 _buildRecentlyActiveUsers(data),
@@ -207,6 +209,21 @@ class _OverviewTabState extends State<OverviewTab> {
                 value: data.totalSuspended,
               ),
             ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: StatCard(
+                icon: Icons.share_rounded,
+                color: const Color(0xFF66BB6A),
+                label: 'Compartilhamentos',
+                value: data.totalShares,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(child: SizedBox.shrink()),
           ],
         ),
       ],
@@ -424,6 +441,31 @@ class _OverviewTabState extends State<OverviewTab> {
                 ),
               ),
             ),
+          ),
+          AnimatedBarChart(data: bars),
+        ],
+      ),
+    );
+  }
+
+  // ── Top posts mais compartilhados ───────────────────────────────
+  Widget _buildTopShared(DashboardSnapshot data) {
+    if (data.topShared.isEmpty) return const SizedBox.shrink();
+    final bars = data.topShared
+        .map((p) => BarChartData(
+              p.title.length > 10 ? '${p.title.substring(0, 10)}…' : p.title,
+              p.totalViews.toDouble(),
+              const Color(0xFF66BB6A),
+            ))
+        .toList();
+
+    return DashCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const DashSectionTitle(
+            title: 'MATÉRIAS MAIS COMPARTILHADAS',
+            icon: Icons.share_rounded,
           ),
           AnimatedBarChart(data: bars),
         ],
