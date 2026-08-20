@@ -526,7 +526,8 @@ class _PodiumSpotState extends State<_PodiumSpot>
                   level: widget.user.level,
                   size: widget.avatarSize,
                   child: AppAvatar(
-                    avatarId: widget.user.avatarId,
+                    name: widget.user.name,
+                    seed: widget.user.uid,
                     size: widget.avatarSize,
                   ),
                 ),
@@ -709,7 +710,8 @@ class _RankTileState extends State<_RankTile>
               AvatarFrame(
                 level: widget.user.level,
                 size: 40,
-                child: AppAvatar(avatarId: widget.user.avatarId, size: 40),
+                child: AppAvatar(
+                    name: widget.user.name, seed: widget.user.uid, size: 40),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -838,7 +840,7 @@ class _MyPositionBar extends StatelessWidget {
             AvatarFrame(
               level: user.level,
               size: 36,
-              child: AppAvatar(avatarId: user.avatarId, size: 36),
+              child: AppAvatar(name: user.name, seed: user.uid, size: 36),
             ),
             const SizedBox(width: 10),
             Expanded(
