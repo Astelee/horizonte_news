@@ -11,6 +11,7 @@ Antes de criar qualquer arquivo novo:
 3. Nunca recrie sistemas já existentes.
 4. Sempre respeite a estrutura atual do projeto.
 5. Se precisar alterar um sistema, identifique primeiro quais arquivos estão envolvidos.
+6. Consulte sempre o ESTRUTURA_PROJETO.md antes de assumir que uma tela ou serviço existe.
 
 ---
 
@@ -18,16 +19,23 @@ Visão Geral
 
 Horizonte News é um aplicativo Flutter de notícias com:
 
-- Sistema de notícias
-- Sistema de usuários
+- Sistema de notícias (conteúdo vem do Blogger via API)
+- Sistema de usuários (Firebase Auth)
 - Sistema de XP e níveis
 - Sistema de emblemas
+- Sistema de favoritos
+- Sistema de comentários
+- Painel administrativo
+- Integração com Firebase (Auth, Firestore, Analytics)
+- Notificações (OneSignal)
+- Anúncios (AdMob + parceiros próprios)
+
+NÃO EXISTE no projeto (não recriar nem tentar "corrigir"):
+
 - Sistema de amigos
 - Sistema de chat
-- Sistema de favoritos
-- Painel administrativo
-- Integração com Firebase
-- Notificações
+- Tela de vídeos
+- Editor de posts dentro do app
 
 ---
 
@@ -40,6 +48,8 @@ lib/main.dart
 Responsável por:
 
 - Inicializar Firebase
+- Inicializar AdMob
+- Aplicar preferência de "Lembrar login"
 - Carregar Providers
 - Definir tema
 - Iniciar aplicativo
@@ -100,10 +110,6 @@ favorites_provider.dart
 
 Gerencia favoritos.
 
-admin_provider.dart
-
-Gerencia funções administrativas.
-
 theme_provider.dart
 
 Gerencia tema do aplicativo.
@@ -116,52 +122,22 @@ Gerencia:
 - Níveis
 - Progressão do usuário
 
----
+lib/features/admin/providers/admin_provider.dart
 
-SISTEMA DE AMIGOS
-
-Todos os arquivos abaixo pertencem ao mesmo sistema.
-
-lib/screens/
-
-amigos_tela.dart
-amigos_aba_lista.dart
-amigos_aba_pedidos.dart
-amigos_aba_conversas.dart
-amigos_adicionar.dart
-amigos_perfil.dart
-amigos_modelos.dart
-amigos_widgets.dart
-
-IMPORTANTE:
-
-Não criar versões novas como:
-
-- amigos_v2.dart
-- novo_amigos.dart
-- social_screen.dart
-
-O sistema já existe.
-
-Sempre reutilizar os arquivos atuais.
+Gerencia autenticação e permissões do painel administrativo.
 
 ---
 
-SISTEMA DE CHAT
+AUTENTICAÇÃO
 
 Arquivo:
 
-chat_screen.dart
+lib/services/auth_service.dart
 
 Responsável por:
 
-- Conversas privadas
-- Mensagens entre usuários
-
-Antes de alterar o chat verificar integração com:
-
-- Sistema de amigos
-- Firebase
+- Login e logout (Firebase Auth)
+- Preferência "Lembrar login" (salva apenas o e-mail — a senha nunca é salva no dispositivo; quem mantém a sessão logada é a persistência nativa do Firebase Auth)
 
 ---
 
@@ -173,6 +149,7 @@ user_xp_provider.dart
 xp_service.dart
 badge_config.dart
 badge_widgets.dart
+level_up_overlay.dart
 
 Funções:
 
@@ -194,7 +171,6 @@ post_detail_screen.dart
 category_screen.dart
 most_read_screen.dart
 search_screen.dart
-videos_screen.dart
 horizon_now_screen.dart
 events_screen.dart
 
@@ -204,6 +180,8 @@ news_card.dart
 featured_carousel.dart
 breaking_news_banner.dart
 category_bar.dart
+
+Conteúdo vem do Blogger via lib/services/blogger_service.dart e lib/config/blogger_config.dart. Não existe editor de posts dentro do app — publicação é feita direto no Blogger.
 
 ---
 
@@ -218,6 +196,7 @@ Antes de alterar comentários verificar:
 - Perfil do usuário
 - Sistema de XP
 - Sistema de emblemas
+- Sistema de banimento (coleção suspensions no Firestore)
 
 ---
 
@@ -231,10 +210,19 @@ Relacionado com:
 
 - XP
 - Emblemas
-- Amigos
 - Favoritos
 
 Qualquer alteração deve preservar as integrações existentes.
+
+---
+
+RANKING
+
+Arquivo:
+
+ranking_screen.dart
+
+Mostra o ranking de usuários por XP.
 
 ---
 
@@ -250,20 +238,34 @@ favorites_service.dart
 
 ADMINISTRAÇÃO
 
-Arquivos:
+Arquivo:
 
-admin_panel_screen.dart
-post_editor_screen.dart
+lib/features/admin/screens/admin_panel_screen.dart
 
-Serviços:
+Abas (lib/features/admin/screens/tabs/):
 
-admin_service.dart
+overview_tab.dart
+users_tab.dart
+comments_tab.dart
+banned_tab.dart
+views_tab.dart
+poderes_tab.dart
+
+Serviços (lib/features/admin/services/):
+
+admin_comment_service.dart
+admin_dashboard_service.dart
+admin_user_service.dart
+admin_views_service.dart
 
 Funções:
 
-- Gerenciar notícias
-- Publicar conteúdo
-- Ferramentas administrativas
+- Gerenciar usuários e comentários
+- Banir/desbanir usuários (coleção suspensions)
+- Ver estatísticas e visualizações
+- Ferramentas administrativas ("poderes")
+
+Não existe post_editor_screen.dart nem admin_service.dart — a publicação de notícias é feita pelo Blogger, fora do app.
 
 ---
 
@@ -271,12 +273,15 @@ FIREBASE
 
 Serviços:
 
-firebase_service.dart
-notification_service.dart
+lib/services/notification_service.dart (integração com OneSignal)
 
 Cloud Functions:
 
-functions/index.js
+functions/index.js — envia notificação push quando um novo post é criado na coleção noticias.
+
+Segurança:
+
+firestore.rules — define quem pode ler/escrever cada coleção. Sempre consultar este arquivo antes de adicionar uma nova coleção no Firestore, e atualizar as regras junto com qualquer mudança de schema.
 
 IMPORTANTE:
 
@@ -285,6 +290,18 @@ Antes de modificar Firebase verificar compatibilidade com:
 - Android
 - Cloud Functions
 - Notificações
+- firestore.rules
+
+---
+
+ANÚNCIOS
+
+Pasta:
+
+lib/ads/
+
+ad_config.dart — configuração de parceiros e do AdMob.
+hybrid_banner_ad.dart — exibe banner do parceiro ativo ou do AdMob.
 
 ---
 
@@ -294,12 +311,15 @@ Pasta:
 
 lib/widgets/
 
+app_avatar.dart
 app_drawer.dart
+avatar_frame.dart
 badge_widgets.dart
 breaking_news_banner.dart
 category_bar.dart
 comments_section.dart
 featured_carousel.dart
+level_up_overlay.dart
 news_card.dart
 relative_time_text.dart
 
@@ -316,10 +336,16 @@ icon_app.png
 assets/sounds/
 
 ambient.mp3
+click.mp3
+ranking.mp3
 
 assets/icons/
 
 Ícones do aplicativo.
+
+assets/ads/parceiros/
+
+Imagens dos parceiros de anúncio.
 
 ---
 
@@ -331,11 +357,11 @@ Ao implementar qualquer funcionalidade:
 2. Reutilize componentes existentes.
 3. Evite duplicação de código.
 4. Não criar versões paralelas do mesmo sistema.
-5. Manter compatibilidade com Firebase.
+5. Manter compatibilidade com Firebase e com firestore.rules.
 6. Preservar sistema de XP.
-7. Preservar sistema de amigos.
-8. Preservar sistema de comentários.
-9. Preservar sistema de notificações.
+7. Preservar sistema de comentários.
+8. Preservar sistema de notificações.
+9. Não assumir que sistemas de amigos, chat, vídeos ou editor de posts existem — eles não existem.
 
 ---
 
@@ -354,26 +380,22 @@ Antes de criar um novo arquivo, justificar por que um arquivo existente não pod
 
 OBSERVAÇÃO
 
-O projeto já possui:
+O projeto possui:
 
-✓ Sistema de amigos
-
-✓ Sistema de chat
-
-✓ Sistema de XP
-
-✓ Sistema de níveis
-
+✓ Sistema de notícias (via Blogger)
+✓ Sistema de XP e níveis
 ✓ Sistema de emblemas
-
 ✓ Sistema de favoritos
-
-✓ Sistema de notícias
-
+✓ Sistema de comentários
+✓ Sistema de ranking
 ✓ Sistema administrativo
+✓ Firebase (Auth, Firestore, Analytics)
+✓ Notificações (OneSignal)
+✓ Anúncios (AdMob + parceiros)
 
-✓ Firebase
+O projeto NÃO possui (não recriar):
 
-✓ Notificações
-
-A IA deve considerar esses sistemas existentes antes de propor novas implementações.
+✗ Sistema de amigos
+✗ Sistema de chat
+✗ Tela de vídeos
+✗ Editor de posts dentro do app
