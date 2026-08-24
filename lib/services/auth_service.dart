@@ -5,11 +5,11 @@ import 'package:flutter/foundation.dart';
 /// Serviço central de autenticação.
 ///
 /// Centraliza login, logout e a lógica de "Lembrar login".
-/// Quando "Lembrar login" está ativo, o e-mail e a senha ficam salvos
-/// de forma segura (flutter_secure_storage, com criptografia do
-/// sistema) mesmo depois de um logout manual — assim o usuário não
-/// precisa redigitar tudo no próximo login. Só são apagados quando o
-/// usuário desmarca a opção "Lembrar login".
+/// Quando "Lembrar login" está ativo, apenas o e-mail fica salvo
+/// (flutter_secure_storage, com criptografia do sistema) para
+/// pré-preencher o campo no próximo login. A sessão em si é mantida
+/// pelo próprio Firebase Auth (persistência nativa), então o usuário
+/// continua entrando automaticamente sem precisarmos guardar a senha.
 class AuthService {
   AuthService._internal();
   static final AuthService instance = AuthService._internal();
@@ -17,7 +17,6 @@ class AuthService {
   static const _storage = FlutterSecureStorage();
   static const String _rememberKey = 'remember_login';
   static const String _emailKey = 'saved_login_email';
-  static const String _passwordKey = 'saved_login_password';
 
   Future<bool> isRememberEnabled() async {
     try {
@@ -38,15 +37,6 @@ class AuthService {
     }
   }
 
-  Future<String?> getSavedPassword() async {
-    try {
-      return await _storage.read(key: _passwordKey);
-    } catch (e) {
-      debugPrint('AuthService: erro ao ler senha salva: $e');
-      return null;
-    }
-  }
-
   /// Realiza o login e aplica a preferência de "Lembrar login".
   Future<UserCredential> signIn({
     required String email,
@@ -62,7 +52,6 @@ class AuthService {
       try {
         await _storage.write(key: _rememberKey, value: 'true');
         await _storage.write(key: _emailKey, value: email);
-        await _storage.write(key: _passwordKey, value: password);
       } catch (e) {
         debugPrint('AuthService: erro ao salvar dados de lembrar login: $e');
       }
@@ -87,8 +76,8 @@ class AuthService {
   }
 
   /// Logout manual (botão "Sair da conta"). Desloga da conta, mas
-  /// MANTÉM e-mail/senha salvos se "Lembrar login" estiver ativo —
-  /// assim o próximo login já vem pré-preenchido.
+  /// MANTÉM o e-mail salvo se "Lembrar login" estiver ativo — assim
+  /// o próximo login já vem com o e-mail pré-preenchido.
   Future<void> signOut() async {
     await FirebaseAuth.instance.signOut();
   }
@@ -99,7 +88,6 @@ class AuthService {
     try {
       await _storage.delete(key: _rememberKey);
       await _storage.delete(key: _emailKey);
-      await _storage.delete(key: _passwordKey);
     } catch (e) {
       debugPrint('AuthService: erro ao limpar dados de login: $e');
     }
