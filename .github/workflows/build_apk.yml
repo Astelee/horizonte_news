@@ -41,6 +41,9 @@ jobs:
           flutter clean
           flutter pub get
 
+      - name: Rodar Testes Automatizados
+        run: flutter test
+
       - name: Gerar Ícones
         run: flutter pub run flutter_launcher_icons
 
