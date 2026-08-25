@@ -107,15 +107,15 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
-  Future<void> onArticleRead() async {
+  Future<void> onArticleRead(String postId) async {
     final oldLevel = _data.level;
-    await _service.recordArticleRead();
+    await _service.recordArticleRead(postId);
     _data = await _service.loadUserXpData();
     notifyListeners();
     if (_data.level > oldLevel) onLevelUp?.call(_data.level);
   }
 
-  Future<void> onShare({String? postId, String? postTitle}) async {
+  Future<void> onShare({required String postId, String? postTitle}) async {
     final oldLevel = _data.level;
     await _service.recordShare(postId: postId, postTitle: postTitle);
     _data = await _service.loadUserXpData();
