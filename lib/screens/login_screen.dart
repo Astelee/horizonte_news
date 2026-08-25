@@ -28,11 +28,23 @@ class _LoginScreenState extends State<LoginScreen>
   late AnimationController _formAnimController;
   late AnimationController _pulseController;
   late AnimationController _glowController;
+  late AnimationController _particleController;
+  late AnimationController _buttonBreatheController;
 
   late Animation<double> _formFadeAnim;
   late Animation<Offset> _formSlideAnim;
   late Animation<double> _pulseAnim;
   late Animation<double> _glowAnim;
+  late Animation<double> _buttonBreatheAnim;
+
+  final FocusNode _emailFocus = FocusNode();
+  final FocusNode _passwordFocus = FocusNode();
+  bool _emailFocused = false;
+  bool _passwordFocused = false;
+
+  // Partículas geradas uma vez, com posição/velocidade/fase próprias.
+  final List<_Particle> _particles =
+      List.generate(28, (i) => _Particle.random(math.Random(i * 97)));
 
   @override
   void initState() {
@@ -58,6 +70,16 @@ class _LoginScreenState extends State<LoginScreen>
       duration: const Duration(seconds: 3),
     )..repeat(reverse: true);
 
+    _particleController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 14),
+    )..repeat();
+
+    _buttonBreatheController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat(reverse: true);
+
     _formFadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _formAnimController, curve: Curves.easeOut),
     );
@@ -75,6 +97,18 @@ class _LoginScreenState extends State<LoginScreen>
     _glowAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
+
+    _buttonBreatheAnim = Tween<double>(begin: 1.0, end: 1.02).animate(
+      CurvedAnimation(
+          parent: _buttonBreatheController, curve: Curves.easeInOut),
+    );
+
+    _emailFocus.addListener(() {
+      setState(() => _emailFocused = _emailFocus.hasFocus);
+    });
+    _passwordFocus.addListener(() {
+      setState(() => _passwordFocused = _passwordFocus.hasFocus);
+    });
 
     Future.delayed(const Duration(milliseconds: 200), () {
       if (mounted) _formAnimController.forward();
@@ -101,10 +135,14 @@ class _LoginScreenState extends State<LoginScreen>
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
     _bgAnimController.dispose();
     _formAnimController.dispose();
     _pulseController.dispose();
     _glowController.dispose();
+    _particleController.dispose();
+    _buttonBreatheController.dispose();
     super.dispose();
   }
 
@@ -173,6 +211,11 @@ class _LoginScreenState extends State<LoginScreen>
       body: Stack(
         children: [
           _AnimatedBackground(controller: _bgAnimController, size: size),
+          _ParticleField(
+            controller: _particleController,
+            particles: _particles,
+            size: size,
+          ),
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -342,6 +385,8 @@ class _LoginScreenState extends State<LoginScreen>
                 const SizedBox(height: 28),
                 _buildCyberField(
                   controller: _emailController,
+                  focusNode: _emailFocus,
+                  focused: _emailFocused,
                   label: 'E-MAIL',
                   hint: 'seu@email.com',
                   icon: Icons.alternate_email_rounded,
@@ -355,6 +400,8 @@ class _LoginScreenState extends State<LoginScreen>
                 const SizedBox(height: 20),
                 _buildCyberField(
                   controller: _passwordController,
+                  focusNode: _passwordFocus,
+                  focused: _passwordFocused,
                   label: 'SENHA',
                   hint: '••••••••',
                   icon: Icons.lock_outline_rounded,
@@ -468,6 +515,8 @@ class _LoginScreenState extends State<LoginScreen>
     required String label,
     required String hint,
     required IconData icon,
+    FocusNode? focusNode,
+    bool focused = false,
     TextInputType keyboardType = TextInputType.text,
     bool obscureText = false,
     Widget? suffixIcon,
@@ -486,49 +535,75 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
         const SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          keyboardType: keyboardType,
-          obscureText: obscureText,
-          style: const TextStyle(color: Colors.white, fontSize: 15),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle:
-                const TextStyle(color: Color(0xFF424242), fontSize: 15),
-            prefixIcon:
-                Icon(icon, color: AppColors.primaryOrange, size: 20),
-            suffixIcon: suffixIcon,
-            filled: true,
-            fillColor: const Color(0xFF141414),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFF212121)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFF212121)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(
-                  color: AppColors.primaryOrange, width: 1.5),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(
-                  color: AppColors.emergencyRed, width: 1.5),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(
-                  color: AppColors.emergencyRed, width: 1.5),
-            ),
-            errorStyle: const TextStyle(
-                color: AppColors.emergencyRed, fontSize: 11),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: focused
+                ? [
+                    BoxShadow(
+                      color: AppColors.primaryOrange.withOpacity(0.28),
+                      blurRadius: 18,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : [],
           ),
-          validator: validator,
+          child: TextFormField(
+            controller: controller,
+            focusNode: focusNode,
+            keyboardType: keyboardType,
+            obscureText: obscureText,
+            style: const TextStyle(color: Colors.white, fontSize: 15),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle:
+                  const TextStyle(color: Color(0xFF424242), fontSize: 15),
+              prefixIcon: AnimatedScale(
+                duration: const Duration(milliseconds: 220),
+                scale: focused ? 1.15 : 1.0,
+                child: Icon(
+                  icon,
+                  color: focused
+                      ? AppColors.primaryOrange
+                      : AppColors.primaryOrange.withOpacity(0.75),
+                  size: 20,
+                ),
+              ),
+              suffixIcon: suffixIcon,
+              filled: true,
+              fillColor: const Color(0xFF141414),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFF212121)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFF212121)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                    color: AppColors.primaryOrange, width: 1.5),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                    color: AppColors.emergencyRed, width: 1.5),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                    color: AppColors.emergencyRed, width: 1.5),
+              ),
+              errorStyle: const TextStyle(
+                  color: AppColors.emergencyRed, fontSize: 11),
+            ),
+            validator: validator,
+          ),
         ),
       ],
     );
@@ -536,62 +611,65 @@ class _LoginScreenState extends State<LoginScreen>
 
   Widget _buildLoginButton() {
     return AnimatedBuilder(
-      animation: _glowAnim,
-      builder: (_, __) => Container(
-        height: 56,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          gradient: const LinearGradient(
-            colors: [
-              Color(0xFFBF360C),
-              Color(0xFFE65100),
-              Color(0xFFF57C00)
-            ],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primaryOrange
-                  .withOpacity(0.45 * _glowAnim.value),
-              blurRadius: 24,
-              spreadRadius: 0,
-              offset: const Offset(0, 4),
-            ),
-            BoxShadow(
-              color: AppColors.emergencyRed
-                  .withOpacity(0.2 * _glowAnim.value),
-              blurRadius: 40,
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
+      animation: Listenable.merge([_glowAnim, _buttonBreatheAnim]),
+      builder: (_, __) => Transform.scale(
+        scale: _isLoading ? 1.0 : _buttonBreatheAnim.value,
+        child: Container(
+          height: 56,
+          decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            onTap: _isLoading ? null : _handleLogin,
-            splashColor: Colors.white.withOpacity(0.1),
-            child: Center(
-              child: _isLoading
-                  ? const _CyberLoader()
-                  : const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'ENTRAR',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 4,
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFFBF360C),
+                Color(0xFFE65100),
+                Color(0xFFF57C00)
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primaryOrange
+                    .withOpacity(0.45 * _glowAnim.value),
+                blurRadius: 24,
+                spreadRadius: 0,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: AppColors.emergencyRed
+                    .withOpacity(0.2 * _glowAnim.value),
+                blurRadius: 40,
+                spreadRadius: 0,
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: _isLoading ? null : _handleLogin,
+              splashColor: Colors.white.withOpacity(0.1),
+              child: Center(
+                child: _isLoading
+                    ? const _CyberLoader()
+                    : const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'ENTRAR',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 4,
+                            ),
                           ),
-                        ),
-                        SizedBox(width: 10),
-                        Icon(Icons.arrow_forward_rounded,
-                            color: Colors.white, size: 18),
-                      ],
-                    ),
+                          SizedBox(width: 10),
+                          Icon(Icons.arrow_forward_rounded,
+                              color: Colors.white, size: 18),
+                        ],
+                      ),
+              ),
             ),
           ),
         ),
@@ -764,6 +842,104 @@ class _Orb {
       required this.radius,
       required this.color,
       required this.phase});
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PARTÍCULAS FLUTUANTES
+// ═══════════════════════════════════════════════════════════════════
+class _Particle {
+  final double x; // 0..1, posição horizontal relativa
+  final double startY; // 0..1, posição vertical inicial relativa
+  final double speed; // ciclos completos por loop do controller
+  final double size;
+  final double phase; // deslocamento no tempo, pra não nascerem juntas
+  final double drift; // quanto oscila lateralmente
+  final bool isRed; // usa a cor de emergência em vez do laranja
+
+  const _Particle({
+    required this.x,
+    required this.startY,
+    required this.speed,
+    required this.size,
+    required this.phase,
+    required this.drift,
+    required this.isRed,
+  });
+
+  factory _Particle.random(math.Random r) {
+    return _Particle(
+      x: r.nextDouble(),
+      startY: r.nextDouble(),
+      speed: 0.5 + r.nextDouble() * 0.9,
+      size: 1.2 + r.nextDouble() * 2.4,
+      phase: r.nextDouble(),
+      drift: 8 + r.nextDouble() * 18,
+      isRed: r.nextDouble() < 0.15,
+    );
+  }
+}
+
+class _ParticleField extends StatelessWidget {
+  final AnimationController controller;
+  final List<_Particle> particles;
+  final Size size;
+
+  const _ParticleField({
+    required this.controller,
+    required this.particles,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: controller,
+        builder: (_, __) => CustomPaint(
+          size: size,
+          painter: _ParticlePainter(particles, controller.value),
+        ),
+      ),
+    );
+  }
+}
+
+class _ParticlePainter extends CustomPainter {
+  final List<_Particle> particles;
+  final double t;
+  _ParticlePainter(this.particles, this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    for (final p in particles) {
+      // Sobe continuamente e "dá a volta" por baixo ao sair pelo topo.
+      final progress = ((t * p.speed) + p.phase) % 1.0;
+      final y = (p.startY - progress) % 1.0 < 0
+          ? (p.startY - progress) % 1.0 + 1.0
+          : (p.startY - progress) % 1.0;
+      final wobble =
+          math.sin((progress * 2 * math.pi) + p.phase * 10) * p.drift;
+      final dx = p.x * size.width + wobble;
+      final dy = y * size.height;
+
+      // Fade in/out suave nas bordas do trajeto vertical.
+      final edgeFade = (math.sin(progress * math.pi)).clamp(0.0, 1.0);
+      final baseColor =
+          p.isRed ? AppColors.emergencyRed : AppColors.primaryOrange;
+
+      paint.color = baseColor.withOpacity(0.5 * edgeFade);
+      canvas.drawCircle(Offset(dx, dy), p.size, paint);
+
+      // Glow sutil ao redor de cada partícula.
+      paint.color = baseColor.withOpacity(0.12 * edgeFade);
+      canvas.drawCircle(Offset(dx, dy), p.size * 3.2, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ParticlePainter old) => old.t != t;
 }
 
 // ═══════════════════════════════════════════════════════════════════
