@@ -394,12 +394,28 @@ class XpService {
     }
   }
 
-  Future<void> recordArticleRead() async {
+  // ── Evita dar XP de novo pro mesmo post (trava por postId) ────────
+  // Guarda os IDs já recompensados em stats.<field> — arrays pequenos,
+  // já que só crescem com ações reais do usuário (não por visita).
+  Future<bool> _alreadyAwarded(String statsField, String postId) async {
+    final doc = _userDoc;
+    if (doc == null) return true; // sem usuário logado, não premia
+    final snap = await doc.get();
+    final ids = List<String>.from(
+        (snap.data()?['stats']?[statsField] as List?) ?? []);
+    return ids.contains(postId);
+  }
+
+  Future<void> recordArticleRead(String postId) async {
+    if (postId.isEmpty) return;
     try {
+      if (await _alreadyAwarded('articlesReadIds', postId)) return;
+
       final updated = await _incrementXpAndSave(
         xpGained: 5,
         extraFields: {
           'stats.articlesRead': FieldValue.increment(1),
+          'stats.articlesReadIds': FieldValue.arrayUnion([postId]),
           'dailyMissions.articlesRead': FieldValue.increment(1),
         },
       );
@@ -408,20 +424,27 @@ class XpService {
     } catch (_) {}
   }
 
-  Future<void> recordShare({String? postId, String? postTitle}) async {
+  Future<void> recordShare({required String postId, String? postTitle}) async {
+    if (postId.isEmpty) return;
     try {
+      if (await _alreadyAwarded('articlesSharedIds', postId)) {
+        // Continua contando o compartilhamento no post (métrica pública),
+        // só não dá XP de novo pro mesmo usuário.
+        await _recordPostShare(postId: postId, postTitle: postTitle ?? '');
+        return;
+      }
+
       final updated = await _incrementXpAndSave(
         xpGained: 15,
         extraFields: {
           'stats.articlesShared': FieldValue.increment(1),
+          'stats.articlesSharedIds': FieldValue.arrayUnion([postId]),
           'dailyMissions.articlesShared': FieldValue.increment(1),
         },
       );
       await _checkMissionRewards(updated);
       await _checkAchievements(updated);
-      if (postId != null && postId.isNotEmpty) {
-        await _recordPostShare(postId: postId, postTitle: postTitle ?? '');
-      }
+      await _recordPostShare(postId: postId, postTitle: postTitle ?? '');
     } catch (_) {}
   }
 
@@ -501,26 +524,46 @@ class XpService {
     final current = data.achievements;
     final toUnlock = <String>[];
 
-    if (data.totalSecondsOnline >= 3600 &&
-        !current.contains('1h_online')) toUnlock.add('1h_online');
-    if (data.totalSecondsOnline >= 36000 &&
-        !current.contains('10h_online')) toUnlock.add('10h_online');
-    final articlesRead =
-        (data.stats['articlesRead'] as num?)?.toInt() ?? 0;
-    if (articlesRead >= 100 && !current.contains('100_articles'))
-      toUnlock.add('100_articles');
-    final shares =
-        (data.stats['articlesShared'] as num?)?.toInt() ?? 0;
-    if (shares >= 1 && !current.contains('first_share'))
-      toUnlock.add('first_share');
-    final comments =
-        (data.stats['commentsPosted'] as num?)?.toInt() ?? 0;
-    if (comments >= 1 && !current.contains('first_comment'))
-      toUnlock.add('first_comment');
-    if (data.level >= 5 && !current.contains('level_5'))
-      toUnlock.add('level_5');
-    if (data.level >= 10 && !current.contains('level_10'))
-      toUnlock.add('level_10');
+    void unlock(String id, bool condition) {
+      if (condition && !current.contains(id)) toUnlock.add(id);
+    }
+
+    // ── Horas online ──────────────────────────────────────────────
+    unlock('1h_online', data.totalSecondsOnline >= 3600);
+    unlock('10h_online', data.totalSecondsOnline >= 36000);
+    unlock('50h_online', data.totalSecondsOnline >= 180000);
+    unlock('100h_online', data.totalSecondsOnline >= 360000);
+
+    // ── Artigos lidos — IDs batendo com BadgeConfig.achievementIcon
+    // (articles_10/50/100/500, não 100_articles) ────────────────────
+    final articlesRead = (data.stats['articlesRead'] as num?)?.toInt() ?? 0;
+    unlock('articles_10', articlesRead >= 10);
+    unlock('articles_50', articlesRead >= 50);
+    unlock('articles_100', articlesRead >= 100);
+    unlock('articles_500', articlesRead >= 500);
+
+    // ── Compartilhamentos ────────────────────────────────────────────
+    final shares = (data.stats['articlesShared'] as num?)?.toInt() ?? 0;
+    unlock('first_share', shares >= 1);
+    unlock('shares_10', shares >= 10);
+
+    // ── Comentários ──────────────────────────────────────────────────
+    final comments = (data.stats['commentsPosted'] as num?)?.toInt() ?? 0;
+    unlock('first_comment', comments >= 1);
+    unlock('comments_10', comments >= 10);
+    unlock('comments_50', comments >= 50);
+
+    // ── Sequência de dias consecutivos (já salva em stats.consecutiveDays,
+    // só faltava usá-la para liberar as conquistas de streak) ───────────
+    final consecutiveDays =
+        (data.stats['consecutiveDays'] as num?)?.toInt() ?? 0;
+    unlock('streak_7', consecutiveDays >= 7);
+    unlock('streak_30', consecutiveDays >= 30);
+    unlock('streak_100', consecutiveDays >= 100);
+
+    // ── Nível ────────────────────────────────────────────────────────
+    unlock('level_5', data.level >= 5);
+    unlock('level_10', data.level >= 10);
 
     if (toUnlock.isNotEmpty) {
       await doc
@@ -589,16 +632,8 @@ class XpService {
     ];
   }
 
-  static String levelTitle(int level) {
-    if (level < 3) return 'Novato';
-    if (level < 5) return 'Leitor';
-    if (level < 8) return 'Jornalista';
-    if (level < 12) return 'Repórter';
-    if (level < 17) return 'Editor';
-    if (level < 23) return 'Veterano';
-    if (level < 30) return 'Especialista';
-    return 'Lenda';
-  }
-
-  static String levelIcon(int level) => '';
+  // Título e ícone por nível vivem em BadgeConfig (config/badge_config.dart)
+  // — era o sistema realmente usado nas telas e testado; os métodos
+  // levelTitle/levelIcon que existiam aqui foram removidos por serem
+  // um segundo sistema divergente que ninguém mais chama.
 }
