@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
+import '../../../config/badge_config.dart';
 import '../../../services/xp_service.dart';
 import '../../../widgets/app_avatar.dart';
 import '../services/admin_user_service.dart';
@@ -128,8 +129,8 @@ class AdminUserTile extends StatelessWidget {
                 '${createdAt.month.toString().padLeft(2, '0')}/'
                 '${createdAt.year}'
             : '';
-        final lvlTitle = XpService.levelTitle(level);
-        final lvlIcon = XpService.levelIcon(level);
+        final lvlTitle = BadgeConfig.levelTitle(level);
+        final lvlIcon = BadgeConfig.levelIcon(level);
 
         final hasOverride = d['adminOverrideActive'] == true;
         final hasTitleOverride = d['adminOverrideTitleActive'] == true;
@@ -250,8 +251,8 @@ class AdminUserTile extends StatelessWidget {
                           Row(
                             children: [
                               AdminStatChip(
-                                icon: Icons.star_rounded,
-                                label: '$lvlIcon Nv $level · $lvlTitle',
+                                icon: lvlIcon,
+                                label: 'Nv $level · $lvlTitle',
                                 color: AppColors.primaryOrange,
                               ),
                               if (hasOverride || hasTitleOverride) ...[
