@@ -78,14 +78,23 @@ class _AppDrawerState extends State<AppDrawer>
     super.dispose();
   }
 
-  void _navigate(BuildContext context, String route) {
+  void _navigate(BuildContext context, String route) async {
     HapticFeedback.lightImpact();
     SoundService.instance.playSystemClick();
     Navigator.pop(context);
     if (route == AppRoutes.home) {
       Navigator.pushReplacementNamed(context, route);
-    } else {
-      Navigator.pushNamed(context, route);
+      return;
+    }
+
+    // Espera a tela empilhada ser fechada (botão voltar ou gesto do
+    // Android) antes de continuar. Quando isso acontecer, o usuário
+    // volta para a Home e a gaveta reabre automaticamente, em vez de
+    // ficar fechada.
+    await Navigator.pushNamed(context, route);
+
+    if (context.mounted) {
+      Scaffold.of(context).openDrawer();
     }
   }
 
