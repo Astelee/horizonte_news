@@ -30,11 +30,31 @@ class OverviewTab extends StatefulWidget {
 
 class _OverviewTabState extends State<OverviewTab> {
   bool _syncing = false;
+  DashboardSnapshot? _data;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboard();
+  }
+
+  Future<void> _loadDashboard() async {
+    if (!_loading) setState(() => _loading = true);
+    final data = await widget.dashboardService.loadDashboard();
+    if (mounted) {
+      setState(() {
+        _data = data;
+        _loading = false;
+      });
+    }
+  }
 
   Future<void> _syncLevels() async {
     setState(() => _syncing = true);
     try {
       await widget.userService.syncAllUserLevels();
+      await _loadDashboard();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -60,19 +80,18 @@ class _OverviewTabState extends State<OverviewTab> {
 
   @override
   Widget build(BuildContext context) {
+    final data = _data;
     return Container(
       color: AppColors.backgroundDark,
-      child: StreamBuilder<DashboardSnapshot>(
-        stream: widget.dashboardService.dashboardStream(),
-        builder: (context, snap) {
-          final data = snap.data;
-          if (data == null || (!snap.hasData)) {
+      child: Builder(
+        builder: (context) {
+          if (data == null && _loading) {
             return const DashboardSkeleton();
           }
-          if (data.totalUsers == 0) {
+          if (data == null || data.totalUsers == 0) {
             return RefreshIndicator(
               color: AppColors.primaryOrange,
-              onRefresh: () async {},
+              onRefresh: _loadDashboard,
               child: ListView(
                 children: const [
                   SizedBox(height: 120),
@@ -92,7 +111,7 @@ class _OverviewTabState extends State<OverviewTab> {
 
           return RefreshIndicator(
             color: AppColors.primaryOrange,
-            onRefresh: () async {},
+            onRefresh: _loadDashboard,
             child: ListView(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 32),
               children: [
