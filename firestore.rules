@@ -20,7 +20,66 @@ service cloud.firestore {
     // ── XP dos usuários ───────────────────────────────────────────
     match /users_xp/{userId} {
       allow read: if request.auth != null;
-      allow write: if isOwner(userId) || isAdmin();
+
+      // Admin pode escrever qualquer campo (painel admin, overrides etc.)
+      allow write: if isAdmin();
+
+      // Nível calculado a partir do XP total, espelhando
+      // XpService.levelFromXp — soma triangular 100*(n-1)*n/2.
+      // Testa níveis de 1 a 120 e devolve o maior que o XP cobre.
+      function xpForLevel(n) {
+        return 100 * (n - 1) * n / 2;
+      }
+      function levelFromXp(xp) {
+        return xpForLevel(120) <= xp ? 120 :
+          xpForLevel(90)  <= xp ? 90  : xpForLevel(80)  <= xp ? 80  :
+          xpForLevel(70)  <= xp ? 70  : xpForLevel(60)  <= xp ? 60  :
+          xpForLevel(50)  <= xp ? 50  : xpForLevel(45)  <= xp ? 45  :
+          xpForLevel(40)  <= xp ? 40  : xpForLevel(35)  <= xp ? 35  :
+          xpForLevel(30)  <= xp ? 30  : xpForLevel(27)  <= xp ? 27  :
+          xpForLevel(24)  <= xp ? 24  : xpForLevel(22)  <= xp ? 22  :
+          xpForLevel(20)  <= xp ? 20  : xpForLevel(18)  <= xp ? 18  :
+          xpForLevel(16)  <= xp ? 16  : xpForLevel(15)  <= xp ? 15  :
+          xpForLevel(13)  <= xp ? 13  : xpForLevel(12)  <= xp ? 12  :
+          xpForLevel(11)  <= xp ? 11  : xpForLevel(10)  <= xp ? 10  :
+          xpForLevel(9)   <= xp ? 9   : xpForLevel(8)   <= xp ? 8   :
+          xpForLevel(7)   <= xp ? 7   : xpForLevel(6)   <= xp ? 6   :
+          xpForLevel(5)   <= xp ? 5   : xpForLevel(4)   <= xp ? 4   :
+          xpForLevel(3)   <= xp ? 3   : xpForLevel(2)   <= xp ? 2   : 1;
+      }
+
+      // Teto de XP ganhável numa única escrita (a maior ação isolada
+      // hoje é a recompensa de missão diária de comentários: 40 XP;
+      // deixamos folga para concorrência entre ações no mesmo request).
+      function xpDelta() {
+        return request.resource.data.totalXp - resource.data.totalXp;
+      }
+
+      allow create: if isOwner(userId) &&
+        request.resource.data.totalXp == 0 &&
+        request.resource.data.level == 1 &&
+        !request.resource.data.keys().hasAny([
+          'adminOverrideActive', 'adminOverrideLevel',
+          'adminOverrideTitleActive', 'adminOverrideTitleLevel'
+        ]);
+
+      allow update: if isOwner(userId) &&
+        // overrides de admin são intocáveis pelo dono
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'adminOverrideActive', 'adminOverrideLevel',
+          'adminOverrideTitleActive', 'adminOverrideTitleLevel'
+        ]) &&
+        // XP só sobe, e só até um teto plausível por escrita
+        request.resource.data.totalXp >= resource.data.totalXp &&
+        xpDelta() <= 100 &&
+        // level tem que bater com o XP salvo — exceto quando há
+        // override de admin ativo, caso em que o app propositalmente
+        // não sincroniza level e ele fica congelado no valor do admin
+        (resource.data.adminOverrideActive == true ||
+          request.resource.data.level == levelFromXp(request.resource.data.totalXp)) &&
+        // achievements só pode crescer (arrayUnion), nunca ser
+        // reescrito do zero com itens que o usuário não desbloqueou
+        request.resource.data.achievements.hasAll(resource.data.achievements);
     }
 
     // ── Perfis ────────────────────────────────────────────────────
