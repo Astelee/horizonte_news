@@ -108,29 +108,28 @@ class DashPost {
 class AdminDashboardService {
   final _db = FirebaseFirestore.instance;
 
-  /// Stream combinado: sempre que usuários OU visualizações mudam,
-  /// recalcula o snapshot inteiro do dashboard.
-  Stream<DashboardSnapshot> dashboardStream() async* {
-    yield DashboardSnapshot.empty();
-
-    await for (final usersSnap in _db
+  /// Carrega o snapshot do dashboard sob demanda (uma leitura .get() em
+  /// cada coleção, sem manter um stream em tempo real aberto na coleção
+  /// inteira de users_xp). Chame novamente para atualizar (ex.: pull-to-
+  /// refresh ou um timer periódico).
+  Future<DashboardSnapshot> loadDashboard() async {
+    final usersSnap = await _db
         .collection('users_xp')
         .orderBy('totalXp', descending: true)
-        .snapshots()) {
-      final viewsSnap = await _db
-          .collection('post_views')
-          .orderBy('totalViews', descending: true)
-          .limit(10)
-          .get();
-      final suspSnap = await _db.collection('suspensions').get();
-      final sharesSnap = await _db
-          .collection('post_shares')
-          .orderBy('totalShares', descending: true)
-          .limit(10)
-          .get();
+        .get();
+    final viewsSnap = await _db
+        .collection('post_views')
+        .orderBy('totalViews', descending: true)
+        .limit(10)
+        .get();
+    final suspSnap = await _db.collection('suspensions').get();
+    final sharesSnap = await _db
+        .collection('post_shares')
+        .orderBy('totalShares', descending: true)
+        .limit(10)
+        .get();
 
-      yield _build(usersSnap.docs, viewsSnap.docs, suspSnap.docs, sharesSnap.docs);
-    }
+    return _build(usersSnap.docs, viewsSnap.docs, suspSnap.docs, sharesSnap.docs);
   }
 
   Stream<List<Map<String, dynamic>>> recentLogsStream({int limit = 12}) {
