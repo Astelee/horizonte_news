@@ -13,7 +13,6 @@ import '../providers/user_xp_provider.dart';
 import '../config/app_colors.dart';
 import '../utils/blogger_cleaner.dart';
 import '../widgets/comments_section.dart';
-// ✅ CORRIGIDO: AdminService → AdminViewsService
 import '../features/admin/services/admin_views_service.dart';
 
 // ─────────────────────────────────────────────────────────────────
@@ -90,8 +89,11 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         _articleReadRegistered = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
+          final post =
+              ModalRoute.of(context)?.settings.arguments as PostModel?;
+          if (post == null) return;
           Provider.of<UserXpProvider>(context, listen: false)
-              .onArticleRead();
+              .onArticleRead(post.id);
         });
       }
     });
@@ -117,7 +119,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         ModalRoute.of(context)?.settings.arguments as PostModel?;
     if (post == null) return;
 
-    // ✅ CORRIGIDO: AdminService → AdminViewsService
     await AdminViewsService().recordUniqueView(
       postId: post.id,
       postTitle: post.title,
