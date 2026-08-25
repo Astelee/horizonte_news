@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../../config/app_colors.dart';
-import '../../../../services/xp_service.dart';
+import '../../../../config/badge_config.dart';
 import '../../../../widgets/app_avatar.dart';
 import '../../services/admin_dashboard_service.dart';
 import '../../services/admin_user_service.dart';
@@ -568,7 +568,7 @@ class _OverviewTabState extends State<OverviewTab> {
                           ),
                         ),
                         Text(
-                          'Nv ${u.level} · ${XpService.levelTitle(u.level)}',
+                          'Nv ${u.level} · ${BadgeConfig.levelTitle(u.level)}',
                           style: const TextStyle(
                             color: AppColors.textMuted,
                             fontSize: 10,
@@ -696,7 +696,7 @@ class _RankRow extends StatelessWidget {
                 ),
               ),
               Text(
-                'Nv ${user.level} · ${XpService.levelTitle(user.level)}',
+                'Nv ${user.level} · ${BadgeConfig.levelTitle(user.level)}',
                 style: const TextStyle(
                   color: AppColors.textMuted,
                   fontSize: 10,
