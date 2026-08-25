@@ -63,6 +63,15 @@ class _RankingScreenState extends State<RankingScreen>
 
   final String _myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
+  // ── Ranking: carregado sob demanda, não em tempo real ────────────
+  // Trocado de .snapshots() (stream permanente) para .get() manual —
+  // um stream no top 100 gerava leitura constante do Firestore pra
+  // cada usuário com a tela aberta. Agora carrega uma vez ao abrir e
+  // o usuário atualiza manualmente (puxar pra atualizar ou botão).
+  List<_RankUser> _users = [];
+  bool _isLoadingRanking = true;
+  String? _rankingError;
+
   // ── Áudio ambiente (mesmo padrão do perfil) ─────────────────────
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _audioStarted = false;
@@ -92,9 +101,36 @@ class _RankingScreenState extends State<RankingScreen>
       CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
     );
 
+    _loadRanking();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startAudio();
     });
+  }
+
+  Future<void> _loadRanking() async {
+    setState(() {
+      _isLoadingRanking = true;
+      _rankingError = null;
+    });
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users_xp')
+          .orderBy('totalXp', descending: true)
+          .limit(100)
+          .get();
+      if (!mounted) return;
+      setState(() {
+        _users = snap.docs.map((d) => _RankUser.fromDoc(d)).toList();
+        _isLoadingRanking = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _rankingError = 'Não foi possível carregar o ranking.';
+        _isLoadingRanking = false;
+      });
+    }
   }
 
   Future<void> _startAudio() async {
@@ -167,68 +203,69 @@ class _RankingScreenState extends State<RankingScreen>
               children: [
                 _buildHeader(context),
                 Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('users_xp')
-                        .orderBy('totalXp', descending: true)
-                        .limit(100)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) return _buildLoading();
+                  child: RefreshIndicator(
+                    onRefresh: _loadRanking,
+                    color: AppColors.primaryOrange,
+                    backgroundColor: const Color(0xFF0C0C0C),
+                    child: Builder(
+                      builder: (context) {
+                        if (_isLoadingRanking) return _buildLoading();
+                        if (_rankingError != null) {
+                          return _buildRankingError();
+                        }
+                        if (_users.isEmpty) return _buildEmpty();
 
-                      final docs = snapshot.data!.docs;
-                      if (docs.isEmpty) return _buildEmpty();
+                        final users = _users;
+                        final myIndex =
+                            users.indexWhere((u) => u.uid == _myUid);
 
-                      final users =
-                          docs.map((d) => _RankUser.fromDoc(d)).toList();
-                      final myIndex =
-                          users.indexWhere((u) => u.uid == _myUid);
+                        final top3 = users.take(3).toList();
+                        final rest = users.length > 3
+                            ? users.sublist(3)
+                            : <_RankUser>[];
 
-                      final top3 = users.take(3).toList();
-                      final rest = users.length > 3
-                          ? users.sublist(3)
-                          : <_RankUser>[];
-
-                      return Stack(
-                        children: [
-                          CustomScrollView(
-                            physics: const BouncingScrollPhysics(),
-                            slivers: [
-                              SliverToBoxAdapter(
-                                  child: _buildPodium(top3)),
-                              SliverToBoxAdapter(
-                                  child: _buildListHeader(users.length)),
-                              SliverPadding(
-                                padding: EdgeInsets.fromLTRB(
-                                    16, 0, 16, myIndex >= 3 ? 96 : 24),
-                                sliver: SliverList(
-                                  delegate: SliverChildBuilderDelegate(
-                                    (context, index) => _RankTile(
-                                      rank: index + 4,
-                                      user: rest[index],
-                                      isMe: rest[index].uid == _myUid,
-                                      delay: (index * 40).clamp(0, 500),
+                        return Stack(
+                          children: [
+                            CustomScrollView(
+                              physics: const BouncingScrollPhysics(
+                                  parent: AlwaysScrollableScrollPhysics()),
+                              slivers: [
+                                SliverToBoxAdapter(
+                                    child: _buildPodium(top3)),
+                                SliverToBoxAdapter(
+                                    child: _buildListHeader(users.length)),
+                                SliverPadding(
+                                  padding: EdgeInsets.fromLTRB(
+                                      16, 0, 16, myIndex >= 3 ? 96 : 24),
+                                  sliver: SliverList(
+                                    delegate: SliverChildBuilderDelegate(
+                                      (context, index) => _RankTile(
+                                        rank: index + 4,
+                                        user: rest[index],
+                                        isMe: rest[index].uid == _myUid,
+                                        delay: (index * 40).clamp(0, 500),
+                                      ),
+                                      childCount: rest.length,
                                     ),
-                                    childCount: rest.length,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          if (myIndex >= 3)
-                            Positioned(
-                              left: 16,
-                              right: 16,
-                              bottom: 12,
-                              child: _MyPositionBar(
-                                user: users[myIndex],
-                                rank: myIndex + 1,
-                                glowCtrl: _glowCtrl,
-                              ),
+                              ],
                             ),
-                        ],
-                      );
-                    },
+                            if (myIndex >= 3)
+                              Positioned(
+                                left: 16,
+                                right: 16,
+                                bottom: 12,
+                                child: _MyPositionBar(
+                                  user: users[myIndex],
+                                  rank: myIndex + 1,
+                                  glowCtrl: _glowCtrl,
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -280,6 +317,22 @@ class _RankingScreenState extends State<RankingScreen>
               ),
             ),
           ),
+          const Spacer(),
+          IconButton(
+            icon: _isLoadingRanking
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      color: AppColors.primaryOrange,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Icon(Icons.refresh_rounded,
+                    color: AppColors.primaryOrange),
+            onPressed: _isLoadingRanking ? null : _loadRanking,
+            tooltip: 'Atualizar ranking',
+          ),
         ],
       ),
     );
@@ -325,28 +378,82 @@ class _RankingScreenState extends State<RankingScreen>
   }
 
   Widget _buildLoading() {
-    return const Center(
-      child: CircularProgressIndicator(
-        color: AppColors.primaryOrange,
-        strokeWidth: 2,
-      ),
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: const [
+        SizedBox(
+          height: 300,
+          child: Center(
+            child: CircularProgressIndicator(
+              color: AppColors.primaryOrange,
+              strokeWidth: 2,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRankingError() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(
+          height: 300,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(FontAwesomeIcons.triangleExclamation,
+                    color: AppColors.primaryOrange.withOpacity(0.5),
+                    size: 36),
+                const SizedBox(height: 12),
+                Text(
+                  _rankingError ?? 'Erro ao carregar o ranking',
+                  style: const TextStyle(
+                      color: AppColors.textMuted, fontSize: 14),
+                ),
+                const SizedBox(height: 14),
+                TextButton.icon(
+                  onPressed: _loadRanking,
+                  icon: const Icon(Icons.refresh_rounded,
+                      color: AppColors.primaryOrange, size: 18),
+                  label: const Text(
+                    'Tentar novamente',
+                    style: TextStyle(color: AppColors.primaryOrange),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildEmpty() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(FontAwesomeIcons.trophy,
-              color: AppColors.primaryOrange.withOpacity(0.3), size: 40),
-          const SizedBox(height: 12),
-          const Text(
-            'Nenhum usuário no ranking ainda',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(
+          height: 300,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(FontAwesomeIcons.trophy,
+                    color: AppColors.primaryOrange.withOpacity(0.3),
+                    size: 40),
+                const SizedBox(height: 12),
+                const Text(
+                  'Nenhum usuário no ranking ainda',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
