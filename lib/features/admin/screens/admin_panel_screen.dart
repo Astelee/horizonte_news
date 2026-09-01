@@ -89,7 +89,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ),
                   BannedTab(userService: _userService),
                   UsersTab(userService: _userService),
-                  ViewsTab(viewsService: _viewsService),
+                  ViewsTab(
+                    viewsService: _viewsService,
+                    commentService: _commentService,
+                  ),
                   const PoderesTab(),
                 ],
               ),
@@ -174,37 +177,42 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               child: Container(
                 width: 140,
                 height: 140,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: AppColors.glowOrange,
+                  gradient: RadialGradient(
+                    colors: [
+                      AppColors.primaryOrange.withOpacity(0.25),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
             ),
           ],
         ),
       ),
-      bottom: TabBar(
-        controller: _tabController,
-        indicatorColor: AppColors.primaryOrange,
-        indicatorWeight: 2,
-        labelColor: AppColors.primaryOrange,
-        unselectedLabelColor: AppColors.textSecondary,
-        dividerColor: Colors.transparent,
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        labelStyle: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.6,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(48),
+        child: Container(
+          color: Colors.black,
+          child: TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            indicatorColor: AppColors.primaryOrange,
+            labelColor: AppColors.primaryOrange,
+            unselectedLabelColor: AppColors.textSecondary,
+            labelStyle: const TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w700),
+            tabs: const [
+              Tab(text: 'GERAL', icon: Icon(Icons.dashboard_rounded, size: 18)),
+              Tab(text: 'COMENTÁRIOS', icon: Icon(Icons.chat_bubble_rounded, size: 18)),
+              Tab(text: 'BANIDOS', icon: Icon(Icons.block_rounded, size: 18)),
+              Tab(text: 'USUÁRIOS', icon: Icon(Icons.people_rounded, size: 18)),
+              Tab(text: 'VISUALIZAÇÕES', icon: Icon(Icons.bar_chart_rounded, size: 18)),
+              Tab(text: 'NÍVEIS', icon: Icon(Icons.auto_awesome_rounded, size: 18)),
+            ],
+          ),
         ),
-        tabs: const [
-          Tab(icon: Icon(Icons.dashboard_rounded, size: 18), text: 'VISÃO GERAL'),
-          Tab(icon: Icon(Icons.chat_bubble_rounded, size: 18), text: 'COMENTÁRIOS'),
-          Tab(icon: Icon(Icons.block_rounded, size: 18), text: 'BANIDOS'),
-          Tab(icon: Icon(Icons.people_rounded, size: 18), text: 'USUÁRIOS'),
-          Tab(icon: Icon(Icons.bar_chart_rounded, size: 18), text: 'VISUALIZAÇÕES'),
-          Tab(icon: Icon(Icons.auto_awesome_rounded, size: 18), text: 'NÍVEIS'),
-        ],
       ),
     );
   }
