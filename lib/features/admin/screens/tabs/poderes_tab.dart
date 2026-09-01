@@ -1,136 +1,42 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/badge_config.dart';
-import '../../../../services/xp_service.dart';
 import '../../../../widgets/avatar_frame.dart';
-import '../../services/admin_user_service.dart';
 
+/// Tela somente-visualização: mostra como cada nível/moldura fica,
+/// sem aplicar nada em usuário nenhum. Útil como referência rápida
+/// para decisões de design (cores, raridades, molduras) sem risco
+/// de mexer em dados reais.
+///
+/// Antes esta aba aplicava overrides de nível diretamente no perfil
+/// do admin logado (via AdminUserService.applyLevelOverride). Essa
+/// escrita foi removida de propósito — a aba é só uma vitrine.
 class PoderesTab extends StatefulWidget {
-  final AdminUserService userService;
-  const PoderesTab({required this.userService, Key? key})
-      : super(key: key);
+  const PoderesTab({Key? key}) : super(key: key);
 
   @override
   State<PoderesTab> createState() => _PoderesTabState();
 }
 
 class _PoderesTabState extends State<PoderesTab> {
-  final _auth = FirebaseAuth.instance;
-
   int _previewLevel = 1;
-  int _currentRealLevel = 1;
-  int _currentOverrideLevel = 1;
-  bool _isOverrideActive = false;
-  bool _loading = true;
-  bool _saving = false;
 
-  String get _myUid => _auth.currentUser?.uid ?? '';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCurrentData();
-  }
-
-  Future<void> _loadCurrentData() async {
-    setState(() => _loading = true);
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users_xp')
-          .doc(_myUid)
-          .get();
-      if (doc.exists) {
-        final d = doc.data()!;
-        final xp = (d['totalXp'] as num?)?.toInt() ?? 0;
-        final realLevel = XpService.levelFromXp(xp);
-        final overrideLevel =
-            (d['adminOverrideLevel'] as num?)?.toInt();
-        final hasOverride = d['adminOverrideActive'] == true;
-        setState(() {
-          _currentRealLevel = realLevel;
-          _currentOverrideLevel = overrideLevel ?? realLevel;
-          _isOverrideActive = hasOverride;
-          _previewLevel =
-              hasOverride ? (overrideLevel ?? realLevel) : realLevel;
-        });
-      }
-    } catch (_) {}
-    setState(() => _loading = false);
-  }
-
-  Future<void> _aplicarNivel() async {
-    setState(() => _saving = true);
-    try {
-      await widget.userService.applyLevelOverride(
-          _myUid, _previewLevel);
-      setState(() {
-        _currentOverrideLevel = _previewLevel;
-        _isOverrideActive = true;
-      });
-      _snack('✅ Nível $_previewLevel aplicado com sucesso!',
-          const Color(0xFF66BB6A));
-    } catch (e) {
-      _snack('Erro ao aplicar nível: $e', AppColors.emergencyRed);
+  String _getInitials(String? name) {
+    if (name == null || name.isEmpty) return '?';
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    setState(() => _saving = false);
-  }
-
-  Future<void> _resetarNivelReal() async {
-    setState(() => _saving = true);
-    try {
-      await widget.userService.resetLevelOverride(
-          _myUid, _currentRealLevel);
-      setState(() {
-        _previewLevel = _currentRealLevel;
-        _currentOverrideLevel = _currentRealLevel;
-        _isOverrideActive = false;
-      });
-      _snack('🔄 Nível resetado para o real ($_currentRealLevel)',
-          AppColors.primaryOrange);
-    } catch (e) {
-      _snack('Erro ao resetar: $e', AppColors.emergencyRed);
-    }
-    setState(() => _saving = false);
-  }
-
-  void _snack(String msg, Color color) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w600)),
-        backgroundColor: color,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    return name[0].toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return Container(
-        color: AppColors.backgroundDark,
-        child: const Center(
-          child: CircularProgressIndicator(
-              color: AppColors.primaryOrange),
-        ),
-      );
-    }
-
     final color = BadgeConfig.levelColor(_previewLevel);
     final gradient = BadgeConfig.levelGradient(_previewLevel);
     final title = BadgeConfig.levelTitle(_previewLevel);
     final rarity = BadgeConfig.levelRarity(_previewLevel);
-    final user = _auth.currentUser;
-    final initials = _getInitials(
-        user?.displayName ?? user?.email);
+    final initials = _getInitials('Preview');
 
     return Container(
       color: AppColors.backgroundDark,
@@ -139,44 +45,31 @@ class _PoderesTabState extends State<PoderesTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Aviso de status ──────────────────────────────────
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
+            // ── Aviso: tela só de visualização ────────────────────
+            Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
-                color: _isOverrideActive
-                    ? const Color(0xFFFFD700).withOpacity(0.08)
-                    : AppColors.primaryOrange.withOpacity(0.06),
+                color: AppColors.primaryOrange.withOpacity(0.06),
                 border: Border.all(
-                  color: _isOverrideActive
-                      ? const Color(0xFFFFD700).withOpacity(0.5)
-                      : AppColors.primaryOrange.withOpacity(0.3),
+                  color: AppColors.primaryOrange.withOpacity(0.3),
                 ),
               ),
               child: Row(
                 children: [
-                  Icon(
-                    _isOverrideActive
-                        ? Icons.auto_awesome_rounded
-                        : Icons.info_outline_rounded,
-                    color: _isOverrideActive
-                        ? const Color(0xFFFFD700)
-                        : AppColors.primaryOrange,
+                  const Icon(
+                    Icons.visibility_rounded,
+                    color: AppColors.primaryOrange,
                     size: 18,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      _isOverrideActive
-                          ? 'Override ativo: Nível $_currentOverrideLevel aplicado. Nível real: $_currentRealLevel'
-                          : 'Nenhum override ativo. Nível atual: $_currentRealLevel',
+                      'Apenas visualização — nada aqui é aplicado a usuários.',
                       style: TextStyle(
-                        color: _isOverrideActive
-                            ? const Color(0xFFFFD700)
-                            : AppColors.primaryOrange,
+                        color: AppColors.primaryOrange,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -272,9 +165,9 @@ class _PoderesTabState extends State<PoderesTab> {
 
             const SizedBox(height: 28),
 
-            // ── Seletor de nível ─────────────────────────────────
+            // ── Seletor de nível (só muda o preview acima) ────────
             _SectionLabel(
-                label: 'SELECIONAR NÍVEL',
+                label: 'SELECIONAR NÍVEL PARA VISUALIZAR',
                 icon: Icons.tune_rounded),
             const SizedBox(height: 12),
 
@@ -393,121 +286,11 @@ class _PoderesTabState extends State<PoderesTab> {
                   setState(() => _previewLevel = lvl),
             ),
 
-            const SizedBox(height: 28),
-
-            // ── Botões de ação ───────────────────────────────────
-            _SectionLabel(
-                label: 'APLICAR', icon: Icons.bolt_rounded),
-            const SizedBox(height: 12),
-
-            GestureDetector(
-              onTap: _saving ? null : _aplicarNivel,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: double.infinity,
-                height: 52,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: _saving
-                      ? null
-                      : LinearGradient(colors: gradient),
-                  color: _saving
-                      ? const Color(0xFF1A1A1A)
-                      : null,
-                  boxShadow: _saving
-                      ? null
-                      : [
-                          BoxShadow(
-                            color: color.withOpacity(0.45),
-                            blurRadius: 18,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                ),
-                child: Center(
-                  child: _saving
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                                Icons.auto_awesome_rounded,
-                                color: Colors.white,
-                                size: 18),
-                            const SizedBox(width: 8),
-                            Text(
-                              'APLICAR NÍVEL $_previewLevel',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            if (_isOverrideActive)
-              GestureDetector(
-                onTap: _saving ? null : _resetarNivelReal,
-                child: Container(
-                  width: double.infinity,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    color: const Color(0xFF0A0A0A),
-                    border: Border.all(
-                        color: AppColors.primaryOrange
-                            .withOpacity(0.35)),
-                  ),
-                  child: Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.refresh_rounded,
-                            color: AppColors.primaryOrange,
-                            size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          'RESETAR PARA NÍVEL REAL ($_currentRealLevel)',
-                          style: const TextStyle(
-                            color: AppColors.primaryOrange,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
             const SizedBox(height: 40),
           ],
         ),
       ),
     );
-  }
-
-  String _getInitials(String? name) {
-    if (name == null || name.isEmpty) return '?';
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    return name[0].toUpperCase();
   }
 }
 
