@@ -80,4 +80,51 @@ class AdminViewsService {
   Stream<DocumentSnapshot> postViewStatsStream(String postId) {
     return _db.collection('post_views').doc(postId).snapshots();
   }
+
+  // ── Reset geral de visualizações ──────────────────────────────────
+  // Apaga TODOS os posts em post_views, incluindo a subcoleção
+  // 'viewers' de cada um. É necessário apagar 'viewers' antes do
+  // documento pai: se sobrar algum viewer órfão, aquele usuário nunca
+  // mais vai incrementar totalViews de novo (recordUniqueView só
+  // incrementa na primeira vez que o doc do viewer é criado).
+  Future<void> resetAllViews() async {
+    final postsSnap = await _db.collection('post_views').get();
+
+    for (final postDoc in postsSnap.docs) {
+      // Apaga a subcoleção 'viewers' em lotes de 400 (limite de 500
+      // operações por batch do Firestore, com margem de segurança).
+      QuerySnapshot viewersSnap;
+      do {
+        viewersSnap = await postDoc.reference
+            .collection('viewers')
+            .limit(400)
+            .get();
+        if (viewersSnap.docs.isEmpty) break;
+        final batch = _db.batch();
+        for (final v in viewersSnap.docs) {
+          batch.delete(v.reference);
+        }
+        await batch.commit();
+      } while (viewersSnap.docs.length == 400);
+
+      await postDoc.reference.delete();
+    }
+
+    await _log('reset_all_views', postsSnap.docs.length);
+  }
+
+  Future<void> _log(String action, int affectedCount) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      await _db.collection('admin_logs').add({
+        'adminUid': user.uid,
+        'adminName': user.displayName ?? user.email ?? 'Admin',
+        'action': action,
+        'targetType': 'post_views',
+        'affectedCount': affectedCount,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {}
+  }
 }
