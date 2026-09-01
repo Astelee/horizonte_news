@@ -8,12 +8,16 @@ class AdminUserService {
   // ── Usuários ────────────────────────────────────────────────────
 
   Stream<QuerySnapshot> usersStream() {
-    // Ordena por data de entrada (createdAt), do mais recente pro mais
-    // antigo — antes estava ordenado por totalXp, então a lista parecia
-    // um ranking em vez de mostrar quem entrou por último.
+    // Ordena por última vez que o usuário abriu o app (lastSeenAt),
+    // do mais recente pro mais antigo. Usamos lastSeenAt em vez de
+    // createdAt (data de cadastro) porque createdAt é fixo — quem se
+    // cadastrou há mais tempo nunca subiria na lista, mesmo estando
+    // online agora. lastSeenAt é atualizado toda vez que o app é
+    // aberto ou retomado (ver UserXpProvider._updateLastSeen), então
+    // reflete quem usou o app mais recentemente.
     return _db
         .collection('users_xp')
-        .orderBy('createdAt', descending: true)
+        .orderBy('lastSeenAt', descending: true)
         .snapshots();
   }
 
