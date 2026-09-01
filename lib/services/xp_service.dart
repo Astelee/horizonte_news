@@ -258,6 +258,66 @@ class XpService {
     }
   }
 
+  // ── Converte um snapshot puro do Firestore em UserXpData ─────────
+  // Mesma lógica de parsing do loadUserXpData, extraída para ser
+  // reaproveitada pelo stream em tempo real (watchUserXpData).
+  // Não dispara verificação de missões diárias nem sincroniza o
+  // campo `level` — isso continua acontecendo só na leitura via
+  // loadUserXpData (chamada no initialize() e nas ações de XP).
+  UserXpData _parseSnapshotData(Map<String, dynamic> data) {
+    final totalXp = (data['totalXp'] as num?)?.toInt() ?? 0;
+    final totalSeconds = (data['totalSecondsOnline'] as num?)?.toInt() ?? 0;
+    final achievements = List<String>.from(data['achievements'] ?? []);
+    final stats = Map<String, dynamic>.from(data['stats'] ?? {});
+    final dailyMissions =
+        Map<String, dynamic>.from(data['dailyMissions'] ?? {});
+    final lastActivity = (data['lastActivity'] as Timestamp?)?.toDate();
+    final avatarId = (data['avatarId'] as String?) ?? 'animais_01';
+
+    final overrideActive = data['adminOverrideActive'] == true;
+    final overrideLevel =
+        overrideActive ? (data['adminOverrideLevel'] as num?)?.toInt() : null;
+
+    final titleOverrideActive = data['adminOverrideTitleActive'] == true;
+    final customTitle = titleOverrideActive
+        ? (data['adminOverrideTitleLevel'] as String?)
+        : null;
+
+    return buildXpData(
+      totalXp: totalXp,
+      totalSecondsOnline: totalSeconds,
+      lastActivity: lastActivity,
+      achievements: achievements,
+      stats: stats,
+      dailyMissions: dailyMissions,
+      overrideLevel: overrideLevel,
+      avatarId: avatarId,
+      customTitle: customTitle,
+    );
+  }
+
+  // ── Stream em tempo real dos dados de XP/perfil do usuário ───────
+  // Escuta o documento em users_xp com .snapshots(): qualquer mudança
+  // (inclusive as feitas pelo admin no painel, como adminOverrideLevel/
+  // adminOverrideActive) chega automaticamente, sem precisar reabrir
+  // a tela ou o app. Usado pelo UserXpProvider para manter o perfil
+  // sempre atualizado.
+  Stream<UserXpData> watchUserXpData() {
+    final doc = _userDoc;
+    if (doc == null) return Stream.value(UserXpData.empty());
+
+    return doc.snapshots().map((snap) {
+      if (!snap.exists || snap.data() == null) {
+        return UserXpData.empty();
+      }
+      try {
+        return _parseSnapshotData(snap.data()!);
+      } catch (e) {
+        return UserXpData.empty();
+      }
+    });
+  }
+
   Future<void> _checkAndResetDailyMissions(
     DocumentReference<Map<String, dynamic>> doc,
     Map<String, dynamic> data,
