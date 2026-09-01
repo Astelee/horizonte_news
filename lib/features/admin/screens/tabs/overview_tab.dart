@@ -202,7 +202,7 @@ class _OverviewTabState extends State<OverviewTab> {
               child: StatCard(
                 icon: Icons.visibility_rounded,
                 color: const Color(0xFFEF5350),
-                label: 'Views (top matérias)',
+                label: 'Visualizações (top matérias)',
                 value: data.totalViews,
               ),
             ),
