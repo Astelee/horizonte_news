@@ -14,6 +14,12 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   Timer? _activeTimer;
   int _secondsAccumulated = 0;
 
+  // ── Assinatura do stream em tempo real (users_xp/{uid}) ──────────
+  // Qualquer mudança no Firestore — inclusive as feitas pelo admin no
+  // painel (moldura/nível/título) — chega aqui automaticamente e
+  // atualiza a tela de perfil sem precisar reabrir nada.
+  StreamSubscription<UserXpData>? _xpSubscription;
+
   Function(int newLevel)? onLevelUp;
 
   static const int _saveIntervalSeconds = 60;
@@ -26,19 +32,46 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     _isLoading = true;
     notifyListeners();
 
-    _data = await _service.loadUserXpData();
-    _isLoading = false;
-    notifyListeners();
-
+    _startWatching();
     _updateLastSeen();
     _startTimer();
+  }
+
+  // ── Liga o listener em tempo real e mantém _data sempre em dia ───
+  void _startWatching() {
+    _xpSubscription?.cancel();
+    bool firstEvent = true;
+
+    _xpSubscription = _service.watchUserXpData().listen((updated) {
+      // Compara sempre com o nível anterior IMEDIATO (não o nível de
+      // quando a assinatura começou), já que o stream fica aberto por
+      // toda a sessão e pode receber vários eventos.
+      final oldLevel = _data.level;
+      _data = updated;
+      _isLoading = false;
+
+      if (!firstEvent && updated.level > oldLevel) {
+        onLevelUp?.call(updated.level);
+      }
+      firstEvent = false;
+
+      notifyListeners();
+    }, onError: (_) {
+      _isLoading = false;
+      notifyListeners();
+    });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
-        _reloadOnResume();
+        // O stream continua ativo em segundo plano, mas garante que a
+        // assinatura esteja saudável ao voltar do background.
+        if (_xpSubscription == null) {
+          _startWatching();
+        }
+        _updateLastSeen();
         _startTimer();
         break;
       case AppLifecycleState.paused:
@@ -48,12 +81,6 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
         _pauseAndSave();
         break;
     }
-  }
-
-  Future<void> _reloadOnResume() async {
-    _data = await _service.loadUserXpData();
-    notifyListeners();
-    _updateLastSeen();
   }
 
   // ── Grava lastSeenAt no Firestore ──────────────────────────────
@@ -148,6 +175,7 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   @override
   void dispose() {
     _pauseAndSave();
+    _xpSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
