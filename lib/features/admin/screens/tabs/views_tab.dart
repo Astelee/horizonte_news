@@ -1,13 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../../config/app_colors.dart';
+import '../../services/admin_comment_service.dart';
 import '../../services/admin_views_service.dart';
 import '../../widgets/admin_shared_widgets.dart';
 
 class ViewsTab extends StatefulWidget {
   final AdminViewsService viewsService;
-  const ViewsTab({required this.viewsService, Key? key})
-      : super(key: key);
+  final AdminCommentService commentService;
+  const ViewsTab({
+    required this.viewsService,
+    required this.commentService,
+    Key? key,
+  }) : super(key: key);
 
   @override
   State<ViewsTab> createState() => _ViewsTabState();
@@ -16,6 +21,7 @@ class ViewsTab extends StatefulWidget {
 class _ViewsTabState extends State<ViewsTab> {
   String? _selectedPostId;
   String? _selectedPostTitle;
+  bool _resetting = false;
 
   @override
   Widget build(BuildContext context) {
@@ -24,10 +30,113 @@ class _ViewsTabState extends State<ViewsTab> {
         : _buildPostsList();
   }
 
+  Future<void> _confirmAndResetAll() async {
+    final firstConfirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => const AdminConfirmDialog(
+        title: 'Zerar tudo?',
+        message:
+            'Isso vai apagar TODAS as visualizações e TODOS os '
+            'comentários de TODOS os usuários, incluindo os seus. '
+            'Os contadores de comentários nos perfis também serão '
+            'zerados. Essa ação não pode ser desfeita.',
+        confirmLabel: 'Continuar',
+        confirmColor: Colors.redAccent,
+      ),
+    );
+    if (firstConfirm != true) return;
+
+    final secondConfirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => const AdminConfirmDialog(
+        title: 'Tem certeza absoluta?',
+        message:
+            'Última confirmação: todas as visualizações e comentários '
+            'serão apagados permanentemente. Não há como voltar atrás.',
+        confirmLabel: 'Apagar tudo',
+        confirmColor: Colors.redAccent,
+      ),
+    );
+    if (secondConfirm != true) return;
+
+    setState(() => _resetting = true);
+    try {
+      await Future.wait([
+        widget.viewsService.resetAllViews(),
+        widget.commentService.resetAllComments(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _selectedPostId = null;
+        _selectedPostTitle = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Visualizações e comentários zerados.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao zerar: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _resetting = false);
+    }
+  }
+
+  Widget _buildResetButton() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: _resetting ? null : _confirmAndResetAll,
+          icon: _resetting
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.redAccent,
+                  ),
+                )
+              : const Icon(Icons.delete_forever_rounded,
+                  size: 18, color: Colors.redAccent),
+          label: Text(
+            _resetting
+                ? 'Zerando...'
+                : 'Zerar visualizações e comentários',
+            style: const TextStyle(
+              color: Colors.redAccent,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Colors.redAccent),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPostsList() {
     return Container(
       color: AppColors.backgroundDark,
-      child: StreamBuilder<QuerySnapshot>(
+      child: Column(
+        children: [
+          _buildResetButton(),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
         stream: widget.viewsService.mostViewedPostsStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -188,6 +297,9 @@ class _ViewsTabState extends State<ViewsTab> {
             ],
           );
         },
+            ),
+          ),
+        ],
       ),
     );
   }
