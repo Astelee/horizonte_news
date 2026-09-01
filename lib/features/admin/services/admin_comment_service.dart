@@ -48,6 +48,58 @@ class AdminCommentService {
     await _log('delete_comment', commentId, postId: postId);
   }
 
+  // ── Reset geral de comentários ─────────────────────────────────────
+  // Apaga TODOS os comentários (todos os posts em 'comments') e zera o
+  // contador 'stats.commentsPosted' de todo mundo em 'users_xp',
+  // incluindo o admin. Isso evita que o painel continue mostrando um
+  // número de comentários que não existe mais.
+  Future<void> resetAllComments() async {
+    final postsSnap = await _db.collection('comments').get();
+    int totalDeleted = 0;
+
+    for (final postDoc in postsSnap.docs) {
+      QuerySnapshot commentsSnap;
+      do {
+        commentsSnap = await postDoc.reference
+            .collection('postComments')
+            .limit(400)
+            .get();
+        if (commentsSnap.docs.isEmpty) break;
+        final batch = _db.batch();
+        for (final c in commentsSnap.docs) {
+          batch.delete(c.reference);
+        }
+        await batch.commit();
+        totalDeleted += commentsSnap.docs.length;
+      } while (commentsSnap.docs.length == 400);
+
+      await postDoc.reference.delete();
+    }
+
+    // Zera o contador de comentários no perfil de cada usuário.
+    final usersSnap = await _db.collection('users_xp').get();
+    for (var i = 0; i < usersSnap.docs.length; i += 400) {
+      final chunk = usersSnap.docs.skip(i).take(400);
+      final batch = _db.batch();
+      for (final userDoc in chunk) {
+        batch.set(
+          userDoc.reference,
+          {
+            'stats': {'commentsPosted': 0},
+            'dailyMissions': {'commentsPosted': 0},
+          },
+          SetOptions(merge: true),
+        );
+      }
+      await batch.commit();
+    }
+
+    await _log('reset_all_comments', 'all', extra: {
+      'commentsDeleted': totalDeleted,
+      'usersReset': usersSnap.docs.length,
+    });
+  }
+
   Future<void> _log(
     String action,
     String targetId, {
