@@ -8,9 +8,12 @@ class AdminUserService {
   // ── Usuários ────────────────────────────────────────────────────
 
   Stream<QuerySnapshot> usersStream() {
+    // Ordena por data de entrada (createdAt), do mais recente pro mais
+    // antigo — antes estava ordenado por totalXp, então a lista parecia
+    // um ranking em vez de mostrar quem entrou por último.
     return _db
         .collection('users_xp')
-        .orderBy('totalXp', descending: true)
+        .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
