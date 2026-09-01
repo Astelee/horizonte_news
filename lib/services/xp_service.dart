@@ -112,6 +112,12 @@ class XpService {
   static const int _xpPerInterval = 10;
   static const int _intervalSeconds = 60;
 
+  // ── Metas das missões diárias (usadas aqui e na tela de perfil) ────
+  static const int missionArticlesTarget = 2;
+  static const int missionCommentsTarget = 1;
+  static const int missionSharesTarget = 1;
+  static const int missionMinutesTarget = 1;
+
   // ── Tabela de níveis ─────────────────────────────────────────────
   static int xpRequiredForLevel(int level) {
     if (level <= 1) return 0;
@@ -344,8 +350,6 @@ class XpService {
     if (doc == null) return UserXpData.empty();
 
     final update = <String, dynamic>{
-      'totalXp': FieldValue.increment(xpGained),
-      'lastActivity': FieldValue.serverTimestamp(),
       ...extraFields,
     };
 
@@ -353,19 +357,43 @@ class XpService {
       update['totalSecondsOnline'] = FieldValue.increment(extraSeconds);
     }
 
-    await doc.update(update);
+    await _applyXpGain(doc, xpGained, update);
 
-    // loadUserXpData já respeita o override internamente
-    final updated = await loadUserXpData();
+    return loadUserXpData();
+  }
 
-    // Só atualiza level no Firestore se não houver override
+  // ── Grava totalXp e level SEMPRE na mesma escrita ──────────────────
+  // As regras do Firestore exigem que `level` já bata com o `totalXp`
+  // resultante em toda escrita (senão a escrita é negada). Se `level`
+  // fosse atualizado numa chamada separada (como era antes), a PRIMEIRA
+  // escrita — a que soma o XP — passava a ser rejeitada assim que o
+  // total cruzasse a fronteira de um nível, e como o erro era engolido
+  // silenciosamente (catch vazio), o usuário simplesmente parava de
+  // ganhar XP dali em diante, sem nenhum aviso.
+  Future<void> _applyXpGain(
+    DocumentReference<Map<String, dynamic>> doc,
+    int xpGained,
+    Map<String, dynamic> extraUpdate,
+  ) async {
     final snap = await doc.get();
-    final overrideActive = snap.data()?['adminOverrideActive'] == true;
+    final data = snap.data() ?? {};
+    final overrideActive = data['adminOverrideActive'] == true;
+    final currentTotalXp = (data['totalXp'] as num?)?.toInt() ?? 0;
+    final newTotalXp = currentTotalXp + xpGained;
+
+    final update = <String, dynamic>{
+      'totalXp': FieldValue.increment(xpGained),
+      'lastActivity': FieldValue.serverTimestamp(),
+      ...extraUpdate,
+    };
+
+    // Só sincronizamos level junto quando não há override de admin
+    // ativo (com override, a regra dispensa essa checagem).
     if (!overrideActive) {
-      await doc.update({'level': updated.level}).catchError((_) {});
+      update['level'] = levelFromXp(newTotalXp);
     }
 
-    return updated;
+    await doc.update(update);
   }
 
   Future<UserXpData> addXpForTime(int secondsActive) async {
@@ -487,30 +515,30 @@ class XpService {
     final collected =
         List<String>.from(data.dailyMissions['rewardsCollected'] ?? []);
 
-    if (data.dailyArticles >= 5 && !collected.contains('articles')) {
-      await doc.update({
-        'totalXp': FieldValue.increment(25),
+    if (data.dailyArticles >= missionArticlesTarget &&
+        !collected.contains('articles')) {
+      await _applyXpGain(doc, 25, {
         'dailyMissions.rewardsCollected':
             FieldValue.arrayUnion(['articles']),
       });
     }
-    if (data.dailyComments >= 2 && !collected.contains('comments')) {
-      await doc.update({
-        'totalXp': FieldValue.increment(40),
+    if (data.dailyComments >= missionCommentsTarget &&
+        !collected.contains('comments')) {
+      await _applyXpGain(doc, 40, {
         'dailyMissions.rewardsCollected':
             FieldValue.arrayUnion(['comments']),
       });
     }
-    if (data.dailyShares >= 1 && !collected.contains('shares')) {
-      await doc.update({
-        'totalXp': FieldValue.increment(15),
+    if (data.dailyShares >= missionSharesTarget &&
+        !collected.contains('shares')) {
+      await _applyXpGain(doc, 15, {
         'dailyMissions.rewardsCollected':
             FieldValue.arrayUnion(['shares']),
       });
     }
-    if (data.dailyMinutes >= 10 && !collected.contains('time')) {
-      await doc.update({
-        'totalXp': FieldValue.increment(20),
+    if (data.dailyMinutes >= missionMinutesTarget &&
+        !collected.contains('time')) {
+      await _applyXpGain(doc, 20, {
         'dailyMissions.rewardsCollected':
             FieldValue.arrayUnion(['time']),
       });
