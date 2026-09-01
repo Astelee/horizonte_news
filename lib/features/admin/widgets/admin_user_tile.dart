@@ -6,17 +6,20 @@ import '../../../services/xp_service.dart';
 import '../../../widgets/app_avatar.dart';
 import '../services/admin_user_service.dart';
 import 'admin_shared_widgets.dart';
-import 'poderes_panel.dart';
 
 class AdminUserTile extends StatelessWidget {
   final String userId;
   final Map<String, dynamic> data;
-  final AdminUserService userService;
+  // Não é mais usado dentro deste widget (o botão "Poderes" que
+  // aplicava overrides foi removido daqui — ver poderes_tab.dart,
+  // que agora é só visualização). Mantido opcional para não quebrar
+  // quem ainda instancia AdminUserTile passando esse parâmetro.
+  final AdminUserService? userService;
 
   const AdminUserTile({
     required this.userId,
     required this.data,
-    required this.userService,
+    this.userService,
     Key? key,
   }) : super(key: key);
 
@@ -40,51 +43,6 @@ class AdminUserTile extends StatelessWidget {
     if (diff.inHours < 1) return const Color(0xFF66BB6A);
     if (diff.inHours < 24) return const Color(0xFFFFCA28);
     return AppColors.textMuted;
-  }
-
-  void _abrirPoderes(BuildContext context, String name) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF080808),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF222222),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  child: PoderesPanel(
-                    key: ValueKey(userId),
-                    uid: userId,
-                    userService: userService,
-                    displayName: name,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   @override
@@ -291,38 +249,6 @@ class AdminUserTile extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 10),
-                // ── Botão Poderes ─────────────────────────────────
-                GestureDetector(
-                  onTap: () => _abrirPoderes(context, name),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      color: AppColors.primaryOrange.withOpacity(0.08),
-                      border: Border.all(
-                          color: AppColors.primaryOrange.withOpacity(0.3)),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.auto_awesome_rounded,
-                            color: AppColors.primaryOrange, size: 14),
-                        SizedBox(width: 6),
-                        Text(
-                          'PODERES',
-                          style: TextStyle(
-                            color: AppColors.primaryOrange,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
               ],
             ),
