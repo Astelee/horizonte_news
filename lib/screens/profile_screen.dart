@@ -815,10 +815,13 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildDailyMissions(UserXpData data) {
-    final articles = data.dailyArticles.clamp(0, 5);
-    final comments = data.dailyComments.clamp(0, 2);
-    final shares = data.dailyShares.clamp(0, 1);
-    final minutes = data.dailyMinutes.clamp(0, 10);
+    final articles =
+        data.dailyArticles.clamp(0, XpService.missionArticlesTarget);
+    final comments =
+        data.dailyComments.clamp(0, XpService.missionCommentsTarget);
+    final shares = data.dailyShares.clamp(0, XpService.missionSharesTarget);
+    final minutes =
+        data.dailyMinutes.clamp(0, XpService.missionMinutesTarget);
 
     final now = DateTime.now();
     final midnight = DateTime(now.year, now.month, now.day + 1);
@@ -882,22 +885,22 @@ class _ProfileScreenState extends State<ProfileScreen>
             const SizedBox(height: 16),
             _MissionTile(
               icon: FontAwesomeIcons.newspaper,
-              label: 'Ler 5 notícias',
+              label: 'Ver ${XpService.missionArticlesTarget} notícias',
               xp: 25,
               progress: articles,
-              total: 5,
+              total: XpService.missionArticlesTarget,
               color: AppColors.primaryOrange,
-              completed: articles >= 5,
+              completed: articles >= XpService.missionArticlesTarget,
             ),
             const SizedBox(height: 10),
             _MissionTile(
               icon: FontAwesomeIcons.comment,
-              label: 'Fazer 2 comentários',
+              label: 'Fazer ${XpService.missionCommentsTarget} comentário',
               xp: 40,
               progress: comments,
-              total: 2,
+              total: XpService.missionCommentsTarget,
               color: const Color(0xFFBA68C8),
-              completed: comments >= 2,
+              completed: comments >= XpService.missionCommentsTarget,
             ),
             const SizedBox(height: 10),
             _MissionTile(
@@ -905,19 +908,19 @@ class _ProfileScreenState extends State<ProfileScreen>
               label: 'Compartilhar 1 notícia',
               xp: 15,
               progress: shares,
-              total: 1,
+              total: XpService.missionSharesTarget,
               color: const Color(0xFF26C6DA),
-              completed: shares >= 1,
+              completed: shares >= XpService.missionSharesTarget,
             ),
             const SizedBox(height: 10),
             _MissionTile(
               icon: FontAwesomeIcons.solidClock,
-              label: 'Ficar 10 min lendo',
+              label: 'Ficar ${XpService.missionMinutesTarget} min lendo',
               xp: 20,
               progress: minutes,
-              total: 10,
+              total: XpService.missionMinutesTarget,
               color: const Color(0xFF66BB6A),
-              completed: minutes >= 10,
+              completed: minutes >= XpService.missionMinutesTarget,
             ),
           ],
         ),
