@@ -486,26 +486,35 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
                         ),
                       ),
                       const SizedBox(height: 4),
-                      FractionallySizedBox(
-                        heightFactor: fraction.clamp(0.02, 1.0),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(6),
-                            gradient: LinearGradient(
-                              begin: Alignment.bottomCenter,
-                              end: Alignment.topCenter,
-                              colors: [
-                                d.color.withOpacity(0.55),
-                                d.color,
+                      // ── A barra precisa de um Expanded aqui em cima ──
+                      // FractionallySizedBox calcula a própria altura como
+                      // fração da altura do PAI. Sem um Expanded delimitando
+                      // esse espaço, o Column mede tudo pelo conteúdo
+                      // intrínseco e a barra fica com altura ~0 (só o
+                      // número e o label apareciam, sem barra visível).
+                      Expanded(
+                        child: FractionallySizedBox(
+                          alignment: Alignment.bottomCenter,
+                          heightFactor: fraction.clamp(0.02, 1.0),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(6),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [
+                                  d.color.withOpacity(0.55),
+                                  d.color,
+                                ],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: d.color.withOpacity(0.35),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, -2),
+                                ),
                               ],
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: d.color.withOpacity(0.35),
-                                blurRadius: 8,
-                                offset: const Offset(0, -2),
-                              ),
-                            ],
                           ),
                         ),
                       ),
