@@ -90,7 +90,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   BannedTab(userService: _userService),
                   UsersTab(userService: _userService),
                   ViewsTab(viewsService: _viewsService),
-                  PoderesTab(userService: _userService),
+                  const PoderesTab(),
                 ],
               ),
             ),
@@ -203,7 +203,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           Tab(icon: Icon(Icons.block_rounded, size: 18), text: 'BANIDOS'),
           Tab(icon: Icon(Icons.people_rounded, size: 18), text: 'USUÁRIOS'),
           Tab(icon: Icon(Icons.bar_chart_rounded, size: 18), text: 'VISUALIZAÇÕES'),
-          Tab(icon: Icon(Icons.auto_awesome_rounded, size: 18), text: 'PODERES'),
+          Tab(icon: Icon(Icons.auto_awesome_rounded, size: 18), text: 'NÍVEIS'),
         ],
       ),
     );
