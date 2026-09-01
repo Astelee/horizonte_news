@@ -38,6 +38,11 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   }
 
   // ── Liga o listener em tempo real e mantém _data sempre em dia ───
+  // ESTA é a única fonte de verdade para _data agora. Os métodos de
+  // ação (onArticleRead, onShare, addXpForComment) só disparam a
+  // gravação no Firestore; quem atualiza a tela é sempre esse
+  // listener, evitando corrida entre uma leitura manual e o snapshot
+  // do stream chegando com dado desatualizado.
   void _startWatching() {
     _xpSubscription?.cancel();
     bool firstEvent = true;
@@ -118,6 +123,10 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
+  // _flushToFirestore continua usando o retorno direto do serviço
+  // (não o stream) de propósito: addXpForTime roda no timer em
+  // background, então não há risco de corrida com uma leitura manual
+  // concorrente — é seguro e evita esperar o round-trip do stream.
   Future<void> _flushToFirestore() async {
     if (_secondsAccumulated <= 0) return;
 
@@ -134,29 +143,22 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
+  // ── Ações do usuário: apenas gravam. A UI atualiza via stream ────
+  // (_xpSubscription em _startWatching), que também cuida de
+  // detectar e disparar o level-up. Isso remove a corrida que
+  // fazia a missão de "post visto" só aparecer contabilizada depois
+  // de uma ação seguinte (como comentar).
   Future<void> onArticleRead(String postId) async {
-    final oldLevel = _data.level;
     await _service.recordArticleRead(postId);
-    _data = await _service.loadUserXpData();
-    notifyListeners();
-    if (_data.level > oldLevel) onLevelUp?.call(_data.level);
   }
 
   Future<void> onShare({required String postId, String? postTitle}) async {
-    final oldLevel = _data.level;
     await _service.recordShare(postId: postId, postTitle: postTitle);
-    _data = await _service.loadUserXpData();
-    notifyListeners();
-    if (_data.level > oldLevel) onLevelUp?.call(_data.level);
   }
 
   Future<void> addXpForComment() async {
     try {
-      final oldLevel = _data.level;
       await _service.recordComment();
-      _data = await _service.loadUserXpData();
-      notifyListeners();
-      if (_data.level > oldLevel) onLevelUp?.call(_data.level);
     } catch (e) {
       debugPrint('Erro ao adicionar XP por comentário: $e');
     }
