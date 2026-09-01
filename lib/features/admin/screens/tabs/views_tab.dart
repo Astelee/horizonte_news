@@ -77,9 +77,6 @@ class _ViewsTabState extends State<ViewsTab> {
                           'Sem título';
                       final total =
                           (data['totalViews'] as num?)?.toInt() ?? 0;
-                      final unique =
-                          (data['uniqueViewers'] as num?)?.toInt() ??
-                              0;
                       final lastViewed =
                           (data['lastViewedAt'] as Timestamp?)
                               ?.toDate();
@@ -156,16 +153,9 @@ class _ViewsTabState extends State<ViewsTab> {
                                           AdminViewStat(
                                             icon:
                                                 Icons.visibility_rounded,
-                                            label: '$total views',
+                                            label: '$total visualizações',
                                             color:
                                                 AppColors.primaryOrange,
-                                          ),
-                                          const SizedBox(width: 12),
-                                          AdminViewStat(
-                                            icon: Icons.person_rounded,
-                                            label: '$unique únicos',
-                                            color:
-                                                const Color(0xFF4FC3F7),
                                           ),
                                         ],
                                       ),
