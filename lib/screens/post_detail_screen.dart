@@ -295,18 +295,27 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   // SLIVER APP BAR
   // ─────────────────────────────────────────────────────────────
   Widget _buildSliverAppBar(PostModel post) {
+    final bool hasThumbnail = post.thumbnailUrl.trim().isNotEmpty;
+    final bool hasVideo =
+        post.videoUrl != null && post.videoUrl!.trim().isNotEmpty;
+    // Sem capa mas com vídeo: encolhe o espaço do topo em vez de mostrar
+    // o aviso de "Sem imagem" — o vídeo já aparece logo abaixo do título.
+    final double expandedHeight = (!hasThumbnail && hasVideo) ? 0 : 280;
+
     return SliverAppBar(
-      expandedHeight: 280,
+      expandedHeight: expandedHeight,
       pinned: true,
       stretch: true,
       backgroundColor: Colors.black,
       automaticallyImplyLeading: false,
       title: null,
-      flexibleSpace: FlexibleSpaceBar(
-        collapseMode: CollapseMode.parallax,
-        stretchModes: const [StretchMode.zoomBackground],
-        background: _buildHeroImage(post),
-      ),
+      flexibleSpace: expandedHeight == 0
+          ? null
+          : FlexibleSpaceBar(
+              collapseMode: CollapseMode.parallax,
+              stretchModes: const [StretchMode.zoomBackground],
+              background: _buildHeroImage(post),
+            ),
     );
   }
 
