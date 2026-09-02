@@ -170,6 +170,9 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
       }
       if (pushResult != null && !pushResult.success) {
         _showError(pushResult.message ?? 'Falha ao enviar notificação push.');
+        // Não fecha a tela: o ADM precisa ver o erro do push antes de sair.
+        // A notícia já foi salva/publicada normalmente; só o push falhou.
+        return;
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
