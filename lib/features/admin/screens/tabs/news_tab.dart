@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../models/post_model.dart';
@@ -381,6 +382,7 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
         child: FloatingActionButton.extended(
           onPressed: () => _openEditor(),
           backgroundColor: AppColors.primaryOrange,
+          foregroundColor: Colors.white,
           icon: const Icon(Icons.add_rounded),
           label: const Text('Nova notícia',
               style: TextStyle(fontWeight: FontWeight.w700)),
@@ -492,16 +494,6 @@ class _NewsCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            colors: [const Color(0xFF161616), const Color(0xFF0D0D0D)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          border: Border.all(
-            color: isPublished
-                ? AppColors.primaryOrange.withOpacity(0.28)
-                : const Color(0xFF232323),
-          ),
           boxShadow: isPublished
               ? [
                   BoxShadow(
@@ -512,120 +504,146 @@ class _NewsCard extends StatelessWidget {
                 ]
               : null,
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: post.thumbnailUrl.isNotEmpty
-                        ? Image.network(
-                            post.thumbnailUrl,
-                            width: 68,
-                            height: 68,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _placeholderThumb(),
-                          )
-                        : _placeholderThumb(),
-                  ),
-                  if (isPublished)
-                    Positioned(
-                      top: -3,
-                      right: -3,
-                      child: AnimatedBuilder(
-                        animation: glowAnim,
-                        builder: (_, __) => Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: statusColor,
-                            boxShadow: [
-                              BoxShadow(
-                                color: statusColor.withOpacity(glowAnim.value),
-                                blurRadius: 6,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                            border: Border.all(color: Colors.black, width: 1.5),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF161616).withOpacity(0.80),
+                    const Color(0xFF0D0D0D).withOpacity(0.80),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(
+                  color: isPublished
+                      ? AppColors.primaryOrange.withOpacity(0.28)
+                      : const Color(0xFF232323),
+                ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      post.title.isEmpty ? '(sem título)' : post.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        height: 1.25,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
+                    Stack(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: statusColor.withOpacity(0.4)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(statusIcon, size: 11, color: statusColor),
-                              const SizedBox(width: 4),
-                              Text(
-                                statusLabel,
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.4,
-                                ),
-                              ),
-                            ],
-                          ),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: post.thumbnailUrl.isNotEmpty
+                              ? Image.network(
+                                  post.thumbnailUrl,
+                                  width: 68,
+                                  height: 68,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => _placeholderThumb(),
+                                )
+                              : _placeholderThumb(),
                         ),
-                        if (categoryName != null && categoryName.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              categoryName,
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w600,
+                        if (isPublished)
+                          Positioned(
+                            top: -3,
+                            right: -3,
+                            child: AnimatedBuilder(
+                              animation: glowAnim,
+                              builder: (_, __) => Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: statusColor,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: statusColor.withOpacity(glowAnim.value),
+                                      blurRadius: 6,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                  border: Border.all(color: Colors.black, width: 1.5),
+                                ),
                               ),
                             ),
                           ),
                       ],
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            post.title.isEmpty ? '(sem título)' : post.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              height: 1.25,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Container(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: statusColor.withOpacity(0.4)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(statusIcon, size: 11, color: statusColor),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      statusLabel,
+                                      style: TextStyle(
+                                        color: statusColor,
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.4,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (categoryName != null && categoryName.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    categoryName,
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    _buildMenu(context),
                   ],
                 ),
               ),
-              _buildMenu(context),
-            ],
+            ),
           ),
         ),
       ),
