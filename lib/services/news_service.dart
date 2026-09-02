@@ -33,9 +33,13 @@ class NewsService {
     final snap = await query.get();
     final posts = snap.docs.map((d) => PostModel.fromFirestore(d)).toList();
 
+    // Só há mais páginas se essa veio "cheia" (== maxResults).
+    // Se veio incompleta, é a última página, mesmo que não-vazia.
+    final bool hasMore = snap.docs.length == maxResults;
+
     return {
       'posts': posts,
-      'lastDoc': snap.docs.isNotEmpty ? snap.docs.last : null,
+      'lastDoc': hasMore && snap.docs.isNotEmpty ? snap.docs.last : null,
     };
   }
 
