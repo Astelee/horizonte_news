@@ -37,9 +37,10 @@ class _ViewsTabState extends State<ViewsTab> {
         title: 'Zerar tudo?',
         message:
             'Isso vai apagar TODAS as visualizações e TODOS os '
-            'comentários de TODOS os usuários, incluindo os seus. '
-            'Os contadores de comentários nos perfis também serão '
-            'zerados. Essa ação não pode ser desfeita.',
+            'comentários de TODOS os usuários, incluindo os seus, e '
+            'zerar os contadores de artigos lidos, artigos '
+            'compartilhados e comentários postados no perfil de '
+            'cada um. Essa ação não pode ser desfeita.',
         confirmLabel: 'Continuar',
         confirmColor: Colors.redAccent,
       ),
@@ -51,8 +52,9 @@ class _ViewsTabState extends State<ViewsTab> {
       builder: (_) => const AdminConfirmDialog(
         title: 'Tem certeza absoluta?',
         message:
-            'Última confirmação: todas as visualizações e comentários '
-            'serão apagados permanentemente. Não há como voltar atrás.',
+            'Última confirmação: todas as visualizações, comentários '
+            'e os contadores de todos os perfis serão apagados '
+            'permanentemente. Não há como voltar atrás.',
         confirmLabel: 'Apagar tudo',
         confirmColor: Colors.redAccent,
       ),
@@ -72,7 +74,7 @@ class _ViewsTabState extends State<ViewsTab> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Visualizações e comentários zerados.'),
+          content: Text('Visualizações, comentários e contadores zerados.'),
           backgroundColor: Colors.green,
         ),
       );
