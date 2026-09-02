@@ -4,6 +4,7 @@ import '../../../config/app_colors.dart';
 import '../providers/admin_provider.dart';
 import '../services/admin_comment_service.dart';
 import '../services/admin_dashboard_service.dart';
+import '../services/admin_news_service.dart';
 import '../services/admin_user_service.dart';
 import '../services/admin_views_service.dart';
 import 'tabs/overview_tab.dart';
@@ -12,6 +13,7 @@ import 'tabs/banned_tab.dart';
 import 'tabs/users_tab.dart';
 import 'tabs/views_tab.dart';
 import 'tabs/poderes_tab.dart';
+import 'tabs/news_tab.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({Key? key}) : super(key: key);
@@ -28,11 +30,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   final _userService = AdminUserService();
   final _viewsService = AdminViewsService();
   final _dashboardService = AdminDashboardService();
+  final _newsService = AdminNewsService();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
   }
 
   @override
@@ -94,6 +97,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     commentService: _commentService,
                   ),
                   const PoderesTab(),
+                  NewsTab(newsService: _newsService),
                 ],
               ),
             ),
@@ -210,6 +214,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               Tab(text: 'USUÁRIOS', icon: Icon(Icons.people_rounded, size: 18)),
               Tab(text: 'VISUALIZAÇÕES', icon: Icon(Icons.bar_chart_rounded, size: 18)),
               Tab(text: 'NÍVEIS', icon: Icon(Icons.auto_awesome_rounded, size: 18)),
+              Tab(text: 'NOTÍCIAS', icon: Icon(Icons.article_rounded, size: 18)),
             ],
           ),
         ),
