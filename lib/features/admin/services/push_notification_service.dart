@@ -64,7 +64,48 @@ class PushNotificationService {
         return PushNotificationResult(success: false, message: msg);
       }
 
-      return const PushNotificationResult(success: true);
+      // O OneSignal às vezes retorna HTTP 200 mesmo quando não há
+      // ninguém para receber a notificação (ex.: segmento vazio) ou
+      // quando há um erro "suave" embutido no corpo. Nesses casos o
+      // campo "id" vem vazio/ausente e/ou "recipients" vem 0 — então
+      // checamos o corpo em vez de confiar só no status HTTP.
+      Map<String, dynamic>? body;
+      try {
+        body = json.decode(response.body) as Map<String, dynamic>;
+      } catch (_) {
+        body = null;
+      }
+
+      final notificationId = body?['id'] as String?;
+      final recipients = body?['recipients'];
+      final errors = body?['errors'];
+
+      if (errors != null) {
+        final msg = 'Push aceito (200) mas com erro: $errors';
+        debugPrint(msg);
+        return PushNotificationResult(success: false, message: msg);
+      }
+
+      if (notificationId == null || notificationId.isEmpty) {
+        final msg =
+            'Push aceito (200) mas sem id de notificação — resposta: '
+            '${response.body}';
+        debugPrint(msg);
+        return PushNotificationResult(success: false, message: msg);
+      }
+
+      if (recipients == 0) {
+        const msg =
+            'Push enviado, mas 0 destinatários — ninguém está inscrito/'
+            'opt-in no segmento "Subscribed Users" deste app no momento.';
+        debugPrint(msg);
+        return const PushNotificationResult(success: false, message: msg);
+      }
+
+      return PushNotificationResult(
+        success: true,
+        message: 'Enviado (id: $notificationId, destinatários: $recipients)',
+      );
     } catch (e) {
       final msg = 'Erro ao enviar push: $e';
       debugPrint(msg);
