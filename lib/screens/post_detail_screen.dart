@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -53,6 +54,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   bool _showFloatingTitle = false;
   bool _articleReadRegistered = false;
   bool _viewRegistered = false;
+  Timer? _articleReadTimer;
   late AnimationController _animController;
   late Animation<double> _fadeIn;
 
@@ -86,16 +88,17 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         setState(() => _showFloatingTitle = show);
       }
       if (!_articleReadRegistered && _scrollController.offset > 300) {
-        _articleReadRegistered = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          final post =
-              ModalRoute.of(context)?.settings.arguments as PostModel?;
-          if (post == null) return;
-          Provider.of<UserXpProvider>(context, listen: false)
-              .onArticleRead(post.id);
-        });
+        _registerArticleRead();
       }
+    });
+
+    // Fallback por tempo: cobre matérias curtas (que cabem na tela
+    // sem precisar rolar 300px) e leitores que ficam parados lendo
+    // sem rolar. Sem isso, quem lê uma notícia curta nunca disparava
+    // onArticleRead — só o gatilho de scroll existia antes.
+    _articleReadTimer = Timer(const Duration(seconds: 8), () {
+      if (!mounted || _articleReadRegistered) return;
+      _registerArticleRead();
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -103,8 +106,22 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     });
   }
 
+  void _registerArticleRead() {
+    if (_articleReadRegistered) return;
+    _articleReadRegistered = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final post =
+          ModalRoute.of(context)?.settings.arguments as PostModel?;
+      if (post == null) return;
+      Provider.of<UserXpProvider>(context, listen: false)
+          .onArticleRead(post.id);
+    });
+  }
+
   @override
   void dispose() {
+    _articleReadTimer?.cancel();
     _scrollController.dispose();
     _animController.dispose();
     _authorPulseController.dispose();
