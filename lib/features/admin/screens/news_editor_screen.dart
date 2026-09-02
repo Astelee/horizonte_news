@@ -183,8 +183,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
                     'foi chamada (verifique se o status realmente virou '
                     '"published" nesta ação).'
                   : pushResult.success
-                      ? 'Push retornou SUCESSO (a API do OneSignal aceitou '
-                        'o envio com status 200).'
+                      ? 'Push OK: ${pushResult.message ?? "sucesso"}'
                       : 'Push FALHOU: ${pushResult.message}',
             ),
             actions: [
