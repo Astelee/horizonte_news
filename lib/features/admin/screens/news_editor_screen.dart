@@ -168,8 +168,35 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
         final (_, result) = await widget.newsService.createNews(post);
         pushResult = result;
       }
+      // DIAGNÓSTICO TEMPORÁRIO: mostra sempre o resultado do push num
+      // diálogo que exige toque para fechar, para descartar de vez
+      // qualquer dúvida sobre o que está acontecendo (sucesso, erro,
+      // ou nem chegou a tentar). Remover depois de identificar a causa.
+      if (status == PostStatus.published && mounted) {
+        await showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Diagnóstico do push'),
+            content: Text(
+              pushResult == null
+                  ? 'pushResult veio NULO — a função de notificar nem '
+                    'foi chamada (verifique se o status realmente virou '
+                    '"published" nesta ação).'
+                  : pushResult.success
+                      ? 'Push retornou SUCESSO (a API do OneSignal aceitou '
+                        'o envio com status 200).'
+                      : 'Push FALHOU: ${pushResult.message}',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
       if (pushResult != null && !pushResult.success) {
-        _showError(pushResult.message ?? 'Falha ao enviar notificação push.');
         // Não fecha a tela: o ADM precisa ver o erro do push antes de sair.
         // A notícia já foi salva/publicada normalmente; só o push falhou.
         return;
