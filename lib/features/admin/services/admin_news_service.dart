@@ -26,8 +26,11 @@ class AdminNewsService {
   }
 
   /// Cria uma nova notícia. Se [status] for [PostStatus.published],
-  /// dispara a notificação via OneSignal logo em seguida.
-  Future<String> createNews(PostModel post) async {
+  /// dispara a notificação via OneSignal logo em seguida. Retorna o
+  /// resultado do push (null se não publicou agora) junto do id, para
+  /// a tela poder avisar o ADM em caso de falha.
+  Future<(String id, PushNotificationResult? pushResult)> createNews(
+      PostModel post) async {
     final user = FirebaseAuth.instance.currentUser;
     final postWithAuthor = post.copyWithAuthor(
       authorUid: user?.uid,
@@ -36,8 +39,9 @@ class AdminNewsService {
     final data = postWithAuthor.toFirestoreMap(forCreate: true);
     final doc = await _col.add(data);
 
+    PushNotificationResult? pushResult;
     if (post.status == PostStatus.published) {
-      PushNotificationService.notifyPostPublished(
+      pushResult = await PushNotificationService.notifyPostPublished(
         PostModel(
           id: doc.id,
           title: postWithAuthor.title,
@@ -51,13 +55,15 @@ class AdminNewsService {
       );
     }
 
-    return doc.id;
+    return (doc.id, pushResult);
   }
 
   /// Atualiza uma notícia existente. Se o status mudar para
   /// 'publicado' (e não estava publicado antes), dispara a
-  /// notificação via OneSignal.
-  Future<void> updateNews(String postId, PostModel post) async {
+  /// notificação via OneSignal. Retorna o resultado do push (null se
+  /// não disparou) para a tela poder avisar o ADM em caso de falha.
+  Future<PushNotificationResult?> updateNews(
+      String postId, PostModel post) async {
     final user = FirebaseAuth.instance.currentUser;
     final data = post.copyWithAuthor(
       authorUid: post.authorUid ?? user?.uid,
@@ -73,11 +79,13 @@ class AdminNewsService {
     await _col.doc(postId).update(data.toFirestoreMap());
 
     if (post.status == PostStatus.published && !wasPublished) {
-      PushNotificationService.notifyPostPublished(data);
+      return PushNotificationService.notifyPostPublished(data);
     }
+    return null;
   }
 
-  Future<void> setStatus(String postId, PostStatus status) async {
+  Future<PushNotificationResult?> setStatus(
+      String postId, PostStatus status) async {
     final wasPublished = status == PostStatus.published
         ? (await getById(postId))?.status == PostStatus.published
         : true; // não relevante se não estamos publicando agora
@@ -94,9 +102,10 @@ class AdminNewsService {
     if (status == PostStatus.published && !wasPublished) {
       final post = await getById(postId);
       if (post != null) {
-        PushNotificationService.notifyPostPublished(post);
+        return PushNotificationService.notifyPostPublished(post);
       }
     }
+    return null;
   }
 
   Future<void> deleteNews(String postId) async {
