@@ -13,6 +13,7 @@ import '../providers/posts_provider.dart';
 import '../providers/user_xp_provider.dart';
 import '../config/app_colors.dart';
 import '../widgets/comments_section.dart';
+import '../widgets/post_video_player.dart';
 import '../features/admin/services/admin_views_service.dart';
 
 // ─────────────────────────────────────────────────────────────────
@@ -225,6 +226,9 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                               _buildTitle(context, post),
                               _buildMeta(context, post),
                               _buildGlowDivider(),
+                              if (post.videoUrl != null &&
+                                  post.videoUrl!.trim().isNotEmpty)
+                                PostVideoPlayer(videoUrl: post.videoUrl!),
                               _buildHtmlContent(
                                   context, normalizedContent, isDark),
                               _buildAuthorFooter(),
