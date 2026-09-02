@@ -99,19 +99,28 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
                       fit: StackFit.expand,
                       children: [
                         // ── Imagem de fundo ───────────────────────
-                        CachedNetworkImage(
-                          imageUrl: post.thumbnailUrl,
-                          fit: BoxFit.cover,
-                          placeholder: (_, __) => const _CarouselShimmer(),
-                          errorWidget: (_, __, ___) => Container(
-                            color: AppColors.backgroundElevated,
-                            child: const Icon(
-                              Icons.broken_image_rounded,
-                              size: 48,
-                              color: AppColors.textMuted,
-                            ),
+                        post.thumbnailUrl.trim().isEmpty
+                            ? _CarouselNoImage(hasVideo: post.videoUrl != null &&
+                                post.videoUrl!.trim().isNotEmpty)
+                            : CachedNetworkImage(
+                                imageUrl: post.thumbnailUrl,
+                                fit: BoxFit.cover,
+                                placeholder: (_, __) =>
+                                    const _CarouselShimmer(),
+                                errorWidget: (_, __, ___) =>
+                                    _CarouselNoImage(
+                                        hasVideo: post.videoUrl != null &&
+                                            post.videoUrl!
+                                                .trim()
+                                                .isNotEmpty),
+                              ),
+
+                        // ── Selo de "play" quando há vídeo ────────
+                        if (post.videoUrl != null &&
+                            post.videoUrl!.trim().isNotEmpty)
+                          const Center(
+                            child: _CarouselPlayBadge(),
                           ),
-                        ),
 
                         // ── Gradiente escurecendo de baixo ────────
                         const DecoratedBox(
@@ -253,6 +262,60 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
 
         const SizedBox(height: 4),
       ],
+    );
+  }
+}
+
+// ── Sem imagem de capa (com indicação de vídeo, se houver) ───────────────────
+
+class _CarouselNoImage extends StatelessWidget {
+  final bool hasVideo;
+  const _CarouselNoImage({required this.hasVideo});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.backgroundElevated,
+      child: Center(
+        child: Icon(
+          hasVideo
+              ? Icons.videocam_rounded
+              : Icons.image_not_supported_rounded,
+          size: 40,
+          color: AppColors.textMuted,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Selo de "play" central para destaques com vídeo ───────────────────────────
+
+class _CarouselPlayBadge extends StatelessWidget {
+  const _CarouselPlayBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.45),
+        shape: BoxShape.circle,
+        border: Border.all(
+            color: AppColors.primaryOrange.withOpacity(0.85), width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryOrange.withOpacity(0.35),
+            blurRadius: 14,
+          ),
+        ],
+      ),
+      child: const Icon(
+        Icons.play_arrow_rounded,
+        color: Colors.white,
+        size: 30,
+      ),
     );
   }
 }
