@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../models/post_model.dart';
 import '../../services/admin_news_service.dart';
+import '../../services/push_notification_service.dart';
 import '../../widgets/admin_shared_widgets.dart';
 import '../news_editor_screen.dart';
 
@@ -54,7 +55,15 @@ class _NewsTabState extends State<NewsTab> {
     final newStatus = post.status == PostStatus.published
         ? PostStatus.unpublished
         : PostStatus.published;
-    await widget.newsService.setStatus(post.id, newStatus);
+    final pushResult = await widget.newsService.setStatus(post.id, newStatus);
+    if (mounted && pushResult != null && !pushResult.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(pushResult.message ?? 'Falha ao enviar notificação push.'),
+          backgroundColor: Colors.red[900],
+        ),
+      );
+    }
   }
 
   Future<void> _delete(PostModel post) async {
