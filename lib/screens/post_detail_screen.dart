@@ -12,7 +12,6 @@ import '../providers/favorites_provider.dart';
 import '../providers/posts_provider.dart';
 import '../providers/user_xp_provider.dart';
 import '../config/app_colors.dart';
-import '../utils/blogger_cleaner.dart';
 import '../widgets/comments_section.dart';
 import '../features/admin/services/admin_views_service.dart';
 
@@ -171,8 +170,11 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     final favoritesProvider = Provider.of<FavoritesProvider>(context);
     final bool isFav = favoritesProvider.isFavorite(post.id);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final String cleanedContent = BloggerCleaner.clean(post.content);
-    final String normalizedContent = _normalizeContent(cleanedContent);
+    // Conteúdo vindo do Firestore já não tem a imagem de capa embutida
+    // no HTML (ela fica em post.thumbnailUrl), então o BloggerCleaner
+    // — que existe para remover essa duplicação do formato antigo do
+    // Blogger — não é mais necessário aqui.
+    final String normalizedContent = _normalizeContent(post.content);
     final String category = post.categories.isNotEmpty
         ? post.categories.first.name
         : 'Notícia';
