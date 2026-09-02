@@ -200,27 +200,46 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
         pushResult = result;
       }
 
-      // Exibe um SnackBar discreto e elegante com a identidade visual do app
+      // Exibe um SnackBar discreto e elegante com a identidade visual do app.
+      //
+      // pushResult == null significa que nenhum push foi tentado — caso
+      // normal ao editar uma notícia que já estava publicada (o push só
+      // dispara na transição para "publicado", não a cada edição). Isso
+      // não é uma falha, então não deve ser tratado como aviso/erro.
       if (status == PostStatus.published && mounted) {
-        final success = pushResult?.success ?? false;
+        final bool pushAttempted = pushResult != null;
+        final bool success = pushResult?.success ?? false;
+
+        final String message;
+        final IconData icon;
+        final Color iconColor;
+        if (!pushAttempted) {
+          message = 'Notícia atualizada.';
+          icon = Icons.check_circle_rounded;
+          iconColor = AppColors.primaryOrange;
+        } else if (success) {
+          message = 'Notícia publicada e notificação enviada!';
+          icon = Icons.check_circle_rounded;
+          iconColor = AppColors.primaryOrange;
+        } else {
+          message =
+              'Publicado, mas o push falhou: ${pushResult.message ?? "Erro desconhecido"}';
+          icon = Icons.warning_rounded;
+          iconColor = Colors.orangeAccent;
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                Icon(
-                  success ? Icons.check_circle_rounded : Icons.warning_rounded,
-                  color: success ? AppColors.primaryOrange : Colors.orangeAccent,
-                  size: 20,
-                ),
+                Icon(icon, color: iconColor, size: 20),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    success
-                        ? 'Notícia publicada e notificação enviada!'
-                        : 'Publicado, mas o push falhou: ${pushResult?.message ?? "Erro desconhecido"}',
+                    message,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
