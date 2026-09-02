@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 import '../services/sound_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -163,6 +164,15 @@ class _LoginScreenState extends State<LoginScreen>
         remember: _rememberMe,
       );
       SoundService.instance.playSystemClick();
+
+      // Pede permissão de notificação logo após o login, uma única vez
+      // (NotificationService já controla isso via _permissionKey — se o
+      // usuário já foi perguntado antes, não pergunta de novo).
+      final jaPediu = await NotificationService.jaFoiPedidoPermissao();
+      if (!jaPediu) {
+        await NotificationService.requestPermission();
+      }
+
       if (mounted) {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
       }
