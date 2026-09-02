@@ -47,6 +47,9 @@ dependencies:
   # Som ambiente
   audioplayers: ^6.1.0
 
+  # Player de vídeo (matérias com vídeo, ex.: Cloudinary)
+  video_player: ^2.9.2
+
   # Anúncios — Google AdMob
   google_mobile_ads: ^5.1.0
 
