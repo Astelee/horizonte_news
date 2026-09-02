@@ -168,33 +168,47 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
         final (_, result) = await widget.newsService.createNews(post);
         pushResult = result;
       }
-      // DIAGNÓSTICO TEMPORÁRIO: mostra sempre o resultado do push num
-      // diálogo que exige toque para fechar, para descartar de vez
-      // qualquer dúvida sobre o que está acontecendo (sucesso, erro,
-      // ou nem chegou a tentar). Remover depois de identificar a causa.
+
+      // Exibe um SnackBar discreto e elegante com a identidade visual do app
       if (status == PostStatus.published && mounted) {
-        await showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Diagnóstico do push'),
-            content: Text(
-              pushResult == null
-                  ? 'pushResult veio NULO — a função de notificar nem '
-                    'foi chamada (verifique se o status realmente virou '
-                    '"published" nesta ação).'
-                  : pushResult.success
-                      ? 'Push OK: ${pushResult.message ?? "sucesso"}'
-                      : 'Push FALHOU: ${pushResult.message}',
+        final success = pushResult?.success ?? false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  success ? Icons.check_circle_rounded : Icons.warning_rounded,
+                  color: success ? AppColors.primaryOrange : Colors.orangeAccent,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    success
+                        ? 'Notícia publicada e notificação enviada!'
+                        : 'Publicado, mas o push falhou: ${pushResult?.message ?? "Erro desconhecido"}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
+            backgroundColor: AppColors.backgroundElevated,
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: const BorderSide(
+                color: AppColors.primaryOrange,
+                width: 1,
               ),
-            ],
+            ),
           ),
         );
       }
+
       if (pushResult != null && !pushResult.success) {
         // Não fecha a tela: o ADM precisa ver o erro do push antes de sair.
         // A notícia já foi salva/publicada normalmente; só o push falhou.
@@ -237,7 +251,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
                 _label('Conteúdo completo'),
                 _textField(_contentCtrl,
                     hint:
-                        'Texto da notícia. Pode conter HTML simples (<p>, <b>, <h2>...).',
+                        'Texto da notícia. Pode conter HTML simple (<p>, <b>, <h2>...).',
                     maxLines: 10),
                 const SizedBox(height: 20),
                 _buildCoverSection(),
