@@ -36,7 +36,10 @@ class PushNotificationService {
         Uri.parse(_endpoint),
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
-          'Authorization': 'Basic $_restApiKey',
+          // Chaves REST API v2 do OneSignal (prefixo "os_v2_app_")
+          // usam o esquema "Key", não "Basic" (esse era o esquema da
+          // chave Legacy, que é um formato diferente).
+          'Authorization': 'Key $_restApiKey',
         },
         body: json.encode({
           'app_id': _appId,
