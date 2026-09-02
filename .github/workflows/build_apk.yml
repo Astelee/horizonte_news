@@ -49,8 +49,8 @@ jobs:
 
       - name: Compilar APK e AAB Release
         run: |
-          flutter build apk --release
-          flutter build appbundle --release
+          flutter build apk --release --dart-define=ONESIGNAL_REST_API_KEY=${{ secrets.ONESIGNAL_REST_API_KEY }}
+          flutter build appbundle --release --dart-define=ONESIGNAL_REST_API_KEY=${{ secrets.ONESIGNAL_REST_API_KEY }}
 
       - name: Renomear Arquivos
         run: |
