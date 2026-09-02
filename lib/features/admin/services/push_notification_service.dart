@@ -21,14 +21,18 @@ class PushNotificationService {
       'https://onesignal.com/api/v1/notifications';
 
   /// Envia um push para todos os inscritos avisando de uma notícia
-  /// nova/recém-publicada. Falhas são apenas logadas — nunca devem
-  /// impedir a publicação da notícia em si.
-  static Future<void> notifyPostPublished(PostModel post) async {
+  /// nova/recém-publicada. Nunca lança exceção — a publicação da
+  /// notícia em si não deve ser impedida por falha no push. O
+  /// resultado é retornado para que a tela decida se mostra um aviso
+  /// (ex.: SnackBar) ao ADM.
+  static Future<PushNotificationResult> notifyPostPublished(
+      PostModel post) async {
     if (_restApiKey.isEmpty) {
-      debugPrint(
-          'ONESIGNAL_REST_API_KEY vazia — build não foi feita com '
-          '--dart-define=ONESIGNAL_REST_API_KEY=... Push não enviado.');
-      return;
+      const msg =
+          'Push não enviado: chave do OneSignal ausente neste build '
+          '(app não foi buildado com --dart-define=ONESIGNAL_REST_API_KEY=...).';
+      debugPrint(msg);
+      return const PushNotificationResult(success: false, message: msg);
     }
 
     try {
@@ -54,11 +58,26 @@ class PushNotificationService {
       );
 
       if (response.statusCode != 200) {
-        debugPrint(
-            'Falha ao enviar push (${response.statusCode}): ${response.body}');
+        final msg =
+            'Falha ao enviar push (${response.statusCode}): ${response.body}';
+        debugPrint(msg);
+        return PushNotificationResult(success: false, message: msg);
       }
+
+      return const PushNotificationResult(success: true);
     } catch (e) {
-      debugPrint('Erro ao enviar push: $e');
+      final msg = 'Erro ao enviar push: $e';
+      debugPrint(msg);
+      return PushNotificationResult(success: false, message: msg);
     }
   }
+}
+
+/// Resultado do envio de push, usado pela UI para exibir um aviso ao
+/// ADM quando o envio falha (ex.: chave ausente, erro da API).
+class PushNotificationResult {
+  final bool success;
+  final String? message;
+
+  const PushNotificationResult({required this.success, this.message});
 }
