@@ -32,10 +32,25 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   final _dashboardService = AdminDashboardService();
   final _newsService = AdminNewsService();
 
+  static const List<String> _tabTitles = [
+    'CENTRAL DE CONTROLE',
+    'COMENTÁRIOS',
+    'BANIDOS',
+    'USUÁRIOS',
+    'VISUALIZAÇÕES',
+    'NÍVEIS & XP',
+    'PUBLICAÇÕES',
+  ];
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 7, vsync: this);
+    _tabController.addListener(() {
+      // Reconstrói o AppBar (título + botão voltar) ao trocar de aba,
+      // mesmo durante o gesto (sem esperar a animação terminar).
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -46,6 +61,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
   void _goToTab(int index) {
     _tabController.animateTo(index);
+  }
+
+  void _handleBack() {
+    if (_tabController.index != 0) {
+      _goToTab(0);
+    } else {
+      Navigator.pop(context);
+    }
   }
 
   @override
@@ -67,24 +90,35 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         canvasColor: AppColors.backgroundDark,
         scaffoldBackgroundColor: AppColors.backgroundDark,
       ),
-      child: Scaffold(
-        backgroundColor: AppColors.backgroundDark,
-        body: NestedScrollView(
-          headerSliverBuilder: (context, _) => [_buildAppBar()],
-          body: MediaQuery.removePadding(
-            context: context,
-            removeTop: true,
-            child: Container(
-              color: AppColors.backgroundDark,
-              child: TabBarView(
-                controller: _tabController,
-                children: [
+      child: PopScope(
+        canPop: _tabController.index == 0,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && _tabController.index != 0) _goToTab(0);
+        },
+        child: Scaffold(
+          backgroundColor: AppColors.backgroundDark,
+          body: NestedScrollView(
+            headerSliverBuilder: (context, _) => [_buildAppBar()],
+            body: MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: Container(
+                color: AppColors.backgroundDark,
+                child: TabBarView(
+                  controller: _tabController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
                   OverviewTab(
                     dashboardService: _dashboardService,
                     userService: _userService,
+                    newsService: _newsService,
+                    commentService: _commentService,
                     onGoToUsers: () => _goToTab(3),
                     onGoToViews: () => _goToTab(4),
                     onGoToBanned: () => _goToTab(2),
+                    onGoToNews: () => _goToTab(6),
+                    onGoToComments: () => _goToTab(1),
+                    onGoToLevels: () => _goToTab(5),
                   ),
                   CommentsTab(
                     commentService: _commentService,
@@ -96,9 +130,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     viewsService: _viewsService,
                     commentService: _commentService,
                   ),
-                  const PoderesTab(),
-                  NewsTab(newsService: _newsService),
-                ],
+                    const PoderesTab(),
+                    NewsTab(newsService: _newsService),
+                  ],
+                ),
               ),
             ),
           ),
@@ -108,14 +143,21 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 
   Widget _buildAppBar() {
+    final onOverview = _tabController.index == 0;
     return SliverAppBar(
       pinned: true,
       expandedHeight: 110,
       backgroundColor: Colors.black,
       foregroundColor: Colors.white,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-        onPressed: () => Navigator.pop(context),
+        icon: Icon(
+          onOverview
+              ? Icons.arrow_back_rounded
+              : Icons.arrow_back_ios_new_rounded,
+          color: Colors.white,
+        ),
+        tooltip: onOverview ? 'Voltar' : 'Voltar à Central de Gestão',
+        onPressed: _handleBack,
       ),
       title: Row(
         children: [
@@ -139,18 +181,20 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
+              children: [
                 Text(
-                  'CENTRAL DE CONTROLE',
-                  style: TextStyle(
+                  _tabTitles[_tabController.index],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.1,
                   ),
                 ),
-                SizedBox(height: 1),
-                Text(
+                const SizedBox(height: 1),
+                const Text(
                   'Horizonte News · Painel Administrativo',
                   style: TextStyle(
                     color: AppColors.textSecondary,
@@ -193,30 +237,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               ),
             ),
           ],
-        ),
-      ),
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(48),
-        child: Container(
-          color: Colors.black,
-          child: TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            indicatorColor: AppColors.primaryOrange,
-            labelColor: AppColors.primaryOrange,
-            unselectedLabelColor: AppColors.textSecondary,
-            labelStyle: const TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w700),
-            tabs: const [
-              Tab(text: 'GERAL', icon: Icon(Icons.dashboard_rounded, size: 18)),
-              Tab(text: 'COMENTÁRIOS', icon: Icon(Icons.chat_bubble_rounded, size: 18)),
-              Tab(text: 'BANIDOS', icon: Icon(Icons.block_rounded, size: 18)),
-              Tab(text: 'USUÁRIOS', icon: Icon(Icons.people_rounded, size: 18)),
-              Tab(text: 'VISUALIZAÇÕES', icon: Icon(Icons.bar_chart_rounded, size: 18)),
-              Tab(text: 'NÍVEIS', icon: Icon(Icons.auto_awesome_rounded, size: 18)),
-              Tab(text: 'NOTÍCIAS', icon: Icon(Icons.article_rounded, size: 18)),
-            ],
-          ),
         ),
       ),
     );
