@@ -5,22 +5,34 @@ import '../../../../config/badge_config.dart';
 import '../../../../widgets/app_avatar.dart';
 import '../../services/admin_dashboard_service.dart';
 import '../../services/admin_user_service.dart';
+import '../../services/admin_news_service.dart';
+import '../../services/admin_comment_service.dart';
 import '../../models/admin_log_model.dart';
 import '../../widgets/dashboard_widgets.dart';
 
 class OverviewTab extends StatefulWidget {
   final AdminDashboardService dashboardService;
   final AdminUserService userService;
+  final AdminNewsService newsService;
+  final AdminCommentService commentService;
   final VoidCallback onGoToUsers;
   final VoidCallback onGoToViews;
   final VoidCallback onGoToBanned;
+  final VoidCallback onGoToNews;
+  final VoidCallback onGoToComments;
+  final VoidCallback onGoToLevels;
 
   const OverviewTab({
     required this.dashboardService,
     required this.userService,
+    required this.newsService,
+    required this.commentService,
     required this.onGoToUsers,
     required this.onGoToViews,
     required this.onGoToBanned,
+    required this.onGoToNews,
+    required this.onGoToComments,
+    required this.onGoToLevels,
     Key? key,
   }) : super(key: key);
 
@@ -116,8 +128,8 @@ class _OverviewTabState extends State<OverviewTab> {
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 32),
               children: [
                 _buildKpiGrid(data),
-                const SizedBox(height: 22),
-                _buildQuickActions(),
+                const SizedBox(height: 26),
+                _buildManagementCenter(),
                 const SizedBox(height: 22),
                 _buildLevelDistribution(data),
                 const SizedBox(height: 22),
@@ -249,48 +261,149 @@ class _OverviewTabState extends State<OverviewTab> {
     );
   }
 
-  // ── Ações rápidas ───────────────────────────────────────────────
-  Widget _buildQuickActions() {
+  // ── Central de Gestão ──────────────────────────────────────────
+  Widget _buildManagementCenter() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const DashSectionTitle(
-          title: 'AÇÕES RÁPIDAS',
-          icon: Icons.flash_on_rounded,
+        Row(
+          children: [
+            const Icon(Icons.grid_view_rounded,
+                size: 17, color: AppColors.primaryOrange),
+            const SizedBox(width: 8),
+            const Text(
+              'CENTRAL DE GESTÃO',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
         ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _QuickActionChip(
-                icon: Icons.people_rounded,
-                label: 'Usuários',
+        const SizedBox(height: 2),
+        const Padding(
+          padding: EdgeInsets.only(left: 25),
+          child: Text(
+            'Gerencie todos os recursos do sistema',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Card principal — Publicações (destaque total)
+        _PublicationsManagementCard(
+          newsService: widget.newsService,
+          onTap: widget.onGoToNews,
+        ),
+        const SizedBox(height: 12),
+
+        // Grade 2 colunas — demais recursos
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final twoCols = constraints.maxWidth >= 300;
+            final tiles = <Widget>[
+              _ManagementTile(
+                icon: Icons.people_alt_rounded,
                 color: AppColors.primaryOrange,
+                title: 'USUÁRIOS',
+                subtitle: 'Gerenciar usuários cadastrados',
                 onTap: widget.onGoToUsers,
               ),
-              const SizedBox(width: 8),
-              _QuickActionChip(
+              _CommentsManagementTile(
+                commentService: widget.commentService,
+                onTap: widget.onGoToComments,
+              ),
+              _ManagementTile(
                 icon: Icons.bar_chart_rounded,
-                label: 'Visualizações',
                 color: const Color(0xFF4FC3F7),
+                title: 'VISUALIZAÇÕES',
+                subtitle: 'Acompanhar desempenho das publicações',
                 onTap: widget.onGoToViews,
               ),
-              const SizedBox(width: 8),
-              _QuickActionChip(
+              _ManagementTile(
+                icon: Icons.auto_awesome_rounded,
+                color: const Color(0xFFFFD54F),
+                title: 'NÍVEIS & XP',
+                subtitle: 'Gerenciar níveis e experiência dos usuários',
+                onTap: widget.onGoToLevels,
+              ),
+              _ManagementTile(
                 icon: Icons.block_rounded,
-                label: 'Banidos',
                 color: const Color(0xFFE53935),
+                title: 'BANIDOS',
+                subtitle: 'Gerenciar usuários suspensos',
                 onTap: widget.onGoToBanned,
               ),
-              const SizedBox(width: 8),
-              _QuickActionChip(
-                icon: Icons.sync_rounded,
-                label: _syncing ? 'Sincronizando...' : 'Sincronizar níveis',
+              _ManagementTile(
+                icon: Icons.insights_rounded,
                 color: const Color(0xFF66BB6A),
-                onTap: _syncing ? null : _syncLevels,
-                loading: _syncing,
+                title: 'ESTATÍSTICAS',
+                subtitle: 'Dados gerais da comunidade e desempenho',
+                onTap: () {
+                  // Os dados de estatísticas já vivem nesta própria tela
+                  // Geral (KPIs, distribuição de níveis, rankings) —
+                  // não existe uma tela separada a abrir.
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          'As estatísticas completas estão logo acima, nesta tela.'),
+                      backgroundColor: Color(0xFF1A1A1A),
+                    ),
+                  );
+                },
               ),
-            ],
+              _ManagementTile(
+                icon: Icons.settings_rounded,
+                color: AppColors.textSecondary,
+                title: 'CONFIGURAÇÕES',
+                subtitle: 'Configurar o sistema e preferências do painel',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Configurações do painel em breve.'),
+                      backgroundColor: Color(0xFF1A1A1A),
+                    ),
+                  );
+                },
+              ),
+            ];
+
+            if (!twoCols) {
+              return Column(
+                children: [
+                  for (final t in tiles) ...[
+                    t,
+                    const SizedBox(height: 10),
+                  ],
+                ],
+              );
+            }
+
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final t in tiles)
+                  SizedBox(
+                    width: (constraints.maxWidth - 10) / 2,
+                    child: t,
+                  ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 4),
+        // Sincronizar níveis — ação de manutenção, mantida discreta
+        Align(
+          alignment: Alignment.centerRight,
+          child: _SyncLevelsButton(
+            syncing: _syncing,
+            onTap: _syncing ? null : _syncLevels,
           ),
         ),
       ],
@@ -614,53 +727,318 @@ class _OverviewTabState extends State<OverviewTab> {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// AUXILIARES
+// AUXILIARES — CENTRAL DE GESTÃO
 // ═══════════════════════════════════════════════════════════════════
-class _QuickActionChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback? onTap;
-  final bool loading;
 
-  const _QuickActionChip({
-    required this.icon,
-    required this.label,
-    required this.color,
+/// Card principal e maior da Central de Gestão — Publicações.
+/// Mostra contagem total e quantas estão em rascunho (aguardando
+/// revisão) usando o stream já existente do AdminNewsService.
+class _PublicationsManagementCard extends StatelessWidget {
+  final AdminNewsService newsService;
+  final VoidCallback onTap;
+
+  const _PublicationsManagementCard({
+    required this.newsService,
     required this.onTap,
-    this.loading = false,
   });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: newsService.allNewsStream(),
+      builder: (context, snapshot) {
+        int? total;
+        int? pending;
+        if (snapshot.hasData) {
+          final docs = snapshot.data!.docs;
+          total = docs.length;
+          pending =
+              docs.where((d) => d.data()['status'] == 'rascunho').length;
+        }
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: Ink(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: const Color(0xFF0A0A0A),
+                border: Border.all(
+                    color: AppColors.primaryOrange.withOpacity(0.55)),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryOrange.withOpacity(0.18),
+                    blurRadius: 28,
+                    spreadRadius: -6,
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(15),
+                      gradient: AppColors.orangeGradient,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primaryOrange.withOpacity(0.35),
+                          blurRadius: 16,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.dynamic_feed_rounded,
+                        color: Colors.white, size: 26),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'PUBLICAÇÕES',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        const Text(
+                          'Criar, editar, revisar e gerenciar notícias',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        if (total != null) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                '$total publicada${total == 1 ? '' : 's'}',
+                                style: const TextStyle(
+                                  color: AppColors.primaryOrangeLight,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              if (pending != null && pending > 0) ...[
+                                const Text('·',
+                                    style: TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 11)),
+                                Text(
+                                  '$pending aguardando revisão',
+                                  style: const TextStyle(
+                                    color: Color(0xFFFFD54F),
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(Icons.chevron_right_rounded,
+                      color: AppColors.primaryOrange.withOpacity(0.85),
+                      size: 26),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Tile padrão da grade 2 colunas da Central de Gestão.
+class _ManagementTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final Widget? badge;
+
+  const _ManagementTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.badge,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: const Color(0xFF0A0A0A),
+            border: Border.all(color: AppColors.borderDark),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.06),
+                blurRadius: 14,
+                spreadRadius: -6,
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.14),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: color, size: 17),
+                  ),
+                  const Spacer(),
+                  if (badge != null) badge!,
+                  Icon(Icons.chevron_right_rounded,
+                      color: AppColors.textMuted, size: 20),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 10.5,
+                  height: 1.25,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tile de Comentários — igual aos demais, mas com contador ao vivo.
+class _CommentsManagementTile extends StatelessWidget {
+  final AdminCommentService commentService;
+  final VoidCallback onTap;
+
+  const _CommentsManagementTile({
+    required this.commentService,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: commentService.allCommentsStream(),
+      builder: (context, snapshot) {
+        final count = snapshot.hasData ? snapshot.data!.docs.length : null;
+        return _ManagementTile(
+          icon: Icons.chat_bubble_rounded,
+          color: const Color(0xFF9575CD),
+          title: 'COMENTÁRIOS',
+          subtitle: 'Moderar e gerenciar comentários',
+          onTap: onTap,
+          badge: (count != null && count > 0)
+              ? Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF9575CD).withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: const TextStyle(
+                      color: Color(0xFF9575CD),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                )
+              : null,
+        );
+      },
+    );
+  }
+}
+
+/// Botão discreto de sincronização de níveis — antes era um dos
+/// "chips" de ações rápidas; mantido como ação de manutenção.
+class _SyncLevelsButton extends StatelessWidget {
+  final bool syncing;
+  final VoidCallback? onTap;
+
+  const _SyncLevelsButton({required this.syncing, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: color.withOpacity(0.1),
-          border: Border.all(color: color.withOpacity(0.35)),
+          borderRadius: BorderRadius.circular(10),
+          color: const Color(0xFF66BB6A).withOpacity(0.1),
+          border:
+              Border.all(color: const Color(0xFF66BB6A).withOpacity(0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (loading)
-              SizedBox(
-                width: 13,
-                height: 13,
+            if (syncing)
+              const SizedBox(
+                width: 12,
+                height: 12,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2, color: color),
+                    strokeWidth: 2, color: Color(0xFF66BB6A)),
               )
             else
-              Icon(icon, size: 14, color: color),
+              const Icon(Icons.sync_rounded,
+                  size: 13, color: Color(0xFF66BB6A)),
             const SizedBox(width: 6),
             Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
+              syncing ? 'Sincronizando...' : 'Sincronizar níveis',
+              style: const TextStyle(
+                color: Color(0xFF66BB6A),
+                fontSize: 10.5,
                 fontWeight: FontWeight.w800,
               ),
             ),
