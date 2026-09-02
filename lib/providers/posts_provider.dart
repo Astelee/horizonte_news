@@ -1,9 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/post_model.dart';
-import '../services/blogger_service.dart';
+import '../services/news_service.dart';
 
 class PostsProvider with ChangeNotifier {
-  final BloggerService _bloggerService = BloggerService();
+  final NewsService _newsService = NewsService();
 
   List<PostModel> _posts = [];
   List<PostModel> _categoryPosts = [];
@@ -12,7 +13,7 @@ class PostsProvider with ChangeNotifier {
   bool _isLoading = false;
   bool _isLoadingMore = false;
   bool _isLoadingVideos = false;
-  String _nextPageToken = '';
+  DocumentSnapshot? _lastDoc;
   String _errorMessage = '';
 
   List<PostModel> get posts => _posts;
@@ -22,7 +23,7 @@ class PostsProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isLoadingMore => _isLoadingMore;
   bool get isLoadingVideos => _isLoadingVideos;
-  bool get hasMore => _nextPageToken.isNotEmpty;
+  bool get hasMore => _lastDoc != null;
   String get errorMessage => _errorMessage;
 
   List<PostModel> get featuredPosts {
@@ -36,14 +37,13 @@ class PostsProvider with ChangeNotifier {
   Future<void> loadInitialPosts() async {
     _setLoading(true);
     _errorMessage = '';
-    _nextPageToken = '';
+    _lastDoc = null;
     try {
-      final Map<String, dynamic> result =
-          await _bloggerService.fetchPosts(maxResults: 12);
+      final result = await _newsService.fetchPosts(maxResults: 12);
       final List<PostModel> incoming = result['posts'];
       final seen = <String>{};
       _posts = incoming.where((p) => seen.add(p.id)).toList();
-      _nextPageToken = result['nextPageToken'];
+      _lastDoc = result['lastDoc'];
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -52,14 +52,14 @@ class PostsProvider with ChangeNotifier {
   }
 
   Future<void> loadMorePosts() async {
-    if (_isLoading || _isLoadingMore || _nextPageToken.isEmpty) return;
+    if (_isLoading || _isLoadingMore || _lastDoc == null) return;
 
     _isLoadingMore = true;
     notifyListeners();
 
     try {
-      final Map<String, dynamic> result = await _bloggerService.fetchPosts(
-        pageToken: _nextPageToken,
+      final result = await _newsService.fetchPosts(
+        startAfter: _lastDoc,
         maxResults: 10,
       );
 
@@ -69,7 +69,7 @@ class PostsProvider with ChangeNotifier {
           incoming.where((p) => !existingIds.contains(p.id)).toList();
 
       _posts.addAll(newPosts);
-      _nextPageToken = result['nextPageToken'];
+      _lastDoc = result['lastDoc'];
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -83,8 +83,7 @@ class PostsProvider with ChangeNotifier {
     _errorMessage = '';
     _categoryPosts = [];
     try {
-      _categoryPosts =
-          await _bloggerService.fetchPostsByCategory(categoryName);
+      _categoryPosts = await _newsService.fetchPostsByCategory(categoryName);
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -92,7 +91,7 @@ class PostsProvider with ChangeNotifier {
     }
   }
 
-  // ── NOVO: carrega posts pelo label (usado pela tela de Vídeos/Reels) ──
+  // ── carrega posts pela categoria/label (usado pela tela de Vídeos/Reels) ──
   Future<void> loadPostsByLabel(String label) async {
     if (_isLoadingVideos) return;
 
@@ -101,15 +100,10 @@ class PostsProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Reutiliza fetchPostsByCategory pois o Blogger usa o mesmo
-      // endpoint /posts?labels= para labels e categorias
-      final results =
-          await _bloggerService.fetchPostsByCategory(label);
+      final results = await _newsService.fetchPostsByCategory(label);
 
-      // Deduplica por ID
       final seen = <String>{};
-      _videoPosts =
-          results.where((p) => seen.add(p.id)).toList();
+      _videoPosts = results.where((p) => seen.add(p.id)).toList();
     } catch (e) {
       _errorMessage = e.toString();
       _videoPosts = [];
@@ -119,7 +113,6 @@ class PostsProvider with ChangeNotifier {
     }
   }
 
-  // ── NOVO: força recarregar os vídeos (pull to refresh) ──────────
   Future<void> refreshVideos() async {
     _videoPosts = [];
     await loadPostsByLabel('Vídeo');
@@ -129,12 +122,18 @@ class PostsProvider with ChangeNotifier {
     _setLoading(true);
     _errorMessage = '';
     try {
-      _searchResults = await _bloggerService.searchPosts(query);
+      _searchResults = await _newsService.searchPosts(query);
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
       _setLoading(false);
     }
+  }
+
+  /// Busca uma notícia específica por id — usado ao abrir o app a
+  /// partir de uma notificação push (deep link).
+  Future<PostModel?> fetchById(String postId) {
+    return _newsService.fetchById(postId);
   }
 
   void _setLoading(bool value) {
