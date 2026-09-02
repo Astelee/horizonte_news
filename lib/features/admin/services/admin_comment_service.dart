@@ -48,11 +48,17 @@ class AdminCommentService {
     await _log('delete_comment', commentId, postId: postId);
   }
 
-  // ── Reset geral de comentários ─────────────────────────────────────
-  // Apaga TODOS os comentários (todos os posts em 'comments') e zera o
-  // contador 'stats.commentsPosted' de todo mundo em 'users_xp',
-  // incluindo o admin. Isso evita que o painel continue mostrando um
-  // número de comentários que não existe mais.
+  // ── Reset geral de comentários e contadores de leitura ──────────────
+  // Apaga TODOS os comentários (todos os posts em 'comments') e zera,
+  // no perfil de cada usuário em 'users_xp' (incluindo o admin):
+  //  - stats.commentsPosted
+  //  - stats.articlesRead / stats.articlesReadIds
+  //  - stats.articlesShared / stats.articlesSharedIds
+  // Os arrays *Ids precisam ser zerados junto com o contador: eles são
+  // a trava de unicidade que o app usa pra não dar XP duas vezes pelo
+  // mesmo artigo (ver XpService._alreadyAwarded). Se só o número fosse
+  // zerado, o contador nunca mais subiria para artigos já lidos antes
+  // do reset.
   Future<void> resetAllComments() async {
     final postsSnap = await _db.collection('comments').get();
     int totalDeleted = 0;
@@ -76,7 +82,12 @@ class AdminCommentService {
       await postDoc.reference.delete();
     }
 
-    // Zera o contador de comentários no perfil de cada usuário.
+    // Zera os contadores de comentários, artigos lidos e artigos
+    // compartilhados no perfil de cada usuário — junto com os arrays
+    // de IDs que travam a contagem (articlesReadIds/articlesSharedIds).
+    // Sem zerar os arrays, o app nunca voltaria a contar uma leitura
+    // ou compartilhamento de um artigo que o usuário já tinha lido
+    // antes do reset (ver XpService._alreadyAwarded).
     final usersSnap = await _db.collection('users_xp').get();
     for (var i = 0; i < usersSnap.docs.length; i += 400) {
       final chunk = usersSnap.docs.skip(i).take(400);
@@ -85,8 +96,18 @@ class AdminCommentService {
         batch.set(
           userDoc.reference,
           {
-            'stats': {'commentsPosted': 0},
-            'dailyMissions': {'commentsPosted': 0},
+            'stats': {
+              'commentsPosted': 0,
+              'articlesRead': 0,
+              'articlesReadIds': <String>[],
+              'articlesShared': 0,
+              'articlesSharedIds': <String>[],
+            },
+            'dailyMissions': {
+              'commentsPosted': 0,
+              'articlesRead': 0,
+              'articlesShared': 0,
+            },
           },
           SetOptions(merge: true),
         );
