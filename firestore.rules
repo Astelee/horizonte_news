@@ -122,6 +122,14 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
+    // ── Notícias ─────────────────────────────────────────────────
+    // Público só enxerga notícias com status 'publicado'. Rascunhos
+    // e despublicadas só ficam visíveis para admins (painel ADM).
+    match /noticias/{postId} {
+      allow read: if resource.data.status == 'publicado' || isAdmin();
+      allow write: if isAdmin();
+    }
+
     // ── Log ADM ───────────────────────────────────────────────────
     match /admin_logs/{logId} {
       allow read, write: if isAdmin();
