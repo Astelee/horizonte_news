@@ -6,6 +6,7 @@ import '../../../models/category_model.dart';
 import '../../../models/post_model.dart';
 import '../../../services/cloudinary_upload_service.dart';
 import '../services/admin_news_service.dart';
+import '../services/push_notification_service.dart';
 
 /// Formulário de criação/edição de notícia, usado pela aba NOTÍCIAS
 /// do painel ADM. Cobre: título, resumo, conteúdo, categoria, capa,
@@ -159,10 +160,16 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
     setState(() => _saving = true);
     try {
       final post = _buildPost(status);
+      PushNotificationResult? pushResult;
       if (_isEditing) {
-        await widget.newsService.updateNews(widget.existingPost!.id, post);
+        pushResult =
+            await widget.newsService.updateNews(widget.existingPost!.id, post);
       } else {
-        await widget.newsService.createNews(post);
+        final (_, result) = await widget.newsService.createNews(post);
+        pushResult = result;
+      }
+      if (pushResult != null && !pushResult.success) {
+        _showError(pushResult.message ?? 'Falha ao enviar notificação push.');
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
