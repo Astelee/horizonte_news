@@ -47,7 +47,7 @@ class PushNotificationService {
         },
         body: json.encode({
           'app_id': _appId,
-          'included_segments': ['Subscribed Users'],
+          'included_segments': ['All'],
           'headings': {'en': post.categories.isNotEmpty
               ? post.categories.first.name.toUpperCase()
               : 'HORIZONTE NEWS'},
@@ -97,7 +97,7 @@ class PushNotificationService {
       if (recipients == 0) {
         const msg =
             'Push enviado, mas 0 destinatários — ninguém está inscrito/'
-            'opt-in no segmento "Subscribed Users" deste app no momento.';
+            'opt-in no app no momento.';
         debugPrint(msg);
         return const PushNotificationResult(success: false, message: msg);
       }
