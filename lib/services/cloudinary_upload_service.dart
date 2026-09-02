@@ -14,7 +14,7 @@ import 'package:http/http.dart' as http;
 /// formatos permitidos, tamanho máximo) já que qualquer requisição
 /// autenticada como admin no app pode chamá-lo.
 class CloudinaryUploadService {
-  static const String cloudName = 'pcjin5a5l';
+  static const String cloudName = 'pcja5a5l';
   static const String uploadPreset = 'horizonte_news_unsigned';
 
   static Uri _endpoint(String resourceType) => Uri.parse(
