@@ -4,10 +4,10 @@ import '../config/app_colors.dart';
 
 /// Player de vídeo simples para o vídeo (opcional) de uma matéria.
 ///
-/// Usado em [PostDetailScreen] quando `post.videoUrl` não é nulo/vazio[span_0](start_span)[span_0](end_span).
+/// Usado em [PostDetailScreen] quando `post.videoUrl` não é nulo/vazio.
 /// Não usa `chewie` de propósito — os controles aqui são mínimos
 /// (play/pause, mudo, barra de progresso) e já cobrem o caso de uso
-/// (vídeo MP4 direto do Cloudinary)[span_1](start_span)[span_1](end_span).
+/// (vídeo MP4 direto do Cloudinary).
 class PostVideoPlayer extends StatefulWidget {
   const PostVideoPlayer({Key? key, required this.videoUrl}) : super(key: key);
 
@@ -145,21 +145,23 @@ class _PostVideoPlayerState extends State<PostVideoPlayer> {
                   ),
                   GestureDetector(
                     onTap: _togglePlay,
-                    child: Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.45),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            color: AppColors.primaryOrange, width: 1.2),
-                      ),
-                      child: Icon(
-                        _controller.value.isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 30,
+                    child: Center(
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.45),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: AppColors.primaryOrange, width: 1.2),
+                        ),
+                        child: Icon(
+                          _controller.value.isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 30,
+                        ),
                       ),
                     ),
                   ),
