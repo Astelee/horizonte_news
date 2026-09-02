@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../models/post_model.dart';
+import 'push_notification_service.dart';
 
 /// Serviço de gerenciamento de notícias usado pela aba "NOTÍCIAS" do
 /// painel ADM. Cobre o CRUD completo — a leitura pública (só notícias
@@ -25,33 +26,62 @@ class AdminNewsService {
   }
 
   /// Cria uma nova notícia. Se [status] for [PostStatus.published],
-  /// a Cloud Function notifyNewPost dispara automaticamente a
-  /// notificação via OneSignal.
+  /// dispara a notificação via OneSignal logo em seguida.
   Future<String> createNews(PostModel post) async {
     final user = FirebaseAuth.instance.currentUser;
-    final data = post
-        .copyWithAuthor(
-          authorUid: user?.uid,
-          authorName: user?.displayName ?? user?.email,
-        )
-        .toFirestoreMap(forCreate: true);
+    final postWithAuthor = post.copyWithAuthor(
+      authorUid: user?.uid,
+      authorName: user?.displayName ?? user?.email,
+    );
+    final data = postWithAuthor.toFirestoreMap(forCreate: true);
     final doc = await _col.add(data);
+
+    if (post.status == PostStatus.published) {
+      PushNotificationService.notifyPostPublished(
+        PostModel(
+          id: doc.id,
+          title: postWithAuthor.title,
+          summary: postWithAuthor.summary,
+          content: postWithAuthor.content,
+          publishedAt: postWithAuthor.publishedAt,
+          thumbnailUrl: postWithAuthor.thumbnailUrl,
+          categories: postWithAuthor.categories,
+          status: postWithAuthor.status,
+        ),
+      );
+    }
+
     return doc.id;
   }
 
-  /// Atualiza uma notícia existente. Se o status mudar de rascunho/
-  /// despublicada para 'publicado', a Cloud Function
-  /// notifyPostPublished dispara a notificação.
+  /// Atualiza uma notícia existente. Se o status mudar para
+  /// 'publicado' (e não estava publicado antes), dispara a
+  /// notificação via OneSignal.
   Future<void> updateNews(String postId, PostModel post) async {
     final user = FirebaseAuth.instance.currentUser;
     final data = post.copyWithAuthor(
       authorUid: post.authorUid ?? user?.uid,
       authorName: post.authorName ?? user?.displayName ?? user?.email,
     );
+
+    bool wasPublished = false;
+    if (post.status == PostStatus.published) {
+      final before = await getById(postId);
+      wasPublished = before?.status == PostStatus.published;
+    }
+
     await _col.doc(postId).update(data.toFirestoreMap());
+
+    if (post.status == PostStatus.published && !wasPublished) {
+      PushNotificationService.notifyPostPublished(data);
+    }
   }
 
   Future<void> setStatus(String postId, PostStatus status) async {
+    final wasPublished = status == PostStatus.published
+        ? (await getById(postId))?.status == PostStatus.published
+        : true; // não relevante se não estamos publicando agora
+
     final data = <String, dynamic>{
       'status': statusToFirestoreString(status),
       'atualizadoEm': FieldValue.serverTimestamp(),
@@ -60,6 +90,13 @@ class AdminNewsService {
       data['publicadoEm'] = FieldValue.serverTimestamp();
     }
     await _col.doc(postId).update(data);
+
+    if (status == PostStatus.published && !wasPublished) {
+      final post = await getById(postId);
+      if (post != null) {
+        PushNotificationService.notifyPostPublished(post);
+      }
+    }
   }
 
   Future<void> deleteNews(String postId) async {
