@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../config/app_colors.dart';
@@ -12,6 +13,13 @@ import '../services/push_notification_service.dart';
 /// do painel ADM. Cobre: título, resumo, conteúdo, categoria, capa,
 /// galeria de imagens, vídeo, e os três estados de publicação
 /// (rascunho, publicada, despublicada).
+///
+/// ATENÇÃO: este arquivo é puramente visual. Todo o fluxo de salvar,
+/// publicar e disparar a notificação push continua idêntico —
+/// _buildPost, _save, createNews/updateNews e o tratamento de
+/// PushNotificationResult não foram alterados. Só o visual (cores,
+/// layout, animações) foi refeito para seguir a identidade do resto
+/// do app: fundo preto, partículas de fogo, glow laranja e gradientes.
 class NewsEditorScreen extends StatefulWidget {
   final AdminNewsService newsService;
   final PostModel? existingPost;
@@ -26,7 +34,8 @@ class NewsEditorScreen extends StatefulWidget {
   State<NewsEditorScreen> createState() => _NewsEditorScreenState();
 }
 
-class _NewsEditorScreenState extends State<NewsEditorScreen> {
+class _NewsEditorScreenState extends State<NewsEditorScreen>
+    with TickerProviderStateMixin {
   final _cloudinary = CloudinaryUploadService();
   final _picker = ImagePicker();
 
@@ -46,6 +55,10 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
 
   bool get _isEditing => widget.existingPost != null;
 
+  late final AnimationController _particleCtrl;
+  late final AnimationController _glowCtrl;
+  late final Animation<double> _glowAnim;
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +74,20 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
     _coverUrl = post?.thumbnailUrl ?? '';
     _gallery = List<String>.from(post?.gallery ?? []);
     _videoUrl = post?.videoUrl;
+
+    _particleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat();
+
+    _glowCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+
+    _glowAnim = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
+    );
   }
 
   @override
@@ -69,9 +96,12 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
     _summaryCtrl.dispose();
     _contentCtrl.dispose();
     _categoryCtrl.dispose();
+    _particleCtrl.dispose();
+    _glowCtrl.dispose();
     super.dispose();
   }
 
+  // ── Lógica de dados: idêntica à versão anterior ─────────────────────────
   PostModel _buildPost(PostStatus status) {
     final categories = _categoryCtrl.text.trim().isEmpty
         ? <CategoryModel>[]
@@ -94,8 +124,8 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
   }
 
   Future<void> _pickAndUploadCover() async {
-    final picked = await _picker.pickImage(
-        source: ImageSource.gallery, imageQuality: 85);
+    final picked =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return;
     setState(() => _uploadingCover = true);
     try {
@@ -109,8 +139,8 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
   }
 
   Future<void> _pickAndUploadGalleryImage() async {
-    final picked = await _picker.pickImage(
-        source: ImageSource.gallery, imageQuality: 85);
+    final picked =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return;
     setState(() => _uploadingGallery = true);
     try {
@@ -222,47 +252,223 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
     }
   }
 
+  // ── UI ───────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: Text(_isEditing ? 'Editar notícia' : 'Nova notícia'),
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(child: Container(color: Colors.black)),
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _particleCtrl,
+              builder: (_, __) => CustomPaint(
+                painter: _EditorParticlePainter(_particleCtrl.value),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: _saving
+                ? _buildSavingState()
+                : Column(
+                    children: [
+                      _buildAppBar(),
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                          children: [
+                            _sectionCard(
+                              title: 'Conteúdo',
+                              icon: Icons.article_rounded,
+                              children: [
+                                _label('Título'),
+                                _textField(_titleCtrl, hint: 'Título da notícia'),
+                                const SizedBox(height: 14),
+                                _label('Subtítulo / Resumo'),
+                                _textField(_summaryCtrl,
+                                    hint: 'Resumo curto que aparece na listagem',
+                                    maxLines: 2),
+                                const SizedBox(height: 14),
+                                _label('Categoria'),
+                                _textField(_categoryCtrl,
+                                    hint: 'Ex.: Cidade, Esporte...'),
+                                const SizedBox(height: 14),
+                                _label('Conteúdo completo'),
+                                _textField(_contentCtrl,
+                                    hint:
+                                        'Texto da notícia. Pode conter HTML simples (<p>, <b>, <h2>...).',
+                                    maxLines: 10),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            _sectionCard(
+                              title: 'Mídia',
+                              icon: Icons.perm_media_rounded,
+                              children: [
+                                _buildCoverSection(),
+                                const SizedBox(height: 18),
+                                _buildGallerySection(),
+                                const SizedBox(height: 18),
+                                _buildVideoSection(),
+                              ],
+                            ),
+                            const SizedBox(height: 22),
+                            _buildActionButtons(),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ],
       ),
-      body: _saving
-          ? const Center(
-              child:
-                  CircularProgressIndicator(color: AppColors.primaryOrange))
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-              children: [
-                _label('Título'),
-                _textField(_titleCtrl, hint: 'Título da notícia'),
-                const SizedBox(height: 16),
-                _label('Subtítulo / Resumo'),
-                _textField(_summaryCtrl,
-                    hint: 'Resumo curto que aparece na listagem',
-                    maxLines: 2),
-                const SizedBox(height: 16),
-                _label('Categoria'),
-                _textField(_categoryCtrl, hint: 'Ex.: Cidade, Esporte...'),
-                const SizedBox(height: 16),
-                _label('Conteúdo completo'),
-                _textField(_contentCtrl,
-                    hint:
-                        'Texto da notícia. Pode conter HTML simple (<p>, <b>, <h2>...).',
-                    maxLines: 10),
-                const SizedBox(height: 20),
-                _buildCoverSection(),
-                const SizedBox(height: 20),
-                _buildGallerySection(),
-                const SizedBox(height: 20),
-                _buildVideoSection(),
-                const SizedBox(height: 28),
-                _buildActionButtons(),
+    );
+  }
+
+  Widget _buildSavingState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedBuilder(
+            animation: _glowAnim,
+            builder: (_, __) => Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: AppColors.orangeGradient,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryOrange.withOpacity(0.5 * _glowAnim.value),
+                    blurRadius: 24,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: const SizedBox(
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.5,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            'Salvando notícia...',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(4, 6, 16, 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.black.withOpacity(0.0), Colors.black.withOpacity(0.5)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              gradient: AppColors.orangeGradient,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryOrange.withOpacity(0.35),
+                  blurRadius: 12,
+                ),
               ],
             ),
+            child: Icon(
+              _isEditing ? Icons.edit_rounded : Icons.add_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _isEditing ? 'EDITAR NOTÍCIA' : 'NOVA NOTÍCIA',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  _isEditing ? 'Atualize os dados da matéria' : 'Preencha os dados da matéria',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionCard({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF161616), Color(0xFF0D0D0D)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: const Color(0xFF232323)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: AppColors.primaryOrange, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                title.toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ...children,
+        ],
+      ),
     );
   }
 
@@ -284,18 +490,56 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
     return TextField(
       controller: controller,
       maxLines: maxLines,
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: Colors.white, fontSize: 14),
+      cursorColor: AppColors.primaryOrange,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.textSecondary),
+        hintStyle: const TextStyle(color: Color(0xFF666666), fontSize: 13),
         filled: true,
-        fillColor: AppColors.backgroundElevated,
+        fillColor: const Color(0xFF0A0A0A),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: Color(0xFF262626)),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFF262626)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.3),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      ),
+    );
+  }
+
+  Widget _uploadButton({
+    required VoidCallback? onPressed,
+    required bool loading,
+    required IconData icon,
+    required String label,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primaryOrange,
+          side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.5)),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          backgroundColor: AppColors.primaryOrange.withOpacity(0.06),
+        ),
+        icon: loading
+            ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: AppColors.primaryOrange),
+              )
+            : Icon(icon, size: 18),
+        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
       ),
     );
   }
@@ -306,23 +550,34 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
       children: [
         _label('Imagem de capa'),
         if (_coverUrl.isNotEmpty)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: Image.network(_coverUrl,
-                height: 140, width: double.infinity, fit: BoxFit.cover),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Stack(
+                children: [
+                  Image.network(_coverUrl,
+                      height: 150, width: double.infinity, fit: BoxFit.cover),
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.transparent, Colors.black.withOpacity(0.35)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
+        _uploadButton(
           onPressed: _uploadingCover ? null : _pickAndUploadCover,
-          icon: _uploadingCover
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.image_rounded),
-          label:
-              Text(_coverUrl.isEmpty ? 'Escolher capa' : 'Trocar capa'),
+          loading: _uploadingCover,
+          icon: Icons.image_rounded,
+          label: _coverUrl.isEmpty ? 'Escolher capa' : 'Trocar capa',
         ),
       ],
     );
@@ -334,48 +589,45 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
       children: [
         _label('Galeria de imagens'),
         if (_gallery.isNotEmpty)
-          SizedBox(
-            height: 80,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _gallery.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, i) => Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(_gallery[i],
-                        width: 80, height: 80, fit: BoxFit.cover),
-                  ),
-                  Positioned(
-                    top: 2,
-                    right: 2,
-                    child: GestureDetector(
-                      onTap: () => setState(
-                          () => _gallery = [..._gallery]..removeAt(i)),
-                      child: const CircleAvatar(
-                        radius: 10,
-                        backgroundColor: Colors.black87,
-                        child: Icon(Icons.close_rounded,
-                            size: 12, color: Colors.white),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: SizedBox(
+              height: 84,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _gallery.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, i) => Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(_gallery[i],
+                          width: 84, height: 84, fit: BoxFit.cover),
+                    ),
+                    Positioned(
+                      top: 3,
+                      right: 3,
+                      child: GestureDetector(
+                        onTap: () =>
+                            setState(() => _gallery = [..._gallery]..removeAt(i)),
+                        child: const CircleAvatar(
+                          radius: 10,
+                          backgroundColor: Colors.black87,
+                          child:
+                              Icon(Icons.close_rounded, size: 12, color: Colors.white),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
+        _uploadButton(
           onPressed: _uploadingGallery ? null : _pickAndUploadGalleryImage,
-          icon: _uploadingGallery
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.add_photo_alternate_rounded),
-          label: const Text('Adicionar imagem'),
+          loading: _uploadingGallery,
+          icon: Icons.add_photo_alternate_rounded,
+          label: 'Adicionar imagem',
         ),
       ],
     );
@@ -388,10 +640,12 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
         _label('Vídeo (opcional)'),
         if (_videoUrl != null)
           Container(
+            margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppColors.backgroundElevated,
+              color: const Color(0xFF0A0A0A),
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF262626)),
             ),
             child: Row(
               children: [
@@ -411,17 +665,11 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
               ],
             ),
           ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
+        _uploadButton(
           onPressed: _uploadingVideo ? null : _pickAndUploadVideo,
-          icon: _uploadingVideo
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.video_call_rounded),
-          label: Text(_videoUrl == null ? 'Adicionar vídeo' : 'Trocar vídeo'),
+          loading: _uploadingVideo,
+          icon: Icons.video_call_rounded,
+          label: _videoUrl == null ? 'Adicionar vídeo' : 'Trocar vídeo',
         ),
       ],
     );
@@ -430,17 +678,36 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
   Widget _buildActionButtons() {
     return Column(
       children: [
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () => _save(PostStatus.published),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+        AnimatedBuilder(
+          animation: _glowAnim,
+          builder: (_, child) => Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryOrange.withOpacity(0.3 * _glowAnim.value),
+                  blurRadius: 18,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            icon: const Icon(Icons.publish_rounded),
-            label: const Text('Publicar',
-                style: TextStyle(fontWeight: FontWeight.w700)),
+            child: child,
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _save(PostStatus.published),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.publish_rounded),
+              label: const Text('Publicar',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            ),
           ),
         ),
         const SizedBox(height: 10),
@@ -448,11 +715,97 @@ class _NewsEditorScreenState extends State<NewsEditorScreen> {
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: () => _save(PostStatus.draft),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Color(0xFF333333)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
             icon: const Icon(Icons.save_outlined),
-            label: const Text('Salvar como rascunho'),
+            label: const Text('Salvar como rascunho',
+                style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ),
       ],
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PARTÍCULAS DE FOGO DE FUNDO (mesmo padrão visual do Ranking / Notícias)
+// ═══════════════════════════════════════════════════════════════════
+class _EditorParticlePainter extends CustomPainter {
+  final double t;
+  _EditorParticlePainter(this.t);
+
+  static final _rng = math.Random(19);
+  static final _particles = List.generate(
+    22,
+    (i) => _EPData(
+      x: _rng.nextDouble(),
+      y: _rng.nextDouble(),
+      size: 0.5 + _rng.nextDouble() * 1.4,
+      speed: 0.012 + _rng.nextDouble() * 0.028,
+      opacity: 0.04 + _rng.nextDouble() * 0.14,
+      phase: _rng.nextDouble(),
+    ),
+  );
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..color = Colors.black,
+    );
+
+    final orbPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFFFF6B00).withOpacity(0.045),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(
+        center: Offset(size.width * 0.15, size.height * 0.05),
+        radius: size.width * 0.7,
+      ));
+    canvas.drawCircle(
+      Offset(size.width * 0.15, size.height * 0.05),
+      size.width * 0.7,
+      orbPaint,
+    );
+
+    for (final p in _particles) {
+      final dy = 1.0 - ((p.y + t * p.speed + p.phase) % 1.0);
+      final dx = p.x + 0.018 * math.sin((t * 2 * math.pi * 0.6) + p.phase * 6.28);
+      final fireRatio = 1.0 - dy;
+      final color = Color.lerp(
+        const Color(0xFFFF6B00),
+        const Color(0xFFFF2200),
+        fireRatio,
+      )!;
+      final opacity = p.opacity *
+          (0.5 + 0.5 * math.sin(t * 2 * math.pi * p.speed * 10 + p.phase));
+
+      canvas.drawCircle(
+        Offset(dx * size.width, dy * size.height),
+        p.size,
+        Paint()..color = color.withOpacity(opacity.clamp(0.0, 0.2)),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_EditorParticlePainter old) => old.t != t;
+}
+
+class _EPData {
+  final double x, y, size, speed, opacity, phase;
+  const _EPData({
+    required this.x,
+    required this.y,
+    required this.size,
+    required this.speed,
+    required this.opacity,
+    required this.phase,
+  });
 }
