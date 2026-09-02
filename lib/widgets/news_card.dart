@@ -120,8 +120,8 @@ class _NewsCardState extends State<NewsCard>
               children: [
                 // ── Barra lateral ──────────────────────────────────
                 urgent
-                    ? _UrgentSideBar()
-                    : _GlowingSideBar(),
+                    ? const _UrgentSideBar()
+                    : const _GlowingSideBar(),
 
                 // ── Conteúdo ───────────────────────────────────────
                 Expanded(
@@ -138,7 +138,7 @@ class _NewsCardState extends State<NewsCard>
                                 urgent: urgent,
                               ),
                             const Spacer(),
-                            Icon(Icons.access_time_rounded,
+                            const Icon(Icons.access_time_rounded,
                                 size: 11, color: AppColors.textMuted),
                             const SizedBox(width: 3),
                             RelativeTimeText(
@@ -187,6 +187,8 @@ class _NewsCardState extends State<NewsCard>
                         ? widget.post.categories.first.name
                         : null,
                     urgent: urgent,
+                    hasVideo: widget.post.videoUrl != null &&
+                        widget.post.videoUrl!.trim().isNotEmpty,
                   ),
                 ),
               ],
@@ -201,6 +203,8 @@ class _NewsCardState extends State<NewsCard>
 // ── Barra lateral com glow pulsante ──────────────────────────────────────────
 
 class _GlowingSideBar extends StatefulWidget {
+  const _GlowingSideBar();
+
   @override
   State<_GlowingSideBar> createState() => _GlowingSideBarState();
 }
@@ -259,6 +263,8 @@ class _GlowingSideBarState extends State<_GlowingSideBar>
 // ── Barra lateral urgente com pulso vermelho ──────────────────────────────────
 
 class _UrgentSideBar extends StatefulWidget {
+  const _UrgentSideBar();
+
   @override
   State<_UrgentSideBar> createState() => _UrgentSideBarState();
 }
@@ -319,11 +325,13 @@ class _NewsThumb extends StatelessWidget {
   final String url;
   final String? categoryName;
   final bool urgent;
+  final bool hasVideo;
 
   const _NewsThumb({
     required this.url,
     this.categoryName,
     required this.urgent,
+    this.hasVideo = false,
   });
 
   @override
@@ -361,6 +369,24 @@ class _NewsThumb extends StatelessWidget {
                 ),
               ),
             ),
+            if (hasVideo)
+              Center(
+                child: Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.55),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.85), width: 1),
+                  ),
+                  child: const Icon(
+                    Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
