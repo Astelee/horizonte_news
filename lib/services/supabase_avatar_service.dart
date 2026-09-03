@@ -38,7 +38,9 @@ class SupabaseAvatarService {
     final response = await http.post(
       uploadUri,
       headers: {
-        'Authorization': 'Bearer $anonKey',
+        // Chaves no novo formato (sb_publishable_..., sb_secret_...) NÃO
+        // são JWTs e não devem ir no header Authorization: Bearer — isso
+        // causa erro de autenticação. Vão só no header "apikey".
         'apikey': anonKey,
         'Content-Type': _contentTypeFor(ext),
         // Sobrescreve o arquivo existente em vez de dar erro de conflito.
