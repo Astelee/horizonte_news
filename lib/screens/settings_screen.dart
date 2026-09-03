@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -5,11 +7,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../services/notification_service.dart';
 import '../services/auth_service.dart';
+import '../services/supabase_avatar_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -26,6 +31,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _loadingCache = true;
   bool _loadingNotifications = true;
   String? _currentUsername;
+  String? _photoUrl;
+  bool _uploadingPhoto = false;
+
+  final _picker = ImagePicker();
+  final _avatarService = SupabaseAvatarService();
 
   // Link oficial da Política de Privacidade
   static const String _privacyPolicyUrl =
@@ -54,10 +64,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           .doc(user.uid)
           .get();
 
-      final username = doc.data()?['username'] as String?;
+      final data = doc.data();
+      final username = data?['username'] as String?;
+      final photoUrl = data?['photoUrl'] as String?;
 
       if (mounted) {
-        setState(() => _currentUsername = username);
+        setState(() {
+          _currentUsername = username;
+          _photoUrl = photoUrl;
+        });
       }
     } catch (_) {
       // Silencioso: mantém o placeholder se falhar.
@@ -579,6 +594,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         children: [
           // ==========================================================
+          // FOTO DE PERFIL
+          // ==========================================================
+
+          _buildProfileHeader(),
+
+          // ==========================================================
           // CONTA
           // ==========================================================
 
@@ -805,6 +826,140 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 40),
         ],
+      ),
+    );
+  }
+
+  // ================================================================
+  // FOTO DE PERFIL
+  // ================================================================
+
+  Future<void> _pickAndUploadAvatar() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 1024,
+    );
+
+    if (picked == null) return;
+
+    setState(() => _uploadingPhoto = true);
+
+    try {
+      final url = await _avatarService.uploadAvatar(
+        file: File(picked.path),
+        uid: user.uid,
+      );
+
+      await FirebaseFirestore.instance
+          .collection('users_xp')
+          .doc(user.uid)
+          .set({'photoUrl': url}, SetOptions(merge: true));
+
+      await user.updatePhotoURL(url);
+
+      if (mounted) {
+        setState(() {
+          _photoUrl = url;
+          _uploadingPhoto = false;
+        });
+        _showSnack(
+          'Foto de perfil atualizada!',
+          icon: Icons.check_circle_rounded,
+          success: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _uploadingPhoto = false);
+        _showSnack(
+          'Erro ao enviar a foto.',
+          icon: Icons.error_rounded,
+          success: false,
+        );
+      }
+    }
+  }
+
+  Widget _buildProfileHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+      child: Center(
+        child: GestureDetector(
+          onTap: _uploadingPhoto ? null : _pickAndUploadAvatar,
+          child: Stack(
+            children: [
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF212121),
+                    width: 1.5,
+                  ),
+                  color: const Color(0xFF141414),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _uploadingPhoto
+                    ? const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primaryOrange,
+                          ),
+                        ),
+                      )
+                    : (_photoUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: _photoUrl!,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => const Icon(
+                              Icons.person_rounded,
+                              color: Color(0xFF757575),
+                              size: 40,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.person_rounded,
+                            color: Color(0xFF757575),
+                            size: 40,
+                          )),
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        Color(0xFFBF360C),
+                        Color(0xFFE65100),
+                        Color(0xFFF57C00),
+                      ],
+                    ),
+                    border: Border.fromBorderSide(
+                      BorderSide(color: Colors.black, width: 2),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.camera_alt_rounded,
+                    color: Colors.white,
+                    size: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
