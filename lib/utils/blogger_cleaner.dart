@@ -13,6 +13,33 @@ class BloggerCleaner {
     html = html.replaceAll(RegExp(r'line-height\s*:\s*[^;]+;?'), '');
     html = html.replaceAll(RegExp(r'font-size\s*:\s*[^;]+;?'), '');
 
+    // Remove estilos inline de cor/transparência/peso de fonte vindos de
+    // colagem externa (Google Docs, Word, Blogger) — eles sobrescrevem
+    // as cores e pesos definidos no app, deixando o texto pequeno,
+    // acinzentado/transparente ou com peso errado.
+    html = html.replaceAll(
+        RegExp(r'color\s*:\s*[^;]+;?', caseSensitive: false), '');
+    html = html.replaceAll(
+        RegExp(r'opacity\s*:\s*[^;]+;?', caseSensitive: false), '');
+    html = html.replaceAll(
+        RegExp(r'font-weight\s*:\s*[^;]+;?', caseSensitive: false), '');
+    html = html.replaceAll(
+        RegExp(r'font-family\s*:\s*[^;]+;?', caseSensitive: false), '');
+    html = html.replaceAll(
+        RegExp(r'background(-color)?\s*:\s*[^;]+;?', caseSensitive: false),
+        '');
+
+    // Remove atributos style="" que ficaram vazios após as remoções acima
+    html = html.replaceAll(
+        RegExp(r'''\s*style\s*=\s*["']\s*["']''', caseSensitive: false),
+        '');
+
+    // Remove atributos color/face de tags antigas (<font color="...">)
+    html = html.replaceAll(
+        RegExp(r'''\s*(color|face)\s*=\s*["'][^"']*["']''',
+            caseSensitive: false),
+        '');
+
     // Qualquer quantidade de <br> (1 ou mais) → fechamento de parágrafo
     // Isso garante que tanto 1 <br> quanto vários virem parágrafo separado
     html = html.replaceAll(
