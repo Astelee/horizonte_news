@@ -19,6 +19,7 @@ class CommentModel {
   final int userLevel;
   final List<String> userAchievements;
   final String userAvatarId;
+  final String? userPhotoUrl;
 
   CommentModel({
     required this.id,
@@ -29,6 +30,7 @@ class CommentModel {
     this.userLevel = 1,
     this.userAchievements = const [],
     this.userAvatarId = 'animais_01',
+    this.userPhotoUrl,
   });
 
   factory CommentModel.fromDoc(DocumentSnapshot doc) {
@@ -42,6 +44,7 @@ class CommentModel {
       userLevel: (data['userLevel'] as num?)?.toInt() ?? 1,
       userAchievements: List<String>.from(data['userAchievements'] ?? []),
       userAvatarId: (data['userAvatarId'] as String?) ?? 'animais_01',
+      userPhotoUrl: data['userPhotoUrl'] as String?,
     );
   }
 }
@@ -94,10 +97,23 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
     if (mounted) setState(() => _loading = false);
   }
 
+  int _calculateAge(DateTime birthDate) {
+    final today = DateTime.now();
+    int age = today.year - birthDate.year;
+    final hasHadBirthdayThisYear = (today.month > birthDate.month) ||
+        (today.month == birthDate.month && today.day >= birthDate.day);
+    if (!hasHadBirthdayThisYear) age--;
+    return age;
+  }
+
   @override
   Widget build(BuildContext context) {
     final username = (_userData?['username'] as String?) ?? '';
     final totalXp = (_userData?['totalXp'] as num?)?.toInt() ?? 0;
+    final photoUrl = _userData?['photoUrl'] as String?;
+    final showAge = _userData?['showAge'] as bool? ?? false;
+    final birthDate = (_userData?['birthDate'] as Timestamp?)?.toDate();
+    final age = (showAge && birthDate != null) ? _calculateAge(birthDate) : null;
 
     return Container(
       decoration: const BoxDecoration(
@@ -138,6 +154,7 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                 child: AppAvatar(
                   name: widget.userName,
                   seed: widget.userId,
+                  photoUrl: photoUrl,
                   size: 60,
                 ),
               ),
@@ -161,6 +178,16 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                         style: TextStyle(
                           color: AppColors.primaryOrange.withOpacity(0.8),
                           fontSize: 13,
+                        ),
+                      ),
+                    ],
+                    if (age != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '$age anos',
+                        style: const TextStyle(
+                          color: Color(0xFF888888),
+                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -400,6 +427,7 @@ class _CommentsSectionState extends State<CommentsSection>
       final userLevel = xpProvider.data.level;
       final userAchievements = xpProvider.data.achievements;
       final userAvatarId = xpProvider.data.avatarId;
+      final userPhotoUrl = xpProvider.data.photoUrl;
 
       await _commentsRef.add({
         'userId': user.uid,
@@ -409,6 +437,7 @@ class _CommentsSectionState extends State<CommentsSection>
         'userLevel': userLevel,
         'userAchievements': userAchievements,
         'userAvatarId': userAvatarId,
+        'userPhotoUrl': userPhotoUrl,
       });
 
       _controller.clear();
@@ -725,6 +754,7 @@ class _CommentsSectionState extends State<CommentsSection>
                 currentUser?.email?.split('@').first ??
                 'Leitor',
             seed: currentUser?.uid,
+            photoUrl: xpProvider.data.photoUrl,
             size: 36,
           ),
         );
@@ -884,6 +914,7 @@ class _CommentTileState extends State<_CommentTile>
         child: AppAvatar(
           name: widget.comment.userName,
           seed: widget.comment.userId,
+          photoUrl: widget.comment.userPhotoUrl,
           size: 36,
         ),
       ),
