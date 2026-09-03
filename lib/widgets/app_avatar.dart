@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/initials_helper.dart';
 
-/// Avatar circular gerado inteiramente em tempo de execução a partir das
-/// iniciais do nome do usuário — sem depender de imagens, emojis ou ícones
-/// de pessoa. A cor de fundo é determinística: o mesmo [name] (ou [seed],
-/// quando informado) sempre resulta na mesma cor.
+/// Avatar circular do app. Quando [photoUrl] é informado, exibe a foto
+/// de perfil do usuário; caso contrário, gera as iniciais do nome em
+/// tempo de execução — sem depender de imagens, emojis ou ícones de
+/// pessoa. A cor de fundo das iniciais é determinística: o mesmo
+/// [name] (ou [seed], quando informado) sempre resulta na mesma cor.
 ///
 /// Único componente de avatar do app — reutilizado em perfil, ranking,
 /// comentários e telas administrativas.
@@ -16,6 +18,10 @@ class AppAvatar extends StatelessWidget {
   /// Quando ausente, a cor é determinada pelo próprio [name].
   final String? seed;
 
+  /// URL da foto de perfil (Supabase Storage). Quando presente e
+  /// carregada com sucesso, substitui as iniciais.
+  final String? photoUrl;
+
   final double size;
   final bool showBorder;
   final Color? borderColor;
@@ -25,6 +31,7 @@ class AppAvatar extends StatelessWidget {
     Key? key,
     required this.name,
     this.seed,
+    this.photoUrl,
     this.size = 44,
     this.showBorder = false,
     this.borderColor,
@@ -55,16 +62,14 @@ class AppAvatar extends StatelessWidget {
     return _palette[hash % _palette.length];
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _initialsContent() {
     final key = (seed != null && seed!.trim().isNotEmpty)
         ? seed!.trim()
         : (name ?? '');
     final initials = InitialsHelper.getInitials(name);
-    final bgColor =
-        key.isEmpty ? const Color(0xFF2A2A2A) : _colorFor(key);
+    final bgColor = key.isEmpty ? const Color(0xFF2A2A2A) : _colorFor(key);
 
-    final content = Container(
+    return Container(
       width: size,
       height: size,
       alignment: Alignment.center,
@@ -95,6 +100,43 @@ class AppAvatar extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPhoto = photoUrl != null && photoUrl!.trim().isNotEmpty;
+
+    final content = hasPhoto
+        ? Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: showBorder
+                  ? Border.all(
+                      color: borderColor ?? const Color(0xFFFF6B00),
+                      width: 2,
+                    )
+                  : null,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFF6B00).withOpacity(0.2),
+                  blurRadius: size * 0.2,
+                  spreadRadius: 0.5,
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: CachedNetworkImage(
+              imageUrl: photoUrl!,
+              fit: BoxFit.cover,
+              width: size,
+              height: size,
+              placeholder: (_, __) => _initialsContent(),
+              errorWidget: (_, __, ___) => _initialsContent(),
+            ),
+          )
+        : _initialsContent();
 
     if (onTap == null) return content;
     return GestureDetector(onTap: onTap, child: content);
