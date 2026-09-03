@@ -15,6 +15,7 @@ import '../config/app_colors.dart';
 import '../widgets/comments_section.dart';
 import '../widgets/post_video_player.dart';
 import '../features/admin/services/admin_views_service.dart';
+import '../utils/cloudinary_url_utils.dart';
 
 // ─────────────────────────────────────────────────────────────────
 // UTILITÁRIO DE DATA
@@ -295,64 +296,89 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   // SLIVER APP BAR
   // ─────────────────────────────────────────────────────────────
   Widget _buildSliverAppBar(PostModel post) {
-    final bool hasThumbnail = post.thumbnailUrl.trim().isNotEmpty;
-    final bool hasVideo =
-        post.videoUrl != null && post.videoUrl!.trim().isNotEmpty;
-    // Sem capa mas com vídeo: encolhe o espaço do topo em vez de mostrar
-    // o aviso de "Sem imagem" — o vídeo já aparece logo abaixo do título.
-    final double expandedHeight = (!hasThumbnail && hasVideo) ? 0 : 280;
-
     return SliverAppBar(
-      expandedHeight: expandedHeight,
+      expandedHeight: 280,
       pinned: true,
       stretch: true,
       backgroundColor: Colors.black,
       automaticallyImplyLeading: false,
       title: null,
-      flexibleSpace: expandedHeight == 0
-          ? null
-          : FlexibleSpaceBar(
-              collapseMode: CollapseMode.parallax,
-              stretchModes: const [StretchMode.zoomBackground],
-              background: _buildHeroImage(post),
-            ),
+      flexibleSpace: FlexibleSpaceBar(
+        collapseMode: CollapseMode.parallax,
+        stretchModes: const [StretchMode.zoomBackground],
+        background: _buildHeroImage(post),
+      ),
     );
   }
 
   Widget _buildHeroImage(PostModel post) {
+    final bool hasVideo =
+        post.videoUrl != null && post.videoUrl!.trim().isNotEmpty;
+    final String effectiveImageUrl = post.thumbnailUrl.trim().isNotEmpty
+        ? post.thumbnailUrl
+        : (CloudinaryUrlUtils.videoThumbnail(post.videoUrl) ?? '');
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        CachedNetworkImage(
-          imageUrl: post.thumbnailUrl,
-          fit: BoxFit.cover,
-          placeholder: (context, url) => Container(
-            color: AppColors.backgroundElevated,
-            child: const Center(
-              child: SizedBox(
-                width: 28,
-                height: 28,
-                child: CircularProgressIndicator(
-                    color: AppColors.primaryOrange, strokeWidth: 2),
+        effectiveImageUrl.isEmpty
+            ? Container(
+                color: AppColors.backgroundElevated,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                        hasVideo
+                            ? Icons.videocam_rounded
+                            : Icons.image_not_supported_rounded,
+                        color: AppColors.primaryOrange,
+                        size: 40),
+                    const SizedBox(height: 8),
+                    Text(hasVideo ? 'Vídeo' : 'Sem imagem',
+                        style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13)),
+                  ],
+                ),
+              )
+            : CachedNetworkImage(
+                imageUrl: effectiveImageUrl,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  color: AppColors.backgroundElevated,
+                  child: const Center(
+                    child: SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(
+                          color: AppColors.primaryOrange, strokeWidth: 2),
+                    ),
+                  ),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  color: AppColors.backgroundElevated,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                          hasVideo
+                              ? Icons.videocam_rounded
+                              : Icons.image_not_supported_rounded,
+                          color: AppColors.primaryOrange,
+                          size: 40),
+                      const SizedBox(height: 8),
+                      Text(hasVideo ? 'Vídeo' : 'Sem imagem',
+                          style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13)),
+                    ],
+                  ),
+                ),
               ),
-            ),
+        if (hasVideo)
+          const Center(
+            child: _HeroPlayBadge(),
           ),
-          errorWidget: (context, url, error) => Container(
-            color: AppColors.backgroundElevated,
-            child: const Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.image_not_supported_rounded,
-                    color: AppColors.primaryOrange, size: 40),
-                SizedBox(height: 8),
-                Text('Sem imagem',
-                    style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13)),
-              ],
-            ),
-          ),
-        ),
         Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -790,6 +816,37 @@ class _PostDetailScreenState extends State<PostDetailScreen>
           color: active ? AppColors.primaryOrange : Colors.white,
           size: 20,
         ),
+      ),
+    );
+  }
+}
+
+// ── Selo de "play" central para o hero quando a matéria tem vídeo ────────────
+
+class _HeroPlayBadge extends StatelessWidget {
+  const _HeroPlayBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.45),
+        shape: BoxShape.circle,
+        border: Border.all(
+            color: AppColors.primaryOrange.withOpacity(0.85), width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryOrange.withOpacity(0.35),
+            blurRadius: 16,
+          ),
+        ],
+      ),
+      child: const Icon(
+        Icons.play_arrow_rounded,
+        color: Colors.white,
+        size: 34,
       ),
     );
   }
