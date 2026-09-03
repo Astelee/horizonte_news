@@ -675,9 +675,10 @@ class _PostDetailScreenState extends State<PostDetailScreen>
           'body':
               Style(margin: Margins.zero, padding: HtmlPaddings.zero),
           'p': Style(
-            fontSize: FontSize(17),
+            fontSize: FontSize(16),
             lineHeight: LineHeight(1.85),
-            color: textColor,
+            color: secondaryColor,
+            fontWeight: FontWeight.normal,
             margin: Margins.only(top: 0, bottom: 20),
             padding: HtmlPaddings.zero,
             display: Display.block,
@@ -735,9 +736,10 @@ class _PostDetailScreenState extends State<PostDetailScreen>
               margin: Margins.only(bottom: 16, left: 4),
               padding: HtmlPaddings.zero),
           'li': Style(
-            fontSize: FontSize(17),
+            fontSize: FontSize(16),
             lineHeight: LineHeight(1.8),
-            color: textColor,
+            color: secondaryColor,
+            fontWeight: FontWeight.normal,
             margin: Margins.only(bottom: 8),
           ),
           'img': Style(
