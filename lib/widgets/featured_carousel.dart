@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/post_model.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../utils/cloudinary_url_utils.dart';
 
 class FeaturedCarousel extends StatefulWidget {
   final List<PostModel> featuredPosts;
@@ -95,33 +96,36 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
                       AppRoutes.postDetail,
                       arguments: post,
                     ),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // ── Imagem de fundo ───────────────────────
-                        post.thumbnailUrl.trim().isEmpty
-                            ? _CarouselNoImage(hasVideo: post.videoUrl != null &&
-                                post.videoUrl!.trim().isNotEmpty)
-                            : CachedNetworkImage(
-                                imageUrl: post.thumbnailUrl,
-                                fit: BoxFit.cover,
-                                placeholder: (_, __) =>
-                                    const _CarouselShimmer(),
-                                errorWidget: (_, __, ___) =>
-                                    _CarouselNoImage(
-                                        hasVideo: post.videoUrl != null &&
-                                            post.videoUrl!
-                                                .trim()
-                                                .isNotEmpty),
-                              ),
+                    child: Builder(builder: (context) {
+                      final bool hasVideo = post.videoUrl != null &&
+                          post.videoUrl!.trim().isNotEmpty;
+                      final String effectiveImageUrl =
+                          post.thumbnailUrl.trim().isNotEmpty
+                              ? post.thumbnailUrl
+                              : (CloudinaryUrlUtils.videoThumbnail(
+                                      post.videoUrl) ??
+                                  '');
 
-                        // ── Selo de "play" quando há vídeo ────────
-                        if (post.videoUrl != null &&
-                            post.videoUrl!.trim().isNotEmpty)
-                          const Center(
-                            child: _CarouselPlayBadge(),
-                          ),
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // ── Imagem de fundo ─────────────────────
+                          effectiveImageUrl.isEmpty
+                              ? _CarouselNoImage(hasVideo: hasVideo)
+                              : CachedNetworkImage(
+                                  imageUrl: effectiveImageUrl,
+                                  fit: BoxFit.cover,
+                                  placeholder: (_, __) =>
+                                      const _CarouselShimmer(),
+                                  errorWidget: (_, __, ___) =>
+                                      _CarouselNoImage(hasVideo: hasVideo),
+                                ),
 
+                          // ── Selo de "play" quando há vídeo ──────
+                          if (hasVideo)
+                            const Center(
+                              child: _CarouselPlayBadge(),
+                            ),
                         // ── Gradiente escurecendo de baixo ────────
                         const DecoratedBox(
                           decoration: BoxDecoration(
@@ -240,8 +244,9 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
                             ],
                           ),
                         ),
-                      ],
-                    ),
+                        ],
+                      );
+                    }),
                   ),
                 ),
               );
