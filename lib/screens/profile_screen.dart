@@ -12,6 +12,7 @@ import '../widgets/app_avatar.dart';
 import '../widgets/avatar_frame.dart';
 import '../widgets/badge_widgets.dart';
 import '../widgets/level_up_overlay.dart';
+import '../widgets/profile_edit_sheets.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -38,6 +39,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   late Animation<double> _badgeSlideAnim;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _uploadingAvatar = false;
   bool _audioStarted = false;
 
   @override
@@ -246,6 +248,44 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  // ================================================================
+  // EDIÇÃO DE PERFIL (avatar, nome, ID)
+  // ================================================================
+
+  Future<void> _handleAvatarTap(BuildContext context) async {
+    await pickAndUploadAvatar(
+      context,
+      onUploading: (_) {
+        if (mounted) setState(() => _uploadingAvatar = true);
+      },
+      onSaved: (_) {
+        if (mounted) setState(() => _uploadingAvatar = false);
+      },
+      onError: () {
+        if (mounted) setState(() => _uploadingAvatar = false);
+      },
+    );
+  }
+
+  void _handleNameTap(BuildContext context) {
+    showEditDisplayNameSheet(
+      context,
+      onSaved: () {
+        if (mounted) setState(() {});
+      },
+    );
+  }
+
+  void _handleUsernameTap(BuildContext context, String? currentUsername) {
+    showEditUsernameSheet(
+      context,
+      currentUsername: currentUsername,
+      onSaved: (_) {
+        if (mounted) setState(() {});
+      },
+    );
+  }
+
   Widget _buildSliverAppBar(User? user, UserXpData data) {
     final levelColor = BadgeConfig.levelColor(data.level);
 
@@ -294,28 +334,75 @@ class _ProfileScreenState extends State<ProfileScreen>
               right: 0,
               child: Column(
                 children: [
-                  AvatarFrame(
-                    level: data.level,
-                    size: 84,
-                    enableEntryAnimation: true,
-                    child: AppAvatar(
-                      name: user?.displayName ??
-                          user?.email?.split('@').first ??
-                          'Usuário',
-                      seed: user?.uid,
+                  GestureDetector(
+                    onTap: _uploadingAvatar
+                        ? null
+                        : () => _handleAvatarTap(context),
+                    child: AvatarFrame(
+                      level: data.level,
                       size: 84,
+                      enableEntryAnimation: true,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          AppAvatar(
+                            name: user?.displayName ??
+                                user?.email?.split('@').first ??
+                                'Usuário',
+                            seed: user?.uid,
+                            photoUrl: data.photoUrl,
+                            size: 84,
+                          ),
+                          if (_uploadingAvatar)
+                            Container(
+                              width: 84,
+                              height: 84,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black54,
+                              ),
+                              child: const Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.primaryOrange,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    user?.displayName ??
-                        user?.email?.split('@').first ??
-                        'Usuário',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
+                  GestureDetector(
+                    onTap: () => _handleNameTap(context),
+                    child: Text(
+                      user?.displayName ??
+                          user?.email?.split('@').first ??
+                          'Usuário',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  GestureDetector(
+                    onTap: () => _handleUsernameTap(context, data.username),
+                    child: Text(
+                      data.username != null
+                          ? '@${data.username}'
+                          : 'Definir ID de usuário',
+                      style: TextStyle(
+                        color: AppColors.primaryOrange.withOpacity(0.85),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
