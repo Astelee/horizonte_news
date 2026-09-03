@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../../models/post_model.dart';
+import '../../../utils/cloudinary_url_utils.dart';
 
 /// Dispara notificações push via API REST do OneSignal, chamada
 /// diretamente do app quando um ADM publica uma notícia.
@@ -36,6 +37,10 @@ class PushNotificationService {
     }
 
     try {
+      final String effectiveImageUrl = post.thumbnailUrl.trim().isNotEmpty
+          ? post.thumbnailUrl
+          : (CloudinaryUrlUtils.videoThumbnail(post.videoUrl) ?? '');
+
       final response = await http.post(
         Uri.parse(_endpoint),
         headers: {
@@ -52,7 +57,8 @@ class PushNotificationService {
               ? post.categories.first.name.toUpperCase()
               : 'HORIZONTE NEWS'},
           'contents': {'en': post.title},
-          'big_picture': post.thumbnailUrl.isNotEmpty ? post.thumbnailUrl : null,
+          'big_picture':
+              effectiveImageUrl.isNotEmpty ? effectiveImageUrl : null,
           'data': {'postId': post.id},
         }),
       );
