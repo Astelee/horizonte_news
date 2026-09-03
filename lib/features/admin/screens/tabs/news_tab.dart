@@ -7,6 +7,7 @@ import '../../services/admin_news_service.dart';
 import '../../services/push_notification_service.dart';
 import '../../widgets/admin_shared_widgets.dart';
 import '../news_editor_screen.dart';
+import '../../../../utils/cloudinary_url_utils.dart';
 
 /// Aba "NOTÍCIAS" do painel administrativo.
 ///
@@ -530,27 +531,32 @@ class _NewsCard extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: post.thumbnailUrl.isNotEmpty
-                              ? Image.network(
-                                  post.thumbnailUrl,
-                                  width: 68,
-                                  height: 68,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) =>
-                                      _placeholderThumb(
-                                          hasVideo: post.videoUrl != null &&
-                                              post.videoUrl!
-                                                  .trim()
-                                                  .isNotEmpty),
-                                )
-                              : _placeholderThumb(
-                                  hasVideo: post.videoUrl != null &&
-                                      post.videoUrl!.trim().isNotEmpty),
-                        ),
+                    Builder(builder: (context) {
+                      final bool hasVideo = post.videoUrl != null &&
+                          post.videoUrl!.trim().isNotEmpty;
+                      final String effectiveImageUrl =
+                          post.thumbnailUrl.isNotEmpty
+                              ? post.thumbnailUrl
+                              : (CloudinaryUrlUtils.videoThumbnail(
+                                      post.videoUrl) ??
+                                  '');
+
+                      return Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: effectiveImageUrl.isNotEmpty
+                                ? Image.network(
+                                    effectiveImageUrl,
+                                    width: 68,
+                                    height: 68,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        _placeholderThumb(
+                                            hasVideo: hasVideo),
+                                  )
+                                : _placeholderThumb(hasVideo: hasVideo),
+                          ),
                         if (isPublished)
                           Positioned(
                             top: -3,
@@ -576,7 +582,8 @@ class _NewsCard extends StatelessWidget {
                             ),
                           ),
                       ],
-                    ),
+                      );
+                    }),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
