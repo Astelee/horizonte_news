@@ -540,9 +540,16 @@ class _NewsCard extends StatelessWidget {
                                   width: 68,
                                   height: 68,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => _placeholderThumb(),
+                                  errorBuilder: (_, __, ___) =>
+                                      _placeholderThumb(
+                                          hasVideo: post.videoUrl != null &&
+                                              post.videoUrl!
+                                                  .trim()
+                                                  .isNotEmpty),
                                 )
-                              : _placeholderThumb(),
+                              : _placeholderThumb(
+                                  hasVideo: post.videoUrl != null &&
+                                      post.videoUrl!.trim().isNotEmpty),
                         ),
                         if (isPublished)
                           Positioned(
@@ -711,7 +718,7 @@ class _NewsCard extends StatelessWidget {
     );
   }
 
-  Widget _placeholderThumb() {
+  Widget _placeholderThumb({bool hasVideo = false}) {
     return Container(
       width: 68,
       height: 68,
@@ -719,8 +726,11 @@ class _NewsCard extends StatelessWidget {
         color: const Color(0xFF1A1A1A),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: const Icon(Icons.image_not_supported_rounded,
-          color: AppColors.textSecondary, size: 20),
+      child: Icon(
+        hasVideo ? Icons.videocam_rounded : Icons.image_not_supported_rounded,
+        color: hasVideo ? AppColors.primaryOrange : AppColors.textSecondary,
+        size: 20,
+      ),
     );
   }
 }
