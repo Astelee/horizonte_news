@@ -49,6 +49,7 @@ class AdminNewsService {
           content: postWithAuthor.content,
           publishedAt: postWithAuthor.publishedAt,
           thumbnailUrl: postWithAuthor.thumbnailUrl,
+          videoUrl: postWithAuthor.videoUrl,
           categories: postWithAuthor.categories,
           status: postWithAuthor.status,
         ),
