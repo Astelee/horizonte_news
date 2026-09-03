@@ -9,6 +9,7 @@ import '../../../models/post_model.dart';
 import '../../../services/cloudinary_upload_service.dart';
 import '../services/admin_news_service.dart';
 import '../services/push_notification_service.dart';
+import '../../../utils/plain_text_html_converter.dart';
 
 /// Formulário de criação/edição de notícia, usado pela aba NOTÍCIAS
 /// do painel ADM. Cobre: título, resumo, conteúdo, categoria, capa,
@@ -112,7 +113,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
       id: widget.existingPost?.id ?? '',
       title: _titleCtrl.text.trim(),
       summary: _summaryCtrl.text.trim(),
-      content: _contentCtrl.text.trim(),
+      content: PlainTextHtmlConverter.ensureHtml(_contentCtrl.text.trim()),
       thumbnailUrl: _coverUrl,
       gallery: _gallery,
       videoUrl: _videoUrl,
