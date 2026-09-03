@@ -25,6 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _cacheSize = 0;
   bool _loadingCache = true;
   bool _loadingNotifications = true;
+  String? _currentUsername;
 
   // Link oficial da Política de Privacidade
   static const String _privacyPolicyUrl =
@@ -40,6 +41,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadPrefs();
     _checkNotificationStatus();
     _calcCache();
+    _loadCurrentUsername();
+  }
+
+  Future<void> _loadCurrentUsername() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users_xp')
+          .doc(user.uid)
+          .get();
+
+      final username = doc.data()?['username'] as String?;
+
+      if (mounted) {
+        setState(() => _currentUsername = username);
+      }
+    } catch (_) {
+      // Silencioso: mantém o placeholder se falhar.
+    }
   }
 
   Future<void> _loadPrefs() async {
@@ -566,9 +588,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           _SettingsTile(
             icon: Icons.badge_outlined,
-            label: 'Nome de usuário',
+            label: 'Nome',
+            subtitle: _getDisplayNameSubtitle(),
+            onTap: _editDisplayName,
+          ),
+
+          const _Divider(),
+
+          _SettingsTile(
+            icon: Icons.alternate_email_rounded,
+            label: 'ID de usuário',
             subtitle: _getUsernameSubtitle(),
-            onTap: _editUsername,
+            onTap: _editUsernameId,
           ),
 
           const _Divider(),
@@ -779,34 +810,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ================================================================
-  // NOME DO USUÁRIO
+  // NOME
+  // ================================================================
+
+  String _getDisplayNameSubtitle() {
+    final user = FirebaseAuth.instance.currentUser;
+    return user?.displayName ?? 'Definir nome';
+  }
+
+  // ================================================================
+  // ID DE USUÁRIO
   // ================================================================
 
   String _getUsernameSubtitle() {
-    final user =
-        FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      return '@usuário';
+    if (_currentUsername != null) {
+      return '@$_currentUsername';
     }
-
-    final name = user.displayName ??
-        user.email?.split('@').first ??
-        'usuário';
-
-    return '@${name.toLowerCase().replaceAll(' ', '')}';
+    return 'Definir ID';
   }
 
   // ================================================================
   // EDITAR NOME
   // ================================================================
 
-  void _editUsername() {
+  void _editDisplayName() {
     final controller = TextEditingController(
-      text: FirebaseAuth
-              .instance.currentUser
-              ?.displayName ??
-          '',
+      text: FirebaseAuth.instance.currentUser?.displayName ?? '',
     );
 
     showModalBottomSheet(
@@ -815,15 +844,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => Padding(
         padding: EdgeInsets.only(
-          bottom:
-              MediaQuery.of(context).viewInsets.bottom,
+          bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: const BoxDecoration(
             color: Color(0xFF0A0A0A),
-            borderRadius:
-                BorderRadius.vertical(
+            borderRadius: BorderRadius.vertical(
               top: Radius.circular(24),
             ),
             border: Border(
@@ -834,17 +861,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
                 'EDITAR NOME',
                 style: TextStyle(
-                  color:
-                      AppColors.primaryOrange,
+                  color: AppColors.primaryOrange,
                   fontSize: 11,
-                  fontWeight:
-                      FontWeight.w800,
+                  fontWeight: FontWeight.w800,
                   letterSpacing: 2,
                 ),
               ),
@@ -857,48 +881,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: const TextStyle(
                   color: Colors.white,
                 ),
-                decoration:
-                    InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Seu nome',
-                  hintStyle:
-                      const TextStyle(
+                  hintStyle: const TextStyle(
                     color: Color(0xFF424242),
                   ),
                   filled: true,
-                  fillColor:
-                      const Color(0xFF141414),
-                  border:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(
-                            12),
-                    borderSide:
-                        const BorderSide(
-                      color:
-                          Color(0xFF212121),
+                  fillColor: const Color(0xFF141414),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF212121),
                     ),
                   ),
-                  focusedBorder:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(
-                            12),
-                    borderSide:
-                        const BorderSide(
-                      color:
-                          AppColors.primaryOrange,
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: AppColors.primaryOrange,
                       width: 1.5,
                     ),
                   ),
-                  enabledBorder:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(
-                            12),
-                    borderSide:
-                        const BorderSide(
-                      color:
-                          Color(0xFF212121),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF212121),
                     ),
                   ),
                 ),
@@ -908,18 +914,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               GestureDetector(
                 onTap: () async {
-                  final newName =
-                      controller.text.trim();
+                  final newName = controller.text.trim();
 
                   if (newName.isEmpty) {
                     return;
                   }
 
-                  await FirebaseAuth
-                      .instance
-                      .currentUser
-                      ?.updateDisplayName(
-                          newName);
+                  await FirebaseAuth.instance.currentUser
+                      ?.updateDisplayName(newName);
 
                   if (mounted) {
                     Navigator.pop(context);
@@ -928,8 +930,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     _showSnack(
                       'Nome atualizado!',
-                      icon: Icons
-                          .check_circle_rounded,
+                      icon: Icons.check_circle_rounded,
                       success: true,
                     );
                   }
@@ -937,13 +938,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Container(
                   width: double.infinity,
                   height: 50,
-                  decoration:
-                      BoxDecoration(
-                    borderRadius:
-                        BorderRadius.circular(
-                            14),
-                    gradient:
-                        const LinearGradient(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(
                       colors: [
                         Color(0xFFBF360C),
                         Color(0xFFE65100),
@@ -956,8 +953,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'SALVAR',
                       style: TextStyle(
                         color: Colors.white,
-                        fontWeight:
-                            FontWeight.w800,
+                        fontWeight: FontWeight.w800,
                         letterSpacing: 2,
                       ),
                     ),
@@ -967,6 +963,324 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ================================================================
+  // EDITAR ID DE USUÁRIO
+  // ================================================================
+
+  // ── Formata o username: só letras, números e _ ───────────────────
+  String _formatUsername(String value) {
+    return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '');
+  }
+
+  void _editUsernameId() {
+    final user = FirebaseAuth.instance.currentUser;
+
+    final usernameController = TextEditingController(
+      text: '',
+    );
+
+    // Pré-preenche com o ID atual (já carregado no initState).
+    final originalUsername = _currentUsername;
+    if (originalUsername != null) {
+      usernameController.text = originalUsername;
+    }
+
+    bool usernameAvailable = originalUsername != null;
+    bool checkingUsername = false;
+    String? usernameError;
+    DateTime lastCheck = DateTime.now();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setModalState) {
+          Future<void> checkUsernameAvailability(String username) async {
+            if (username.length < 3) return;
+
+            // Se for o mesmo ID que o usuário já tem, está disponível.
+            if (originalUsername != null &&
+                username == originalUsername) {
+              setModalState(() {
+                usernameAvailable = true;
+                usernameError = null;
+                checkingUsername = false;
+              });
+              return;
+            }
+
+            setModalState(() => checkingUsername = true);
+
+            try {
+              final query = await FirebaseFirestore.instance
+                  .collection('users_xp')
+                  .where('username', isEqualTo: username.toLowerCase())
+                  .limit(1)
+                  .get();
+
+              usernameAvailable = query.docs.isEmpty;
+              usernameError =
+                  query.docs.isEmpty ? null : 'Este ID já está em uso.';
+              checkingUsername = false;
+              setModalState(() {});
+            } catch (_) {
+              checkingUsername = false;
+              setModalState(() {});
+            }
+          }
+
+          void onUsernameChanged(String rawValue) {
+            final formatted = _formatUsername(rawValue);
+            if (formatted != rawValue) {
+              usernameController.value = TextEditingValue(
+                text: formatted,
+                selection: TextSelection.collapsed(
+                  offset: formatted.length,
+                ),
+              );
+            }
+
+            setModalState(() {
+              usernameAvailable = false;
+              usernameError = null;
+            });
+
+            if (formatted.length < 3) return;
+
+            lastCheck = DateTime.now();
+            final checkTime = lastCheck;
+
+            Future.delayed(const Duration(milliseconds: 600), () {
+              if (checkTime == lastCheck) {
+                checkUsernameAvailability(formatted);
+              }
+            });
+          }
+
+          Widget? usernameSuffix() {
+            if (usernameController.text.trim().length < 3) return null;
+            if (checkingUsername) {
+              return const Padding(
+                padding: EdgeInsets.all(14),
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primaryOrange,
+                  ),
+                ),
+              );
+            }
+            if (usernameAvailable) {
+              return const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.green,
+              );
+            }
+            if (usernameError != null) {
+              return const Icon(
+                Icons.cancel_rounded,
+                color: Colors.redAccent,
+              );
+            }
+            return null;
+          }
+
+          String? usernameHelperText() {
+            final value = usernameController.text.trim();
+            if (value.isEmpty) return null;
+            if (value.length < 3) {
+              return 'Mínimo de 3 caracteres.';
+            }
+            if (checkingUsername) return 'Verificando disponibilidade...';
+            if (usernameError != null) return usernameError;
+            if (usernameAvailable) return 'ID disponível!';
+            return null;
+          }
+
+          Color helperColor() {
+            final value = usernameController.text.trim();
+            if (usernameError != null) return Colors.redAccent;
+            if (usernameAvailable && value.length >= 3) {
+              return Colors.green;
+            }
+            return const Color(0xFF757575);
+          }
+
+          final usernameOk = usernameController.text.trim().length >= 3 &&
+              usernameAvailable;
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: SingleChildScrollView(
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0A0A0A),
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
+                  border: Border(
+                    top: BorderSide(
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'EDITAR ID',
+                      style: TextStyle(
+                        color: AppColors.primaryOrange,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2,
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    TextField(
+                      controller: usernameController,
+                      autofocus: true,
+                      onChanged: onUsernameChanged,
+                      style: const TextStyle(
+                        color: Colors.white,
+                      ),
+                      decoration: InputDecoration(
+                        prefixText: '@',
+                        prefixStyle: const TextStyle(
+                          color: Color(0xFF757575),
+                        ),
+                        hintText: 'seu_id',
+                        hintStyle: const TextStyle(
+                          color: Color(0xFF424242),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFF141414),
+                        suffixIcon: usernameSuffix(),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF212121),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.primaryOrange,
+                            width: 1.5,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF212121),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    if (usernameHelperText() != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        usernameHelperText()!,
+                        style: TextStyle(
+                          color: helperColor(),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 20),
+
+                    GestureDetector(
+                      onTap: (!usernameOk)
+                          ? null
+                          : () async {
+                              final newUsername =
+                                  usernameController.text.trim().toLowerCase();
+
+                              if (user == null) return;
+
+                              try {
+                                await FirebaseFirestore.instance
+                                    .collection('users_xp')
+                                    .doc(user.uid)
+                                    .set({
+                                  'username': newUsername,
+                                }, SetOptions(merge: true));
+
+                                if (mounted) {
+                                  Navigator.pop(context);
+                                  setState(() {
+                                    _currentUsername = newUsername;
+                                  });
+                                  _showSnack(
+                                    'ID atualizado!',
+                                    icon: Icons.check_circle_rounded,
+                                    success: true,
+                                  );
+                                }
+                              } catch (_) {
+                                if (mounted) {
+                                  _showSnack(
+                                    'Erro ao atualizar ID.',
+                                    icon: Icons.error_rounded,
+                                    success: false,
+                                  );
+                                }
+                              }
+                            },
+                      child: Container(
+                        width: double.infinity,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          gradient: usernameOk
+                              ? const LinearGradient(
+                                  colors: [
+                                    Color(0xFFBF360C),
+                                    Color(0xFFE65100),
+                                    Color(0xFFF57C00),
+                                  ],
+                                )
+                              : const LinearGradient(
+                                  colors: [
+                                    Color(0xFF2A2A2A),
+                                    Color(0xFF2A2A2A),
+                                  ],
+                                ),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'SALVAR',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
