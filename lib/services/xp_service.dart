@@ -17,6 +17,9 @@ class UserXpData {
   final Map<String, dynamic> dailyMissions;
   final String avatarId;
   final String? customTitle;
+  final String? photoUrl;
+  final String? username;
+  final bool showAge;
 
   const UserXpData({
     required this.totalXp,
@@ -31,6 +34,9 @@ class UserXpData {
     this.dailyMissions = const {},
     this.avatarId = 'animais_01',
     this.customTitle,
+    this.photoUrl,
+    this.username,
+    this.showAge = false,
   });
 
   factory UserXpData.empty() => const UserXpData(
@@ -45,7 +51,14 @@ class UserXpData {
       );
 
   // ── copyWith para substituir o nível, avatar ou título ────────────
-  UserXpData copyWith({int? level, String? avatarId, String? customTitle}) {
+  UserXpData copyWith({
+    int? level,
+    String? avatarId,
+    String? customTitle,
+    String? photoUrl,
+    String? username,
+    bool? showAge,
+  }) {
     return UserXpData(
       totalXp: totalXp,
       level: level ?? this.level,
@@ -59,6 +72,9 @@ class UserXpData {
       dailyMissions: dailyMissions,
       avatarId: avatarId ?? this.avatarId,
       customTitle: customTitle ?? this.customTitle,
+      photoUrl: photoUrl ?? this.photoUrl,
+      username: username ?? this.username,
+      showAge: showAge ?? this.showAge,
     );
   }
 
@@ -146,6 +162,9 @@ class XpService {
     int? overrideLevel,
     String avatarId = 'animais_01',
     String? customTitle,
+    String? photoUrl,
+    String? username,
+    bool showAge = false,
   }) {
     final calculatedLevel = levelFromXp(totalXp);
     final level = overrideLevel ?? calculatedLevel;
@@ -171,6 +190,9 @@ class XpService {
       dailyMissions: dailyMissions,
       avatarId: avatarId,
       customTitle: customTitle,
+      photoUrl: photoUrl,
+      username: username,
+      showAge: showAge,
     );
   }
 
@@ -217,6 +239,9 @@ class XpService {
           (dataUpdated['lastActivity'] as Timestamp?)?.toDate();
       final avatarId =
           (dataUpdated['avatarId'] as String?) ?? 'animais_01';
+      final photoUrl = dataUpdated['photoUrl'] as String?;
+      final username = dataUpdated['username'] as String?;
+      final showAge = dataUpdated['showAge'] as bool? ?? false;
 
       // ── Lê override de nível do admin ────────────────────────────
       final overrideActive = dataUpdated['adminOverrideActive'] == true;
@@ -242,6 +267,9 @@ class XpService {
         overrideLevel: overrideLevel,
         avatarId: avatarId,
         customTitle: customTitle,
+        photoUrl: photoUrl,
+        username: username,
+        showAge: showAge,
       );
 
       // Só sincroniza level no Firestore se NÃO houver override ativo
@@ -273,6 +301,9 @@ class XpService {
         Map<String, dynamic>.from(data['dailyMissions'] ?? {});
     final lastActivity = (data['lastActivity'] as Timestamp?)?.toDate();
     final avatarId = (data['avatarId'] as String?) ?? 'animais_01';
+    final photoUrl = data['photoUrl'] as String?;
+    final username = data['username'] as String?;
+    final showAge = data['showAge'] as bool? ?? false;
 
     final overrideActive = data['adminOverrideActive'] == true;
     final overrideLevel =
@@ -293,6 +324,9 @@ class XpService {
       overrideLevel: overrideLevel,
       avatarId: avatarId,
       customTitle: customTitle,
+      photoUrl: photoUrl,
+      username: username,
+      showAge: showAge,
     );
   }
 
