@@ -184,6 +184,12 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
       _showError('O conteúdo é obrigatório.');
       return false;
     }
+    if (_uploadingCover || _uploadingVideo) {
+      _showError(
+          'Aguarde o envio da ${_uploadingCover ? 'imagem' : 'vídeo'} '
+          'terminar antes de publicar.');
+      return false;
+    }
     return true;
   }
 
@@ -687,7 +693,9 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () => _save(PostStatus.published),
+              onPressed: (_uploadingCover || _uploadingVideo)
+                  ? null
+                  : () => _save(PostStatus.published),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryOrange,
                 foregroundColor: Colors.white,
