@@ -490,7 +490,12 @@ Future<void> pickAndUploadAvatar(
         success: true,
       );
     }
-  } catch (_) {
+  } catch (e) {
+    // Log detalhado no console para facilitar diagnóstico durante o
+    // desenvolvimento (ex.: erro de autenticação, bucket incorreto,
+    // política de acesso do Supabase, etc.). O usuário só vê a
+    // mensagem genérica abaixo.
+    debugPrint('Erro no upload de avatar (Supabase): $e');
     onError();
     if (context.mounted) {
       _showSnack(
