@@ -329,8 +329,6 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
                               children: [
                                 _buildCoverSection(),
                                 const SizedBox(height: 18),
-                                _buildGallerySection(),
-                                const SizedBox(height: 18),
                                 _buildVideoSection(),
                               ],
                             ),
@@ -599,6 +597,19 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
                       ),
                     ),
                   ),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _coverUrl = ''),
+                      child: const CircleAvatar(
+                        radius: 12,
+                        backgroundColor: Colors.black87,
+                        child: Icon(Icons.close_rounded,
+                            size: 14, color: Colors.white),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -608,56 +619,6 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
           loading: _uploadingCover,
           icon: Icons.image_rounded,
           label: _coverUrl.isEmpty ? 'Escolher capa' : 'Trocar capa',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGallerySection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _label('Galeria de imagens'),
-        if (_gallery.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: SizedBox(
-              height: 84,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _gallery.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, i) => Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(_gallery[i],
-                          width: 84, height: 84, fit: BoxFit.cover),
-                    ),
-                    Positioned(
-                      top: 3,
-                      right: 3,
-                      child: GestureDetector(
-                        onTap: () =>
-                            setState(() => _gallery = [..._gallery]..removeAt(i)),
-                        child: const CircleAvatar(
-                          radius: 10,
-                          backgroundColor: Colors.black87,
-                          child:
-                              Icon(Icons.close_rounded, size: 12, color: Colors.white),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        _uploadButton(
-          onPressed: _uploadingGallery ? null : _pickAndUploadGalleryImage,
-          loading: _uploadingGallery,
-          icon: Icons.add_photo_alternate_rounded,
-          label: 'Adicionar imagem',
         ),
       ],
     );
