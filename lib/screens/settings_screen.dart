@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -7,14 +5,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../services/notification_service.dart';
 import '../services/auth_service.dart';
-import '../services/supabase_avatar_service.dart';
+import '../widgets/profile_edit_sheets.dart' show showEditDisplayNameSheet, showEditUsernameSheet, pickAndUploadAvatar;
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -33,9 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _currentUsername;
   String? _photoUrl;
   bool _uploadingPhoto = false;
-
-  final _picker = ImagePicker();
-  final _avatarService = SupabaseAvatarService();
+  bool _showAge = false;
 
   // Link oficial da Política de Privacidade
   static const String _privacyPolicyUrl =
@@ -67,11 +62,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final data = doc.data();
       final username = data?['username'] as String?;
       final photoUrl = data?['photoUrl'] as String?;
+      final showAge = data?['showAge'] as bool? ?? false;
 
       if (mounted) {
         setState(() {
           _currentUsername = username;
           _photoUrl = photoUrl;
+          _showAge = showAge;
         });
       }
     } catch (_) {
@@ -625,6 +622,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const _Divider(),
 
+          _SettingsTile(
+            icon: Icons.cake_outlined,
+            label: 'Mostrar minha idade',
+            subtitle: 'Exibe sua idade no seu perfil público',
+            trailing: Switch(
+              value: _showAge,
+              onChanged: _toggleShowAge,
+              activeColor: AppColors.primaryOrange,
+              activeTrackColor: AppColors.primaryOrange.withOpacity(0.3),
+              inactiveThumbColor: const Color(0xFF555555),
+              inactiveTrackColor: const Color(0xFF222222),
+            ),
+          ),
+
+          const _Divider(),
+
           // ==========================================================
           // NOTIFICAÇÕES
           // ==========================================================
@@ -830,58 +843,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // ================================================================
-  // FOTO DE PERFIL
-  // ================================================================
-
-  Future<void> _pickAndUploadAvatar() async {
+  Future<void> _toggleShowAge(bool value) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final picked = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-      maxWidth: 1024,
-    );
-
-    if (picked == null) return;
-
-    setState(() => _uploadingPhoto = true);
+    setState(() => _showAge = value);
 
     try {
-      final url = await _avatarService.uploadAvatar(
-        file: File(picked.path),
-        uid: user.uid,
-      );
-
       await FirebaseFirestore.instance
           .collection('users_xp')
           .doc(user.uid)
-          .set({'photoUrl': url}, SetOptions(merge: true));
-
-      await user.updatePhotoURL(url);
-
-      if (mounted) {
-        setState(() {
-          _photoUrl = url;
-          _uploadingPhoto = false;
-        });
-        _showSnack(
-          'Foto de perfil atualizada!',
-          icon: Icons.check_circle_rounded,
-          success: true,
-        );
-      }
+          .set({'showAge': value}, SetOptions(merge: true));
     } catch (_) {
       if (mounted) {
-        setState(() => _uploadingPhoto = false);
+        setState(() => _showAge = !value);
         _showSnack(
-          'Erro ao enviar a foto.',
+          'Erro ao atualizar preferência.',
           icon: Icons.error_rounded,
           success: false,
         );
       }
     }
+  }
+
+  // ================================================================
+  // FOTO DE PERFIL
+  // ================================================================
+
+  Future<void> _pickAndUploadAvatar() async {
+    await pickAndUploadAvatar(
+      context,
+      onUploading: (_) {
+        if (mounted) setState(() => _uploadingPhoto = true);
+      },
+      onSaved: (url) {
+        if (mounted) {
+          setState(() {
+            _photoUrl = url;
+            _uploadingPhoto = false;
+          });
+        }
+      },
+      onError: () {
+        if (mounted) setState(() => _uploadingPhoto = false);
+      },
+    );
   }
 
   Widget _buildProfileHeader() {
@@ -989,136 +995,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ================================================================
 
   void _editDisplayName() {
-    final controller = TextEditingController(
-      text: FirebaseAuth.instance.currentUser?.displayName ?? '',
-    );
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Color(0xFF0A0A0A),
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(24),
-            ),
-            border: Border(
-              top: BorderSide(
-                color: Color(0xFF1A1A1A),
-              ),
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'EDITAR NOME',
-                style: TextStyle(
-                  color: AppColors.primaryOrange,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2,
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: controller,
-                autofocus: true,
-                style: const TextStyle(
-                  color: Colors.white,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Seu nome',
-                  hintStyle: const TextStyle(
-                    color: Color(0xFF424242),
-                  ),
-                  filled: true,
-                  fillColor: const Color(0xFF141414),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF212121),
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: AppColors.primaryOrange,
-                      width: 1.5,
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF212121),
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              GestureDetector(
-                onTap: () async {
-                  final newName = controller.text.trim();
-
-                  if (newName.isEmpty) {
-                    return;
-                  }
-
-                  await FirebaseAuth.instance.currentUser
-                      ?.updateDisplayName(newName);
-
-                  if (mounted) {
-                    Navigator.pop(context);
-
-                    setState(() {});
-
-                    _showSnack(
-                      'Nome atualizado!',
-                      icon: Icons.check_circle_rounded,
-                      success: true,
-                    );
-                  }
-                },
-                child: Container(
-                  width: double.infinity,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFFBF360C),
-                        Color(0xFFE65100),
-                        Color(0xFFF57C00),
-                      ],
-                    ),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      'SALVAR',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    showEditDisplayNameSheet(
+      context,
+      onSaved: () {
+        if (mounted) setState(() {});
+      },
     );
   }
 
@@ -1126,317 +1007,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // EDITAR ID DE USUÁRIO
   // ================================================================
 
-  // ── Formata o username: só letras, números e _ ───────────────────
-  String _formatUsername(String value) {
-    return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '');
-  }
-
   void _editUsernameId() {
-    final user = FirebaseAuth.instance.currentUser;
-
-    final usernameController = TextEditingController(
-      text: '',
-    );
-
-    // Pré-preenche com o ID atual (já carregado no initState).
-    final originalUsername = _currentUsername;
-    if (originalUsername != null) {
-      usernameController.text = originalUsername;
-    }
-
-    bool usernameAvailable = originalUsername != null;
-    bool checkingUsername = false;
-    String? usernameError;
-    DateTime lastCheck = DateTime.now();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setModalState) {
-          Future<void> checkUsernameAvailability(String username) async {
-            if (username.length < 3) return;
-
-            // Se for o mesmo ID que o usuário já tem, está disponível.
-            if (originalUsername != null &&
-                username == originalUsername) {
-              setModalState(() {
-                usernameAvailable = true;
-                usernameError = null;
-                checkingUsername = false;
-              });
-              return;
-            }
-
-            setModalState(() => checkingUsername = true);
-
-            try {
-              final query = await FirebaseFirestore.instance
-                  .collection('users_xp')
-                  .where('username', isEqualTo: username.toLowerCase())
-                  .limit(1)
-                  .get();
-
-              usernameAvailable = query.docs.isEmpty;
-              usernameError =
-                  query.docs.isEmpty ? null : 'Este ID já está em uso.';
-              checkingUsername = false;
-              setModalState(() {});
-            } catch (_) {
-              checkingUsername = false;
-              setModalState(() {});
-            }
-          }
-
-          void onUsernameChanged(String rawValue) {
-            final formatted = _formatUsername(rawValue);
-            if (formatted != rawValue) {
-              usernameController.value = TextEditingValue(
-                text: formatted,
-                selection: TextSelection.collapsed(
-                  offset: formatted.length,
-                ),
-              );
-            }
-
-            setModalState(() {
-              usernameAvailable = false;
-              usernameError = null;
-            });
-
-            if (formatted.length < 3) return;
-
-            lastCheck = DateTime.now();
-            final checkTime = lastCheck;
-
-            Future.delayed(const Duration(milliseconds: 600), () {
-              if (checkTime == lastCheck) {
-                checkUsernameAvailability(formatted);
-              }
-            });
-          }
-
-          Widget? usernameSuffix() {
-            if (usernameController.text.trim().length < 3) return null;
-            if (checkingUsername) {
-              return const Padding(
-                padding: EdgeInsets.all(14),
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.primaryOrange,
-                  ),
-                ),
-              );
-            }
-            if (usernameAvailable) {
-              return const Icon(
-                Icons.check_circle_rounded,
-                color: Colors.green,
-              );
-            }
-            if (usernameError != null) {
-              return const Icon(
-                Icons.cancel_rounded,
-                color: Colors.redAccent,
-              );
-            }
-            return null;
-          }
-
-          String? usernameHelperText() {
-            final value = usernameController.text.trim();
-            if (value.isEmpty) return null;
-            if (value.length < 3) {
-              return 'Mínimo de 3 caracteres.';
-            }
-            if (checkingUsername) return 'Verificando disponibilidade...';
-            if (usernameError != null) return usernameError;
-            if (usernameAvailable) return 'ID disponível!';
-            return null;
-          }
-
-          Color helperColor() {
-            final value = usernameController.text.trim();
-            if (usernameError != null) return Colors.redAccent;
-            if (usernameAvailable && value.length >= 3) {
-              return Colors.green;
-            }
-            return const Color(0xFF757575);
-          }
-
-          final usernameOk = usernameController.text.trim().length >= 3 &&
-              usernameAvailable;
-
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
-            ),
-            child: SingleChildScrollView(
-              child: Container(
-                padding: const EdgeInsets.all(24),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF0A0A0A),
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(24),
-                  ),
-                  border: Border(
-                    top: BorderSide(
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'EDITAR ID',
-                      style: TextStyle(
-                        color: AppColors.primaryOrange,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 2,
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    TextField(
-                      controller: usernameController,
-                      autofocus: true,
-                      onChanged: onUsernameChanged,
-                      style: const TextStyle(
-                        color: Colors.white,
-                      ),
-                      decoration: InputDecoration(
-                        prefixText: '@',
-                        prefixStyle: const TextStyle(
-                          color: Color(0xFF757575),
-                        ),
-                        hintText: 'seu_id',
-                        hintStyle: const TextStyle(
-                          color: Color(0xFF424242),
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFF141414),
-                        suffixIcon: usernameSuffix(),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF212121),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: AppColors.primaryOrange,
-                            width: 1.5,
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF212121),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    if (usernameHelperText() != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        usernameHelperText()!,
-                        style: TextStyle(
-                          color: helperColor(),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-
-                    const SizedBox(height: 20),
-
-                    GestureDetector(
-                      onTap: (!usernameOk)
-                          ? null
-                          : () async {
-                              final newUsername =
-                                  usernameController.text.trim().toLowerCase();
-
-                              if (user == null) return;
-
-                              try {
-                                await FirebaseFirestore.instance
-                                    .collection('users_xp')
-                                    .doc(user.uid)
-                                    .set({
-                                  'username': newUsername,
-                                }, SetOptions(merge: true));
-
-                                if (mounted) {
-                                  Navigator.pop(context);
-                                  setState(() {
-                                    _currentUsername = newUsername;
-                                  });
-                                  _showSnack(
-                                    'ID atualizado!',
-                                    icon: Icons.check_circle_rounded,
-                                    success: true,
-                                  );
-                                }
-                              } catch (_) {
-                                if (mounted) {
-                                  _showSnack(
-                                    'Erro ao atualizar ID.',
-                                    icon: Icons.error_rounded,
-                                    success: false,
-                                  );
-                                }
-                              }
-                            },
-                      child: Container(
-                        width: double.infinity,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          gradient: usernameOk
-                              ? const LinearGradient(
-                                  colors: [
-                                    Color(0xFFBF360C),
-                                    Color(0xFFE65100),
-                                    Color(0xFFF57C00),
-                                  ],
-                                )
-                              : const LinearGradient(
-                                  colors: [
-                                    Color(0xFF2A2A2A),
-                                    Color(0xFF2A2A2A),
-                                  ],
-                                ),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'SALVAR',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+    showEditUsernameSheet(
+      context,
+      currentUsername: _currentUsername,
+      onSaved: (newUsername) {
+        if (mounted) setState(() => _currentUsername = newUsername);
+      },
     );
   }
 
