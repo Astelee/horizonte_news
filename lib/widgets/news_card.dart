@@ -9,6 +9,7 @@ import '../providers/favorites_provider.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../services/sound_service.dart';
+import '../utils/cloudinary_url_utils.dart';
 
 class NewsCard extends StatefulWidget {
   final PostModel post;
@@ -120,8 +121,8 @@ class _NewsCardState extends State<NewsCard>
               children: [
                 // ── Barra lateral ──────────────────────────────────
                 urgent
-                    ? const _UrgentSideBar()
-                    : const _GlowingSideBar(),
+                    ? _UrgentSideBar()
+                    : _GlowingSideBar(),
 
                 // ── Conteúdo ───────────────────────────────────────
                 Expanded(
@@ -138,7 +139,7 @@ class _NewsCardState extends State<NewsCard>
                                 urgent: urgent,
                               ),
                             const Spacer(),
-                            const Icon(Icons.access_time_rounded,
+                            Icon(Icons.access_time_rounded,
                                 size: 11, color: AppColors.textMuted),
                             const SizedBox(width: 3),
                             RelativeTimeText(
@@ -182,7 +183,11 @@ class _NewsCardState extends State<NewsCard>
                 Padding(
                   padding: const EdgeInsets.all(10),
                   child: _NewsThumb(
-                    url: widget.post.thumbnailUrl,
+                    url: widget.post.thumbnailUrl.trim().isNotEmpty
+                        ? widget.post.thumbnailUrl
+                        : (CloudinaryUrlUtils.videoThumbnail(
+                                widget.post.videoUrl) ??
+                            widget.post.thumbnailUrl),
                     categoryName: widget.post.categories.isNotEmpty
                         ? widget.post.categories.first.name
                         : null,
@@ -203,8 +208,6 @@ class _NewsCardState extends State<NewsCard>
 // ── Barra lateral com glow pulsante ──────────────────────────────────────────
 
 class _GlowingSideBar extends StatefulWidget {
-  const _GlowingSideBar();
-
   @override
   State<_GlowingSideBar> createState() => _GlowingSideBarState();
 }
@@ -263,8 +266,6 @@ class _GlowingSideBarState extends State<_GlowingSideBar>
 // ── Barra lateral urgente com pulso vermelho ──────────────────────────────────
 
 class _UrgentSideBar extends StatefulWidget {
-  const _UrgentSideBar();
-
   @override
   State<_UrgentSideBar> createState() => _UrgentSideBarState();
 }
