@@ -17,23 +17,32 @@ void _showSnack(
   String msg, {
   IconData? icon,
   bool success = false,
+  Duration duration = const Duration(seconds: 4),
 }) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (icon != null) ...[
-            Icon(
-              icon,
-              color: success
-                  ? const Color(0xFF4CAF50)
-                  : AppColors.primaryOrange,
-              size: 16,
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(
+                icon,
+                color: success
+                    ? const Color(0xFF4CAF50)
+                    : AppColors.primaryOrange,
+                size: 16,
+              ),
             ),
             const SizedBox(width: 10),
           ],
           Expanded(
-            child: Text(msg, style: const TextStyle(color: Colors.white)),
+            child: Text(
+              msg,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              maxLines: 6,
+            ),
           ),
         ],
       ),
@@ -41,6 +50,7 @@ void _showSnack(
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.all(16),
+      duration: duration,
     ),
   );
 }
@@ -491,18 +501,18 @@ Future<void> pickAndUploadAvatar(
       );
     }
   } catch (e) {
-    // Log detalhado no console para facilitar diagnóstico durante o
-    // desenvolvimento (ex.: erro de autenticação, bucket incorreto,
-    // política de acesso do Supabase, etc.). O usuário só vê a
-    // mensagem genérica abaixo.
     debugPrint('Erro no upload de avatar (Supabase): $e');
     onError();
     if (context.mounted) {
+      // TEMPORÁRIO PARA DIAGNÓSTICO: mostra o erro real na tela para
+      // identificar a causa exata (401/403 de policy, URL errada, etc).
+      // Depois de resolver, reverter para a mensagem genérica abaixo.
       _showSnack(
         context,
-        'Erro ao enviar a foto.',
+        'Erro: $e',
         icon: Icons.error_rounded,
         success: false,
+        duration: const Duration(seconds: 10),
       );
     }
   }
