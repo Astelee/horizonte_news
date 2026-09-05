@@ -602,6 +602,101 @@ class XpService {
     } catch (_) {}
   }
 
+  // ── XP por curtida em comentário ──────────────────────────────────
+  // Quem GANHA o XP é o autor do comentário curtido, não quem curte.
+  // Tudo roda numa única transação para garantir que:
+  //   - a mesma pessoa não pode curtir duas vezes — o doc de curtida
+  //     serve de trava e é criado na mesma transação que dá o XP;
+  //   - o autor não pode "farmar" curtindo o próprio comentário;
+  //   - o XP só é creditado se a curtida realmente for nova.
+  // Constante de XP por curtida — repetida na regra do Firestore
+  // (commentLikeXp) para validar o valor exato gravado pelo cliente.
+  static const int commentLikeXp = 5;
+
+  Future<bool> likeComment({
+    required String postId,
+    required String commentId,
+    required String authorUid,
+    String? parentCommentId,
+  }) async {
+    final likerUid = _auth.currentUser?.uid;
+    if (likerUid == null) return false;
+    if (likerUid == authorUid) return false; // sem auto-curtida
+
+    final baseRef = _db
+        .collection('comments')
+        .doc(postId)
+        .collection('postComments');
+    final commentRef = parentCommentId != null
+        ? baseRef.doc(parentCommentId).collection('replies').doc(commentId)
+        : baseRef.doc(commentId);
+    final likeRef = commentRef.collection('likes').doc(likerUid);
+    final authorXpRef = _db.collection('users_xp').doc(authorUid);
+
+    try {
+      await _db.runTransaction((tx) async {
+        final likeSnap = await tx.get(likeRef);
+        if (likeSnap.exists) return; // já curtiu antes
+
+        final authorSnap = await tx.get(authorXpRef);
+        final authorData = authorSnap.data() ?? {};
+        final overrideActive = authorData['adminOverrideActive'] == true;
+        final currentTotalXp = (authorData['totalXp'] as num?)?.toInt() ?? 0;
+        final newTotalXp = currentTotalXp + commentLikeXp;
+
+        tx.set(likeRef, {
+          'likerUid': likerUid,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        tx.update(commentRef, {'likesCount': FieldValue.increment(1)});
+
+        if (authorSnap.exists) {
+          final authorUpdate = <String, dynamic>{
+            'totalXp': FieldValue.increment(commentLikeXp),
+          };
+          if (!overrideActive) {
+            authorUpdate['level'] = levelFromXp(newTotalXp);
+          }
+          tx.update(authorXpRef, authorUpdate);
+        }
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> unlikeComment({
+    required String postId,
+    required String commentId,
+    required String likerUid,
+    String? parentCommentId,
+  }) async {
+    final baseRef = _db
+        .collection('comments')
+        .doc(postId)
+        .collection('postComments');
+    final commentRef = parentCommentId != null
+        ? baseRef.doc(parentCommentId).collection('replies').doc(commentId)
+        : baseRef.doc(commentId);
+    final likeRef = commentRef.collection('likes').doc(likerUid);
+
+    try {
+      await _db.runTransaction((tx) async {
+        final likeSnap = await tx.get(likeRef);
+        if (!likeSnap.exists) return;
+        tx.delete(likeRef);
+        tx.update(commentRef, {'likesCount': FieldValue.increment(-1)});
+      });
+      // Descurtir NÃO retira o XP já creditado ao autor — evita o
+      // abuso de curtir/descurtir em loop para nunca gastar XP e
+      // ainda assim tirar o contador de curtidas de alguém.
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _checkMissionRewards(UserXpData data) async {
     final doc = _userDoc;
     if (doc == null) return;
