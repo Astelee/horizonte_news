@@ -513,3 +513,134 @@ Future<void> pickAndUploadAvatar(
     }
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// REMOVER FOTO DE PERFIL
+// ═══════════════════════════════════════════════════════════════════
+Future<void> removeAvatar(
+  BuildContext context, {
+  required void Function() onRemoving,
+  required void Function() onRemoved,
+  required void Function() onError,
+}) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  onRemoving();
+
+  try {
+    await FirebaseFirestore.instance
+        .collection('users_xp')
+        .doc(user.uid)
+        .set({'photoUrl': FieldValue.delete()}, SetOptions(merge: true));
+
+    await user.updatePhotoURL(null);
+
+    onRemoved();
+
+    if (context.mounted) {
+      _showSnack(
+        context,
+        'Foto removida.',
+        icon: Icons.check_circle_rounded,
+        success: true,
+      );
+    }
+  } catch (e) {
+    debugPrint('Erro ao remover avatar: $e');
+    onError();
+    if (context.mounted) {
+      _showSnack(
+        context,
+        'Erro ao remover a foto.',
+        icon: Icons.error_rounded,
+        success: false,
+      );
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MENU: TROCAR OU REMOVER FOTO
+// ═══════════════════════════════════════════════════════════════════
+/// Mostra um menu com as opções "Trocar foto" e "Remover foto" quando
+/// já existe uma foto de perfil. Se [hasPhoto] for falso, pula direto
+/// para a galeria (não faz sentido oferecer "remover" sem foto).
+Future<void> showAvatarOptionsSheet(
+  BuildContext context, {
+  required bool hasPhoto,
+  required void Function(String newPhotoUrl) onUploading,
+  required void Function(String newPhotoUrl) onSaved,
+  required void Function() onRemoving,
+  required void Function() onRemoved,
+  required void Function() onError,
+}) async {
+  if (!hasPhoto) {
+    await pickAndUploadAvatar(
+      context,
+      onUploading: onUploading,
+      onSaved: onSaved,
+      onError: onError,
+    );
+    return;
+  }
+
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) => Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0A0A0A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: Color(0xFF1A1A1A))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(
+                Icons.photo_camera_outlined,
+                color: AppColors.primaryOrange,
+              ),
+              title: const Text(
+                'Trocar foto',
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                pickAndUploadAvatar(
+                  context,
+                  onUploading: onUploading,
+                  onSaved: onSaved,
+                  onError: onError,
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.redAccent,
+              ),
+              title: const Text(
+                'Remover foto',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                removeAvatar(
+                  context,
+                  onRemoving: onRemoving,
+                  onRemoved: onRemoved,
+                  onError: onError,
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
