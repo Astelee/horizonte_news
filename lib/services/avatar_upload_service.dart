@@ -5,36 +5,38 @@ import 'package:http/http.dart' as http;
 
 /// Upload de fotos de perfil para o Cloudinary.
 ///
-/// Usa o mesmo "unsigned upload preset" já configurado no painel do
-/// Cloudinary para as imagens de notícias (Settings → Upload → Upload
-/// presets). O cloud name e o nome do preset NÃO são segredos — só o
-/// API Secret é, e ele nunca aparece aqui nem em nenhum outro lugar
-/// do app.
+/// Usa o "unsigned upload preset" `horizonte_news_avatars`, exclusivo
+/// para fotos de perfil (Settings → Upload → Upload presets no painel
+/// do Cloudinary). O cloud name e o nome do preset NÃO são segredos —
+/// só o API Secret é, e ele nunca aparece aqui nem em nenhum outro
+/// lugar do app.
 ///
-/// Cada usuário sobrescreve sempre o mesmo public_id (baseado no uid),
-/// então o Cloudinary substitui a foto anterior automaticamente
-/// (`overwrite: true`) em vez de acumular uma foto nova a cada troca.
+/// IMPORTANTE: uploads não assinados (unsigned) do Cloudinary não
+/// permitem sobrescrever um asset existente (`overwrite: true` é
+/// rejeitado nesse modo por segurança). Por isso, cada troca de foto
+/// gera um novo arquivo no Cloudinary com um public_id único, em vez
+/// de substituir o anterior — o app sempre exibe a foto mais recente
+/// (a URL nova é salva no Firestore a cada troca), mas fotos antigas
+/// continuam existindo no Cloudinary, consumindo um pouco de
+/// armazenamento com o tempo. Para um app com poucas trocas de foto
+/// por usuário, isso é aceitável dentro do plano gratuito do
+/// Cloudinary. Caso vire um problema de cota no futuro, a solução é
+/// migrar para upload assinado (signed), que exige gerar a assinatura
+/// em um servidor/função separada — o API Secret nunca pode ir no app.
 class AvatarUploadService {
   static const String cloudName = 'pcja5a5l';
-  static const String uploadPreset = 'horizonte_news_unsigned';
+  static const String uploadPreset = 'horizonte_news_avatars';
 
   static Uri get _endpoint =>
       Uri.parse('https://api.cloudinary.com/v1_1/$cloudName/image/upload');
 
   /// Envia a foto de perfil do usuário (uid) e retorna a secure_url.
-  ///
-  /// Usa public_id fixo por usuário (profile_<uid>) para que trocar a
-  /// foto substitua a anterior no Cloudinary, e adiciona um parâmetro
-  /// de cache-busting (?v=timestamp) na URL para que o app não continue
-  /// mostrando a foto antiga a partir do cache do CachedNetworkImage.
   Future<String> uploadAvatar({
     required File file,
     required String uid,
   }) async {
     final request = http.MultipartRequest('POST', _endpoint)
       ..fields['upload_preset'] = uploadPreset
-      ..fields['public_id'] = 'avatars/profile_$uid'
-      ..fields['overwrite'] = 'true'
       ..files.add(await http.MultipartFile.fromPath('file', file.path));
 
     final streamedResponse = await request.send();
@@ -56,8 +58,6 @@ class AvatarUploadService {
       );
     }
 
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final separator = secureUrl.contains('?') ? '&' : '?';
-    return '$secureUrl${separator}v=$timestamp';
+    return secureUrl;
   }
 }
