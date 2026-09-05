@@ -43,6 +43,22 @@ class NewsService {
     };
   }
 
+  /// Stream em tempo real do topo do feed (as [maxResults] notícias
+  /// publicadas mais recentes). Usado pela Home para que uma notícia
+  /// nova apareça sozinha, sem precisar de pull-to-refresh.
+  ///
+  /// Cobre apenas o "topo" do feed — a paginação de "carregar mais"
+  /// continua usando [fetchPosts] com cursor, pois misturar stream
+  /// com paginação por cursor não é suportado pelo Firestore.
+  Stream<List<PostModel>> streamLatestPosts({int maxResults = 12}) {
+    return _col
+        .where('status', isEqualTo: _publishedStatus)
+        .orderBy('publicadoEm', descending: true)
+        .limit(maxResults)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) => PostModel.fromFirestore(d)).toList());
+  }
+
   /// Busca notícias publicadas de uma categoria específica.
   Future<List<PostModel>> fetchPostsByCategory(
     String categoryName, {
@@ -77,5 +93,14 @@ class NewsService {
     if (!doc.exists) return null;
     final post = PostModel.fromFirestore(doc);
     return post.isPublished ? post : null;
+  }
+
+  /// Busca o DocumentSnapshot bruto de uma notícia pelo id — usado
+  /// como cursor de paginação quando a lista atual veio de um
+  /// stream (que só expõe PostModel, não o snapshot original).
+  Future<DocumentSnapshot<Map<String, dynamic>>?> fetchDocSnapshotById(
+      String postId) async {
+    final doc = await _col.doc(postId).get();
+    return doc.exists ? doc : null;
   }
 }
