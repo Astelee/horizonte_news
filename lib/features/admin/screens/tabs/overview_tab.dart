@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/badge_config.dart';
 import '../../../../widgets/app_avatar.dart';
+import '../../services/admin_avatar_approval_service.dart';
 import '../../services/admin_dashboard_service.dart';
 import '../../services/admin_user_service.dart';
 import '../../services/admin_news_service.dart';
@@ -15,24 +16,28 @@ class OverviewTab extends StatefulWidget {
   final AdminUserService userService;
   final AdminNewsService newsService;
   final AdminCommentService commentService;
+  final AdminAvatarApprovalService avatarApprovalService;
   final VoidCallback onGoToUsers;
   final VoidCallback onGoToViews;
   final VoidCallback onGoToBanned;
   final VoidCallback onGoToNews;
   final VoidCallback onGoToComments;
   final VoidCallback onGoToLevels;
+  final VoidCallback onGoToAvatarApprovals;
 
   const OverviewTab({
     required this.dashboardService,
     required this.userService,
     required this.newsService,
     required this.commentService,
+    required this.avatarApprovalService,
     required this.onGoToUsers,
     required this.onGoToViews,
     required this.onGoToBanned,
     required this.onGoToNews,
     required this.onGoToComments,
     required this.onGoToLevels,
+    required this.onGoToAvatarApprovals,
     Key? key,
   }) : super(key: key);
 
@@ -317,6 +322,10 @@ class _OverviewTabState extends State<OverviewTab> {
               _CommentsManagementTile(
                 commentService: widget.commentService,
                 onTap: widget.onGoToComments,
+              ),
+              _AvatarApprovalsManagementTile(
+                approvalService: widget.avatarApprovalService,
+                onTap: widget.onGoToAvatarApprovals,
               ),
               _ManagementTile(
                 icon: Icons.bar_chart_rounded,
@@ -988,6 +997,53 @@ class _CommentsManagementTile extends StatelessWidget {
                     '$count',
                     style: const TextStyle(
                       color: Color(0xFF9575CD),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                )
+              : null,
+        );
+      },
+    );
+  }
+}
+
+/// Tile com contador de fotos de perfil aguardando aprovação manual.
+class _AvatarApprovalsManagementTile extends StatelessWidget {
+  final AdminAvatarApprovalService approvalService;
+  final VoidCallback onTap;
+
+  const _AvatarApprovalsManagementTile({
+    required this.approvalService,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: approvalService.pendingStream(),
+      builder: (context, snapshot) {
+        final count = snapshot.hasData ? snapshot.data!.docs.length : null;
+        return _ManagementTile(
+          icon: Icons.photo_camera_back_rounded,
+          color: AppColors.primaryOrange,
+          title: 'FOTOS PENDENTES',
+          subtitle: 'Aprovar fotos de perfil enviadas pelos usuários',
+          onTap: onTap,
+          badge: (count != null && count > 0)
+              ? Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryOrange.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: const TextStyle(
+                      color: AppColors.primaryOrange,
                       fontSize: 10.5,
                       fontWeight: FontWeight.w800,
                     ),
