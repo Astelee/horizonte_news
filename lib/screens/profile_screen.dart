@@ -253,12 +253,21 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ================================================================
 
   Future<void> _handleAvatarTap(BuildContext context) async {
-    await pickAndUploadAvatar(
+    final xpData = Provider.of<UserXpProvider>(context, listen: false).data;
+
+    await showAvatarOptionsSheet(
       context,
+      hasPhoto: xpData.photoUrl != null,
       onUploading: (_) {
         if (mounted) setState(() => _uploadingAvatar = true);
       },
       onSaved: (_) {
+        if (mounted) setState(() => _uploadingAvatar = false);
+      },
+      onRemoving: () {
+        if (mounted) setState(() => _uploadingAvatar = true);
+      },
+      onRemoved: () {
         if (mounted) setState(() => _uploadingAvatar = false);
       },
       onError: () {
