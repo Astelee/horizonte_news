@@ -14,23 +14,31 @@ class CommentModel {
   final String id;
   final String userId;
   final String userName;
+  final String? username;
   final String text;
   final DateTime createdAt;
   final int userLevel;
   final List<String> userAchievements;
   final String userAvatarId;
   final String? userPhotoUrl;
+  final int likesCount;
+  final int repliesCount;
+  final String? replyToUsername;
 
   CommentModel({
     required this.id,
     required this.userId,
     required this.userName,
+    this.username,
     required this.text,
     required this.createdAt,
     this.userLevel = 1,
     this.userAchievements = const [],
     this.userAvatarId = 'animais_01',
     this.userPhotoUrl,
+    this.likesCount = 0,
+    this.repliesCount = 0,
+    this.replyToUsername,
   });
 
   factory CommentModel.fromDoc(DocumentSnapshot doc) {
@@ -39,15 +47,20 @@ class CommentModel {
       id: doc.id,
       userId: data['userId'] ?? '',
       userName: data['userName'] ?? 'Anônimo',
+      username: data['username'] as String?,
       text: data['text'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       userLevel: (data['userLevel'] as num?)?.toInt() ?? 1,
       userAchievements: List<String>.from(data['userAchievements'] ?? []),
       userAvatarId: (data['userAvatarId'] as String?) ?? 'animais_01',
       userPhotoUrl: data['userPhotoUrl'] as String?,
+      likesCount: (data['likesCount'] as num?)?.toInt() ?? 0,
+      repliesCount: (data['repliesCount'] as num?)?.toInt() ?? 0,
+      replyToUsername: data['replyToUsername'] as String?,
     );
   }
 }
+
 
 // ═══════════════════════════════════════════════════════════════════
 // BOTTOM SHEET — PERFIL DO COMENTARISTA
@@ -326,6 +339,17 @@ class _CommentsSectionState extends State<CommentsSection>
   late AnimationController _expandCtrl;
   late Animation<double> _expandAnim;
 
+  // ── Estado de "respondendo a" ──────────────────────────────────────
+  // Quando != null, o próximo envio vira uma resposta (subcoleção
+  // "replies") do comentário-pai, igual ao fluxo do Instagram: tocar
+  // em "Responder" já preenche o campo com @usernameDoAutor.
+  String? _replyToCommentId;
+  String? _replyToUsername;
+  String? _replyToUserId;
+
+  bool get _isReplying => _replyToCommentId != null;
+
+
   @override
   void initState() {
     super.initState();
@@ -357,6 +381,41 @@ class _CommentsSectionState extends State<CommentsSection>
       .collection('comments')
       .doc(widget.postId)
       .collection('postComments');
+
+  CollectionReference _repliesRef(String parentCommentId) =>
+      _commentsRef.doc(parentCommentId).collection('replies');
+
+  void _startReply({
+    required String commentId,
+    required String userId,
+    required String? username,
+    required String userName,
+  }) {
+    HapticFeedback.selectionClick();
+    final handle = (username != null && username.trim().isNotEmpty)
+        ? username
+        : userName;
+    setState(() {
+      _replyToCommentId = commentId;
+      _replyToUserId = userId;
+      _replyToUsername = handle;
+      _controller.text = '@$handle ';
+      _controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: _controller.text.length),
+      );
+    });
+    if (!_expanded) _toggleExpanded();
+    FocusScope.of(context).requestFocus(_focusNode);
+  }
+
+  void _cancelReply() {
+    setState(() {
+      _replyToCommentId = null;
+      _replyToUserId = null;
+      _replyToUsername = null;
+      _controller.clear();
+    });
+  }
 
   void _toggleExpanded() {
     HapticFeedback.selectionClick();
@@ -420,6 +479,9 @@ class _CommentsSectionState extends State<CommentsSection>
     setState(() => _isSending = true);
     _sendAnim.reverse().then((_) => _sendAnim.forward());
 
+    final replyingToCommentId = _replyToCommentId;
+    final replyingToUsername = _replyToUsername;
+
     try {
       final userName =
           user.displayName ?? user.email?.split('@').first ?? 'Leitor';
@@ -428,20 +490,45 @@ class _CommentsSectionState extends State<CommentsSection>
       final userAchievements = xpProvider.data.achievements;
       final userAvatarId = xpProvider.data.avatarId;
       final userPhotoUrl = xpProvider.data.photoUrl;
+      final username = xpProvider.data.username;
 
-      await _commentsRef.add({
+      final payload = {
         'userId': user.uid,
         'userName': userName,
+        'username': username,
         'text': text,
         'createdAt': FieldValue.serverTimestamp(),
         'userLevel': userLevel,
         'userAchievements': userAchievements,
         'userAvatarId': userAvatarId,
         'userPhotoUrl': userPhotoUrl,
-      });
+        'likesCount': 0,
+      };
+
+      if (replyingToCommentId != null) {
+        await _repliesRef(replyingToCommentId).add({
+          ...payload,
+          'replyToUsername': replyingToUsername,
+        });
+        await _commentsRef
+            .doc(replyingToCommentId)
+            .update({'repliesCount': FieldValue.increment(1)});
+      } else {
+        await _commentsRef.add({
+          ...payload,
+          'repliesCount': 0,
+        });
+      }
 
       _controller.clear();
       _focusNode.unfocus();
+      if (_isReplying) {
+        setState(() {
+          _replyToCommentId = null;
+          _replyToUserId = null;
+          _replyToUsername = null;
+        });
+      }
 
       if (!_xpAwarded && mounted) {
         await xpProvider.addXpForComment();
@@ -460,6 +547,49 @@ class _CommentsSectionState extends State<CommentsSection>
       await _commentsRef.doc(commentId).delete();
     } catch (e) {
       if (mounted) _showSnack('Erro ao excluir: $e');
+    }
+  }
+
+  Future<void> _deleteReply({
+    required String parentCommentId,
+    required String replyId,
+  }) async {
+    try {
+      await _repliesRef(parentCommentId).doc(replyId).delete();
+      await _commentsRef
+          .doc(parentCommentId)
+          .update({'repliesCount': FieldValue.increment(-1)});
+    } catch (e) {
+      if (mounted) _showSnack('Erro ao excluir: $e');
+    }
+  }
+
+  Future<void> _toggleLike({
+    required String commentId,
+    required String authorUid,
+    required bool alreadyLiked,
+    String? parentCommentId,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showLoginSnack();
+      return;
+    }
+    final xpProvider = Provider.of<UserXpProvider>(context, listen: false);
+    if (alreadyLiked) {
+      await xpProvider.unlikeComment(
+        postId: widget.postId,
+        commentId: commentId,
+        likerUid: user.uid,
+        parentCommentId: parentCommentId,
+      );
+    } else {
+      await xpProvider.likeComment(
+        postId: widget.postId,
+        commentId: commentId,
+        authorUid: authorUid,
+        parentCommentId: parentCommentId,
+      );
     }
   }
 
@@ -614,6 +744,35 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
+  Widget _buildReplyingBanner() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(Icons.reply_rounded,
+              size: 14, color: AppColors.primaryOrange.withOpacity(0.8)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Respondendo a @${_replyToUsername ?? ''}',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.primaryOrange.withOpacity(0.8),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: _cancelReply,
+            child: const Icon(Icons.close_rounded,
+                size: 16, color: AppColors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInputArea(User? user) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -632,6 +791,7 @@ class _CommentsSectionState extends State<CommentsSection>
         ),
         child: Column(
           children: [
+            if (_isReplying) _buildReplyingBanner(),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -800,12 +960,49 @@ class _CommentsSectionState extends State<CommentsSection>
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
           itemCount: comments.length,
           itemBuilder: (context, index) => _CommentTile(
+            postId: widget.postId,
             comment: comments[index],
             timeAgo: _timeAgo(comments[index].createdAt),
             currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
             isAdmin: isAdmin,
             onDelete: () => _deleteComment(comments[index].id),
+            onDeleteReply: (replyId) => _deleteReply(
+              parentCommentId: comments[index].id,
+              replyId: replyId,
+            ),
             onTapUser: () => _openUserProfile(comments[index]),
+            onReply: () => _startReply(
+              commentId: comments[index].id,
+              userId: comments[index].userId,
+              username: comments[index].username,
+              userName: comments[index].userName,
+            ),
+            onReplyToTarget: ({
+              required commentId,
+              required userId,
+              required username,
+              required userName,
+            }) =>
+                _startReply(
+              commentId: commentId,
+              userId: userId,
+              username: username,
+              userName: userName,
+            ),
+            onToggleLike: ({
+              required commentId,
+              required authorUid,
+              required alreadyLiked,
+              parentCommentId,
+            }) =>
+                _toggleLike(
+              commentId: commentId,
+              authorUid: authorUid,
+              alreadyLiked: alreadyLiked,
+              parentCommentId: parentCommentId,
+            ),
+            repliesRef: _repliesRef(comments[index].id),
+            timeAgoBuilder: _timeAgo,
           ),
         );
       },
@@ -813,25 +1010,53 @@ class _CommentsSectionState extends State<CommentsSection>
   }
 }
 
+typedef LikeToggleCallback = Future<void> Function({
+  required String commentId,
+  required String authorUid,
+  required bool alreadyLiked,
+  String? parentCommentId,
+});
+
+typedef ReplyTargetCallback = void Function({
+  required String commentId,
+  required String userId,
+  required String? username,
+  required String userName,
+});
+
 // ═══════════════════════════════════════════════════════════════════
 // COMMENT TILE
 // ═══════════════════════════════════════════════════════════════════
 class _CommentTile extends StatefulWidget {
+  final String postId;
   final CommentModel comment;
   final String timeAgo;
   final String currentUserId;
   final bool isAdmin;
   final VoidCallback onDelete;
+  final ValueChanged<String> onDeleteReply;
   final VoidCallback onTapUser;
+  final VoidCallback onReply;
+  final ReplyTargetCallback onReplyToTarget;
+  final LikeToggleCallback onToggleLike;
+  final CollectionReference repliesRef;
+  final String Function(DateTime) timeAgoBuilder;
 
   const _CommentTile({
     Key? key,
+    required this.postId,
     required this.comment,
     required this.timeAgo,
     required this.currentUserId,
     required this.isAdmin,
     required this.onDelete,
+    required this.onDeleteReply,
     required this.onTapUser,
+    required this.onReply,
+    required this.onReplyToTarget,
+    required this.onToggleLike,
+    required this.repliesRef,
+    required this.timeAgoBuilder,
   }) : super(key: key);
 
   @override
@@ -843,6 +1068,7 @@ class _CommentTileState extends State<_CommentTile>
   late AnimationController _ctrl;
   late Animation<double> _opacity;
   late Animation<Offset> _slide;
+  bool _repliesExpanded = false;
 
   @override
   void initState() {
@@ -1038,14 +1264,62 @@ class _CommentTileState extends State<_CommentTile>
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      widget.comment.text,
-                      style: const TextStyle(
-                        color: AppColors.textSecondaryDark,
-                        fontSize: 14,
-                        height: 1.5,
-                      ),
+                    _CommentText(comment: widget.comment),
+                    const SizedBox(height: 8),
+                    _CommentActionsRow(
+                      postId: widget.postId,
+                      commentId: widget.comment.id,
+                      authorUid: widget.comment.userId,
+                      likesCount: widget.comment.likesCount,
+                      currentUserId: widget.currentUserId,
+                      onToggleLike: widget.onToggleLike,
+                      onReply: widget.onReply,
                     ),
+                    if (widget.comment.repliesCount > 0) ...[
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: () => setState(
+                            () => _repliesExpanded = !_repliesExpanded),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 24,
+                              height: 1,
+                              color: AppColors.textMuted.withOpacity(0.4),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _repliesExpanded
+                                  ? 'Ocultar respostas'
+                                  : 'Ver ${widget.comment.repliesCount} ${widget.comment.repliesCount == 1 ? 'resposta' : 'respostas'}',
+                              style: TextStyle(
+                                color: AppColors.primaryOrange
+                                    .withOpacity(0.85),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (_repliesExpanded)
+                      _RepliesList(
+                        postId: widget.postId,
+                        parentCommentId: widget.comment.id,
+                        repliesRef: widget.repliesRef,
+                        currentUserId: widget.currentUserId,
+                        isAdmin: widget.isAdmin,
+                        onDeleteReply: widget.onDeleteReply,
+                        onToggleLike: widget.onToggleLike,
+                        onReplyToReply: (reply) => widget.onReplyToTarget(
+                          commentId: widget.comment.id,
+                          userId: reply.userId,
+                          username: reply.username,
+                          userName: reply.userName,
+                        ),
+                        timeAgoBuilder: widget.timeAgoBuilder,
+                      ),
                   ],
                 ),
               ),
@@ -1053,6 +1327,396 @@ class _CommentTileState extends State<_CommentTile>
           ),
         ),
       ),
+    );
+  }
+}
+
+// ── Texto do comentário, destacando "@fulano" no início se houver ──
+class _CommentText extends StatelessWidget {
+  final CommentModel comment;
+
+  const _CommentText({required this.comment});
+
+  @override
+  Widget build(BuildContext context) {
+    final mention = comment.replyToUsername;
+    if (mention == null || mention.trim().isEmpty) {
+      return Text(
+        comment.text,
+        style: const TextStyle(
+          color: AppColors.textSecondaryDark,
+          fontSize: 14,
+          height: 1.5,
+        ),
+      );
+    }
+    return RichText(
+      text: TextSpan(
+        style: const TextStyle(
+          color: AppColors.textSecondaryDark,
+          fontSize: 14,
+          height: 1.5,
+        ),
+        children: [
+          TextSpan(
+            text: '@$mention ',
+            style: TextStyle(
+              color: AppColors.primaryOrange.withOpacity(0.9),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          TextSpan(text: comment.text),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Linha de curtir/responder, compartilhada entre comentário e resposta ──
+class _CommentActionsRow extends StatelessWidget {
+  final String postId;
+  final String commentId;
+  final String authorUid;
+  final int likesCount;
+  final String currentUserId;
+  final LikeToggleCallback onToggleLike;
+  final VoidCallback onReply;
+  final String? parentCommentId;
+
+  const _CommentActionsRow({
+    required this.postId,
+    required this.commentId,
+    required this.authorUid,
+    required this.likesCount,
+    required this.currentUserId,
+    required this.onToggleLike,
+    required this.onReply,
+    this.parentCommentId,
+  });
+
+  DocumentReference get _likeDocRef {
+    final base = FirebaseFirestore.instance
+        .collection('comments')
+        .doc(postId)
+        .collection('postComments');
+    final commentRef = parentCommentId != null
+        ? base.doc(parentCommentId).collection('replies').doc(commentId)
+        : base.doc(commentId);
+    return commentRef.collection('likes').doc(currentUserId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        if (currentUserId.isEmpty)
+          _LikeButton(
+            liked: false,
+            count: likesCount,
+            onTap: () => onToggleLike(
+              commentId: commentId,
+              authorUid: authorUid,
+              alreadyLiked: false,
+              parentCommentId: parentCommentId,
+            ),
+          )
+        else
+          StreamBuilder<DocumentSnapshot>(
+            stream: _likeDocRef.snapshots(),
+            builder: (context, snapshot) {
+              final liked = snapshot.data?.exists ?? false;
+              return _LikeButton(
+                liked: liked,
+                count: likesCount,
+                onTap: () => onToggleLike(
+                  commentId: commentId,
+                  authorUid: authorUid,
+                  alreadyLiked: liked,
+                  parentCommentId: parentCommentId,
+                ),
+              );
+            },
+          ),
+        const SizedBox(width: 16),
+        GestureDetector(
+          onTap: onReply,
+          child: const Text(
+            'Responder',
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LikeButton extends StatelessWidget {
+  final bool liked;
+  final int count;
+  final VoidCallback onTap;
+
+  const _LikeButton({
+    required this.liked,
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+            size: 15,
+            color: liked ? AppColors.emergencyRed : AppColors.textMuted,
+          ),
+          if (count > 0) ...[
+            const SizedBox(width: 4),
+            Text(
+              '$count',
+              style: TextStyle(
+                color: liked ? AppColors.emergencyRed : AppColors.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Lista de respostas de um comentário (1 nível, estilo Instagram) ──
+class _RepliesList extends StatelessWidget {
+  final String postId;
+  final String parentCommentId;
+  final CollectionReference repliesRef;
+  final String currentUserId;
+  final bool isAdmin;
+  final ValueChanged<String> onDeleteReply;
+  final LikeToggleCallback onToggleLike;
+  final ValueChanged<CommentModel> onReplyToReply;
+  final String Function(DateTime) timeAgoBuilder;
+
+  const _RepliesList({
+    required this.postId,
+    required this.parentCommentId,
+    required this.repliesRef,
+    required this.currentUserId,
+    required this.isAdmin,
+    required this.onDeleteReply,
+    required this.onToggleLike,
+    required this.onReplyToReply,
+    required this.timeAgoBuilder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: repliesRef.orderBy('createdAt', descending: false).snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: AppColors.primaryOrange),
+            ),
+          );
+        }
+        final replies = snapshot.data!.docs
+            .map((doc) => CommentModel.fromDoc(doc))
+            .toList();
+
+        return Padding(
+          padding: const EdgeInsets.only(top: 10, left: 20),
+          child: Column(
+            children: replies
+                .map((reply) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _ReplyTile(
+                        postId: postId,
+                        parentCommentId: parentCommentId,
+                        reply: reply,
+                        timeAgo: timeAgoBuilder(reply.createdAt),
+                        currentUserId: currentUserId,
+                        isAdmin: isAdmin,
+                        onDelete: () => onDeleteReply(reply.id),
+                        onReply: () => onReplyToReply(reply),
+                        onToggleLike: onToggleLike,
+                      ),
+                    ))
+                .toList(),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Tile de uma resposta individual — visual mais compacto ──────────
+class _ReplyTile extends StatelessWidget {
+  final String postId;
+  final String parentCommentId;
+  final CommentModel reply;
+  final String timeAgo;
+  final String currentUserId;
+  final bool isAdmin;
+  final VoidCallback onDelete;
+  final VoidCallback onReply;
+  final LikeToggleCallback onToggleLike;
+
+  const _ReplyTile({
+    required this.postId,
+    required this.parentCommentId,
+    required this.reply,
+    required this.timeAgo,
+    required this.currentUserId,
+    required this.isAdmin,
+    required this.onDelete,
+    required this.onReply,
+    required this.onToggleLike,
+  });
+
+  bool get _isOwner => reply.userId == currentUserId;
+  bool get _canDelete => _isOwner || isAdmin;
+
+  void _confirmDelete(BuildContext context) {
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0A0A0A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.2)),
+        ),
+        title: const Text('Excluir resposta?',
+            style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Text(
+          isAdmin && !_isOwner
+              ? 'Você está excluindo a resposta de ${reply.userName} como administrador.'
+              : 'Esta ação não pode ser desfeita.',
+          style:
+              const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => rootNav.pop(),
+            child: const Text('Cancelar',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () {
+              rootNav.pop();
+              onDelete();
+            },
+            child: const Text('Excluir',
+                style: TextStyle(
+                    color: AppColors.emergencyRed,
+                    fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AvatarFrame(
+          level: reply.userLevel,
+          size: 28,
+          child: AppAvatar(
+            name: reply.userName,
+            seed: reply.userId,
+            photoUrl: reply.userPhotoUrl,
+            size: 28,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            reply.userName,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: _isOwner
+                                  ? AppColors.primaryOrange
+                                  : Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        LevelBadgeInline(level: reply.userLevel),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Text(
+                        timeAgo,
+                        style: const TextStyle(
+                            color: AppColors.textMuted, fontSize: 10),
+                      ),
+                      if (_canDelete) ...[
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () => _confirmDelete(context),
+                          child: Icon(
+                            Icons.delete_outline_rounded,
+                            size: 13,
+                            color: isAdmin && !_isOwner
+                                ? AppColors.emergencyRed.withOpacity(0.7)
+                                : AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              _CommentText(comment: reply),
+              const SizedBox(height: 6),
+              _CommentActionsRow(
+                postId: postId,
+                commentId: reply.id,
+                authorUid: reply.userId,
+                likesCount: reply.likesCount,
+                currentUserId: currentUserId,
+                onToggleLike: onToggleLike,
+                onReply: onReply,
+                parentCommentId: parentCommentId,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
