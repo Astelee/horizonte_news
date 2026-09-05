@@ -877,13 +877,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       onUploading: (_) {
         if (mounted) setState(() => _uploadingPhoto = true);
       },
-      onSaved: (url) {
-        if (mounted) {
-          setState(() {
-            _photoUrl = url;
-            _uploadingPhoto = false;
-          });
-        }
+      onSaved: (_) {
+        // A foto enviada fica pendente de aprovação — não substitui
+        // _photoUrl aqui. A foto exibida só muda quando um admin
+        // aprova e o campo photoUrl no Firestore é atualizado de
+        // fato (ver _loadSettings/stream que alimenta _photoUrl).
+        if (mounted) setState(() => _uploadingPhoto = false);
       },
       onRemoving: () {
         if (mounted) setState(() => _uploadingPhoto = true);
