@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../config/app_colors.dart';
 import '../services/avatar_upload_service.dart';
+import '../services/avatar_approval_service.dart';
 
 /// Bottom sheets reutilizáveis para edição de perfil (nome, ID de
 /// usuário e foto). Usados tanto em Configurações quanto na aba
@@ -456,6 +457,15 @@ void showEditUsernameSheet(
 // ═══════════════════════════════════════════════════════════════════
 // TROCAR FOTO DE PERFIL
 // ═══════════════════════════════════════════════════════════════════
+/// Escolhe uma imagem da galeria e a envia para aprovação manual.
+///
+/// A foto sobe para o Cloudinary normalmente, mas NÃO se torna a foto
+/// pública na hora — fica pendente em `avatarApprovals/{uid}` até um
+/// admin aprovar pelo painel. Isso evita que conteúdo indevido (nudez,
+/// violência etc.) apareça no ranking ou nos comentários antes de ser
+/// revisado. [onSaved] só é chamado após o envio para a fila, não após
+/// a foto realmente aparecer publicamente — a UI deve tratar isso como
+/// "enviado, aguardando aprovação", não como "foto atualizada".
 Future<void> pickAndUploadAvatar(
   BuildContext context, {
   required void Function(String newPhotoUrl) onUploading,
@@ -483,21 +493,37 @@ Future<void> pickAndUploadAvatar(
       uid: user.uid,
     );
 
-    await FirebaseFirestore.instance
+    // Foto atual (aprovada), se houver — usada para poder mostrar
+    // "voltou para a foto anterior" caso a nova seja rejeitada.
+    final currentDoc = await FirebaseFirestore.instance
         .collection('users_xp')
         .doc(user.uid)
-        .set({'photoUrl': url}, SetOptions(merge: true));
+        .get();
+    final previousPhotoUrl =
+        (currentDoc.data() as Map<String, dynamic>?)?['photoUrl']
+            as String?;
 
-    await user.updatePhotoURL(url);
+    final userName = user.displayName ??
+        user.email?.split('@').first ??
+        'Leitor';
+
+    await AvatarApprovalService().submitForApproval(
+      uid: user.uid,
+      userName: userName,
+      newPhotoUrl: url,
+      previousPhotoUrl: previousPhotoUrl,
+    );
 
     onSaved(url);
 
     if (context.mounted) {
       _showSnack(
         context,
-        'Foto de perfil atualizada!',
-        icon: Icons.check_circle_rounded,
+        'Foto enviada! Ela vai aparecer assim que for aprovada pela '
+        'nossa equipe.',
+        icon: Icons.hourglass_top_rounded,
         success: true,
+        duration: const Duration(seconds: 5),
       );
     }
   } catch (e) {
