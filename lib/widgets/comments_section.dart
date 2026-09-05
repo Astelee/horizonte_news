@@ -332,6 +332,11 @@ class _CommentsSectionState extends State<CommentsSection>
     with TickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  // Chave do container do campo de comentário/resposta — usada para
+  // rolar a tela até ele ficar visível acima do teclado (ver
+  // _scrollInputIntoView), já que essa seção mora dentro do
+  // CustomScrollView da tela de detalhe da notícia.
+  final GlobalKey _inputAreaKey = GlobalKey();
   bool _isSending = false;
   bool _xpAwarded = false;
   bool _expanded = false;
@@ -366,6 +371,35 @@ class _CommentsSectionState extends State<CommentsSection>
     );
     _expandAnim =
         CurvedAnimation(parent: _expandCtrl, curve: Curves.easeOutCubic);
+
+    // Sempre que o campo ganha foco (comentário novo ou resposta),
+    // o teclado abre e o campo precisa subir para ficar visível.
+    // Sem isso, o campo (que fica no meio do scroll longo da tela
+    // de detalhe) pode ficar escondido atrás do teclado.
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) _scrollInputIntoView();
+    });
+  }
+
+  /// Rola a tela (o CustomScrollView pai, da tela de detalhe da
+  /// notícia) até o campo de comentário/resposta ficar visível acima
+  /// do teclado. Chamado ao focar o campo e ao tocar em "Responder".
+  void _scrollInputIntoView() {
+    // Espera o teclado terminar de abrir e o layout se ajustar
+    // (resizeToAvoidBottomInset) antes de calcular a posição a rolar.
+    Future.delayed(const Duration(milliseconds: 250), () {
+      final ctx = _inputAreaKey.currentContext;
+      if (ctx == null || !mounted) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        // alignment 0.0 = topo do viewport visível: garante que o
+        // campo (e o botão de responder/enviar abaixo dele) fique
+        // logo abaixo da barra superior, bem acima do teclado.
+        alignment: 0.1,
+      );
+    });
   }
 
   @override
@@ -399,13 +433,17 @@ class _CommentsSectionState extends State<CommentsSection>
       _replyToCommentId = commentId;
       _replyToUserId = userId;
       _replyToUsername = handle;
-      _controller.text = '@$handle ';
-      _controller.selection = TextSelection.fromPosition(
-        TextPosition(offset: _controller.text.length),
-      );
+      // Não inserimos "@handle" no texto do campo: o banner
+      // "Respondendo a @handle" já indica isso visualmente, e o
+      // valor é salvo à parte em replyToUsername. Se colocássemos
+      // o "@handle" no próprio texto, ele seria salvo dentro de
+      // `text` e o app mostraria a menção duas vezes (uma vinda do
+      // texto, outra do replyToUsername exibido em destaque).
+      _controller.clear();
     });
     if (!_expanded) _toggleExpanded();
     FocusScope.of(context).requestFocus(_focusNode);
+    _scrollInputIntoView();
   }
 
   void _cancelReply() {
@@ -777,6 +815,7 @@ class _CommentsSectionState extends State<CommentsSection>
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
+        key: _inputAreaKey,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
