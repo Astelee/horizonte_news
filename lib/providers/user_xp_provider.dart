@@ -166,6 +166,37 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
 
   Future<void> onComment() async => addXpForComment();
 
+  // ── Curtidas em comentários ───────────────────────────────────────
+  // Aqui não mexemos em _data porque o XP é creditado no documento
+  // do AUTOR do comentário, não no de quem está curtindo.
+  Future<bool> likeComment({
+    required String postId,
+    required String commentId,
+    required String authorUid,
+    String? parentCommentId,
+  }) {
+    return _service.likeComment(
+      postId: postId,
+      commentId: commentId,
+      authorUid: authorUid,
+      parentCommentId: parentCommentId,
+    );
+  }
+
+  Future<bool> unlikeComment({
+    required String postId,
+    required String commentId,
+    required String likerUid,
+    String? parentCommentId,
+  }) {
+    return _service.unlikeComment(
+      postId: postId,
+      commentId: commentId,
+      likerUid: likerUid,
+      parentCommentId: parentCommentId,
+    );
+  }
+
   Future<void> reload() async {
     _isLoading = true;
     notifyListeners();
