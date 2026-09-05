@@ -237,7 +237,20 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                                 postId: post.id,
                                 postTitle: post.title,
                               ),
-                              const SizedBox(height: 40),
+                              // Respiro extra no fim do scroll: sem
+                              // isso, quando o teclado abre perto do
+                              // fim da lista de comentários não há
+                              // espaço de rolagem sobrando para o
+                              // campo de comentário/resposta subir
+                              // acima do teclado (a tela "trava" no
+                              // fundo). Cresce junto com a altura do
+                              // teclado para garantir folga.
+                              SizedBox(
+                                height: 40 +
+                                    MediaQuery.of(context)
+                                        .viewInsets
+                                        .bottom,
+                              ),
                             ],
                           ),
                         ),
