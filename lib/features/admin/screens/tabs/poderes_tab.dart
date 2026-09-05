@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/badge_config.dart';
 import '../../../../widgets/avatar_frame.dart';
+import '../../../../widgets/app_avatar.dart';
+import '../../../../providers/user_xp_provider.dart';
 
 /// Tela somente-visualização: mostra como cada nível/moldura fica,
 /// sem aplicar nada em usuário nenhum. Útil como referência rápida
@@ -21,22 +24,21 @@ class PoderesTab extends StatefulWidget {
 class _PoderesTabState extends State<PoderesTab> {
   int _previewLevel = 1;
 
-  String _getInitials(String? name) {
-    if (name == null || name.isEmpty) return '?';
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    return name[0].toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context) {
     final color = BadgeConfig.levelColor(_previewLevel);
     final gradient = BadgeConfig.levelGradient(_previewLevel);
     final title = BadgeConfig.levelTitle(_previewLevel);
     final rarity = BadgeConfig.levelRarity(_previewLevel);
-    final initials = _getInitials('Preview');
+
+    // Foto/nome do admin logado, para o preview refletir o usuário
+    // real em vez de um placeholder genérico ("P" de "Preview").
+    final xpData = context.watch<UserXpProvider>().data;
+    final displayName = (xpData.username != null &&
+            xpData.username!.trim().isNotEmpty)
+        ? xpData.username!
+        : 'Você';
+    final photoUrl = xpData.photoUrl;
 
     return Container(
       color: AppColors.backgroundDark,
@@ -94,25 +96,10 @@ class _PoderesTabState extends State<PoderesTab> {
                     level: _previewLevel,
                     size: 90,
                     enableEntryAnimation: false,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: gradient,
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          initials,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
+                    child: AppAvatar(
+                      name: displayName,
+                      photoUrl: photoUrl,
+                      size: 90,
                     ),
                   ),
                   const SizedBox(height: 16),
