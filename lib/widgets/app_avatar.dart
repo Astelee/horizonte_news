@@ -18,7 +18,7 @@ class AppAvatar extends StatelessWidget {
   /// Quando ausente, a cor é determinada pelo próprio [name].
   final String? seed;
 
-  /// URL da foto de perfil (Supabase Storage). Quando presente e
+  /// URL da foto de perfil (Cloudinary). Quando presente e
   /// carregada com sucesso, substitui as iniciais.
   final String? photoUrl;
 
