@@ -18,6 +18,7 @@ class _RankUser {
   final int totalXp;
   final int level;
   final String avatarId;
+  final String? photoUrl;
 
   _RankUser({
     required this.uid,
@@ -25,6 +26,7 @@ class _RankUser {
     required this.totalXp,
     required this.level,
     required this.avatarId,
+    this.photoUrl,
   });
 
   factory _RankUser.fromDoc(QueryDocumentSnapshot doc) {
@@ -40,6 +42,7 @@ class _RankUser {
       totalXp: (data['totalXp'] as num?)?.toInt() ?? 0,
       level: (data['level'] as num?)?.toInt() ?? 1,
       avatarId: (data['avatarId'] as String?) ?? 'animais_01',
+      photoUrl: (data['photoUrl'] as String?),
     );
   }
 }
@@ -635,6 +638,7 @@ class _PodiumSpotState extends State<_PodiumSpot>
                   child: AppAvatar(
                     name: widget.user.name,
                     seed: widget.user.uid,
+                    photoUrl: widget.user.photoUrl,
                     size: widget.avatarSize,
                   ),
                 ),
@@ -818,7 +822,11 @@ class _RankTileState extends State<_RankTile>
                 level: widget.user.level,
                 size: 40,
                 child: AppAvatar(
-                    name: widget.user.name, seed: widget.user.uid, size: 40),
+                  name: widget.user.name,
+                  seed: widget.user.uid,
+                  photoUrl: widget.user.photoUrl,
+                  size: 40,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -947,7 +955,12 @@ class _MyPositionBar extends StatelessWidget {
             AvatarFrame(
               level: user.level,
               size: 36,
-              child: AppAvatar(name: user.name, seed: user.uid, size: 36),
+              child: AppAvatar(
+                name: user.name,
+                seed: user.uid,
+                photoUrl: user.photoUrl,
+                size: 36,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
