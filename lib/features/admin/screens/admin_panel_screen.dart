@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../config/app_colors.dart';
 import '../providers/admin_provider.dart';
+import '../services/admin_avatar_approval_service.dart';
 import '../services/admin_comment_service.dart';
 import '../services/admin_dashboard_service.dart';
 import '../services/admin_news_service.dart';
@@ -14,6 +15,7 @@ import 'tabs/users_tab.dart';
 import 'tabs/views_tab.dart';
 import 'tabs/poderes_tab.dart';
 import 'tabs/news_tab.dart';
+import 'tabs/avatar_approvals_tab.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({Key? key}) : super(key: key);
@@ -31,6 +33,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   final _viewsService = AdminViewsService();
   final _dashboardService = AdminDashboardService();
   final _newsService = AdminNewsService();
+  final _avatarApprovalService = AdminAvatarApprovalService();
 
   static const List<String> _tabTitles = [
     'CENTRAL DE CONTROLE',
@@ -40,12 +43,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     'VISUALIZAÇÕES',
     'NÍVEIS & XP',
     'PUBLICAÇÕES',
+    'FOTOS PENDENTES',
   ];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 7, vsync: this);
+    _tabController = TabController(length: 8, vsync: this);
     _tabController.addListener(() {
       // Reconstrói o AppBar (título + botão voltar) ao trocar de aba,
       // mesmo durante o gesto (sem esperar a animação terminar).
@@ -113,12 +117,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     userService: _userService,
                     newsService: _newsService,
                     commentService: _commentService,
+                    avatarApprovalService: _avatarApprovalService,
                     onGoToUsers: () => _goToTab(3),
                     onGoToViews: () => _goToTab(4),
                     onGoToBanned: () => _goToTab(2),
                     onGoToNews: () => _goToTab(6),
                     onGoToComments: () => _goToTab(1),
                     onGoToLevels: () => _goToTab(5),
+                    onGoToAvatarApprovals: () => _goToTab(7),
                   ),
                   CommentsTab(
                     commentService: _commentService,
@@ -132,6 +138,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ),
                     const PoderesTab(),
                     NewsTab(newsService: _newsService),
+                    AvatarApprovalsTab(
+                        approvalService: _avatarApprovalService),
                   ],
                 ),
               ),
