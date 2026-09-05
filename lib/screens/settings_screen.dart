@@ -11,7 +11,7 @@ import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../services/notification_service.dart';
 import '../services/auth_service.dart';
-import '../widgets/profile_edit_sheets.dart' show showEditDisplayNameSheet, showEditUsernameSheet, pickAndUploadAvatar;
+import '../widgets/profile_edit_sheets.dart' show showEditDisplayNameSheet, showEditUsernameSheet, showAvatarOptionsSheet;
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -870,9 +870,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // FOTO DE PERFIL
   // ================================================================
 
-  Future<void> _pickAndUploadAvatar() async {
-    await pickAndUploadAvatar(
+  void _handleAvatarTap() {
+    showAvatarOptionsSheet(
       context,
+      hasPhoto: _photoUrl != null,
       onUploading: (_) {
         if (mounted) setState(() => _uploadingPhoto = true);
       },
@@ -880,6 +881,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (mounted) {
           setState(() {
             _photoUrl = url;
+            _uploadingPhoto = false;
+          });
+        }
+      },
+      onRemoving: () {
+        if (mounted) setState(() => _uploadingPhoto = true);
+      },
+      onRemoved: () {
+        if (mounted) {
+          setState(() {
+            _photoUrl = null;
             _uploadingPhoto = false;
           });
         }
@@ -895,7 +907,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
       child: Center(
         child: GestureDetector(
-          onTap: _uploadingPhoto ? null : _pickAndUploadAvatar,
+          onTap: _uploadingPhoto ? null : _handleAvatarTap,
           child: Stack(
             children: [
               Container(
