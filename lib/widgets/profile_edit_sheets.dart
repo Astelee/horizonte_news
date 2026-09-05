@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../config/app_colors.dart';
-import '../services/supabase_avatar_service.dart';
+import '../services/avatar_upload_service.dart';
 
 /// Bottom sheets reutilizáveis para edição de perfil (nome, ID de
 /// usuário e foto). Usados tanto em Configurações quanto na aba
@@ -477,7 +477,7 @@ Future<void> pickAndUploadAvatar(
   onUploading(picked.path);
 
   try {
-    final avatarService = SupabaseAvatarService();
+    final avatarService = AvatarUploadService();
     final url = await avatarService.uploadAvatar(
       file: File(picked.path),
       uid: user.uid,
@@ -501,18 +501,14 @@ Future<void> pickAndUploadAvatar(
       );
     }
   } catch (e) {
-    debugPrint('Erro no upload de avatar (Supabase): $e');
+    debugPrint('Erro no upload de avatar (Cloudinary): $e');
     onError();
     if (context.mounted) {
-      // TEMPORÁRIO PARA DIAGNÓSTICO: mostra o erro real na tela para
-      // identificar a causa exata (401/403 de policy, URL errada, etc).
-      // Depois de resolver, reverter para a mensagem genérica abaixo.
       _showSnack(
         context,
-        'Erro: $e',
+        'Erro ao enviar a foto.',
         icon: Icons.error_rounded,
         success: false,
-        duration: const Duration(seconds: 10),
       );
     }
   }
