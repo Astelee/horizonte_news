@@ -351,24 +351,6 @@ class _OverviewTabState extends State<OverviewTab> {
                 onTap: widget.onGoToBanned,
               ),
               _ManagementTile(
-                icon: Icons.insights_rounded,
-                color: const Color(0xFF66BB6A),
-                title: 'ESTATÍSTICAS',
-                subtitle: 'Dados gerais da comunidade e desempenho',
-                onTap: () {
-                  // Os dados de estatísticas já vivem nesta própria tela
-                  // Geral (KPIs, distribuição de níveis, rankings) —
-                  // não existe uma tela separada a abrir.
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                          'As estatísticas completas estão logo acima, nesta tela.'),
-                      backgroundColor: Color(0xFF1A1A1A),
-                    ),
-                  );
-                },
-              ),
-              _ManagementTile(
                 icon: Icons.settings_rounded,
                 color: AppColors.textSecondary,
                 title: 'CONFIGURAÇÕES',
