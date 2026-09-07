@@ -48,8 +48,8 @@ class AppRoutes {
     profile:        (context) => const ProfileScreen(),
     adminPanel:     (context) => const AdminPanelScreen(),
     mostRead:       (context) => const MostReadScreen(),
-    horizonNow:     (context) => const HorizonNowScreen(),
-    events:         (context) => const EventsScreen(),
+    horizonNow:     (context) => HorizonNowScreen(),
+    events:         (context) => EventsScreen(),
     ranking:        (context) => const RankingScreen(),
   };
 }
