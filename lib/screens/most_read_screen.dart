@@ -35,6 +35,7 @@ class MostReadScreen extends StatefulWidget {
 }
 
 class _MostReadScreenState extends State<MostReadScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final _db = FirebaseFirestore.instance;
 
   @override
@@ -80,6 +81,7 @@ class _MostReadScreenState extends State<MostReadScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: const Color(0xFF0A0A0A),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0F0F0F),
@@ -121,7 +123,7 @@ class _MostReadScreenState extends State<MostReadScreen> {
           ),
         ),
       ),
-      drawer: const AppDrawer(),
+      drawer: AppDrawer(scaffoldKey: _scaffoldKey),
       body: Consumer<PostsProvider>(
         builder: (context, provider, _) {
           // ── Carregando posts (Blogger) ────────────────────────────
