@@ -75,9 +75,30 @@ class _CategoryBarState extends State<CategoryBar> {
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        itemCount: _categories.length,
+        itemCount: _categories.length + 1,
         itemBuilder: (context, index) {
-          final cat = _categories[index];
+          if (index == 0) {
+            final isAllSelected = _selected == null;
+            return _CategoryChip(
+              label: 'Todas',
+              icon: FontAwesomeIcons.house,
+              accentColor: AppColors.primaryOrange,
+              isSelected: isAllSelected,
+              entryDelay: 0,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                SoundService.instance.playSystemClick();
+                setState(() => _selected = null);
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  AppRoutes.home,
+                  (r) => false,
+                );
+              },
+            );
+          }
+
+          final cat = _categories[index - 1];
           final isSelected = _selected == cat['label'];
 
           return _CategoryChip(
@@ -210,17 +231,17 @@ class _CategoryChipState extends State<_CategoryChip>
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 color: widget.isSelected
-                    ? widget.accentColor.withOpacity(0.14)
+                    ? widget.accentColor.withOpacity(0.16)
                     : _pressed
-                        ? const Color(0xFF1E1E1E)
-                        : const Color(0xFF111111),
+                        ? const Color(0xFF2A2A2A)
+                        : const Color(0xFF1C1C1C),
                 border: Border.all(
                   color: widget.isSelected
                       ? widget.accentColor
                           .withOpacity(0.5 + _selectGlow.value * 0.35)
                       : _pressed
-                          ? const Color(0xFF333333)
-                          : const Color(0xFF1E1E1E),
+                          ? const Color(0xFF4A4A4A)
+                          : const Color(0xFF3A3A3A),
                   width: widget.isSelected ? 1.5 : 1,
                 ),
                 boxShadow: widget.isSelected
@@ -247,11 +268,11 @@ class _CategoryChipState extends State<_CategoryChip>
                     shape: BoxShape.circle,
                     color: widget.isSelected
                         ? widget.accentColor.withOpacity(0.22)
-                        : const Color(0xFF1A1A1A),
+                        : const Color(0xFF2A2A2A),
                     border: Border.all(
                       color: widget.isSelected
                           ? widget.accentColor.withOpacity(0.55)
-                          : const Color(0xFF2A2A2A),
+                          : const Color(0xFF454545),
                       width: 1,
                     ),
                   ),
@@ -261,7 +282,7 @@ class _CategoryChipState extends State<_CategoryChip>
                       size: 9,
                       color: widget.isSelected
                           ? widget.accentColor
-                          : const Color(0xFF777777),
+                          : const Color(0xFFAAAAAA),
                     ),
                   ),
                 ),
@@ -271,7 +292,7 @@ class _CategoryChipState extends State<_CategoryChip>
                   style: TextStyle(
                     color: widget.isSelected
                         ? widget.accentColor
-                        : const Color(0xFF666666),
+                        : const Color(0xFFBBBBBB),
                     fontSize: 12,
                     fontWeight: widget.isSelected
                         ? FontWeight.w700
