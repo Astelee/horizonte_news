@@ -114,9 +114,18 @@ class _AppDrawerState extends State<AppDrawer>
     // resolvem esse mesmo Future ao remover a rota da pilha).
     await navigator?.pushNamed(route);
 
-    // Ao voltar, reabre o drawer usando a key do Scaffold da tela em
-    // que estávamos — não o context do Drawer, que já não existe mais.
-    scaffoldKey?.currentState?.openDrawer();
+    // Ao voltar, a tela anterior (Home, Mais Lidas etc.) já está de
+    // volta na árvore, mas ainda vai passar por pelo menos um frame
+    // de build antes de aparecer na tela. Se chamarmos openDrawer()
+    // agora mesmo, corremos o risco de o Flutter ainda estar no meio
+    // de um frame e o comando ser processado só depois desse frame
+    // já ter sido pintado — daí o efeito de "aparece fechado e só
+    // depois abre". Agendando no callback de pós-frame, garantimos
+    // que o drawer comece a abrir no PRIMEIRO frame em que a Home
+    // está pronta, eliminando esse intervalo visível.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      scaffoldKey?.currentState?.openDrawer();
+    });
   }
 
   @override
