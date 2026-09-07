@@ -24,6 +24,7 @@ class OverviewTab extends StatefulWidget {
   final VoidCallback onGoToComments;
   final VoidCallback onGoToLevels;
   final VoidCallback onGoToAvatarApprovals;
+  final VoidCallback onGoToConfig;
 
   const OverviewTab({
     required this.dashboardService,
@@ -38,6 +39,7 @@ class OverviewTab extends StatefulWidget {
     required this.onGoToComments,
     required this.onGoToLevels,
     required this.onGoToAvatarApprovals,
+    required this.onGoToConfig,
     Key? key,
   }) : super(key: key);
 
@@ -371,14 +373,7 @@ class _OverviewTabState extends State<OverviewTab> {
                 color: AppColors.textSecondary,
                 title: 'CONFIGURAÇÕES',
                 subtitle: 'Configurar o sistema e preferências do painel',
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Configurações do painel em breve.'),
-                      backgroundColor: Color(0xFF1A1A1A),
-                    ),
-                  );
-                },
+                onTap: widget.onGoToConfig,
               ),
             ];
 
