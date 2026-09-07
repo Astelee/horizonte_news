@@ -70,6 +70,7 @@ class AdminUserTile extends StatelessWidget {
           if (em.isNotEmpty) name = em.split('@').first;
         }
 
+        final photoUrl = d['photoUrl'] as String?;
         final email = d['email'] as String? ?? '';
         final xp = (d['totalXp'] as num?)?.toInt() ?? 0;
         final level = XpService.levelFromXp(xp);
@@ -125,6 +126,7 @@ class AdminUserTile extends StatelessWidget {
                         AppAvatar(
                           name: name,
                           seed: userId,
+                          photoUrl: photoUrl,
                           size: 46,
                           showBorder: false,
                         ),
