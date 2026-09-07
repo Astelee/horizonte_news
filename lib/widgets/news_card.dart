@@ -88,7 +88,7 @@ class _NewsCardState extends State<NewsCard>
             scale: _scaleAnim.value,
             child: Container(
               margin:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 color: AppColors.backgroundCard,
@@ -127,7 +127,7 @@ class _NewsCardState extends State<NewsCard>
                 // ── Conteúdo ───────────────────────────────────────
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 11, 8, 11),
+                    padding: const EdgeInsets.fromLTRB(11, 9, 6, 9),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -140,30 +140,30 @@ class _NewsCardState extends State<NewsCard>
                               ),
                             const Spacer(),
                             Icon(Icons.access_time_rounded,
-                                size: 11, color: AppColors.textMuted),
+                                size: 10, color: AppColors.textMuted),
                             const SizedBox(width: 3),
                             RelativeTimeText(
                               timestamp: widget.post.publishedAt,
                               style: const TextStyle(
                                 color: AppColors.textMuted,
-                                fontSize: 10,
+                                fontSize: 9.5,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 7),
+                        const SizedBox(height: 5),
                         Text(
                           widget.post.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: AppColors.textPrimary,
-                            fontSize: 14,
+                            fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            height: 1.35,
+                            height: 1.28,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 5),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
@@ -181,7 +181,7 @@ class _NewsCardState extends State<NewsCard>
 
                 // ── Thumbnail ──────────────────────────────────────
                 Padding(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   child: _NewsThumb(
                     url: widget.post.thumbnailUrl.trim().isNotEmpty
                         ? widget.post.thumbnailUrl
@@ -340,8 +340,8 @@ class _NewsThumb extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: SizedBox(
-        width: 88,
-        height: 88,
+        width: 112,
+        height: 76,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -349,8 +349,8 @@ class _NewsThumb extends StatelessWidget {
               imageUrl: url,
               fit: BoxFit.cover,
               placeholder: (_, __) => const _ShimmerBox(
-                width: 88,
-                height: 88,
+                width: 112,
+                height: 76,
               ),
               errorWidget: (_, __, ___) => Container(
                 color: AppColors.backgroundElevated,
@@ -534,8 +534,8 @@ class _FavButtonState extends State<_FavButton>
             Transform.scale(scale: _scale.value, child: child),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          width: 32,
-          height: 32,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             color: widget.isFav
@@ -560,7 +560,7 @@ class _FavButtonState extends State<_FavButton>
             widget.isFav
                 ? Icons.bookmark_rounded
                 : Icons.bookmark_outline_rounded,
-            size: 16,
+            size: 14,
             color: widget.isFav
                 ? AppColors.primaryOrange
                 : AppColors.textMuted,
