@@ -4,12 +4,15 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../config/app_navigator.dart';
 import '../providers/user_xp_provider.dart';
 import '../features/admin/providers/admin_provider.dart';
 import '../services/sound_service.dart';
 
 class AppDrawer extends StatefulWidget {
-  const AppDrawer({Key? key}) : super(key: key);
+  final GlobalKey<ScaffoldState>? scaffoldKey;
+
+  const AppDrawer({Key? key, this.scaffoldKey}) : super(key: key);
 
   @override
   State<AppDrawer> createState() => _AppDrawerState();
@@ -81,21 +84,39 @@ class _AppDrawerState extends State<AppDrawer>
   void _navigate(BuildContext context, String route) async {
     HapticFeedback.lightImpact();
     SoundService.instance.playSystemClick();
-    Navigator.pop(context);
+
+    // Referência estável ao Scaffold da tela ATUAL (Home, Mais Lidas,
+    // Eventos etc.) — capturada ANTES de fechar o drawer.
+    final scaffoldKey = widget.scaffoldKey;
+
+    // Usamos o Navigator GLOBAL (navigatorKey), não o `context` local
+    // do tile do Drawer. Isso é essencial: assim que o drawer começa
+    // a fechar, o `_AppDrawerState` (com seus AnimationControllers)
+    // pode ser destruído a qualquer momento, o que invalidaria um
+    // `context` local usado depois de um `await`. O Navigator global
+    // não depende do Drawer estar vivo.
+    final navigator = navigatorKey.currentState;
+
     if (route == AppRoutes.home) {
-      Navigator.pushReplacementNamed(context, route);
+      // Ir para o Início: fecha o drawer e reseta a pilha até a Home,
+      // sem empilhar mais uma rota por cima (evita pilha crescente
+      // tipo Home → Ranking → Home → Ranking...).
+      Navigator.pop(context);
+      navigator?.pushNamedAndRemoveUntil(AppRoutes.home, (r) => false);
       return;
     }
 
-    // Espera a tela empilhada ser fechada (botão voltar ou gesto do
-    // Android) antes de continuar. Quando isso acontecer, o usuário
-    // volta para a Home e a gaveta reabre automaticamente, em vez de
-    // ficar fechada.
-    await Navigator.pushNamed(context, route);
+    // Fecha o drawer normalmente.
+    Navigator.pop(context);
 
-    if (context.mounted) {
-      Scaffold.of(context).openDrawer();
-    }
+    // Empilha a nova rota e ESPERA o usuário voltar dela (botão da
+    // AppBar, gesto de voltar do Android ou botão físico — todos
+    // resolvem esse mesmo Future ao remover a rota da pilha).
+    await navigator?.pushNamed(route);
+
+    // Ao voltar, reabre o drawer usando a key do Scaffold da tela em
+    // que estávamos — não o context do Drawer, que já não existe mais.
+    scaffoldKey?.currentState?.openDrawer();
   }
 
   @override
