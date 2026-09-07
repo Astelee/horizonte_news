@@ -21,6 +21,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with TickerProviderStateMixin {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _scrollController = ScrollController();
   late AnimationController _fadeCtrl;
   late AnimationController _headerParticleCtrl;
@@ -80,10 +81,11 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: AppColors.backgroundDark,
       extendBodyBehindAppBar: true,
       appBar: _buildAppBar(context),
-      drawer: const AppDrawer(),
+      drawer: AppDrawer(scaffoldKey: _scaffoldKey),
       bottomNavigationBar: const HybridBannerAd(),
       body: FadeTransition(
         opacity: _fadeAnim,
