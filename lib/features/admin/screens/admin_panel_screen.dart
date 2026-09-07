@@ -4,6 +4,7 @@ import '../../../config/app_colors.dart';
 import '../providers/admin_provider.dart';
 import '../services/admin_avatar_approval_service.dart';
 import '../services/admin_comment_service.dart';
+import '../services/admin_config_service.dart';
 import '../services/admin_dashboard_service.dart';
 import '../services/admin_news_service.dart';
 import '../services/admin_user_service.dart';
@@ -16,6 +17,7 @@ import 'tabs/views_tab.dart';
 import 'tabs/poderes_tab.dart';
 import 'tabs/news_tab.dart';
 import 'tabs/avatar_approvals_tab.dart';
+import 'tabs/config_tab.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({Key? key}) : super(key: key);
@@ -34,6 +36,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   final _dashboardService = AdminDashboardService();
   final _newsService = AdminNewsService();
   final _avatarApprovalService = AdminAvatarApprovalService();
+  final _configService = AdminConfigService();
 
   static const List<String> _tabTitles = [
     'CENTRAL DE CONTROLE',
@@ -44,12 +47,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     'NÍVEIS & XP',
     'PUBLICAÇÕES',
     'FOTOS PENDENTES',
+    'CONFIGURAÇÕES',
   ];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 8, vsync: this);
+    _tabController = TabController(length: 9, vsync: this);
     _tabController.addListener(() {
       // Reconstrói o AppBar (título + botão voltar) ao trocar de aba,
       // mesmo durante o gesto (sem esperar a animação terminar).
@@ -125,6 +129,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     onGoToComments: () => _goToTab(1),
                     onGoToLevels: () => _goToTab(5),
                     onGoToAvatarApprovals: () => _goToTab(7),
+                    onGoToConfig: () => _goToTab(8),
                   ),
                   CommentsTab(
                     commentService: _commentService,
@@ -140,6 +145,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     NewsTab(newsService: _newsService),
                     AvatarApprovalsTab(
                         approvalService: _avatarApprovalService),
+                    ConfigTab(configService: _configService),
                   ],
                 ),
               ),
