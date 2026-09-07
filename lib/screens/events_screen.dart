@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import '../widgets/app_drawer.dart';
 
 class EventsScreen extends StatelessWidget {
-  const EventsScreen({Key? key}) : super(key: key);
+  EventsScreen({Key? key}) : super(key: key);
+
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: const Color(0xFF0A0A0A),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0F0F0F),
@@ -25,7 +28,7 @@ class EventsScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      drawer: const AppDrawer(),
+      drawer: AppDrawer(scaffoldKey: _scaffoldKey),
       body: const Center(
         child: Text(
           'Em breve',
