@@ -64,6 +64,7 @@ class StatCard extends StatelessWidget {
   final String? suffix;
   final String? sublabel;
   final bool live;
+  final VoidCallback? onTap;
 
   const StatCard({
     required this.icon,
@@ -73,6 +74,7 @@ class StatCard extends StatelessWidget {
     this.suffix,
     this.sublabel,
     this.live = false,
+    this.onTap,
     Key? key,
   }) : super(key: key);
 
@@ -86,69 +88,81 @@ class StatCard extends StatelessWidget {
         scale: 0.92 + 0.08 * t,
         child: Opacity(opacity: t.clamp(0.0, 1.0), child: child),
       ),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(16),
-          color: const Color(0xFF0A0A0A),
-          border: Border.all(color: color.withOpacity(0.25)),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.08),
-              blurRadius: 18,
-              spreadRadius: -4,
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, color: color, size: 16),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: const Color(0xFF0A0A0A),
+              border: Border.all(color: color.withOpacity(0.25)),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.08),
+                  blurRadius: 18,
+                  spreadRadius: -4,
                 ),
-                if (live) const _LivePulseDot(),
               ],
             ),
-            const SizedBox(height: 10),
-            AnimatedCounter(
-              value: value,
-              suffix: suffix ?? '',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 21,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.3,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            if (sublabel != null) ...[
-              const SizedBox(height: 1),
-              Text(
-                sublabel!,
-                style: TextStyle(
-                  color: color.withOpacity(0.85),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(icon, color: color, size: 16),
+                    ),
+                    if (live)
+                      const _LivePulseDot()
+                    else if (onTap != null)
+                      Icon(Icons.chevron_right_rounded,
+                          size: 16, color: color.withOpacity(0.6)),
+                  ],
                 ),
-              ),
-            ],
-          ],
+                const SizedBox(height: 10),
+                AnimatedCounter(
+                  value: value,
+                  suffix: suffix ?? '',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (sublabel != null) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    sublabel!,
+                    style: TextStyle(
+                      color: color.withOpacity(0.85),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
