@@ -9,6 +9,7 @@ import '../features/admin/providers/admin_provider.dart';
 import 'badge_widgets.dart';
 import 'avatar_frame.dart';
 import 'app_avatar.dart';
+import '../services/app_config_service.dart';
 
 class CommentModel {
   final String id;
@@ -314,6 +315,7 @@ class _InfoBanner extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════
 // SEÇÃO PRINCIPAL DE COMENTÁRIOS
 // ═══════════════════════════════════════════════════════════════════
+
 class CommentsSection extends StatefulWidget {
   final String postId;
   final String postTitle;
@@ -480,6 +482,12 @@ class _CommentsSectionState extends State<CommentsSection>
 
     if (user == null) {
       _showLoginSnack();
+      return;
+    }
+
+    final config = await AppConfigService().fetch();
+    if (!config.commentsEnabled) {
+      _showSnack('Os comentários estão temporariamente desativados.');
       return;
     }
 
@@ -710,7 +718,17 @@ class _CommentsSectionState extends State<CommentsSection>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 16),
-                _buildInputArea(user),
+                StreamBuilder<AppGlobalConfig>(
+                  stream: AppConfigService().stream(),
+                  builder: (context, snapshot) {
+                    final commentsEnabled =
+                        snapshot.data?.commentsEnabled ?? true;
+                    if (!commentsEnabled) {
+                      return _buildCommentsDisabledNotice();
+                    }
+                    return _buildInputArea(user);
+                  },
+                ),
                 const SizedBox(height: 8),
                 _buildCommentsList(),
               ],
@@ -807,6 +825,41 @@ class _CommentsSectionState extends State<CommentsSection>
                 size: 16, color: AppColors.textMuted),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Aviso mostrado no lugar do campo de comentar quando um admin
+  /// desativa comentários pelas Configurações do painel. Os
+  /// comentários já existentes continuam visíveis normalmente — só o
+  /// envio de novos fica bloqueado.
+  Widget _buildCommentsDisabledNotice() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF151515),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderDark),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.chat_bubble_outline_rounded,
+                color: AppColors.textMuted, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Os comentários estão temporariamente desativados.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
