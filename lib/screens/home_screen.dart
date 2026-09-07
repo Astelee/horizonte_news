@@ -214,39 +214,7 @@ class _HomeScreenState extends State<HomeScreen>
               title: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primaryOrange.withOpacity(0.5),
-                              blurRadius: 16,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Image.asset(
-                        'assets/images/logo.png',
-                        height: 34,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 34,
-                          height: 34,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: AppColors.orangeGradient,
-                          ),
-                          child: const Icon(Icons.public,
-                              color: Colors.white, size: 20),
-                        ),
-                      ),
-                    ],
-                  ),
+                  const _PulsingLogoBadge(),
                   const SizedBox(width: 10),
                   ShaderMask(
                     shaderCallback: (bounds) =>
@@ -478,6 +446,83 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Badge do logo com pulso de brilho (substitui o ícone de globo) ──────────
+
+class _PulsingLogoBadge extends StatefulWidget {
+  const _PulsingLogoBadge();
+
+  @override
+  State<_PulsingLogoBadge> createState() => _PulsingLogoBadgeState();
+}
+
+class _PulsingLogoBadgeState extends State<_PulsingLogoBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _pulse = Tween<double>(begin: 0.55, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (_, __) => Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: AppColors.orangeGradient,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primaryOrange.withOpacity(0.55 * _pulse.value),
+              blurRadius: 14 * _pulse.value,
+              spreadRadius: 1.5 * _pulse.value,
+            ),
+          ],
+        ),
+        child: Center(
+          child: ShaderMask(
+            shaderCallback: (bounds) => LinearGradient(
+              colors: [
+                Colors.white,
+                Colors.white.withOpacity(0.75 + 0.25 * _pulse.value),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ).createShader(bounds),
+            child: const Text(
+              'HN',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.2,
+                height: 1,
+              ),
+            ),
+          ),
         ),
       ),
     );
