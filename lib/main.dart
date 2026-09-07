@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // ✅ AdMob adicionado
 import 'config/app_theme.dart';
 import 'config/app_routes.dart';
@@ -14,6 +15,7 @@ import 'features/admin/providers/admin_provider.dart';
 import 'services/notification_service.dart';
 import 'services/sound_service.dart';
 import 'services/auth_service.dart';
+import 'services/app_config_service.dart';
 import 'screens/splash_screen.dart';
 import 'config/app_navigator.dart';
 
@@ -99,6 +101,112 @@ class _HorizonteNewsAppState extends State<HorizonteNewsApp> {
 
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AppGlobalConfig>(
+      stream: AppConfigService().stream(),
+      builder: (context, configSnapshot) {
+        final config = configSnapshot.data;
+
+        // Enquanto a config ainda não chegou, segue direto pro fluxo
+        // normal de autenticação — não vale a pena travar a
+        // splash inteira esperando essa checagem extra.
+        if (config == null || !config.maintenanceMode) {
+          return const _AuthenticatedGate();
+        }
+
+        // Modo manutenção ativo: verifica se o usuário logado é
+        // admin (admins continuam acessando normalmente, pra poder
+        // desativar a manutenção pelo próprio painel).
+        return StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (context, authSnapshot) {
+            if (authSnapshot.connectionState == ConnectionState.waiting) {
+              return const SplashLoading();
+            }
+            final user = authSnapshot.data;
+            if (user == null) {
+              return _MaintenanceScreen(message: config.maintenanceMessage);
+            }
+            return FutureBuilder<DocumentSnapshot>(
+              future: FirebaseFirestore.instance
+                  .collection('admins')
+                  .doc(user.uid)
+                  .get(),
+              builder: (context, adminSnapshot) {
+                if (adminSnapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const SplashLoading();
+                }
+                final isAdmin = adminSnapshot.data?.exists == true;
+                if (isAdmin) {
+                  return const _AuthenticatedGate();
+                }
+                return _MaintenanceScreen(message: config.maintenanceMessage);
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// Tela de bloqueio mostrada a usuários comuns durante manutenção.
+class _MaintenanceScreen extends StatelessWidget {
+  final String message;
+  const _MaintenanceScreen({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0A),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.build_circle_rounded,
+                  color: Color(0xFFEF5350), size: 64),
+              const SizedBox(height: 20),
+              const Text(
+                'Em manutenção',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                message.isNotEmpty
+                    ? message
+                    : 'Estamos fazendo uma atualização rápida. Volte '
+                        'daqui a pouco!',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Fluxo normal de autenticação (login/home), sem a checagem de
+/// manutenção — extraído do antigo _AuthGate para ser reutilizado
+/// tanto quando a manutenção está desligada quanto quando o usuário
+/// logado é admin.
+class _AuthenticatedGate extends StatelessWidget {
+  const _AuthenticatedGate();
 
   @override
   Widget build(BuildContext context) {
