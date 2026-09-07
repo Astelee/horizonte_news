@@ -134,6 +134,11 @@ class _OverviewTabState extends State<OverviewTab> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 32),
               children: [
+                _PublicationsManagementCard(
+                  newsService: widget.newsService,
+                  onTap: widget.onGoToNews,
+                ),
+                const SizedBox(height: 22),
                 _buildKpiGrid(data),
                 const SizedBox(height: 26),
                 _buildManagementCenter(),
@@ -169,6 +174,7 @@ class _OverviewTabState extends State<OverviewTab> {
                 color: AppColors.primaryOrange,
                 label: 'Usuários totais',
                 value: data.totalUsers,
+                onTap: widget.onGoToUsers,
               ),
             ),
             const SizedBox(width: 10),
@@ -214,6 +220,7 @@ class _OverviewTabState extends State<OverviewTab> {
                 color: const Color(0xFF9575CD),
                 label: 'Comentários',
                 value: data.totalComments,
+                onTap: widget.onGoToComments,
               ),
             ),
             const SizedBox(width: 10),
@@ -232,26 +239,14 @@ class _OverviewTabState extends State<OverviewTab> {
           children: [
             Expanded(
               child: StatCard(
-                icon: Icons.article_rounded,
-                color: const Color(0xFF66BB6A),
-                label: 'Notícias lidas',
-                value: data.totalArticlesRead,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: StatCard(
                 icon: Icons.block_rounded,
                 color: const Color(0xFFE53935),
                 label: 'Usuários suspensos',
                 value: data.totalSuspended,
+                onTap: widget.onGoToBanned,
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
+            const SizedBox(width: 10),
             Expanded(
               child: StatCard(
                 icon: Icons.share_rounded,
@@ -260,8 +255,6 @@ class _OverviewTabState extends State<OverviewTab> {
                 value: data.totalShares,
               ),
             ),
-            const SizedBox(width: 10),
-            const Expanded(child: SizedBox.shrink()),
           ],
         ),
       ],
@@ -302,29 +295,11 @@ class _OverviewTabState extends State<OverviewTab> {
         ),
         const SizedBox(height: 14),
 
-        // Card principal — Publicações (destaque total)
-        _PublicationsManagementCard(
-          newsService: widget.newsService,
-          onTap: widget.onGoToNews,
-        ),
-        const SizedBox(height: 12),
-
         // Grade 2 colunas — demais recursos
         LayoutBuilder(
           builder: (context, constraints) {
             final twoCols = constraints.maxWidth >= 300;
             final tiles = <Widget>[
-              _ManagementTile(
-                icon: Icons.people_alt_rounded,
-                color: AppColors.primaryOrange,
-                title: 'USUÁRIOS',
-                subtitle: 'Gerenciar usuários cadastrados',
-                onTap: widget.onGoToUsers,
-              ),
-              _CommentsManagementTile(
-                commentService: widget.commentService,
-                onTap: widget.onGoToComments,
-              ),
               _AvatarApprovalsManagementTile(
                 approvalService: widget.avatarApprovalService,
                 onTap: widget.onGoToAvatarApprovals,
@@ -342,13 +317,6 @@ class _OverviewTabState extends State<OverviewTab> {
                 title: 'NÍVEIS & XP',
                 subtitle: 'Gerenciar níveis e experiência dos usuários',
                 onTap: widget.onGoToLevels,
-              ),
-              _ManagementTile(
-                icon: Icons.block_rounded,
-                color: const Color(0xFFE53935),
-                title: 'BANIDOS',
-                subtitle: 'Gerenciar usuários suspensos',
-                onTap: widget.onGoToBanned,
               ),
               _ManagementTile(
                 icon: Icons.settings_rounded,
