@@ -13,14 +13,51 @@ service cloud.firestore {
 
     // ── Admins ────────────────────────────────────────────────────
     match /admins/{adminId} {
-      allow read: if isOwner(adminId);
-      allow write: if false;
+      // O próprio usuário pode checar se é admin (isOwner), e um
+      // admin pode listar todos (usado pelo painel, em
+      // Configurações → Administradores, para mostrar quem tem
+      // acesso).
+      allow read: if isOwner(adminId) || isAdmin();
+      // Só admin adiciona/remove outro admin — pelo painel
+      // (Configurações → Administradores). O primeiro admin do
+      // projeto precisa ser criado manualmente pelo console do
+      // Firebase (não existe "auto-promoção").
+      allow write: if isAdmin();
+    }
+
+    // ── Configurações globais do app (manutenção, comentários) ────
+    // Documento único (app_config/global), lido por todo mundo — o
+    // app precisa saber se está em manutenção ou se comentários
+    // estão desativados mesmo sem o usuário estar logado. Só admin
+    // escreve (ver Configurações no painel).
+    match /app_config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // ── XP dos usuários ───────────────────────────────────────────
     match /users_xp/{userId} {
       allow read: if request.auth != null;
-      allow write: if isOwner(userId) || isAdmin();
+
+      // O dono pode criar seu próprio documento de XP, mas nunca com
+      // photoUrl já definido — a foto de perfil só entra depois de
+      // aprovada por um admin (ver avatarApprovals mais abaixo).
+      allow create: if isOwner(userId) &&
+        !('photoUrl' in request.resource.data);
+
+      // O dono pode atualizar seus dados livremente, incluindo
+      // REMOVER photoUrl (apagar a própria foto continua uma ação
+      // instantânea, sem moderação) — mas nunca DEFINIR um valor
+      // nesse campo: isso é exclusivo de admin, via aprovação da
+      // fila de fotos pendentes (avatarApprovals). Sem essa
+      // restrição, o usuário poderia escrever a foto direto aqui e
+      // pular a fila de aprovação.
+      allow update: if isAdmin() || (
+        isOwner(userId) &&
+        (!('photoUrl' in request.resource.data) ||
+         !request.resource.data.diff(resource.data).affectedKeys()
+           .hasAny(['photoUrl']))
+      );
 
       // ── XP ganho por curtida em comentário ───────────────────────
       // A curtida credita XP fixo (5) ao AUTOR do comentário curtido,
@@ -58,6 +95,34 @@ service cloud.firestore {
     match /usernames/{userId} {
       allow read: if true;
       allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // ── Aprovação de fotos de perfil (moderação manual) ───────────
+    // O usuário registra a foto recém-enviada (já hospedada no
+    // Cloudinary) como pendente — ela NÃO vira pública sozinha; só
+    // um admin, aprovando pelo painel, grava a URL em
+    // users_xp/{uid}.photoUrl (ver a regra de users_xp acima, que
+    // bloqueia o próprio usuário de definir esse campo).
+    function validAvatarApprovalSubmit(uid) {
+      return isOwner(uid)
+          && request.resource.data.uid == uid
+          && request.resource.data.status == 'pending'
+          && request.resource.data.pendingPhotoUrl is string
+          && request.resource.data.pendingPhotoUrl.size() > 0;
+    }
+
+    match /avatarApprovals/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if validAvatarApprovalSubmit(uid);
+      // Reenvio: o próprio dono pode sobrescrever sua pendência
+      // enquanto ela ainda não foi revisada (status era e continua
+      // 'pending'). Depois de aprovada/rejeitada, só admin decide o
+      // que acontece com o registro (ex.: uma nova submissão do
+      // usuário deve criar um novo ciclo de revisão, não apagar
+      // silenciosamente a decisão anterior).
+      allow update: if isAdmin()
+          || (validAvatarApprovalSubmit(uid) && resource.data.status == 'pending');
+      allow delete: if isAdmin();
     }
 
     // ── Visualizações e compartilhamentos de posts ───────────────────
