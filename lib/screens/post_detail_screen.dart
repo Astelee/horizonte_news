@@ -82,15 +82,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
           parent: _authorPulseController, curve: Curves.easeInOut),
     );
 
-    _scrollController.addListener(() {
-      final show = _scrollController.offset > 220;
-      if (show != _showFloatingTitle) {
-        setState(() => _showFloatingTitle = show);
-      }
-      if (!_articleReadRegistered && _scrollController.offset > 300) {
-        _registerArticleRead();
-      }
-    });
+    _scrollController.addListener(_handleScroll);
 
     // Fallback por tempo: cobre matérias curtas (que cabem na tela
     // sem precisar rolar 300px) e leitores que ficam parados lendo
@@ -104,6 +96,47 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _registerView();
     });
+  }
+
+  // Posição do scroll na última vez que decidimos mostrar/esconder a
+  // barra colapsada — usada para medir a *direção* do gesto (subindo
+  // ou descendo), não só a posição absoluta. É esse delta que dá o
+  // comportamento estilo G1/YouTube: rolar para baixo esconde a
+  // barra, rolar para cima traz ela de volta imediatamente.
+  double _lastOffsetForBar = 0;
+
+  static const double _barRevealThreshold = 220;
+
+  void _handleScroll() {
+    final offset = _scrollController.offset;
+    final delta = offset - _lastOffsetForBar;
+
+    // Ignora tremores pequenos (ex.: bounce no topo/fim da lista ou
+    // ajustes finos) para a barra não "piscar" a cada micro-movimento.
+    const sensitivity = 6.0;
+
+    bool? nextShow;
+    if (offset <= _barRevealThreshold) {
+      // Perto do topo a barra flutuante nunca aparece — ali quem
+      // mostra os botões é o overlay "glass" sobre a capa.
+      nextShow = false;
+    } else if (delta > sensitivity) {
+      nextShow = false; // rolando para baixo → esconde
+    } else if (delta < -sensitivity) {
+      nextShow = true; // rolando para cima → mostra
+    }
+
+    if (nextShow != null && nextShow != _showFloatingTitle) {
+      setState(() => _showFloatingTitle = nextShow!);
+    }
+
+    if (delta.abs() > sensitivity) {
+      _lastOffsetForBar = offset;
+    }
+
+    if (!_articleReadRegistered && offset > 300) {
+      _registerArticleRead();
+    }
   }
 
   void _registerArticleRead() {
@@ -122,6 +155,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   @override
   void dispose() {
     _articleReadTimer?.cancel();
+    _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     _animController.dispose();
     _authorPulseController.dispose();
