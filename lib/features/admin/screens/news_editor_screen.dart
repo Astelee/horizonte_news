@@ -57,6 +57,8 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
 
   bool get _isEditing => widget.existingPost != null;
 
+  final FocusNode _contentFocusNode = FocusNode();
+
   late final AnimationController _particleCtrl;
   late final AnimationController _glowCtrl;
   late final Animation<double> _glowAnim;
@@ -98,9 +100,58 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
     _summaryCtrl.dispose();
     _contentCtrl.dispose();
     _categoryCtrl.dispose();
+    _contentFocusNode.dispose();
     _particleCtrl.dispose();
     _glowCtrl.dispose();
     super.dispose();
+  }
+
+  // ── Toolbar de formatação do campo "Conteúdo completo" ──────────────────
+  // Envolve (ou converte) o trecho selecionado do texto com a tag/efeito
+  // escolhido. Se nada estiver selecionado, mostra um aviso.
+  void _wrapSelection({required String openTag, required String closeTag}) {
+    final text = _contentCtrl.text;
+    final sel = _contentCtrl.selection;
+    if (!sel.isValid || sel.isCollapsed) {
+      _showError('Selecione um trecho do texto para formatar.');
+      return;
+    }
+    final selected = text.substring(sel.start, sel.end);
+    final newText = text.replaceRange(
+      sel.start,
+      sel.end,
+      '$openTag$selected$closeTag',
+    );
+    final newCursor = sel.start + openTag.length + selected.length + closeTag.length;
+    _contentCtrl.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+  }
+
+  void _applyBold() =>
+      _wrapSelection(openTag: '<b>', closeTag: '</b>');
+
+  void _applyHighlight() =>
+      _wrapSelection(openTag: '<mark>', closeTag: '</mark>');
+
+  void _applyUppercase() {
+    final text = _contentCtrl.text;
+    final sel = _contentCtrl.selection;
+    if (!sel.isValid || sel.isCollapsed) {
+      _showError('Selecione um trecho do texto para colocar em maiúsculas.');
+      return;
+    }
+    final selected = text.substring(sel.start, sel.end);
+    final upper = selected.toUpperCase();
+    final newText = text.replaceRange(sel.start, sel.end, upper);
+    _contentCtrl.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection(
+        baseOffset: sel.start,
+        extentOffset: sel.start + upper.length,
+      ),
+    );
   }
 
   // ── Lógica de dados: idêntica à versão anterior ─────────────────────────
@@ -322,10 +373,13 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
                                     hint: 'Ex.: Cidade, Esporte...'),
                                 const SizedBox(height: 14),
                                 _label('Conteúdo completo'),
+                                _buildFormatToolbar(),
+                                const SizedBox(height: 8),
                                 _textField(_contentCtrl,
                                     hint:
                                         'Texto da notícia. Pode conter HTML simples (<p>, <b>, <h2>...).',
-                                    maxLines: 10),
+                                    maxLines: 10,
+                                    focusNode: _contentFocusNode),
                               ],
                             ),
                             const SizedBox(height: 16),
@@ -519,10 +573,90 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
         ),
       );
 
+  // Barra de formatação: negrito, MAIÚSCULAS e destaque laranja (<mark>),
+  // aplicados sobre o trecho selecionado no campo "Conteúdo completo".
+  Widget _buildFormatToolbar() {
+    return Row(
+      children: [
+        _formatButton(
+          icon: Icons.format_bold_rounded,
+          label: 'Negrito',
+          onTap: _applyBold,
+        ),
+        const SizedBox(width: 8),
+        _formatButton(
+          icon: Icons.text_fields_rounded,
+          label: 'MAIÚSC.',
+          onTap: _applyUppercase,
+        ),
+        const SizedBox(width: 8),
+        _formatButton(
+          icon: Icons.border_color_rounded,
+          label: 'Destacar',
+          onTap: _applyHighlight,
+          highlighted: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _formatButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool highlighted = false,
+  }) {
+    return Expanded(
+      child: Material(
+        color: highlighted
+            ? AppColors.primaryOrange.withOpacity(0.14)
+            : const Color(0xFF0A0A0A),
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: highlighted
+                    ? AppColors.primaryOrange.withOpacity(0.5)
+                    : const Color(0xFF262626),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon,
+                    size: 16,
+                    color: highlighted
+                        ? AppColors.primaryOrange
+                        : Colors.white70),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: highlighted
+                        ? AppColors.primaryOrange
+                        : Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _textField(TextEditingController controller,
-      {String? hint, int maxLines = 1}) {
+      {String? hint, int maxLines = 1, FocusNode? focusNode}) {
     return TextField(
       controller: controller,
+      focusNode: focusNode,
       maxLines: maxLines,
       style: const TextStyle(color: Colors.white, fontSize: 14),
       cursorColor: AppColors.primaryOrange,
@@ -741,13 +875,13 @@ class _EditorParticlePainter extends CustomPainter {
 
   static final _rng = math.Random(19);
   static final _particles = List.generate(
-    22,
+    36,
     (i) => _EPData(
       x: _rng.nextDouble(),
       y: _rng.nextDouble(),
-      size: 0.5 + _rng.nextDouble() * 1.4,
-      speed: 0.012 + _rng.nextDouble() * 0.028,
-      opacity: 0.04 + _rng.nextDouble() * 0.14,
+      size: 1.2 + _rng.nextDouble() * 2.6,
+      speed: 0.02 + _rng.nextDouble() * 0.05,
+      opacity: 0.25 + _rng.nextDouble() * 0.45,
       phase: _rng.nextDouble(),
     ),
   );
@@ -759,38 +893,64 @@ class _EditorParticlePainter extends CustomPainter {
       Paint()..color = Colors.black,
     );
 
+    // Dois glows radiais bem mais fortes e visíveis, cantos opostos.
     final orbPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          const Color(0xFFFF6B00).withOpacity(0.045),
+          const Color(0xFFFF6B00).withOpacity(0.16),
           Colors.transparent,
         ],
       ).createShader(Rect.fromCircle(
-        center: Offset(size.width * 0.15, size.height * 0.05),
-        radius: size.width * 0.7,
+        center: Offset(size.width * 0.12, size.height * 0.04),
+        radius: size.width * 0.85,
       ));
     canvas.drawCircle(
-      Offset(size.width * 0.15, size.height * 0.05),
-      size.width * 0.7,
+      Offset(size.width * 0.12, size.height * 0.04),
+      size.width * 0.85,
       orbPaint,
+    );
+
+    final orbPaint2 = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFFFF2200).withOpacity(0.10),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(
+        center: Offset(size.width * 0.92, size.height * 0.85),
+        radius: size.width * 0.75,
+      ));
+    canvas.drawCircle(
+      Offset(size.width * 0.92, size.height * 0.85),
+      size.width * 0.75,
+      orbPaint2,
     );
 
     for (final p in _particles) {
       final dy = 1.0 - ((p.y + t * p.speed + p.phase) % 1.0);
-      final dx = p.x + 0.018 * math.sin((t * 2 * math.pi * 0.6) + p.phase * 6.28);
+      final dx = p.x + 0.025 * math.sin((t * 2 * math.pi * 0.6) + p.phase * 6.28);
       final fireRatio = 1.0 - dy;
       final color = Color.lerp(
-        const Color(0xFFFF6B00),
+        const Color(0xFFFFA040),
         const Color(0xFFFF2200),
         fireRatio,
       )!;
       final opacity = p.opacity *
           (0.5 + 0.5 * math.sin(t * 2 * math.pi * p.speed * 10 + p.phase));
 
+      final center = Offset(dx * size.width, dy * size.height);
+      final finalOpacity = opacity.clamp(0.0, 0.7);
+
+      // Halo suave em volta de cada partícula para dar sensação de brilho/fogo.
       canvas.drawCircle(
-        Offset(dx * size.width, dy * size.height),
+        center,
+        p.size * 3,
+        Paint()..color = color.withOpacity(finalOpacity * 0.15),
+      );
+      canvas.drawCircle(
+        center,
         p.size,
-        Paint()..color = color.withOpacity(opacity.clamp(0.0, 0.2)),
+        Paint()..color = color.withOpacity(finalOpacity),
       );
     }
   }
