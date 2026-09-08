@@ -310,39 +310,53 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                 ),
               ),
 
-              // Botões glass (visíveis quando imagem está expandida)
-              if (!_showCollapsedBar)
-                Positioned(
-                  top: topPadding + 8,
-                  left: 12,
-                  right: 12,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _glassButton(
-                        icon: Icons.arrow_back_ios_new_rounded,
-                        onTap: () => Navigator.pop(context),
-                      ),
-                      Row(
-                        children: [
-                          _glassButton(
-                            icon: isFav
-                                ? Icons.bookmark_rounded
-                                : Icons.bookmark_border_rounded,
-                            onTap: () =>
-                                favoritesProvider.toggleFavorite(post),
-                            active: isFav,
-                          ),
-                          const SizedBox(width: 8),
-                          _glassButton(
-                            icon: Icons.share_rounded,
-                            onTap: () => _sharePost(post),
-                          ),
-                        ],
-                      ),
-                    ],
+              // Botões glass (sobre a capa, no topo da matéria). Usa
+              // a mesma duração/curva de animação da barra colapsada
+              // (ver _buildCollapsedBar) para que uma apareça
+              // suavemente enquanto a outra sai — sem isso, o overlay
+              // glass aparecia instantaneamente enquanto a barra
+              // colapsada ainda estava deslizando para fora, e as
+              // duas ficavam visíveis ao mesmo tempo por uma fração
+              // de segundo.
+              Positioned(
+                top: topPadding + 8,
+                left: 12,
+                right: 12,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  opacity: _showCollapsedBar ? 0 : 1,
+                  child: IgnorePointer(
+                    ignoring: _showCollapsedBar,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _glassButton(
+                          icon: Icons.arrow_back_ios_new_rounded,
+                          onTap: () => Navigator.pop(context),
+                        ),
+                        Row(
+                          children: [
+                            _glassButton(
+                              icon: isFav
+                                  ? Icons.bookmark_rounded
+                                  : Icons.bookmark_border_rounded,
+                              onTap: () =>
+                                  favoritesProvider.toggleFavorite(post),
+                              active: isFav,
+                            ),
+                            const SizedBox(width: 8),
+                            _glassButton(
+                              icon: Icons.share_rounded,
+                              onTap: () => _sharePost(post),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
+              ),
 
               // Barra colapsada (aparece ao rolar)
               _buildCollapsedBar(
@@ -449,7 +463,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   ) {
     final topPadding = MediaQuery.of(context).padding.top;
     return AnimatedPositioned(
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
       top: _showCollapsedBar ? 0 : -(topPadding + 80),
       left: 0,
       right: 0,
@@ -457,7 +472,12 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         padding: EdgeInsets.only(
             top: topPadding + 8, bottom: 8, left: 8, right: 8),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.95),
+          // Opaco (não translúcido): a barra some/aparece com
+          // frequência ao mudar de direção do scroll, e uma cor
+          // parcialmente transparente deixava a última linha do
+          // texto "vazar" por trás dela durante a animação, dando a
+          // falsa impressão de duas barras sobrepostas.
+          color: Colors.black,
           border: const Border(
               bottom:
                   BorderSide(color: AppColors.borderDark, width: 1)),
