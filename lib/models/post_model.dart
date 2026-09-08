@@ -150,12 +150,22 @@ class PostModel {
       'autorUid': authorUid,
       'autorNome': authorName,
       'atualizadoEm': FieldValue.serverTimestamp(),
-      // Campos auxiliares só para busca (não exibidos na UI): título
-      // normalizado (minúsculo, sem acento) e suas palavras, usados
-      // pela busca do app para ignorar caixa/acentuação e encontrar
-      // por qualquer palavra do título, não só pelo início.
+      // Campos auxiliares só para busca (não exibidos na UI):
+      // - tituloBusca: só o título, normalizado — usado na busca por
+      //   prefixo (útil quando o usuário digita o começo do título).
+      // - palavrasBusca: tokens de título + resumo + categoria, usados
+      //   na busca por qualquer palavra (array-contains-any). Inclui a
+      //   categoria para que buscar, por ex., "Política" encontre toda
+      //   notícia dessa categoria, mesmo que a palavra não apareça no
+      //   título.
       'tituloBusca': SearchNormalizer.normalize(title),
-      'palavrasBusca': SearchNormalizer.tokenize(title),
+      'palavrasBusca': SearchNormalizer.tokenize(
+        [
+          title,
+          summary,
+          categories.isNotEmpty ? categories.first.name : '',
+        ].join(' '),
+      ),
     };
     if (forCreate) {
       map['criadoEm'] = FieldValue.serverTimestamp();
