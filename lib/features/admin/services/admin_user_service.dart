@@ -76,12 +76,16 @@ class AdminUserService {
   // ── Override de NÍVEL (moldura, XP, cor) ─────────────────────────
 
   Future<void> applyLevelOverride(String uid, int level) async {
+    // Trava no teto real do sistema de níveis (XpService.maxLevel) —
+    // evita salvar um nível acima do que a UI atual permite, mesmo
+    // se o valor vier de uma chamada antiga/externa.
+    final clamped = level.clamp(1, XpService.maxLevel).toInt();
     await _db.collection('users_xp').doc(uid).update({
-      'level': level,
-      'adminOverrideLevel': level,
+      'level': clamped,
+      'adminOverrideLevel': clamped,
       'adminOverrideActive': true,
     });
-    await _log('level_override', uid, extra: {'level': level});
+    await _log('level_override', uid, extra: {'level': clamped});
   }
 
   Future<void> resetLevelOverride(String uid, int realLevel) async {
