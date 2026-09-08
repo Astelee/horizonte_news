@@ -435,7 +435,11 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildLevelTag(UserXpData data) {
     final gradient = BadgeConfig.levelGradient(data.level);
     final color = BadgeConfig.levelColor(data.level);
-    final isEpic = data.level >= 8;
+    // Realinhado ao novo sistema de 30 níveis: destaque visual extra
+    // (borda e glow mais fortes) a partir da raridade Épico (nível 13),
+    // equivalente ao ponto em que "isEpic" (nível 8) marcava no sistema
+    // antigo de 100 níveis.
+    final isEpic = data.level >= 13;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -751,6 +755,52 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildNextLevelPreview(UserXpData data) {
+    // No teto do sistema (XpService.maxLevel) não há "próximo nível" —
+    // mostra um card de conquista máxima em vez de repetir o nível
+    // atual como se fosse o próximo (o que soaria como um bug).
+    if (data.level >= XpService.maxLevel) {
+      final color = BadgeConfig.levelColor(data.level);
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              colors: [color.withOpacity(0.1), color.withOpacity(0.03)],
+            ),
+            border: Border.all(color: color.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              FaIcon(BadgeConfig.levelIcon(data.level), size: 22, color: color),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Nível máximo alcançado!',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      '🏆 Você chegou ao topo do Horizonte News',
+                      style: TextStyle(color: Color(0xFF9E9E9E), fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final nextGradient = BadgeConfig.levelGradient(data.level + 1);
     final nextColor = BadgeConfig.levelColor(data.level + 1);
     final unlock = BadgeConfig.nextLevelUnlock(data.level);
