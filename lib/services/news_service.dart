@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/post_model.dart';
+import '../utils/search_normalizer.dart';
 
 /// Serviço de leitura pública de notícias, a partir da coleção
 /// `noticias` no Firestore. Só devolve notícias com
@@ -73,17 +74,49 @@ class NewsService {
     return snap.docs.map((d) => PostModel.fromFirestore(d)).toList();
   }
 
-  /// Busca textual simples por título. Para buscas mais robustas
-  /// (full-text) seria necessário um serviço externo (Algolia/
-  /// Typesense) — fora do escopo desta etapa.
+  /// Busca textual por título, normalizada (ignora maiúsculas/
+  /// minúsculas e acentuação) e por palavra — não exige que o termo
+  /// digitado seja o início exato do título.
+  ///
+  /// Estratégia: cada notícia guarda, além do título original,
+  /// `tituloBusca` (normalizado) e `palavrasBusca` (tokens do
+  /// título) — ver [PostModel.toFirestoreMap]. A busca:
+  ///   1) tenta achar por prefixo em `tituloBusca` (rápido, cobre o
+  ///      caso mais comum de digitar o começo do título);
+  ///   2) complementa com `array-contains` em `palavrasBusca` para
+  ///      achar por qualquer palavra do título, mesclando os
+  ///      resultados sem duplicar.
+  ///
+  /// Notícias salvas antes dessa migração não têm esses campos
+  /// ainda — usar o botão "Reindexar busca" no painel ADM
+  /// (Configurações) preenche esses campos para o acervo existente.
   Future<List<PostModel>> searchPosts(String query) async {
-    if (query.trim().isEmpty) return [];
-    final q = query.trim();
-    final snap = await _col
+    final normalized = SearchNormalizer.normalize(query);
+    if (normalized.isEmpty) return [];
+
+    final prefixSnap = await _col
         .where('status', isEqualTo: _publishedStatus)
-        .orderBy('titulo')
-        .startAt([q]).endAt(['$q\uf8ff']).limit(30).get();
-    return snap.docs.map((d) => PostModel.fromFirestore(d)).toList();
+        .orderBy('tituloBusca')
+        .startAt([normalized]).endAt(['$normalized\uf8ff']).limit(30).get();
+
+    final tokens = SearchNormalizer.tokenize(query);
+    QuerySnapshot<Map<String, dynamic>>? wordSnap;
+    if (tokens.isNotEmpty) {
+      wordSnap = await _col
+          .where('status', isEqualTo: _publishedStatus)
+          .where('palavrasBusca', arrayContainsAny: tokens.take(10).toList())
+          .limit(30)
+          .get();
+    }
+
+    final seen = <String>{};
+    final posts = <PostModel>[];
+    for (final d in [...prefixSnap.docs, ...?wordSnap?.docs]) {
+      if (seen.add(d.id)) {
+        posts.add(PostModel.fromFirestore(d));
+      }
+    }
+    return posts;
   }
 
   /// Busca uma notícia específica por id (ex.: ao abrir via
