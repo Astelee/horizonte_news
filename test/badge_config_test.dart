@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:horizonte_news/config/badge_config.dart';
+import 'package:horizonte_news/services/xp_service.dart';
 
 void main() {
   group('BadgeConfig - título por nível', () {
@@ -12,9 +13,10 @@ void main() {
       expect(BadgeConfig.levelTitle(-5), 'Visitante');
     });
 
-    test('nível muito alto (100+) sempre retorna um título válido', () {
-      expect(BadgeConfig.levelTitle(100), 'Horizonte Elite');
-      expect(BadgeConfig.levelTitle(9999), 'Horizonte Elite');
+    test('nível muito alto (acima do teto de ${XpService.maxLevel}) sempre retorna o título máximo', () {
+      expect(BadgeConfig.levelTitle(XpService.maxLevel), 'Horizonte Supremo');
+      expect(BadgeConfig.levelTitle(100), 'Horizonte Supremo');
+      expect(BadgeConfig.levelTitle(9999), 'Horizonte Supremo');
     });
 
     test('todo nível de 1 a 100 retorna um título não vazio', () {
