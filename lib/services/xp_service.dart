@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -135,18 +136,27 @@ class XpService {
   static const int missionMinutesTarget = 1;
 
   // ── Tabela de níveis ─────────────────────────────────────────────
+  // Sistema revisado: 30 níveis no total (antes eram 100, uma jornada
+  // longa demais). Curva suave no início e crescente no fim, usando
+  // expoente 2.15 — nível 5 fica em ~690 XP (poucas horas de uso +
+  // missões diárias) e o teto (nível 30) em ~48.800 XP, uma meta de
+  // semanas de uso ativo, não de anos.
+  static const int maxLevel = 30;
+
   static int xpRequiredForLevel(int level) {
     if (level <= 1) return 0;
-    return (100 * (level - 1) * level) ~/ 2;
+    final capped = level > maxLevel ? maxLevel : level;
+    return (35 * math.pow(capped - 1, 2.15)).round();
   }
 
   static int xpRequiredForNextLevel(int level) {
+    if (level >= maxLevel) return 0;
     return xpRequiredForLevel(level + 1) - xpRequiredForLevel(level);
   }
 
   static int levelFromXp(int totalXp) {
     int level = 1;
-    while (xpRequiredForLevel(level + 1) <= totalXp) {
+    while (level < maxLevel && xpRequiredForLevel(level + 1) <= totalXp) {
       level++;
     }
     return level;
@@ -167,7 +177,7 @@ class XpService {
     bool showAge = false,
   }) {
     final calculatedLevel = levelFromXp(totalXp);
-    final level = overrideLevel ?? calculatedLevel;
+    final level = (overrideLevel ?? calculatedLevel).clamp(1, maxLevel).toInt();
 
     final xpAtThisLevel = xpRequiredForLevel(level);
     final xpAtNextLevel = xpRequiredForLevel(level + 1);
@@ -781,6 +791,8 @@ class XpService {
     // ── Nível ────────────────────────────────────────────────────────
     unlock('level_5', data.level >= 5);
     unlock('level_10', data.level >= 10);
+    unlock('level_20', data.level >= 20);
+    unlock('level_30', data.level >= 30);
 
     if (toUnlock.isNotEmpty) {
       await doc
@@ -845,6 +857,20 @@ class XpService {
         description: 'Alcançou o nível 10',
         icon: 'level_10',
         unlocked: unlocked.contains('level_10'),
+      ),
+      Achievement(
+        id: 'level_20',
+        title: 'Mítico',
+        description: 'Alcançou o nível 20',
+        icon: 'level_20',
+        unlocked: unlocked.contains('level_20'),
+      ),
+      Achievement(
+        id: 'level_30',
+        title: 'Horizonte Supremo',
+        description: 'Alcançou o nível máximo: 30',
+        icon: 'level_30',
+        unlocked: unlocked.contains('level_30'),
       ),
     ];
   }
