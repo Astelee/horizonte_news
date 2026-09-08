@@ -269,12 +269,14 @@ class AdminDashboardService {
   }
 
   /// Agrupa níveis em faixas legíveis para o gráfico de distribuição.
+  /// Ajustado para o teto de 30 níveis (era desenhado para 100):
+  /// 6 faixas de 5 níveis cada, cobrindo toda a jornada por igual.
   int _levelBucket(int level) {
-    if (level <= 4) return 1;
-    if (level <= 9) return 5;
-    if (level <= 16) return 10;
-    if (level <= 22) return 17;
-    if (level <= 29) return 23;
-    return 30;
+    if (level <= 5)  return 1;
+    if (level <= 10) return 6;
+    if (level <= 15) return 11;
+    if (level <= 20) return 16;
+    if (level <= 25) return 21;
+    return 26;
   }
 }
