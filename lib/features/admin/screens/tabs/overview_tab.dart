@@ -365,22 +365,23 @@ class _OverviewTabState extends State<OverviewTab> {
   }
 
   // ── Distribuição de níveis (donut) ──────────────────────────────
+  // Ajustado para o teto de 30 níveis (era desenhado para 100).
   Widget _buildLevelDistribution(DashboardSnapshot data) {
     final labels = {
-      1: 'Nv 1-4',
-      5: 'Nv 5-9',
-      10: 'Nv 10-16',
-      17: 'Nv 17-22',
-      23: 'Nv 23-29',
-      30: 'Nv 30+',
+      1: 'Nv 1-5',
+      6: 'Nv 6-10',
+      11: 'Nv 11-15',
+      16: 'Nv 16-20',
+      21: 'Nv 21-25',
+      26: 'Nv 26-30',
     };
     final colors = {
       1: const Color(0xFF66BB6A),
-      5: const Color(0xFF4FC3F7),
-      10: const Color(0xFF9575CD),
-      17: const Color(0xFFFFD54F),
-      23: AppColors.primaryOrange,
-      30: const Color(0xFFEF5350),
+      6: const Color(0xFF4FC3F7),
+      11: const Color(0xFF9575CD),
+      16: const Color(0xFFFFD54F),
+      21: AppColors.primaryOrange,
+      26: const Color(0xFFEF5350),
     };
 
     final slices = data.levelDistribution.entries
