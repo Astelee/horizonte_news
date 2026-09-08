@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../models/post_model.dart';
+import '../../../utils/search_normalizer.dart';
 import 'push_notification_service.dart';
 
 /// Serviço de gerenciamento de notícias usado pela aba "NOTÍCIAS" do
@@ -111,5 +112,45 @@ class AdminNewsService {
 
   Future<void> deleteNews(String postId) async {
     await _col.doc(postId).delete();
+  }
+
+  /// Preenche `tituloBusca`/`palavrasBusca` em notícias salvas antes
+  /// da busca normalizada existir (esses campos passaram a ser
+  /// gravados automaticamente em toda criação/edição a partir de
+  /// agora — este método é só para o acervo antigo). Roda uma vez
+  /// via botão "Reindexar busca" no painel ADM (Configurações) e
+  /// pode ser rodado de novo a qualquer momento sem risco: só
+  /// atualiza esses dois campos, nunca o resto da notícia.
+  ///
+  /// Retorna quantas notícias foram atualizadas.
+  Future<int> reindexSearchFields() async {
+    final snap = await _col.get();
+
+    var batch = _db.batch();
+    var pending = 0;
+    var updated = 0;
+
+    for (final doc in snap.docs) {
+      final titulo = (doc.data()['titulo'] as String?) ?? '';
+      batch.update(doc.reference, {
+        'tituloBusca': SearchNormalizer.normalize(titulo),
+        'palavrasBusca': SearchNormalizer.tokenize(titulo),
+      });
+      pending++;
+      updated++;
+
+      // Firestore permite no máximo 500 operações por batch.
+      if (pending >= 450) {
+        await batch.commit();
+        batch = _db.batch();
+        pending = 0;
+      }
+    }
+
+    if (pending > 0) {
+      await batch.commit();
+    }
+
+    return updated;
   }
 }
