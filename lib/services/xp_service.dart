@@ -44,7 +44,9 @@ class UserXpData {
         totalXp: 0,
         level: 1,
         xpInCurrentLevel: 0,
-        xpForNextLevel: 100,
+        // Valor real de XP para sair do nível 1 na curva atual (era
+        // 100, herdado do sistema antigo de 100 níveis).
+        xpForNextLevel: 35,
         progressPercent: 0.0,
         totalSecondsOnline: 0,
         avatarId: 'animais_01',
