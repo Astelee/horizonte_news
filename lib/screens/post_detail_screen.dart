@@ -51,7 +51,7 @@ class PostDetailScreen extends StatefulWidget {
 class _PostDetailScreenState extends State<PostDetailScreen>
     with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
-  bool _showFloatingTitle = false;
+  bool _showCollapsedBar = false;
   bool _articleReadRegistered = false;
   bool _viewRegistered = false;
   Timer? _articleReadTimer;
@@ -98,40 +98,51 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     });
   }
 
-  // Posição do scroll na última vez que decidimos mostrar/esconder a
-  // barra colapsada — usada para medir a *direção* do gesto (subindo
-  // ou descendo), não só a posição absoluta. É esse delta que dá o
-  // comportamento estilo G1/YouTube: rolar para baixo esconde a
-  // barra, rolar para cima traz ela de volta imediatamente.
+  // Acumulador da distância rolada na direção atual desde a última
+  // vez que trocamos de direção. Zera sempre que o gesto muda de
+  // sentido, e é contra ele (não contra o offset absoluto) que
+  // comparamos o limiar de sensibilidade — assim um pequeno "solavanco"
+  // ao mudar de direção não é suficiente para virar a barra, mas um
+  // gesto de rolagem real (para cima OU para baixo) responde de
+  // imediato, do jeito que o g1 e o YouTube fazem.
   double _lastOffsetForBar = 0;
+  double _accumulatedDelta = 0;
+  int _lastDirection = 0; // -1 = subindo, 1 = descendo, 0 = neutro
 
   static const double _barRevealThreshold = 220;
+  static const double _directionSensitivity = 10.0;
 
   void _handleScroll() {
     final offset = _scrollController.offset;
-    final delta = offset - _lastOffsetForBar;
+    final rawDelta = offset - _lastOffsetForBar;
+    _lastOffsetForBar = offset;
 
-    // Ignora tremores pequenos (ex.: bounce no topo/fim da lista ou
-    // ajustes finos) para a barra não "piscar" a cada micro-movimento.
-    const sensitivity = 6.0;
+    if (rawDelta == 0) return;
+
+    final direction = rawDelta > 0 ? 1 : -1;
+    if (direction != _lastDirection) {
+      // Mudou de sentido: reinicia o acumulador para medir de novo
+      // a partir daqui.
+      _accumulatedDelta = 0;
+      _lastDirection = direction;
+    }
+    _accumulatedDelta += rawDelta;
 
     bool? nextShow;
     if (offset <= _barRevealThreshold) {
       // Perto do topo a barra flutuante nunca aparece — ali quem
       // mostra os botões é o overlay "glass" sobre a capa.
       nextShow = false;
-    } else if (delta > sensitivity) {
-      nextShow = false; // rolando para baixo → esconde
-    } else if (delta < -sensitivity) {
-      nextShow = true; // rolando para cima → mostra
+    } else if (direction > 0 &&
+        _accumulatedDelta > _directionSensitivity) {
+      nextShow = false; // rolou para baixo o suficiente → esconde
+    } else if (direction < 0 &&
+        _accumulatedDelta < -_directionSensitivity) {
+      nextShow = true; // rolou para cima o suficiente → mostra
     }
 
-    if (nextShow != null && nextShow != _showFloatingTitle) {
-      setState(() => _showFloatingTitle = nextShow!);
-    }
-
-    if (delta.abs() > sensitivity) {
-      _lastOffsetForBar = offset;
+    if (nextShow != null && nextShow != _showCollapsedBar) {
+      setState(() => _showCollapsedBar = nextShow!);
     }
 
     if (!_articleReadRegistered && offset > 300) {
@@ -221,6 +232,11 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         statusBarIconBrightness: Brightness.light,
       ),
       child: Scaffold(
+        // Explícito (é o padrão, mas deixamos claro aqui de propósito):
+        // o body precisa encolher quando o teclado abre para que o
+        // CustomScrollView saiba até onde pode rolar o campo de
+        // comentário para cima do teclado.
+        resizeToAvoidBottomInset: true,
         backgroundColor: isDark
             ? AppColors.backgroundDark
             : AppColors.backgroundLight,
@@ -295,7 +311,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
               ),
 
               // Botões glass (visíveis quando imagem está expandida)
-              if (!_showFloatingTitle)
+              if (!_showCollapsedBar)
                 Positioned(
                   top: topPadding + 8,
                   left: 12,
@@ -434,7 +450,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     final topPadding = MediaQuery.of(context).padding.top;
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 200),
-      top: _showFloatingTitle ? 0 : -(topPadding + 80),
+      top: _showCollapsedBar ? 0 : -(topPadding + 80),
       left: 0,
       right: 0,
       child: Container(
@@ -453,36 +469,32 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             ),
           ],
         ),
+        // Sem o título aqui: ao subir a tela e a barra reaparecer, só
+        // os botões (voltar / salvar / compartilhar) são mostrados,
+        // como no app do g1 — o título só aparece quando o usuário
+        // volta ao topo da matéria.
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _glassButton(
               icon: Icons.arrow_back_ios_new_rounded,
               onTap: () => Navigator.pop(context),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                post.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600),
-              ),
-            ),
-            const SizedBox(width: 8),
-            _glassButton(
-              icon: isFav
-                  ? Icons.bookmark_rounded
-                  : Icons.bookmark_border_rounded,
-              onTap: () => favoritesProvider.toggleFavorite(post),
-              active: isFav,
-            ),
-            const SizedBox(width: 8),
-            _glassButton(
-              icon: Icons.share_rounded,
-              onTap: () => _sharePost(post),
+            Row(
+              children: [
+                _glassButton(
+                  icon: isFav
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded,
+                  onTap: () => favoritesProvider.toggleFavorite(post),
+                  active: isFav,
+                ),
+                const SizedBox(width: 8),
+                _glassButton(
+                  icon: Icons.share_rounded,
+                  onTap: () => _sharePost(post),
+                ),
+              ],
             ),
           ],
         ),
