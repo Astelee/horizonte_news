@@ -74,13 +74,16 @@ class NewsService {
     return snap.docs.map((d) => PostModel.fromFirestore(d)).toList();
   }
 
-  /// Busca textual por título, normalizada (ignora maiúsculas/
-  /// minúsculas e acentuação) e por palavra — não exige que o termo
-  /// digitado seja o início exato do título.
+  /// Busca textual, normalizada (ignora maiúsculas/minúsculas e
+  /// acentuação) e por palavra — não exige que o termo digitado seja
+  /// o início exato do título. Encontra tanto pelo título quanto pelo
+  /// resumo ou pela categoria da notícia (ex.: buscar "Política"
+  /// encontra toda notícia dessa categoria, mesmo sem a palavra no
+  /// título).
   ///
-  /// Estratégia: cada notícia guarda, além do título original,
-  /// `tituloBusca` (normalizado) e `palavrasBusca` (tokens do
-  /// título) — ver [PostModel.toFirestoreMap]. A busca:
+  /// Estratégia: cada notícia guarda `tituloBusca` (só o título,
+  /// normalizado) e `palavrasBusca` (tokens de título + resumo +
+  /// categoria) — ver [PostModel.toFirestoreMap]. A busca:
   ///   1) tenta achar por prefixo em `tituloBusca` (rápido, cobre o
   ///      caso mais comum de digitar o começo do título);
   ///   2) complementa com `array-contains` em `palavrasBusca` para
