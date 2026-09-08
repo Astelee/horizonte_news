@@ -23,7 +23,9 @@ class LevelBadgeInline extends StatelessWidget {
   Widget build(BuildContext context) {
     final gradient = BadgeConfig.levelGradient(level);
     final color    = BadgeConfig.levelColor(level);
-    final isEpic   = level >= 8;
+    // Realinhado ao sistema de 30 níveis: mesmo ponto de destaque
+    // (raridade Épico) usado em profile_screen._buildLevelTag.
+    final isEpic   = level >= 13;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
