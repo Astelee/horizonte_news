@@ -996,6 +996,20 @@ class _RichTextEditingController extends TextEditingController {
   }) {
     final source = text;
     final baseStyle = style ?? const TextStyle();
+
+    // Sem nenhuma tag de formatação no texto: usa o comportamento padrão
+    // do Flutter, que trata corretamente composição do teclado (IME) e
+    // seleção. É o caminho mais comum (a maior parte do texto digitado
+    // não tem tag nenhuma), e evita qualquer risco de quebrar o gesto
+    // de selecionar/colar.
+    if (!_tagPattern.hasMatch(source)) {
+      return super.buildTextSpan(
+        context: context,
+        style: style,
+        withComposing: withComposing,
+      );
+    }
+
     final children = <InlineSpan>[];
 
     final tagStyle = baseStyle.copyWith(
