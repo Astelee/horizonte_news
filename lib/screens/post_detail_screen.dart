@@ -830,6 +830,13 @@ class _PostDetailScreenState extends State<PostDetailScreen>
               Style(margin: Margins.zero, padding: HtmlPaddings.zero),
           'span':
               Style(margin: Margins.zero, padding: HtmlPaddings.zero),
+          'mark': Style(
+            backgroundColor: Colors.transparent,
+            color: AppColors.primaryOrange,
+            fontWeight: FontWeight.w800,
+            padding: HtmlPaddings.zero,
+            margin: Margins.zero,
+          ),
         },
       ),
     );
