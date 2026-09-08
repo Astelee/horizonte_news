@@ -331,7 +331,7 @@ class CommentsSection extends StatefulWidget {
 }
 
 class _CommentsSectionState extends State<CommentsSection>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   // Chave do container do campo de comentário/resposta — usada para
@@ -345,6 +345,12 @@ class _CommentsSectionState extends State<CommentsSection>
   late AnimationController _sendAnim;
   late AnimationController _expandCtrl;
   late Animation<double> _expandAnim;
+
+  // Última altura de teclado observada — usada por didChangeMetrics
+  // para saber quando o teclado terminou de abrir/mudar de tamanho
+  // (ex.: trocar de "aa" para sugestões) e então re-rolar o campo
+  // para a área visível.
+  double _lastBottomInset = 0;
 
   // ── Estado de "respondendo a" ──────────────────────────────────────
   // Quando != null, o próximo envio vira uma resposta (subcoleção
@@ -360,6 +366,7 @@ class _CommentsSectionState extends State<CommentsSection>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _sendAnim = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
@@ -383,33 +390,62 @@ class _CommentsSectionState extends State<CommentsSection>
     });
   }
 
+  // Chamado pelo Flutter sempre que as métricas da tela mudam —
+  // inclui a altura do teclado. É o sinal confiável de que o teclado
+  // terminou de abrir (ou mudou de tamanho, ex.: barra de sugestões),
+  // bem mais preciso que um Future.delayed de duração fixa, que em
+  // aparelhos mais lentos podia disparar antes da animação do
+  // teclado terminar e calcular a posição de rolagem errada.
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    if (!_focusNode.hasFocus || !mounted) return;
+    // Adiado um frame: no momento exato de didChangeMetrics o
+    // MediaQuery do context ainda pode não refletir o novo valor.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_focusNode.hasFocus) return;
+      final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+      if ((bottomInset - _lastBottomInset).abs() > 1) {
+        _lastBottomInset = bottomInset;
+        _scrollInputIntoView();
+      }
+    });
+  }
+
   /// Rola a tela (o CustomScrollView pai, da tela de detalhe da
   /// notícia) até o campo de comentário/resposta ficar visível acima
-  /// do teclado. Chamado ao focar o campo e ao tocar em "Responder".
+  /// do teclado. Chamado ao focar o campo, ao tocar em "Responder" e
+  /// sempre que a altura do teclado muda (ver didChangeMetrics).
+  ///
+  /// Tenta em múltiplos instantes (e não só uma vez) porque a
+  /// animação de abertura do teclado do Android não é instantânea:
+  /// se calcularmos a posição cedo demais, o viewport visível ainda
+  /// vai encolher mais depois, e o botão "ENVIAR" acaba ficando
+  /// atrás do teclado mesmo depois do scroll.
   void _scrollInputIntoView() {
-    // Espera o teclado terminar de abrir e o layout se ajustar
-    // (resizeToAvoidBottomInset) antes de calcular a posição a rolar.
-    Future.delayed(const Duration(milliseconds: 250), () {
-      final ctx = _inputAreaKey.currentContext;
-      if (ctx == null || !mounted) return;
-      Scrollable.ensureVisible(
-        ctx,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-        // alignment 1.0 = alinha o FIM do widget ao fim do viewport
-        // visível (a área que sobra acima do teclado). O container
-        // inclui o TextField e, logo abaixo, o botão "ENVIAR" — se
-        // alinhássemos pelo topo (alignment perto de 0), um container
-        // alto podia ultrapassar o espaço livre e deixar o botão
-        // encoberto pelo teclado. Alinhando pelo fim garantimos que o
-        // botão sempre fique dentro da área visível.
-        alignment: 1.0,
-      );
-    });
+    for (final delay in const [50, 150, 300, 450, 650]) {
+      Future.delayed(Duration(milliseconds: delay), () {
+        final ctx = _inputAreaKey.currentContext;
+        if (ctx == null || !mounted || !_focusNode.hasFocus) return;
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          // alignment 1.0 = alinha o FIM do widget ao fim do
+          // viewport visível (a área que sobra acima do teclado). O
+          // container inclui o TextField e, logo abaixo, o botão
+          // "ENVIAR" — alinhando pelo fim garantimos que o botão
+          // sempre fique dentro da área visível, mesmo que o
+          // container seja mais alto que o espaço livre.
+          alignment: 1.0,
+        );
+      });
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     _focusNode.dispose();
     _sendAnim.dispose();
