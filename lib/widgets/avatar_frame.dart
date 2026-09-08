@@ -4,25 +4,32 @@ import '../config/badge_config.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // RARIDADE DA MOLDURA — espelha exatamente BadgeConfig.levelRarity()
+// Sistema revisado para 30 níveis (antes eram 100): 10 faixas, o
+// dobro de antes, para que a moldura mude de forma visível a cada
+// poucos níveis em vez de ficar longos trechos igual.
 // ═══════════════════════════════════════════════════════════════════
 enum FrameRarity {
   common,    // 1-3
   uncommon,  // 4-6
-  rare,      // 7-10
-  epic,      // 11-15
-  legendary, // 16-22
-  mythic,    // 23-30
-  supreme,   // 31-50
-  elite,     // 51+
+  rare,      // 7-9
+  special,   // 10-12
+  epic,      // 13-15
+  heroic,    // 16-18
+  legendary, // 19-21
+  mythic,    // 22-24
+  supreme,   // 25-27
+  elite,     // 28-30
 }
 
 extension FrameRarityExt on FrameRarity {
   static FrameRarity fromLevel(int level) {
-    if (level >= 51) return FrameRarity.elite;
-    if (level >= 31) return FrameRarity.supreme;
-    if (level >= 23) return FrameRarity.mythic;
-    if (level >= 16) return FrameRarity.legendary;
-    if (level >= 11) return FrameRarity.epic;
+    if (level >= 28) return FrameRarity.elite;
+    if (level >= 25) return FrameRarity.supreme;
+    if (level >= 22) return FrameRarity.mythic;
+    if (level >= 19) return FrameRarity.legendary;
+    if (level >= 16) return FrameRarity.heroic;
+    if (level >= 13) return FrameRarity.epic;
+    if (level >= 10) return FrameRarity.special;
     if (level >= 7)  return FrameRarity.rare;
     if (level >= 4)  return FrameRarity.uncommon;
     return FrameRarity.common;
@@ -33,7 +40,9 @@ extension FrameRarityExt on FrameRarity {
       case FrameRarity.common:    return 'Comum';
       case FrameRarity.uncommon:  return 'Incomum';
       case FrameRarity.rare:      return 'Raro';
+      case FrameRarity.special:   return 'Especial';
       case FrameRarity.epic:      return 'Épico';
+      case FrameRarity.heroic:    return 'Heroico';
       case FrameRarity.legendary: return 'Lendário';
       case FrameRarity.mythic:    return 'Mítico';
       case FrameRarity.supreme:   return 'Supremo';
@@ -42,25 +51,37 @@ extension FrameRarityExt on FrameRarity {
   }
 
   /// Quantidade de partículas — cresce em praticamente todas as faixas,
-  /// desde o início, sem saltos bruscos.
+  /// desde o início, sem saltos bruscos, culminando num enxame denso
+  /// no topo (bem mais que o dobro do sistema anterior).
   int get particleCount {
     switch (this) {
       case FrameRarity.common:    return 0;
-      case FrameRarity.uncommon:  return 3;
-      case FrameRarity.rare:      return 5;
-      case FrameRarity.epic:      return 8;
-      case FrameRarity.legendary: return 11;
-      case FrameRarity.mythic:    return 15;
-      case FrameRarity.supreme:   return 19;
-      case FrameRarity.elite:     return 24;
+      case FrameRarity.uncommon:  return 4;
+      case FrameRarity.rare:      return 7;
+      case FrameRarity.special:   return 10;
+      case FrameRarity.epic:      return 13;
+      case FrameRarity.heroic:    return 17;
+      case FrameRarity.legendary: return 21;
+      case FrameRarity.mythic:    return 26;
+      case FrameRarity.supreme:   return 32;
+      case FrameRarity.elite:     return 40;
     }
   }
 
   bool get hasRotatingRing =>
       this != FrameRarity.common; // já aparece a partir de Incomum
 
+  /// Segundo anel contra-rotativo — some visual extra nas faixas altas.
+  bool get hasSecondRing =>
+      this == FrameRarity.heroic ||
+      this == FrameRarity.legendary ||
+      this == FrameRarity.mythic ||
+      this == FrameRarity.supreme ||
+      this == FrameRarity.elite;
+
   bool get hasPulse =>
       this == FrameRarity.epic ||
+      this == FrameRarity.heroic ||
       this == FrameRarity.legendary ||
       this == FrameRarity.mythic ||
       this == FrameRarity.supreme ||
@@ -77,17 +98,25 @@ extension FrameRarityExt on FrameRarity {
       this == FrameRarity.supreme ||
       this == FrameRarity.elite;
 
+  /// Faíscas cintilantes extras, só nas 3 faixas mais altas.
+  bool get hasSparkles =>
+      this == FrameRarity.mythic ||
+      this == FrameRarity.supreme ||
+      this == FrameRarity.elite;
+
   /// Brilho crescente gradualmente desde o nível 1 — cada faixa nova
   /// já é visivelmente mais luminosa que a anterior.
   double get glowIntensity {
     switch (this) {
-      case FrameRarity.common:    return 0.30;
-      case FrameRarity.uncommon:  return 0.42;
-      case FrameRarity.rare:      return 0.54;
+      case FrameRarity.common:    return 0.26;
+      case FrameRarity.uncommon:  return 0.36;
+      case FrameRarity.rare:      return 0.46;
+      case FrameRarity.special:   return 0.56;
       case FrameRarity.epic:      return 0.66;
-      case FrameRarity.legendary: return 0.76;
-      case FrameRarity.mythic:    return 0.86;
-      case FrameRarity.supreme:   return 0.95;
+      case FrameRarity.heroic:    return 0.75;
+      case FrameRarity.legendary: return 0.83;
+      case FrameRarity.mythic:    return 0.90;
+      case FrameRarity.supreme:   return 0.96;
       case FrameRarity.elite:     return 1.0;
     }
   }
@@ -96,11 +125,13 @@ extension FrameRarityExt on FrameRarity {
   double get ringStrokeWidth {
     switch (this) {
       case FrameRarity.common:    return 0;
-      case FrameRarity.uncommon:  return 1.6;
-      case FrameRarity.rare:      return 2.0;
+      case FrameRarity.uncommon:  return 1.5;
+      case FrameRarity.rare:      return 1.8;
+      case FrameRarity.special:   return 2.1;
       case FrameRarity.epic:      return 2.4;
-      case FrameRarity.legendary: return 2.8;
-      case FrameRarity.mythic:    return 3.2;
+      case FrameRarity.heroic:    return 2.7;
+      case FrameRarity.legendary: return 3.0;
+      case FrameRarity.mythic:    return 3.3;
       case FrameRarity.supreme:   return 3.6;
       case FrameRarity.elite:     return 4.0;
     }
@@ -298,8 +329,16 @@ class _FramePainter extends CustomPainter {
       _paintRotatingRing(canvas, center, ringRadius);
     }
 
+    if (rarity.hasSecondRing) {
+      _paintSecondRing(canvas, center, ringRadius);
+    }
+
     if (rarity.particleCount > 0) {
       _paintOrbitalParticles(canvas, center, ringRadius);
+    }
+
+    if (rarity.hasSparkles) {
+      _paintSparkles(canvas, center, ringRadius);
     }
 
     if (rarity == FrameRarity.elite) {
@@ -406,10 +445,37 @@ class _FramePainter extends CustomPainter {
     canvas.drawCircle(tipPos, 2 + strokeW * 0.4, tipPaint);
   }
 
-  // ── Partículas orbitais — presentes desde Incomum, crescem sempre ──
+  // ── Segundo anel — gira em sentido contrário, um pouco mais externo
+  // (a partir de Heroico) para dar profundidade extra à moldura ──────
+  void _paintSecondRing(Canvas canvas, Offset center, double radius) {
+    final outerRadius = radius + 7;
+    final strokeW = rarity.ringStrokeWidth * 0.6;
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeW
+      ..strokeCap = StrokeCap.round
+      ..shader = SweepGradient(
+        center: Alignment.center,
+        startAngle: -rotation * 1.6 * math.pi,
+        endAngle: -rotation * 1.6 * math.pi + math.pi * 0.9,
+        colors: [
+          Colors.transparent,
+          Colors.white.withOpacity(0.5 * glow),
+          gradient[1].withOpacity(0.7 * glow),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: outerRadius));
+
+    canvas.drawCircle(center, outerRadius, ringPaint);
+  }
+
+  // ── Partículas orbitais — presentes desde Incomum, crescem sempre,
+  // agora com paleta variada (não só as 2 pontas do gradiente) ───────
   void _paintOrbitalParticles(Canvas canvas, Offset center, double radius) {
     final count = rarity.particleCount;
     final particlePaint = Paint()..style = PaintingStyle.fill;
+    final mid = Color.lerp(gradient[0], gradient[1], 0.5)!;
+    final palette = [gradient[0], mid, gradient[1], Colors.white];
 
     for (int i = 0; i < count; i++) {
       final baseAngle = (i / count) * 2 * math.pi;
@@ -424,17 +490,60 @@ class _FramePainter extends CustomPainter {
         center.dy + math.sin(angle) * orbitRadius * 0.92,
       );
 
-      final particleSize = 1.3 + (rarity.index * 0.16);
+      final particleSize = 1.2 + (rarity.index * 0.15);
 
       final pulse = (math.sin(particleProgress * 6 * math.pi + i * 2) + 1) / 2;
       final opacity = (0.4 + pulse * 0.6) * glow;
 
       particlePaint
-        ..color = (i % 2 == 0 ? gradient[0] : gradient[1]).withOpacity(opacity)
+        ..color = palette[i % palette.length].withOpacity(
+            i % palette.length == 3 ? opacity * 0.85 : opacity)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2);
 
       canvas.drawCircle(pos, particleSize, particlePaint);
     }
+  }
+
+  // ── Faíscas cintilantes — pequenos brilhos em posições fixas que
+  // aparecem/somem rapidamente (Mítico, Supremo, Elite) ─────────────
+  void _paintSparkles(Canvas canvas, Offset center, double radius) {
+    final sparkleCount = 6 + (rarity.index - FrameRarity.mythic.index) * 3;
+    final sparklePaint = Paint()..style = PaintingStyle.fill;
+
+    for (int i = 0; i < sparkleCount; i++) {
+      // Posição fixa por índice (não gira), só a fase do brilho muda.
+      final fixedAngle = (i * 2.399) % (2 * math.pi); // espiral áurea
+      final dist = radius * (0.55 + 0.4 * ((i * 0.618) % 1.0));
+      final pos = Offset(
+        center.dx + math.cos(fixedAngle) * dist,
+        center.dy + math.sin(fixedAngle) * dist,
+      );
+
+      final phase = (particleProgress * 3 + i * 0.37) % 1.0;
+      final twinkle = (math.sin(phase * 2 * math.pi) + 1) / 2;
+      if (twinkle < 0.55) continue; // pisca — só visível parte do tempo
+
+      final opacity = ((twinkle - 0.55) / 0.45) * glow;
+      sparklePaint
+        ..color = Colors.white.withOpacity(opacity)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
+
+      _drawStarShape(canvas, pos, 2.0 + twinkle * 1.5, sparklePaint);
+    }
+  }
+
+  void _drawStarShape(Canvas canvas, Offset pos, double size, Paint paint) {
+    final path = Path();
+    path.moveTo(pos.dx, pos.dy - size);
+    path.lineTo(pos.dx + size * 0.3, pos.dy - size * 0.3);
+    path.lineTo(pos.dx + size, pos.dy);
+    path.lineTo(pos.dx + size * 0.3, pos.dy + size * 0.3);
+    path.lineTo(pos.dx, pos.dy + size);
+    path.lineTo(pos.dx - size * 0.3, pos.dy + size * 0.3);
+    path.lineTo(pos.dx - size, pos.dy);
+    path.lineTo(pos.dx - size * 0.3, pos.dy - size * 0.3);
+    path.close();
+    canvas.drawPath(path, paint);
   }
 
   // ── Marca exclusiva Horizonte Elite ──────────────────────────────
