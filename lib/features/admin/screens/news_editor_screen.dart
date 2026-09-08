@@ -43,7 +43,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
 
   late final TextEditingController _titleCtrl;
   late final TextEditingController _summaryCtrl;
-  late final TextEditingController _contentCtrl;
+  late final _RichTextEditingController _contentCtrl;
   late final TextEditingController _categoryCtrl;
 
   String _coverUrl = '';
@@ -69,7 +69,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
     final post = widget.existingPost;
     _titleCtrl = TextEditingController(text: post?.title ?? '');
     _summaryCtrl = TextEditingController(text: post?.summary ?? '');
-    _contentCtrl = TextEditingController(text: post?.content ?? '');
+    _contentCtrl = _RichTextEditingController(text: post?.content ?? '');
     _categoryCtrl = TextEditingController(
       text: post != null && post.categories.isNotEmpty
           ? post.categories.first.name
@@ -969,4 +969,79 @@ class _EPData {
     required this.opacity,
     required this.phase,
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CONTROLLER COM PRÉVIA VISUAL DE FORMATAÇÃO
+// ═══════════════════════════════════════════════════════════════════
+// Faz o campo "Conteúdo completo" mostrar, em tempo real, o efeito da
+// formatação inserida pela toolbar: o trecho entre <mark>...</mark>
+// aparece já em laranja/negrito, e entre <b>...</b> já em negrito —
+// sem esconder as tags (elas continuam visíveis e editáveis como
+// texto), só coloridas, para o ADM ver de imediato o que vai virar
+// destaque quando a notícia for publicada.
+class _RichTextEditingController extends TextEditingController {
+  _RichTextEditingController({String? text}) : super(text: text);
+
+  static final RegExp _tagPattern = RegExp(
+    r'<(/?)(mark|b|strong)>',
+    caseSensitive: false,
+  );
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    final source = text;
+    final baseStyle = style ?? const TextStyle();
+    final children = <InlineSpan>[];
+
+    final tagStyle = baseStyle.copyWith(
+      color: const Color(0xFF555555),
+      fontWeight: FontWeight.w400,
+    );
+    final markStyle = baseStyle.copyWith(
+      color: AppColors.primaryOrange,
+      fontWeight: FontWeight.w800,
+    );
+    final boldStyle = baseStyle.copyWith(fontWeight: FontWeight.w800);
+
+    int cursor = 0;
+    final List<String> stack = [];
+
+    TextStyle currentStyle() {
+      if (stack.isEmpty) return baseStyle;
+      return stack.last == 'mark' ? markStyle : boldStyle;
+    }
+
+    for (final match in _tagPattern.allMatches(source)) {
+      if (match.start > cursor) {
+        children.add(TextSpan(
+          text: source.substring(cursor, match.start),
+          style: currentStyle(),
+        ));
+      }
+      // A tag em si aparece discreta (cinza), pra não poluir, mas
+      // continua editável normalmente como parte do texto.
+      children.add(TextSpan(text: match.group(0), style: tagStyle));
+
+      final isClosing = match.group(1) == '/';
+      final tagName = match.group(2)!.toLowerCase();
+      final normalized = tagName == 'strong' ? 'b' : tagName;
+      if (isClosing) {
+        if (stack.isNotEmpty && stack.last == normalized) stack.removeLast();
+      } else {
+        stack.add(normalized);
+      }
+      cursor = match.end;
+    }
+
+    if (cursor < source.length) {
+      children.add(TextSpan(text: source.substring(cursor), style: currentStyle()));
+    }
+
+    return TextSpan(style: baseStyle, children: children);
+  }
 }
