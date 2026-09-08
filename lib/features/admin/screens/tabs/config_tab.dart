@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../config/app_colors.dart';
 import '../../services/admin_config_service.dart';
+import '../../services/admin_news_service.dart';
 import '../../widgets/admin_shared_widgets.dart';
 
 class ConfigTab extends StatefulWidget {
@@ -15,6 +16,8 @@ class ConfigTab extends StatefulWidget {
 
 class _ConfigTabState extends State<ConfigTab> {
   final _maintenanceMsgController = TextEditingController();
+  final _adminNewsService = AdminNewsService();
+  bool _reindexing = false;
 
   @override
   void dispose() {
@@ -71,9 +74,107 @@ class _ConfigTabState extends State<ConfigTab> {
           ),
           const SizedBox(height: 12),
           _AdminsManager(configService: widget.configService),
+          const SizedBox(height: 24),
+          const AdminSectionHeader(
+            icon: Icons.build_rounded,
+            iconColor: AppColors.textSecondary,
+            text: 'Manutenção de dados',
+          ),
+          const SizedBox(height: 12),
+          _buildReindexSearchCard(),
         ],
       ),
     );
+  }
+
+  Widget _buildReindexSearchCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0A0A),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderDark),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.manage_search_rounded,
+                  color: AppColors.primaryOrange, size: 22),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Reindexar busca',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Atualiza o índice de busca de todas as notícias '
+            '(inclusive as mais antigas). Use uma vez agora para a '
+            'pesquisa passar a encontrar notícias já publicadas — '
+            'novas notícias já são indexadas automaticamente ao '
+            'salvar.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _reindexing ? null : _handleReindexSearch,
+              icon: _reindexing
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primaryOrange,
+                      ),
+                    )
+                  : const Icon(Icons.refresh_rounded,
+                      color: AppColors.primaryOrange, size: 18),
+              label: Text(
+                _reindexing ? 'Reindexando...' : 'Reindexar agora',
+                style: const TextStyle(color: AppColors.primaryOrange),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleReindexSearch() async {
+    setState(() => _reindexing = true);
+    try {
+      final count = await _adminNewsService.reindexSearchFields();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$count notícias reindexadas para a busca.'),
+            backgroundColor: const Color(0xFF1A1A1A),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao reindexar: $e'),
+            backgroundColor: const Color(0xFF1A1A1A),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _reindexing = false);
+    }
   }
 
   Widget _buildMaintenanceCard(bool enabled, String currentMsg) {
