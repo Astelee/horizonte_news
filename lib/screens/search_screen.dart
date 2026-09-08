@@ -56,6 +56,26 @@ class _SearchScreenState extends State<SearchScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
+          if (provider.errorMessage.isNotEmpty && _searchController.text.isNotEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Erro ao buscar: ${provider.errorMessage}',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           if (provider.searchResults.isEmpty && _searchController.text.isNotEmpty) {
             return Center(
               child: Padding(
