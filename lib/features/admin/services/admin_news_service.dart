@@ -115,12 +115,13 @@ class AdminNewsService {
   }
 
   /// Preenche `tituloBusca`/`palavrasBusca` em notícias salvas antes
-  /// da busca normalizada existir (esses campos passaram a ser
+  /// da busca normalizada existir, ou antes de `palavrasBusca` passar
+  /// a incluir resumo e categoria (não só título). Esses campos são
   /// gravados automaticamente em toda criação/edição a partir de
-  /// agora — este método é só para o acervo antigo). Roda uma vez
-  /// via botão "Reindexar busca" no painel ADM (Configurações) e
-  /// pode ser rodado de novo a qualquer momento sem risco: só
-  /// atualiza esses dois campos, nunca o resto da notícia.
+  /// agora — este método é só para o acervo antigo. Roda uma vez via
+  /// botão "Reindexar busca" no painel ADM (Configurações) e pode ser
+  /// rodado de novo a qualquer momento sem risco: só atualiza esses
+  /// dois campos, nunca o resto da notícia.
   ///
   /// Retorna quantas notícias foram atualizadas.
   Future<int> reindexSearchFields() async {
@@ -131,10 +132,15 @@ class AdminNewsService {
     var updated = 0;
 
     for (final doc in snap.docs) {
-      final titulo = (doc.data()['titulo'] as String?) ?? '';
+      final data = doc.data();
+      final titulo = (data['titulo'] as String?) ?? '';
+      final resumo = (data['resumo'] as String?) ?? '';
+      final categoria = (data['categoria'] as String?) ?? '';
       batch.update(doc.reference, {
         'tituloBusca': SearchNormalizer.normalize(titulo),
-        'palavrasBusca': SearchNormalizer.tokenize(titulo),
+        'palavrasBusca': SearchNormalizer.tokenize(
+          [titulo, resumo, categoria].join(' '),
+        ),
       });
       pending++;
       updated++;
