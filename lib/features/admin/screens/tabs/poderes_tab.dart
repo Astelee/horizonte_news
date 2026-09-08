@@ -204,8 +204,8 @@ class _PoderesTabState extends State<PoderesTab> {
                     child: Slider(
                       value: _previewLevel.toDouble(),
                       min: 1,
-                      max: 99,
-                      divisions: 98,
+                      max: 30,
+                      divisions: 29,
                       onChanged: (v) => setState(
                           () => _previewLevel = v.round()),
                     ),
@@ -214,7 +214,7 @@ class _PoderesTabState extends State<PoderesTab> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: [1, 5, 7, 10, 15, 18, 22, 27, 50, 99]
+                    children: [1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 30]
                         .map((lvl) {
                       final selected = _previewLevel == lvl;
                       final c = BadgeConfig.levelColor(lvl);
@@ -291,15 +291,19 @@ class _MoldurasGrid extends StatelessWidget {
     required this.onSelect,
   });
 
+  // Ajustado para o teto de 30 níveis e as 10 faixas de raridade do
+  // sistema atual (era desenhado para 100 níveis / 8 faixas).
   static const _raridades = [
-    {'label': 'Comum', 'levels': [1, 2, 3, 4, 5]},
-    {'label': 'Incomum', 'levels': [6, 7]},
-    {'label': 'Raro', 'levels': [8, 9, 10]},
-    {'label': 'Épico', 'levels': [11, 12, 15]},
-    {'label': 'Lendário', 'levels': [16, 18, 22]},
-    {'label': 'Mítico', 'levels': [23, 27, 40]},
-    {'label': 'Supremo', 'levels': [41, 50, 60]},
-    {'label': 'Elite', 'levels': [70, 85, 99]},
+    {'label': 'Comum', 'levels': [1, 2, 3]},
+    {'label': 'Incomum', 'levels': [4, 5, 6]},
+    {'label': 'Raro', 'levels': [7, 8, 9]},
+    {'label': 'Especial', 'levels': [10, 11, 12]},
+    {'label': 'Épico', 'levels': [13, 14, 15]},
+    {'label': 'Heroico', 'levels': [16, 17, 18]},
+    {'label': 'Lendário', 'levels': [19, 20, 21]},
+    {'label': 'Mítico', 'levels': [22, 23, 24]},
+    {'label': 'Supremo', 'levels': [25, 26, 27]},
+    {'label': 'Horizonte Elite', 'levels': [28, 29, 30]},
   ];
 
   @override
