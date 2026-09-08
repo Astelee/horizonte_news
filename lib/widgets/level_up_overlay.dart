@@ -71,33 +71,39 @@ class _LevelUpOverlayState extends State<LevelUpOverlay>
   void _generateParticles() {
     final color = BadgeConfig.levelColor(widget.newLevel);
     final gradient = BadgeConfig.levelGradient(widget.newLevel);
-    for (int i = 0; i < 60; i++) {
+    final mid = Color.lerp(gradient[0], gradient[1], 0.5)!;
+    // Paleta rica derivada do nível — 4 tons + branco, não só 2 pontas
+    // do gradiente. Mais partículas (100 em vez de 60) para uma
+    // explosão bem mais densa e vistosa.
+    final palette = [Colors.white, color, gradient.first, gradient.last, mid];
+    for (int i = 0; i < 100; i++) {
       _particles.add(_Particle(
         angle: _rng.nextDouble() * 2 * math.pi,
-        speed: 80 + _rng.nextDouble() * 220,
-        size: 2 + _rng.nextDouble() * 5,
-        color: i % 3 == 0
-            ? Colors.white
-            : i % 3 == 1
-                ? color
-                : gradient.last,
+        speed: 70 + _rng.nextDouble() * 260,
+        size: 2 + _rng.nextDouble() * 5.5,
+        color: palette[i % palette.length],
         fadeStart: 0.3 + _rng.nextDouble() * 0.3,
       ));
     }
   }
 
   void _generateConfetti() {
-    const colors = [
-      Color(0xFFFF6B00),
-      Color(0xFFFFD700),
-      Color(0xFF7289DA),
-      Color(0xFF43B581),
-      Color(0xFFED4245),
+    final gradient = BadgeConfig.levelGradient(widget.newLevel);
+    final mid = Color.lerp(gradient[0], gradient[1], 0.5)!;
+    final colors = [
+      gradient.first,
+      gradient.last,
+      mid,
+      const Color(0xFFFFD700),
+      const Color(0xFF7289DA),
+      const Color(0xFF43B581),
+      const Color(0xFFED4245),
       Colors.white,
-      Color(0xFFFF78C4),
-      Color(0xFF00D4FF),
+      const Color(0xFFFF78C4),
+      const Color(0xFF00D4FF),
     ];
-    for (int i = 0; i < 80; i++) {
+    // Mais peças (110 em vez de 80) para um confete bem mais denso.
+    for (int i = 0; i < 110; i++) {
       _confetti.add(_ConfettiPiece(
         x: _rng.nextDouble(),
         delay: _rng.nextDouble() * 0.5,
@@ -435,16 +441,7 @@ class _RarityChip extends StatelessWidget {
 
   const _RarityChip({required this.level, required this.color});
 
-  String _rarityLabel() {
-    if (level >= 51) return 'Horizonte Elite';
-    if (level >= 41) return 'Supremo';
-    if (level >= 31) return 'Mítico';
-    if (level >= 21) return 'Lendário';
-    if (level >= 16) return 'Épico';
-    if (level >= 11) return 'Raro';
-    if (level >= 6) return 'Incomum';
-    return 'Comum';
-  }
+  String _rarityLabel() => BadgeConfig.levelRarity(level);
 
   @override
   Widget build(BuildContext context) {
