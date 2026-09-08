@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'category_model.dart';
+import '../utils/search_normalizer.dart';
 
 /// Status de publicação de uma notícia.
 enum PostStatus { draft, published, unpublished }
@@ -149,6 +150,12 @@ class PostModel {
       'autorUid': authorUid,
       'autorNome': authorName,
       'atualizadoEm': FieldValue.serverTimestamp(),
+      // Campos auxiliares só para busca (não exibidos na UI): título
+      // normalizado (minúsculo, sem acento) e suas palavras, usados
+      // pela busca do app para ignorar caixa/acentuação e encontrar
+      // por qualquer palavra do título, não só pelo início.
+      'tituloBusca': SearchNormalizer.normalize(title),
+      'palavrasBusca': SearchNormalizer.tokenize(title),
     };
     if (forCreate) {
       map['criadoEm'] = FieldValue.serverTimestamp();
