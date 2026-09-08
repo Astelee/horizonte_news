@@ -396,10 +396,14 @@ class _CommentsSectionState extends State<CommentsSection>
         ctx,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
-        // alignment 0.0 = topo do viewport visível: garante que o
-        // campo (e o botão de responder/enviar abaixo dele) fique
-        // logo abaixo da barra superior, bem acima do teclado.
-        alignment: 0.1,
+        // alignment 1.0 = alinha o FIM do widget ao fim do viewport
+        // visível (a área que sobra acima do teclado). O container
+        // inclui o TextField e, logo abaixo, o botão "ENVIAR" — se
+        // alinhássemos pelo topo (alignment perto de 0), um container
+        // alto podia ultrapassar o espaço livre e deixar o botão
+        // encoberto pelo teclado. Alinhando pelo fim garantimos que o
+        // botão sempre fique dentro da área visível.
+        alignment: 1.0,
       );
     });
   }
