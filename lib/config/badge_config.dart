@@ -4,116 +4,182 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 class BadgeConfig {
   BadgeConfig._();
 
-  // ── SISTEMA DE NÍVEIS ────────────────────────────────────────────
+  // ── SISTEMA DE NÍVEIS — 30 NÍVEIS, UM TÍTULO POR NÍVEL ───────────
+  // Sistema revisado: antes eram 100 níveis com faixas largas (algo
+  // muito distante de se alcançar); agora são 30 níveis, cada um com
+  // título, ícone, cor e gradiente próprios — uma progressão granular
+  // do início ao fim, com identidade visual em cada degrau.
+  static const List<String> _titles = [
+    'Visitante',            // 1
+    'Leitor Iniciante',     // 2
+    'Leitor Curioso',       // 3
+    'Acompanhante',         // 4
+    'Seguidor Assíduo',     // 5
+    'Entusiasta',           // 6
+    'Explorador',           // 7
+    'Investigador',         // 8
+    'Super Leitor',         // 9
+    'Fã da Informação',     // 10
+    'Membro Destaque',      // 11
+    'Analista Júnior',      // 12
+    'Analista',             // 13
+    'Correspondente',       // 14
+    'Cronista',             // 15
+    'Editor Amador',        // 16
+    'Guardião das Notícias',// 17
+    'Vanguarda',            // 18
+    'Mestre da Informação', // 19
+    'Sentinela',            // 20
+    'Visionário',           // 21
+    'Oráculo',              // 22
+    'Fenômeno',             // 23
+    'Lendário Absoluto',    // 24
+    'Mítico',               // 25
+    'Ícone do Horizonte',   // 26
+    'Chama Suprema',        // 27
+    'Elite Flamejante',     // 28
+    'Elite Radiante',       // 29
+    'Horizonte Supremo',    // 30
+  ];
+
   static String levelTitle(int level) {
-    if (level <= 1)  return 'Visitante';
-    if (level <= 2)  return 'Leitor';
-    if (level <= 3)  return 'Acompanhante';
-    if (level <= 4)  return 'Seguidor';
-    if (level <= 5)  return 'Entusiasta';
-    if (level <= 6)  return 'Explorador';
-    if (level <= 7)  return 'Super Leitor';
-    if (level <= 8)  return 'Fã da Informação';
-    if (level <= 9)  return 'Membro Destaque';
-    if (level <= 10) return 'Lenda das Notícias';
-    if (level <= 12) return 'Analista';
-    if (level <= 15) return 'Cronista';
-    if (level <= 18) return 'Guardião das Notícias';
-    if (level <= 22) return 'Mestre da Informação';
-    if (level <= 27) return 'Oráculo';
-    if (level <= 30) return 'Fenômeno';
-    if (level <= 40) return 'Mítico Absoluto';
-    if (level <= 50) return 'Chama Suprema';
-    if (level <= 70) return 'Elite Flamejante';
-    if (level <= 90) return 'Elite Radiante';
-    return 'Horizonte Elite';
+    final idx = level.clamp(1, _titles.length) - 1;
+    return _titles[idx];
   }
+
+  // Apenas ícones já validados no projeto (existentes antes desta
+  // revisão) são usados aqui — evita depender de nomes de ícone não
+  // conferidos no pacote font_awesome_flutter instalado no projeto.
+  static const List<IconData> _icons = [
+    FontAwesomeIcons.eye,                  // 1
+    FontAwesomeIcons.bookOpen,             // 2
+    FontAwesomeIcons.magnifyingGlass,      // 3
+    FontAwesomeIcons.bookmark,             // 4
+    FontAwesomeIcons.compass,              // 5
+    FontAwesomeIcons.fire,                 // 6
+    FontAwesomeIcons.featherPointed,       // 7
+    FontAwesomeIcons.brain,                // 8
+    FontAwesomeIcons.solidStar,            // 9
+    FontAwesomeIcons.trophy,               // 10
+    FontAwesomeIcons.medal,                // 11
+    FontAwesomeIcons.chartLine,            // 12
+    FontAwesomeIcons.graduationCap,        // 13
+    FontAwesomeIcons.shareNodes,           // 14
+    FontAwesomeIcons.solidComments,        // 15
+    FontAwesomeIcons.bullhorn,             // 16
+    FontAwesomeIcons.shieldHalved,         // 17
+    FontAwesomeIcons.hourglass,            // 18
+    FontAwesomeIcons.infinity,             // 19
+    FontAwesomeIcons.eye,                  // 20 (Sentinela — vigilância)
+    FontAwesomeIcons.wandMagicSparkles,    // 21
+    FontAwesomeIcons.gem,                  // 22
+    FontAwesomeIcons.meteor,               // 23
+    FontAwesomeIcons.crown,                // 24
+    FontAwesomeIcons.fireAlt,              // 25
+    FontAwesomeIcons.solidNewspaper,       // 26
+    FontAwesomeIcons.fireFlameCurved,      // 27
+    FontAwesomeIcons.sun,                  // 28
+    FontAwesomeIcons.bolt,                 // 29
+    FontAwesomeIcons.crown,                // 30
+  ];
 
   static IconData levelIcon(int level) {
-    if (level <= 1)  return FontAwesomeIcons.eye;
-    if (level <= 2)  return FontAwesomeIcons.bookOpen;
-    if (level <= 3)  return FontAwesomeIcons.magnifyingGlass;
-    if (level <= 4)  return FontAwesomeIcons.bookmark;
-    if (level <= 5)  return FontAwesomeIcons.fire;
-    if (level <= 6)  return FontAwesomeIcons.compass;
-    if (level <= 7)  return FontAwesomeIcons.solidStar;
-    if (level <= 8)  return FontAwesomeIcons.trophy;
-    if (level <= 9)  return FontAwesomeIcons.medal;
-    if (level <= 10) return FontAwesomeIcons.crown;
-    if (level <= 12) return FontAwesomeIcons.chartLine;
-    if (level <= 15) return FontAwesomeIcons.featherPointed;
-    if (level <= 18) return FontAwesomeIcons.shieldHalved;
-    if (level <= 22) return FontAwesomeIcons.infinity;
-    if (level <= 27) return FontAwesomeIcons.wandMagicSparkles;
-    if (level <= 30) return FontAwesomeIcons.gem;
-    if (level <= 40) return FontAwesomeIcons.meteor;
-    if (level <= 50) return FontAwesomeIcons.fireFlameCurved;
-    if (level <= 70) return FontAwesomeIcons.sun;
-    if (level <= 90) return FontAwesomeIcons.bolt;
-    return FontAwesomeIcons.crown;
+    final idx = level.clamp(1, _icons.length) - 1;
+    return _icons[idx];
   }
 
-  // ── CORES POR NÍVEL — progressão vívida do 1 ao 99+ ──────────────
-  // Cada faixa tem uma identidade cromática própria, sem repetir tons
-  // "seguros"/apagados nos níveis baixos.
+  // ── CORES POR NÍVEL — uma cor sólida por nível, sem repetição ────
+  // Percorre o círculo cromático inteiro: azuis frios no início,
+  // passando por verdes, dourados, róseos, roxos, até fogo e branco-
+  // dourado incandescente no topo. Muito mais variedade que faixas
+  // largas — cada nível já parece uma conquista visual distinta.
+  static const List<Color> _colors = [
+    Color(0xFF90A4AE), // 1  Visitante — cinza-azulado
+    Color(0xFF64B5F6), // 2  azul claro
+    Color(0xFF42A5F5), // 3  azul
+    Color(0xFF29B6F6), // 4  azul-céu vívido
+    Color(0xFF26C6DA), // 5  ciano
+    Color(0xFF00BFA5), // 6  verde-água
+    Color(0xFF66BB6A), // 7  verde
+    Color(0xFF9CCC65), // 8  verde-lima
+    Color(0xFFD4E157), // 9  lima-amarelado
+    Color(0xFFFFD700), // 10 dourado — Fã da Informação
+    Color(0xFFFFCA28), // 11 âmbar
+    Color(0xFFFFA726), // 12 laranja claro
+    Color(0xFFFF8A65), // 13 salmão
+    Color(0xFFFF7043), // 14 laranja-fogo
+    Color(0xFFEC407A), // 15 rosa vívido — Cronista
+    Color(0xFFF06292), // 16 rosa claro
+    Color(0xFFBA68C8), // 17 lilás
+    Color(0xFF9575CD), // 18 roxo-azulado
+    Color(0xFF7E57C2), // 19 roxo
+    Color(0xFF5C6BC0), // 20 índigo
+    Color(0xFF00E5FF), // 21 ciano elétrico
+    Color(0xFFE040FB), // 22 magenta vívido
+    Color(0xFFD500F9), // 23 magenta-roxo elétrico
+    Color(0xFF7C4DFF), // 24 violeta cósmico
+    Color(0xFFFF1744), // 25 vermelho intenso — Mítico
+    Color(0xFFFF3D00), // 26 vermelho-fogo
+    Color(0xFFFF6D00), // 27 laranja-fogo intenso
+    Color(0xFFFFC400), // 28 dourado intenso
+    Color(0xFFFFD54F), // 29 âmbar dourado
+    Color(0xFFFFF176), // 30 dourado-branco — Horizonte Supremo
+  ];
+
   static Color levelColor(int level) {
-    if (level <= 1)  return const Color(0xFF90A4AE); // Visitante — cinza-azulado claro
-    if (level <= 2)  return const Color(0xFF4FC3F7); // Leitor — azul-céu
-    if (level <= 3)  return const Color(0xFF29B6F6); // Acompanhante — azul vívido
-    if (level <= 4)  return const Color(0xFF26C6DA); // Seguidor — ciano
-    if (level <= 5)  return const Color(0xFF66BB6A); // Entusiasta — verde vivo
-    if (level <= 6)  return const Color(0xFF9CCC65); // Explorador — verde-lima
-    if (level <= 7)  return const Color(0xFFFFCA28); // Super Leitor — âmbar
-    if (level <= 8)  return const Color(0xFFFFA726); // Fã da Informação — laranja
-    if (level <= 9)  return const Color(0xFFFF7043); // Membro Destaque — laranja-fogo
-    if (level <= 10) return const Color(0xFFFFD700); // Lenda das Notícias — dourado
-    if (level <= 12) return const Color(0xFF26A69A); // Analista — verde-azulado
-    if (level <= 15) return const Color(0xFFEC407A); // Cronista — rosa vívido
-    if (level <= 18) return const Color(0xFF7E57C2); // Guardião — roxo
-    if (level <= 22) return const Color(0xFFFF5722); // Mestre da Informação — vermelho-laranja
-    if (level <= 27) return const Color(0xFF00E5FF); // Oráculo — ciano elétrico
-    if (level <= 30) return const Color(0xFFE040FB); // Fenômeno — magenta vívido
-    if (level <= 40) return const Color(0xFF7C4DFF); // Mítico Absoluto — violeta cósmico
-    if (level <= 50) return const Color(0xFFFF3D00); // Chama Suprema — vermelho-fogo
-    if (level <= 70) return const Color(0xFFFFC400); // Elite Flamejante — dourado intenso
-    if (level <= 90) return const Color(0xFFFFD54F); // Elite Radiante — âmbar dourado
-    return const Color(0xFFFFEA00); // Horizonte Elite — dourado-branco brilhante
+    final idx = level.clamp(1, _colors.length) - 1;
+    return _colors[idx];
   }
+
+  static const List<List<Color>> _gradients = [
+    [Color(0xFF546E7A), Color(0xFF90A4AE)], // 1
+    [Color(0xFF1976D2), Color(0xFF64B5F6)], // 2
+    [Color(0xFF1565C0), Color(0xFF42A5F5)], // 3
+    [Color(0xFF0277BD), Color(0xFF29B6F6)], // 4
+    [Color(0xFF00838F), Color(0xFF26C6DA)], // 5
+    [Color(0xFF00695C), Color(0xFF00BFA5)], // 6
+    [Color(0xFF2E7D32), Color(0xFF66BB6A)], // 7
+    [Color(0xFF558B2F), Color(0xFF9CCC65)], // 8
+    [Color(0xFF9E9D24), Color(0xFFD4E157)], // 9
+    [Color(0xFFB8860B), Color(0xFFFFD700)], // 10
+    [Color(0xFFF57F17), Color(0xFFFFCA28)], // 11
+    [Color(0xFFE65100), Color(0xFFFFA726)], // 12
+    [Color(0xFFD84315), Color(0xFFFF8A65)], // 13
+    [Color(0xFFBF360C), Color(0xFFFF7043)], // 14
+    [Color(0xFF880E4F), Color(0xFFEC407A)], // 15
+    [Color(0xFFAD1457), Color(0xFFF06292)], // 16
+    [Color(0xFF6A1B9A), Color(0xFFBA68C8)], // 17
+    [Color(0xFF512DA8), Color(0xFF9575CD)], // 18
+    [Color(0xFF4527A0), Color(0xFF7E57C2)], // 19
+    [Color(0xFF283593), Color(0xFF5C6BC0)], // 20
+    [Color(0xFF006064), Color(0xFF00E5FF)], // 21
+    [Color(0xFF6A1B9A), Color(0xFFE040FB)], // 22
+    [Color(0xFF4A148C), Color(0xFFD500F9)], // 23
+    [Color(0xFF311B92), Color(0xFF7C4DFF)], // 24
+    [Color(0xFFB71C1C), Color(0xFFFF1744)], // 25
+    [Color(0xFFBF360C), Color(0xFFFF3D00)], // 26
+    [Color(0xFFE65100), Color(0xFFFF6D00)], // 27
+    [Color(0xFFE65100), Color(0xFFFFC400)], // 28
+    [Color(0xFFFF6D00), Color(0xFFFFD54F)], // 29
+    [Color(0xFFFF3D00), Color(0xFFFFF176)], // 30
+  ];
 
   static List<Color> levelGradient(int level) {
-    if (level <= 1)  return [const Color(0xFF546E7A), const Color(0xFF90A4AE)];
-    if (level <= 2)  return [const Color(0xFF0288D1), const Color(0xFF4FC3F7)];
-    if (level <= 3)  return [const Color(0xFF0277BD), const Color(0xFF29B6F6)];
-    if (level <= 4)  return [const Color(0xFF00838F), const Color(0xFF26C6DA)];
-    if (level <= 5)  return [const Color(0xFF2E7D32), const Color(0xFF66BB6A)];
-    if (level <= 6)  return [const Color(0xFF558B2F), const Color(0xFF9CCC65)];
-    if (level <= 7)  return [const Color(0xFFF57F17), const Color(0xFFFFCA28)];
-    if (level <= 8)  return [const Color(0xFFE65100), const Color(0xFFFFA726)];
-    if (level <= 9)  return [const Color(0xFFBF360C), const Color(0xFFFF7043)];
-    if (level <= 10) return [const Color(0xFFB8860B), const Color(0xFFFFD700)];
-    if (level <= 12) return [const Color(0xFF00695C), const Color(0xFF26A69A)];
-    if (level <= 15) return [const Color(0xFF880E4F), const Color(0xFFEC407A)];
-    if (level <= 18) return [const Color(0xFF4527A0), const Color(0xFF7E57C2)];
-    if (level <= 22) return [const Color(0xFFBF360C), const Color(0xFFFF5722)];
-    if (level <= 27) return [const Color(0xFF006064), const Color(0xFF00E5FF)];
-    // ── Sequência de fogo crescente — cada tier mais quente que o anterior ──
-    if (level <= 30) return [const Color(0xFF6A1B9A), const Color(0xFFE040FB)];
-    if (level <= 40) return [const Color(0xFF311B92), const Color(0xFF7C4DFF)];
-    if (level <= 50) return [const Color(0xFFBF360C), const Color(0xFFFF3D00)];
-    if (level <= 70) return [const Color(0xFFE65100), const Color(0xFFFFC400)];
-    if (level <= 90) return [const Color(0xFFFF6D00), const Color(0xFFFFD54F)];
-    return [const Color(0xFFFF3D00), const Color(0xFFFFEA00)];
+    final idx = level.clamp(1, _gradients.length) - 1;
+    return _gradients[idx];
   }
 
-  // ── RARIDADE — faixas reorganizadas, mais granulares no início ───
+  // ── RARIDADE — 10 faixas (o dobro de antes) para mais granularidade
   static String levelRarity(int level) {
     if (level <= 3)  return 'COMUM';
     if (level <= 6)  return 'INCOMUM';
-    if (level <= 10) return 'RARO';
+    if (level <= 9)  return 'RARO';
+    if (level <= 12) return 'ESPECIAL';
     if (level <= 15) return 'ÉPICO';
-    if (level <= 22) return 'LENDÁRIO';
-    if (level <= 30) return 'MÍTICO';
-    if (level <= 50) return 'SUPREMO';
+    if (level <= 18) return 'HEROICO';
+    if (level <= 21) return 'LENDÁRIO';
+    if (level <= 24) return 'MÍTICO';
+    if (level <= 27) return 'SUPREMO';
     return 'HORIZONTE ELITE';
   }
 
@@ -121,17 +187,17 @@ class BadgeConfig {
     final next = currentLevel + 1;
     if (next <= 2)  return 'Cor de nível personalizada';
     if (next <= 3)  return 'Nova tag exclusiva';
-    if (next <= 5)  return 'Primeiras partículas no avatar';
-    if (next <= 7)  return 'Moldura animada + tag Rara';
-    if (next <= 10) return 'Anel giratório + glow especial';
-    if (next <= 12) return '🏆 Tag ÉPICA + brilho intenso';
-    if (next <= 15) return 'Efeitos de partículas avançados';
-    if (next <= 18) return 'Tag LENDÁRIA + pulso no avatar';
-    if (next <= 22) return 'Aura expandida ao redor do avatar';
-    if (next <= 27) return 'Halo cósmico + estrelas orbitais';
-    if (next <= 30) return '✨ Tag MÍTICA + efeitos únicos';
-    if (next <= 40) return 'Aura 360° dinâmica';
-    if (next <= 50) return 'Marca exclusiva de Elite';
+    if (next <= 4)  return 'Primeiras partículas no avatar';
+    if (next <= 6)  return 'Moldura animada + tag Incomum';
+    if (next <= 7)  return 'Anel giratório na moldura';
+    if (next <= 9)  return 'Mais partículas orbitais + tag Rara';
+    if (next <= 10) return '🏆 Glow intenso + brilho dourado';
+    if (next <= 12) return 'Tag ESPECIAL + espessura extra no anel';
+    if (next <= 15) return 'Efeitos de partículas avançados + tag ÉPICA';
+    if (next <= 18) return 'Pulso no avatar + tag HEROICA';
+    if (next <= 21) return 'Halo cósmico + estrelas orbitais + tag LENDÁRIA';
+    if (next <= 24) return 'Aura 360° dinâmica + tag MÍTICA';
+    if (next <= 27) return '✨ Marca exclusiva SUPREMA + partículas máximas';
     return 'Título máximo de Horizonte Elite';
   }
 
@@ -160,6 +226,8 @@ class BadgeConfig {
       case 'streak_100':     return FontAwesomeIcons.fireAlt;
       case 'level_5':        return FontAwesomeIcons.solidStar;
       case 'level_10':       return FontAwesomeIcons.crown;
+      case 'level_20':       return FontAwesomeIcons.gem;
+      case 'level_30':       return FontAwesomeIcons.crown;
       case 'collaborator':   return FontAwesomeIcons.circleCheck;
       default:               return FontAwesomeIcons.medal;
     }
@@ -188,6 +256,8 @@ class BadgeConfig {
       case 'streak_100':     return const Color(0xFFFF1744);
       case 'level_5':        return const Color(0xFFFFEE58);
       case 'level_10':       return const Color(0xFFFFD700);
+      case 'level_20':       return const Color(0xFF7C4DFF);
+      case 'level_30':       return const Color(0xFFFFF176);
       case 'collaborator':   return const Color(0xFF81C784);
       default:               return const Color(0xFFFF6B00);
     }
@@ -204,6 +274,8 @@ class BadgeConfig {
       case 'influencer':    return [const Color(0xFF880E4F), const Color(0xFFF48FB1)];
       case 'streak_100':    return [const Color(0xFFB71C1C), const Color(0xFFFF1744)];
       case 'level_10':      return [const Color(0xFFB8860B), const Color(0xFFFFD700)];
+      case 'level_20':      return [const Color(0xFF311B92), const Color(0xFF7C4DFF)];
+      case 'level_30':      return [const Color(0xFFFF3D00), const Color(0xFFFFF176)];
       default:
         return [Color.lerp(base, Colors.black, 0.4)!, base];
     }
@@ -212,7 +284,7 @@ class BadgeConfig {
   static String achievementRarity(String id) {
     const legendary = {
       'articles_500', '100h_online', 'top_commenter',
-      'streak_100', 'level_10', 'influencer',
+      'streak_100', 'level_10', 'level_20', 'level_30', 'influencer',
     };
     const epic = {
       'articles_100', '10h_online', 'comments_50',
