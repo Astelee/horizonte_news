@@ -62,6 +62,8 @@ dependencies:
 dependency_overrides:
   font_awesome_flutter: 10.6.0
   intl: 0.19.0
+  html: ^0.15.5
+  csslib: ^1.0.2
 
 dev_dependencies:
   flutter_test:
