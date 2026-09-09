@@ -16,7 +16,7 @@ dependencies:
   provider: ^6.1.2
 
   # UI e Widgets
-  flutter_widget_from_html: ^0.17.2
+  flutter_widget_from_html: ^0.16.1
   font_awesome_flutter: ^10.6.0
 
   # Rede e Imagem
