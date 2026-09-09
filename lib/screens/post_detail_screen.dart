@@ -202,8 +202,13 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   }
 
   Future<void> _sharePost(PostModel post) async {
-    await Share.share(
-        '${post.title}\n\nLeia a matéria completa em: ${post.url}');
+    // Link do app (Firebase Hosting) em vez do link do Blogger: quem
+    // já tem o app abre a matéria direto (App Link); quem não tem cai
+    // numa página que leva à Play Store e, após instalar, abre nessa
+    // mesma matéria (deferred deep link via Play Install Referrer).
+    final shareUrl =
+        'https://horizontenews-6b48f.web.app/noticia/${post.id}';
+    await Share.share('${post.title}\n\nLeia a matéria completa em: $shareUrl');
     if (!mounted) return;
     Provider.of<UserXpProvider>(context, listen: false)
         .onShare(postId: post.id, postTitle: post.title);
