@@ -16,7 +16,7 @@ dependencies:
   provider: ^6.1.2
 
   # UI e Widgets
-  flutter_html: ^3.0.0
+  flutter_widget_from_html: ^0.17.2
   font_awesome_flutter: ^10.6.0
 
   # Rede e Imagem
@@ -62,8 +62,6 @@ dependencies:
 dependency_overrides:
   font_awesome_flutter: 10.6.0
   intl: 0.19.0
-  html: ^0.15.5
-  csslib: ^1.0.2
 
 dev_dependencies:
   flutter_test:
