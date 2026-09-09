@@ -32,6 +32,12 @@ dependencies:
   # Armazenamento seguro
   flutter_secure_storage: ^9.0.0
 
+  # Deep links (App Links) e detecção de instalação via link
+  # compartilhado — abre direto a matéria se o app já está instalado,
+  # e recupera o postId pendente após instalar via Play Store.
+  app_links: ^6.3.2
+  android_play_install_referrer: ^0.4.0
+
   # Firebase
   firebase_core: ^3.1.1
   firebase_auth: ^5.1.1
