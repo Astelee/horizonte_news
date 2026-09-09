@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_html/flutter_html.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -747,101 +747,111 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         ? AppColors.textSecondaryDark
         : AppColors.textSecondaryLight;
 
+    String colorToCss(Color c) =>
+        'rgba(${c.red}, ${c.green}, ${c.blue}, ${c.opacity})';
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Html(
-        data: content,
-        style: {
-          '*': Style(
-              margin: Margins.zero,
-              padding: HtmlPaddings.zero,
-              fontFamily: 'Roboto'),
-          'body':
-              Style(margin: Margins.zero, padding: HtmlPaddings.zero),
-          'p': Style(
-            fontSize: FontSize(14.5),
-            lineHeight: LineHeight(1.85),
-            color: secondaryColor,
-            fontWeight: FontWeight.normal,
-            margin: Margins.only(top: 0, bottom: 20),
-            padding: HtmlPaddings.zero,
-            display: Display.block,
-          ),
-          'br': Style(
-            display: Display.none,
-            height: Height(0),
-            margin: Margins.zero,
-            padding: HtmlPaddings.zero,
-          ),
-          'h1': Style(
-            fontSize: FontSize(22),
-            fontWeight: FontWeight.w800,
-            color: AppColors.primaryOrange,
-            margin: Margins.only(top: 24, bottom: 10),
-            display: Display.block,
-          ),
-          'h2': Style(
-            fontSize: FontSize(20),
-            fontWeight: FontWeight.w700,
-            color: AppColors.primaryOrangeLight,
-            margin: Margins.only(top: 20, bottom: 8),
-            display: Display.block,
-          ),
-          'h3': Style(
-            fontSize: FontSize(18),
-            fontWeight: FontWeight.w700,
-            color: AppColors.primaryOrangeLight,
-            margin: Margins.only(top: 16, bottom: 6),
-            display: Display.block,
-          ),
-          'a': Style(
-              color: AppColors.primaryOrange,
-              textDecoration: TextDecoration.underline),
-          'strong':
-              Style(fontWeight: FontWeight.w700, color: textColor),
-          'b': Style(fontWeight: FontWeight.w700, color: textColor),
-          'em': Style(
-              fontStyle: FontStyle.italic, color: secondaryColor),
-          'blockquote': Style(
-            border: Border(
-                left: BorderSide(
-                    color: AppColors.primaryOrange, width: 3)),
-            padding: HtmlPaddings.only(left: 16),
-            margin:
-                Margins.only(left: 0, right: 0, top: 16, bottom: 20),
-            fontStyle: FontStyle.italic,
-            color: secondaryColor,
-            fontSize: FontSize(14.5),
-          ),
-          'ul': Style(
-              margin: Margins.only(bottom: 16, left: 4),
-              padding: HtmlPaddings.zero),
-          'ol': Style(
-              margin: Margins.only(bottom: 16, left: 4),
-              padding: HtmlPaddings.zero),
-          'li': Style(
-            fontSize: FontSize(14.5),
-            lineHeight: LineHeight(1.8),
-            color: secondaryColor,
-            fontWeight: FontWeight.normal,
-            margin: Margins.only(bottom: 8),
-          ),
-          'img': Style(
-            margin: Margins.symmetric(vertical: 16),
-            padding: HtmlPaddings.zero,
-            display: Display.block,
-          ),
-          'div':
-              Style(margin: Margins.zero, padding: HtmlPaddings.zero),
-          'span':
-              Style(margin: Margins.zero, padding: HtmlPaddings.zero),
-          'mark': Style(
-            backgroundColor: Colors.transparent,
-            color: AppColors.primaryOrange,
-            fontWeight: FontWeight.w800,
-            padding: HtmlPaddings.zero,
-            margin: Margins.zero,
-          ),
+      child: HtmlWidget(
+        content,
+        textStyle: const TextStyle(fontFamily: 'Roboto'),
+        customStylesBuilder: (element) {
+          switch (element.localName) {
+            case 'p':
+              return {
+                'font-size': '14.5px',
+                'line-height': '1.85',
+                'color': colorToCss(secondaryColor),
+                'font-weight': 'normal',
+                'margin': '0 0 20px 0',
+                'display': 'block',
+              };
+            case 'br':
+              return {'display': 'none'};
+            case 'h1':
+              return {
+                'font-size': '22px',
+                'font-weight': '800',
+                'color': colorToCss(AppColors.primaryOrange),
+                'margin': '24px 0 10px 0',
+                'display': 'block',
+              };
+            case 'h2':
+              return {
+                'font-size': '20px',
+                'font-weight': '700',
+                'color': colorToCss(AppColors.primaryOrangeLight),
+                'margin': '20px 0 8px 0',
+                'display': 'block',
+              };
+            case 'h3':
+              return {
+                'font-size': '18px',
+                'font-weight': '700',
+                'color': colorToCss(AppColors.primaryOrangeLight),
+                'margin': '16px 0 6px 0',
+                'display': 'block',
+              };
+            case 'a':
+              return {
+                'color': colorToCss(AppColors.primaryOrange),
+                'text-decoration': 'underline',
+              };
+            case 'strong':
+            case 'b':
+              return {
+                'font-weight': '700',
+                'color': colorToCss(textColor),
+              };
+            case 'em':
+              return {
+                'font-style': 'italic',
+                'color': colorToCss(secondaryColor),
+              };
+            case 'blockquote':
+              return {
+                'border-left':
+                    '3px solid ${colorToCss(AppColors.primaryOrange)}',
+                'padding-left': '16px',
+                'margin': '16px 0 20px 0',
+                'font-style': 'italic',
+                'color': colorToCss(secondaryColor),
+                'font-size': '14.5px',
+              };
+            case 'ul':
+            case 'ol':
+              return {
+                'margin': '0 0 16px 4px',
+                'padding': '0',
+              };
+            case 'li':
+              return {
+                'font-size': '14.5px',
+                'line-height': '1.8',
+                'color': colorToCss(secondaryColor),
+                'font-weight': 'normal',
+                'margin': '0 0 8px 0',
+              };
+            case 'img':
+              return {
+                'margin': '16px 0',
+                'padding': '0',
+                'display': 'block',
+              };
+            case 'div':
+            case 'span':
+              return {'margin': '0', 'padding': '0'};
+            case 'mark':
+              return {
+                'background-color': 'transparent',
+                'color': colorToCss(AppColors.primaryOrange),
+                'font-weight': '800',
+                'padding': '0',
+                'margin': '0',
+              };
+            default:
+              return null;
+          }
         },
       ),
     );
