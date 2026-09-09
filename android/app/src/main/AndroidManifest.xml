@@ -33,6 +33,20 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- App Links: abre o app direto ao clicar em um link de
+                 notícia compartilhada, sem passar pelo seletor de apps,
+                 desde que o assetlinks.json em
+                 horizontenews-6b48f.web.app esteja verificado. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="horizontenews-6b48f.web.app"
+                    android:pathPrefix="/noticia"/>
+            </intent-filter>
         </activity>
 
         <meta-data
