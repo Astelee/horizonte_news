@@ -29,6 +29,10 @@ jobs:
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/horizonte-key.jks
 
+      - name: Mostrar SHA256 do Keystore
+        run: |
+          keytool -list -v -keystore android/horizonte-key.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" -alias "${{ secrets.KEY_ALIAS }}" | grep "SHA256"
+
       - name: Criar key.properties
         run: |
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
