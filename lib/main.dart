@@ -16,6 +16,7 @@ import 'services/notification_service.dart';
 import 'services/sound_service.dart';
 import 'services/auth_service.dart';
 import 'services/app_config_service.dart';
+import 'services/deep_link_service.dart';
 import 'screens/splash_screen.dart';
 import 'config/app_navigator.dart';
 
@@ -68,6 +69,18 @@ class _HorizonteNewsAppState extends State<HorizonteNewsApp> {
   @override
   void initState() {
     super.initState();
+    // Aguarda o primeiro frame para garantir que o Navigator (via
+    // navigatorKey) já está montado antes de tentar abrir uma
+    // matéria vinda de deep link ou de install referrer.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      DeepLinkService.init();
+    });
+  }
+
+  @override
+  void dispose() {
+    DeepLinkService.dispose();
+    super.dispose();
   }
 
   @override
