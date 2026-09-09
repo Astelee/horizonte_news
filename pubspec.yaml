@@ -1,5 +1,5 @@
 name: horizonte_news
-description: "Horizonte News - Portal de notícias regional"
+description: "Notícias de Horizonte e região"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -62,6 +62,7 @@ dependencies:
 dependency_overrides:
   font_awesome_flutter: 10.6.0
   intl: 0.19.0
+  csslib: 0.17.3
 
 dev_dependencies:
   flutter_test:
