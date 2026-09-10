@@ -9,7 +9,6 @@ import '../providers/posts_provider.dart';
 import '../models/post_model.dart';
 import '../config/app_routes.dart';
 import '../widgets/app_drawer.dart';
-import '../services/sound_service.dart';
 import '../utils/cloudinary_url_utils.dart';
 
 // ─────────────────────────────────────────────────────────────────
@@ -588,7 +587,6 @@ class _MostReadTileState extends State<_MostReadTile>
           },
           onTapUp: (_) {
             _pressCtrl.reverse();
-            SoundService.instance.playSystemClick();
             Navigator.pushNamed(
               context,
               AppRoutes.postDetail,
