@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import '../config/app_colors.dart';
+import '../models/post_model.dart';
 
 /// Player de vídeo simples para o vídeo (opcional) de uma matéria.
 ///
@@ -8,10 +9,22 @@ import '../config/app_colors.dart';
 /// Não usa `chewie` de propósito — os controles aqui são mínimos
 /// (play/pause, mudo, barra de progresso) e já cobrem o caso de uso
 /// (vídeo MP4 direto do Cloudinary).
+///
+/// [aspectMode] controla a caixa em que o vídeo é exibido:
+/// - [VideoAspectMode.compact]: caixa fixa 16:9, com o vídeo cortado
+///   (cover) para caber sem esticar — bom para vídeos verticais que
+///   não devem dominar a tela.
+/// - [VideoAspectMode.original]: usa a proporção real do arquivo,
+///   deixando o vídeo inteiro visível (pode ficar bem alto).
 class PostVideoPlayer extends StatefulWidget {
-  const PostVideoPlayer({Key? key, required this.videoUrl}) : super(key: key);
+  const PostVideoPlayer({
+    Key? key,
+    required this.videoUrl,
+    this.aspectMode = VideoAspectMode.original,
+  }) : super(key: key);
 
   final String videoUrl;
+  final VideoAspectMode aspectMode;
 
   @override
   State<PostVideoPlayer> createState() => _PostVideoPlayerState();
@@ -113,6 +126,28 @@ class _PostVideoPlayerState extends State<PostVideoPlayer> {
       );
     }
 
+    final videoAspectRatio = _controller.value.aspectRatio == 0
+        ? 16 / 9
+        : _controller.value.aspectRatio;
+
+    // Modo compacto: a caixa externa é sempre 16:9 (menor e previsível);
+    // o vídeo é ampliado e cortado (cover) dentro dela, em vez de
+    // esticar/deformar a imagem. Modo original: a caixa segue a
+    // proporção real do vídeo, então nada é cortado.
+    final boxAspectRatio =
+        widget.aspectMode == VideoAspectMode.compact ? 16 / 9 : videoAspectRatio;
+
+    final videoContent = widget.aspectMode == VideoAspectMode.compact
+        ? FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: videoAspectRatio,
+              height: 1,
+              child: VideoPlayer(_controller),
+            ),
+          )
+        : VideoPlayer(_controller);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       child: ClipRRect(
@@ -120,14 +155,12 @@ class _PostVideoPlayerState extends State<PostVideoPlayer> {
         child: GestureDetector(
           onTap: () => setState(() => _showControls = !_showControls),
           child: AspectRatio(
-            aspectRatio: _controller.value.aspectRatio == 0
-                ? 16 / 9
-                : _controller.value.aspectRatio,
+            aspectRatio: boxAspectRatio,
             child: Stack(
               alignment: Alignment.center,
               fit: StackFit.expand,
               children: [
-                VideoPlayer(_controller),
+                videoContent,
                 if (_showControls) ...[
                   Container(
                     decoration: const BoxDecoration(
