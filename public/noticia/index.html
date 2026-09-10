@@ -55,3 +55,44 @@
     border-top-color: #FF6B00;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
+    margin-bottom: 20px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <img class="logo" src="/noticia/icon.png" alt="Horizonte News" />
+  <div class="spinner" id="spinner"></div>
+  <h1 id="title">Abrindo no Horizonte News…</h1>
+  <p id="subtitle">Se o app não abrir automaticamente, baixe-o abaixo.</p>
+  <a class="button" id="storeLink" href="#">Baixar na Play Store</a>
+
+  <script>
+    // Extrai o postId a partir de /noticia/{postId}
+    var parts = window.location.pathname.split('/').filter(Boolean);
+    var postId = parts.length > 1 ? parts[1] : '';
+
+    var PACKAGE_NAME = 'com.astelee.horizonte_news';
+
+    // Link da Play Store levando o postId como referrer, para o app
+    // conseguir ler via Play Install Referrer API na primeira abertura
+    // (fluxo tratado em DeepLinkService._checkInstallReferrer).
+    var referrer = postId ? '&referrer=' + encodeURIComponent('postId=' + postId) : '';
+    var playStoreUrl =
+      'https://play.google.com/store/apps/details?id=' + PACKAGE_NAME + referrer;
+
+    document.getElementById('storeLink').href = playStoreUrl;
+
+    // Se chegou até aqui, é porque o Android NÃO abriu o app direto via
+    // App Link verificado (ou o usuário está em outra plataforma/navegador
+    // que não suporta isso). Nesse caso, esta página só existe pra levar
+    // pra Play Store — sem site "no meio do caminho" para o usuário.
+    //
+    // Atraso mínimo apenas para não competir com um possível App Link
+    // ainda em processamento; depois disso, redireciona sozinho.
+    setTimeout(function () {
+      window.location.replace(playStoreUrl);
+    }, 300);
+  </script>
+</body>
+</html>
