@@ -41,6 +41,34 @@ class AdminConfigService {
     await _log(enabled ? 'comments_enabled' : 'comments_disabled', 'global');
   }
 
+  // ── Barra de anúncios (Home) ────────────────────────────────────
+  // adsBarMode: 'admob' | 'partner' | 'off'.
+  // Quando 'partner', usa adsPartnerName/adsPartnerImageUrl/adsPartnerLinkUrl.
+  Future<void> setAdsBarMode(String mode) async {
+    assert(['admob', 'partner', 'off'].contains(mode));
+    await _configDoc.set(
+      {'adsBarMode': mode},
+      SetOptions(merge: true),
+    );
+    await _log('ads_bar_mode_changed', 'global', extra: {'mode': mode});
+  }
+
+  Future<void> setAdsPartner({
+    required String name,
+    required String imageUrl,
+    String linkUrl = '',
+  }) async {
+    await _configDoc.set(
+      {
+        'adsPartnerName': name,
+        'adsPartnerImageUrl': imageUrl,
+        'adsPartnerLinkUrl': linkUrl,
+      },
+      SetOptions(merge: true),
+    );
+    await _log('ads_partner_updated', 'global', extra: {'name': name});
+  }
+
   // ── Gerenciamento de admins ─────────────────────────────────────
   Stream<QuerySnapshot<Map<String, dynamic>>> adminsStream() {
     return _admins.snapshots();
