@@ -5,6 +5,33 @@ import '../utils/search_normalizer.dart';
 /// Status de publicação de uma notícia.
 enum PostStatus { draft, published, unpublished }
 
+/// Como o player deve exibir o vídeo da matéria.
+///
+/// [original] usa a proporção real do arquivo enviado (pode ficar bem
+/// alto/esticado em vídeos verticais ou de celular). [compact] força uma
+/// proporção 16:9 menor e padronizada, cortando o excesso do vídeo
+/// (como capa de vídeo do YouTube) para não dominar a tela.
+enum VideoAspectMode { original, compact }
+
+VideoAspectMode _videoAspectModeFromString(String? raw) {
+  switch (raw) {
+    case 'compact':
+      return VideoAspectMode.compact;
+    case 'original':
+    default:
+      return VideoAspectMode.original;
+  }
+}
+
+String videoAspectModeToFirestoreString(VideoAspectMode mode) {
+  switch (mode) {
+    case VideoAspectMode.compact:
+      return 'compact';
+    case VideoAspectMode.original:
+      return 'original';
+  }
+}
+
 PostStatus _statusFromString(String? raw) {
   switch (raw) {
     case 'publicado':
@@ -44,6 +71,7 @@ class PostModel {
   final String thumbnailUrl;
   final List<String> gallery;
   final String? videoUrl;
+  final VideoAspectMode videoAspectMode;
   final List<CategoryModel> categories;
   final String replyCount;
   final PostStatus status;
@@ -61,6 +89,7 @@ class PostModel {
     required this.thumbnailUrl,
     this.gallery = const [],
     this.videoUrl,
+    this.videoAspectMode = VideoAspectMode.original,
     required this.categories,
     this.replyCount = '0',
     this.status = PostStatus.published,
@@ -82,6 +111,7 @@ class PostModel {
       thumbnailUrl: thumbnailUrl,
       gallery: gallery,
       videoUrl: videoUrl,
+      videoAspectMode: videoAspectMode,
       categories: categories,
       replyCount: replyCount,
       status: status,
@@ -126,6 +156,8 @@ class PostModel {
       thumbnailUrl: (data['capaUrl'] as String?) ?? '',
       gallery: gallery,
       videoUrl: data['videoUrl'] as String?,
+      videoAspectMode: _videoAspectModeFromString(
+          data['videoAspectMode'] as String?),
       categories: parsedCategories,
       replyCount: (data['replyCount'] ?? '0').toString(),
       status: _statusFromString(data['status'] as String?),
@@ -146,6 +178,7 @@ class PostModel {
       'capaUrl': thumbnailUrl,
       'galeria': gallery,
       'videoUrl': videoUrl,
+      'videoAspectMode': videoAspectModeToFirestoreString(videoAspectMode),
       'status': statusToFirestoreString(status),
       'autorUid': authorUid,
       'autorNome': authorName,
