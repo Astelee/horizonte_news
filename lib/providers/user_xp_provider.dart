@@ -81,8 +81,18 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
-      case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
+        // App minimizado, mas o processo continua vivo: o timer segue
+        // contando XP normalmente. Só garantimos que o progresso
+        // acumulado até agora seja salvo, caso o Android decida matar
+        // o processo sem avisar (comum em segundo plano prolongado).
+        if (_secondsAccumulated > 0) {
+          _flushToFirestore();
+        }
+        break;
+      case AppLifecycleState.detached:
+        // Processo sendo destruído de verdade (app fechado/deslizado
+        // para fora): aí sim paramos o timer e salvamos o resto.
         _pauseAndSave();
         break;
     }
