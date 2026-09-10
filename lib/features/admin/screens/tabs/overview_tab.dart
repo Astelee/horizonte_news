@@ -25,6 +25,7 @@ class OverviewTab extends StatefulWidget {
   final VoidCallback onGoToLevels;
   final VoidCallback onGoToAvatarApprovals;
   final VoidCallback onGoToConfig;
+  final VoidCallback onGoToAdsBar;
 
   const OverviewTab({
     required this.dashboardService,
@@ -40,6 +41,7 @@ class OverviewTab extends StatefulWidget {
     required this.onGoToLevels,
     required this.onGoToAvatarApprovals,
     required this.onGoToConfig,
+    required this.onGoToAdsBar,
     Key? key,
   }) : super(key: key);
 
@@ -324,6 +326,13 @@ class _OverviewTabState extends State<OverviewTab> {
                 title: 'CONFIGURAÇÕES',
                 subtitle: 'Configurar o sistema e preferências do painel',
                 onTap: widget.onGoToConfig,
+              ),
+              _ManagementTile(
+                icon: Icons.campaign_rounded,
+                color: const Color(0xFF66BB6A),
+                title: 'BARRA DE ANÚNCIOS',
+                subtitle: 'Ativar AdMob, parceria ou desativar na Home',
+                onTap: widget.onGoToAdsBar,
               ),
             ];
 
