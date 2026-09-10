@@ -129,6 +129,21 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _startAudio() async {
     try {
+      // Toca por cima da música/vídeo que já estiver rodando em outro
+      // app, sem pausar nada: AndroidAudioFocus.none = não pede foco
+      // de áudio exclusivo. mixWithOthers no iOS faz o mesmo.
+      await _audioPlayer.setAudioContext(
+        AudioContext(
+          android: AudioContextAndroid(
+            audioFocus: AndroidAudioFocus.none,
+            contentType: AndroidContentType.music,
+            usageType: AndroidUsageType.media,
+          ),
+          iOS: AudioContextIOS(
+            options: {AVAudioSessionOptions.mixWithOthers},
+          ),
+        ),
+      );
       await _audioPlayer.setReleaseMode(ReleaseMode.loop);
       await _audioPlayer.setVolume(0.4);
       await _audioPlayer.play(AssetSource('sounds/ambient.mp3'));
