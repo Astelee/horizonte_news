@@ -7,7 +7,6 @@ import '../config/app_routes.dart';
 import '../config/app_navigator.dart';
 import '../providers/user_xp_provider.dart';
 import '../features/admin/providers/admin_provider.dart';
-import '../services/sound_service.dart';
 
 class AppDrawer extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -83,7 +82,6 @@ class _AppDrawerState extends State<AppDrawer>
 
   void _navigate(BuildContext context, String route) async {
     HapticFeedback.lightImpact();
-    SoundService.instance.playSystemClick();
 
     // Referência estável ao Scaffold da tela ATUAL (Home, Mais Lidas,
     // Eventos etc.) — capturada ANTES de fechar o drawer.
