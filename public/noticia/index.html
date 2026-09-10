@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Horizonte News</title>
+<link rel="preconnect" href="https://play.google.com" />
 <style>
   body {
     margin: 0;
@@ -54,26 +55,3 @@
     var postId = parts.length > 1 ? parts[1] : '';
 
     var PACKAGE_NAME = 'com.astelee.horizonte_news';
-
-    // Link da Play Store levando o postId como referrer, para o app
-    // conseguir ler via Play Install Referrer API na primeira abertura
-    // (fluxo tratado em DeepLinkService._checkInstallReferrer).
-    var referrer = postId ? '&referrer=' + encodeURIComponent('postId=' + postId) : '';
-    var playStoreUrl =
-      'https://play.google.com/store/apps/details?id=' + PACKAGE_NAME + referrer;
-
-    document.getElementById('storeLink').href = playStoreUrl;
-
-    // Se chegou até aqui, é porque o Android NÃO abriu o app direto via
-    // App Link verificado (ou o usuário está em outra plataforma/navegador
-    // que não suporta isso). Nesse caso, esta página só existe pra levar
-    // pra Play Store — sem site "no meio do caminho" para o usuário.
-    //
-    // Pequeno atraso apenas para não competir com um possível App Link
-    // ainda em processamento; depois disso, redireciona sozinho.
-    setTimeout(function () {
-      window.location.replace(playStoreUrl);
-    }, 800);
-  </script>
-</body>
-</html>
