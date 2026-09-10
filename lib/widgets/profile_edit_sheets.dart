@@ -128,8 +128,21 @@ void showEditDisplayNameSheet(
                 final newName = controller.text.trim();
                 if (newName.isEmpty) return;
 
-                await FirebaseAuth.instance.currentUser
-                    ?.updateDisplayName(newName);
+                final user = FirebaseAuth.instance.currentUser;
+                await user?.updateDisplayName(newName);
+
+                // Mantém o displayName em users_xp sincronizado: é de
+                // lá que o ranking lê o nome, e sem isso o ranking
+                // continuava mostrando o ID/e-mail antigo mesmo após
+                // o usuário trocar o nome aqui, já que updateDisplayName
+                // só grava no Firebase Auth.
+                if (user != null) {
+                  await FirebaseFirestore.instance
+                      .collection('users_xp')
+                      .doc(user.uid)
+                      .set({'displayName': newName},
+                          SetOptions(merge: true));
+                }
 
                 if (sheetContext.mounted) {
                   Navigator.pop(sheetContext);
