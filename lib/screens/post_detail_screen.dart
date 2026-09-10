@@ -51,7 +51,6 @@ class PostDetailScreen extends StatefulWidget {
 class _PostDetailScreenState extends State<PostDetailScreen>
     with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
-  bool _showCollapsedBar = false;
   bool _articleReadRegistered = false;
   bool _viewRegistered = false;
   Timer? _articleReadTimer;
@@ -98,54 +97,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     });
   }
 
-  // Acumulador da distância rolada na direção atual desde a última
-  // vez que trocamos de direção. Zera sempre que o gesto muda de
-  // sentido, e é contra ele (não contra o offset absoluto) que
-  // comparamos o limiar de sensibilidade — assim um pequeno "solavanco"
-  // ao mudar de direção não é suficiente para virar a barra, mas um
-  // gesto de rolagem real (para cima OU para baixo) responde de
-  // imediato, do jeito que o g1 e o YouTube fazem.
-  double _lastOffsetForBar = 0;
-  double _accumulatedDelta = 0;
-  int _lastDirection = 0; // -1 = subindo, 1 = descendo, 0 = neutro
-
-  static const double _barRevealThreshold = 220;
-  static const double _directionSensitivity = 10.0;
-
   void _handleScroll() {
-    final offset = _scrollController.offset;
-    final rawDelta = offset - _lastOffsetForBar;
-    _lastOffsetForBar = offset;
-
-    if (rawDelta == 0) return;
-
-    final direction = rawDelta > 0 ? 1 : -1;
-    if (direction != _lastDirection) {
-      // Mudou de sentido: reinicia o acumulador para medir de novo
-      // a partir daqui.
-      _accumulatedDelta = 0;
-      _lastDirection = direction;
-    }
-    _accumulatedDelta += rawDelta;
-
-    bool? nextShow;
-    if (offset <= _barRevealThreshold) {
-      // Perto do topo a barra flutuante nunca aparece — ali quem
-      // mostra os botões é o overlay "glass" sobre a capa.
-      nextShow = false;
-    } else if (direction > 0 &&
-        _accumulatedDelta > _directionSensitivity) {
-      nextShow = false; // rolou para baixo o suficiente → esconde
-    } else if (direction < 0 &&
-        _accumulatedDelta < -_directionSensitivity) {
-      nextShow = true; // rolou para cima o suficiente → mostra
-    }
-
-    if (nextShow != null && nextShow != _showCollapsedBar) {
-      setState(() => _showCollapsedBar = nextShow!);
-    }
-
-    if (!_articleReadRegistered && offset > 300) {
+    if (!_articleReadRegistered && _scrollController.offset > 300) {
       _registerArticleRead();
     }
   }
@@ -321,57 +274,43 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                 ),
               ),
 
-              // Botões glass (sobre a capa, no topo da matéria). Usa
-              // a mesma duração/curva de animação da barra colapsada
-              // (ver _buildCollapsedBar) para que uma apareça
-              // suavemente enquanto a outra sai — sem isso, o overlay
-              // glass aparecia instantaneamente enquanto a barra
-              // colapsada ainda estava deslizando para fora, e as
-              // duas ficavam visíveis ao mesmo tempo por uma fração
-              // de segundo.
+              // Botões glass (sobre a capa, no topo da matéria).
+              // Ficam sempre visíveis e fixos aqui — a barra colapsada
+              // que antes deslizava por baixo dela ao rolar foi
+              // removida por duplicar os mesmos botões (causava o
+              // "piscar" ao trocar de uma para a outra durante o
+              // scroll).
               Positioned(
                 top: topPadding + 8,
                 left: 12,
                 right: 12,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOut,
-                  opacity: _showCollapsedBar ? 0 : 1,
-                  child: IgnorePointer(
-                    ignoring: _showCollapsedBar,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _glassButton(
+                      icon: Icons.arrow_back_ios_new_rounded,
+                      onTap: () => Navigator.pop(context),
+                    ),
+                    Row(
                       children: [
                         _glassButton(
-                          icon: Icons.arrow_back_ios_new_rounded,
-                          onTap: () => Navigator.pop(context),
+                          icon: isFav
+                              ? Icons.bookmark_rounded
+                              : Icons.bookmark_border_rounded,
+                          onTap: () =>
+                              favoritesProvider.toggleFavorite(post),
+                          active: isFav,
                         ),
-                        Row(
-                          children: [
-                            _glassButton(
-                              icon: isFav
-                                  ? Icons.bookmark_rounded
-                                  : Icons.bookmark_border_rounded,
-                              onTap: () =>
-                                  favoritesProvider.toggleFavorite(post),
-                              active: isFav,
-                            ),
-                            const SizedBox(width: 8),
-                            _glassButton(
-                              icon: Icons.share_rounded,
-                              onTap: () => _sharePost(post),
-                            ),
-                          ],
+                        const SizedBox(width: 8),
+                        _glassButton(
+                          icon: Icons.share_rounded,
+                          onTap: () => _sharePost(post),
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
               ),
-
-              // Barra colapsada (aparece ao rolar)
-              _buildCollapsedBar(
-                  context, post, isFav, favoritesProvider),
             ],
           ),
         ),
@@ -460,76 +399,6 @@ class _PostDetailScreenState extends State<PostDetailScreen>
           ),
         ),
       ],
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // BARRA COLAPSADA
-  // ─────────────────────────────────────────────────────────────
-  Widget _buildCollapsedBar(
-    BuildContext context,
-    PostModel post,
-    bool isFav,
-    FavoritesProvider favoritesProvider,
-  ) {
-    final topPadding = MediaQuery.of(context).padding.top;
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
-      top: _showCollapsedBar ? 0 : -(topPadding + 80),
-      left: 0,
-      right: 0,
-      child: Container(
-        padding: EdgeInsets.only(
-            top: topPadding + 8, bottom: 8, left: 8, right: 8),
-        decoration: BoxDecoration(
-          // Opaco (não translúcido): a barra some/aparece com
-          // frequência ao mudar de direção do scroll, e uma cor
-          // parcialmente transparente deixava a última linha do
-          // texto "vazar" por trás dela durante a animação, dando a
-          // falsa impressão de duas barras sobrepostas.
-          color: Colors.black,
-          border: const Border(
-              bottom:
-                  BorderSide(color: AppColors.borderDark, width: 1)),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primaryOrange.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        // Sem o título aqui: ao subir a tela e a barra reaparecer, só
-        // os botões (voltar / salvar / compartilhar) são mostrados,
-        // como no app do g1 — o título só aparece quando o usuário
-        // volta ao topo da matéria.
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _glassButton(
-              icon: Icons.arrow_back_ios_new_rounded,
-              onTap: () => Navigator.pop(context),
-            ),
-            Row(
-              children: [
-                _glassButton(
-                  icon: isFav
-                      ? Icons.bookmark_rounded
-                      : Icons.bookmark_border_rounded,
-                  onTap: () => favoritesProvider.toggleFavorite(post),
-                  active: isFav,
-                ),
-                const SizedBox(width: 8),
-                _glassButton(
-                  icon: Icons.share_rounded,
-                  onTap: () => _sharePost(post),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 
