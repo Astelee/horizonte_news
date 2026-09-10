@@ -1017,7 +1017,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ),
                   ),
                   child: Text(
-                    'RESET: $hh:$mm',
+                    'REINICIA EM $hh:${mm}h',
                     style: const TextStyle(
                       color: Color(0xFF43B581),
                       fontSize: 9,
