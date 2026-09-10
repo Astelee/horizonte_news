@@ -1,0 +1,21 @@
+name: Publicar site no Firebase Hosting
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy_hosting:
+    name: Publicar site no Firebase Hosting
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar Código do Repositório
+        uses: actions/checkout@v4
+
+      - name: Publicar no Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          projectId: horizontenews-6b48f
+          channelId: live
