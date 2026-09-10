@@ -41,16 +41,30 @@ class AppGlobalConfig {
   final String maintenanceMessage;
   final bool commentsEnabled;
 
+  /// 'admob' | 'partner' | 'off'
+  final String adsBarMode;
+  final String adsPartnerName;
+  final String adsPartnerImageUrl;
+  final String adsPartnerLinkUrl;
+
   const AppGlobalConfig({
     required this.maintenanceMode,
     required this.maintenanceMessage,
     required this.commentsEnabled,
+    required this.adsBarMode,
+    required this.adsPartnerName,
+    required this.adsPartnerImageUrl,
+    required this.adsPartnerLinkUrl,
   });
 
   factory AppGlobalConfig.defaults() => const AppGlobalConfig(
         maintenanceMode: false,
         maintenanceMessage: '',
         commentsEnabled: true,
+        adsBarMode: 'admob',
+        adsPartnerName: '',
+        adsPartnerImageUrl: '',
+        adsPartnerLinkUrl: '',
       );
 
   factory AppGlobalConfig.fromMap(Map<String, dynamic> map) {
@@ -58,6 +72,10 @@ class AppGlobalConfig {
       maintenanceMode: map['maintenanceMode'] as bool? ?? false,
       maintenanceMessage: (map['maintenanceMessage'] as String?) ?? '',
       commentsEnabled: map['commentsEnabled'] as bool? ?? true,
+      adsBarMode: (map['adsBarMode'] as String?) ?? 'admob',
+      adsPartnerName: (map['adsPartnerName'] as String?) ?? '',
+      adsPartnerImageUrl: (map['adsPartnerImageUrl'] as String?) ?? '',
+      adsPartnerLinkUrl: (map['adsPartnerLinkUrl'] as String?) ?? '',
     );
   }
 }
