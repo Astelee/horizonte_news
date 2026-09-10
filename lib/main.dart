@@ -33,15 +33,21 @@ void main() async {
     ),
   );
 
-  // ✅ AdMob inicializado após Firebase
-  await MobileAds.instance.initialize();
-
   // ✅ Verifica a preferência de "Lembrar login" ANTES de exibir
-  // qualquer tela, evitando piscar a Home antes de deslogar.
+  // qualquer tela, evitando piscar a Home antes de deslogar. Isso
+  // precisa terminar antes do runApp porque decide login vs. home.
   await AuthService.instance.enforceRememberPreference();
 
-  await NotificationService.init();
-  await SoundService.instance.init();
+  // ✅ AdMob, OneSignal e sons NÃO travam mais a abertura do app.
+  // Nenhum deles precisa estar pronto para mostrar a tela de
+  // login/splash — só quando o usuário efetivamente chegar na Home
+  // (banner), receber uma notificação, ou tocar em algo com som.
+  // Antes eram 3 "await" em série no meio do boot; o SDK do AdMob em
+  // especial costuma ser o mais lento (1-3s sozinho). Agora rodam em
+  // paralelo, em segundo plano, enquanto a tela já aparece.
+  MobileAds.instance.initialize();
+  NotificationService.init();
+  SoundService.instance.init();
 
   runApp(
     MultiProvider(
