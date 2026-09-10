@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
-import '../services/sound_service.dart';
 
 class CategoryBar extends StatefulWidget {
   const CategoryBar({Key? key}) : super(key: key);
@@ -87,7 +86,6 @@ class _CategoryBarState extends State<CategoryBar> {
               entryDelay: 0,
               onTap: () {
                 HapticFeedback.selectionClick();
-                SoundService.instance.playSystemClick();
                 setState(() => _selected = null);
                 Navigator.pushNamedAndRemoveUntil(
                   context,
@@ -109,7 +107,6 @@ class _CategoryBarState extends State<CategoryBar> {
             entryDelay: index * 40,
             onTap: () {
               HapticFeedback.selectionClick();
-              SoundService.instance.playSystemClick();
               setState(() =>
                   _selected = isSelected ? null : cat['label'] as String);
               Navigator.pushNamed(
