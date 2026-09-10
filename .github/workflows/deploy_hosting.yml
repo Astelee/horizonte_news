@@ -1,6 +1,11 @@
 name: Publicar site no Firebase Hosting
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'public/**'
   workflow_dispatch:
 
 jobs:
