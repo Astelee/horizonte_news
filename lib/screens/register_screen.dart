@@ -289,7 +289,11 @@ class _RegisterScreenState extends State<RegisterScreen>
 
       final user = credential.user!;
 
-      await user.updateDisplayName(username);
+      // Não define displayName aqui de propósito: displayName é o nome
+      // de exibição escolhido pelo usuário (definido depois, nas
+      // configurações). Se copiássemos o username para cá, o ranking e
+      // outras telas passariam a mostrar o ID no lugar do nome mesmo
+      // quando o usuário nunca escolheu um nome de fato.
 
       await FirebaseFirestore.instance
           .collection('users_xp')
@@ -297,7 +301,6 @@ class _RegisterScreenState extends State<RegisterScreen>
           .set({
         'uid': user.uid,
         'username': username,
-        'displayName': username,
         'email': user.email ?? '',
         'birthDate': Timestamp.fromDate(_birthDate!),
         'acceptedTermsAt': FieldValue.serverTimestamp(),
