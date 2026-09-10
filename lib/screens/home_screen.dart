@@ -462,9 +462,10 @@ class _PulsingLogoBadge extends StatefulWidget {
 }
 
 class _PulsingLogoBadgeState extends State<_PulsingLogoBadge>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final Animation<double> _pulse;
+  late final AnimationController _fireCtrl;
 
   @override
   void initState() {
@@ -476,57 +477,178 @@ class _PulsingLogoBadgeState extends State<_PulsingLogoBadge>
     _pulse = Tween<double>(begin: 0.55, end: 1.0).animate(
       CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
     );
+    _fireCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
+    _fireCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _pulse,
-      builder: (_, __) => Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: AppColors.orangeGradient,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primaryOrange.withOpacity(0.55 * _pulse.value),
-              blurRadius: 14 * _pulse.value,
-              spreadRadius: 1.5 * _pulse.value,
+      animation: Listenable.merge([_pulse, _fireCtrl]),
+      builder: (_, __) => SizedBox(
+        width: 42,
+        height: 42,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Partículas soltas ao redor do badge
+            CustomPaint(
+              size: const Size(42, 42),
+              painter: _BadgeParticlePainter(_fireCtrl.value),
             ),
-          ],
-        ),
-        child: Center(
-          child: ShaderMask(
-            shaderCallback: (bounds) => LinearGradient(
-              colors: [
-                Colors.white,
-                Colors.white.withOpacity(0.75 + 0.25 * _pulse.value),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ).createShader(bounds),
-            child: const Text(
-              'HN',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.2,
-                height: 1,
+            // Glow duplo (laranja + vermelho-fogo)
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryOrange
+                        .withOpacity(0.55 * _pulse.value),
+                    blurRadius: 16 * _pulse.value,
+                    spreadRadius: 2 * _pulse.value,
+                  ),
+                  BoxShadow(
+                    color: const Color(0xFFFF3300)
+                        .withOpacity(0.30 * _fireCtrl.value.clamp(0.0, 1.0)),
+                    blurRadius: 22,
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
             ),
-          ),
+            // Anel de fogo giratório
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: SweepGradient(
+                  colors: [
+                    AppColors.primaryOrange.withOpacity(0.0),
+                    AppColors.primaryOrange.withOpacity(0.9 * _pulse.value),
+                    const Color(0xFFFF3300).withOpacity(0.7),
+                    AppColors.primaryOrange.withOpacity(0.0),
+                  ],
+                  stops: const [0.0, 0.3, 0.6, 1.0],
+                  transform: GradientRotation(_fireCtrl.value * 2 * math.pi),
+                ),
+              ),
+            ),
+            // Núcleo do badge
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: AppColors.orangeGradient,
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.15),
+                  width: 0.5,
+                ),
+              ),
+              child: Center(
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Contorno escuro para dar peso e contraste ao traço
+                    Text(
+                      'HN',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.2,
+                        height: 1,
+                        foreground: Paint()
+                          ..style = PaintingStyle.stroke
+                          ..strokeWidth = 2.2
+                          ..color = const Color(0xFF3D0F00),
+                      ),
+                    ),
+                    const Text(
+                      'HN',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.2,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+class _BadgeParticlePainter extends CustomPainter {
+  final double t;
+  _BadgeParticlePainter(this.t);
+
+  static final _particles = List.generate(6, (i) {
+    final rng = math.Random(i * 17);
+    return _BadgeParticle(
+      angle: rng.nextDouble() * 2 * math.pi,
+      radiusJitter: rng.nextDouble(),
+      speed: 0.5 + rng.nextDouble() * 0.8,
+      size: 0.8 + rng.nextDouble() * 1.2,
+    );
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    for (final p in _particles) {
+      final angle = p.angle + t * 2 * math.pi * p.speed;
+      final radius = 17 + p.radiusJitter * 4;
+      final wobble = math.sin(t * 2 * math.pi * p.speed * 2) * 2;
+      final pos = center +
+          Offset(math.cos(angle), math.sin(angle)) * (radius + wobble);
+      final opacity =
+          (0.15 + math.sin((t + p.radiusJitter) * math.pi).abs() * 0.35)
+              .clamp(0.0, 0.5);
+
+      paint
+        ..color = (p.speed > 1.1 ? const Color(0xFFFF3300) : AppColors.primaryOrange)
+            .withOpacity(opacity)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2);
+
+      canvas.drawCircle(pos, p.size, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BadgeParticlePainter old) => old.t != t;
+}
+
+class _BadgeParticle {
+  final double angle;
+  final double radiusJitter;
+  final double speed;
+  final double size;
+  _BadgeParticle({
+    required this.angle,
+    required this.radiusJitter,
+    required this.speed,
+    required this.size,
+  });
 }
 
 class _HeaderParticlePainter extends CustomPainter {
