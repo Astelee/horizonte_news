@@ -236,7 +236,10 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                               _buildGlowDivider(),
                               if (post.videoUrl != null &&
                                   post.videoUrl!.trim().isNotEmpty)
-                                PostVideoPlayer(videoUrl: post.videoUrl!),
+                                PostVideoPlayer(
+                                  videoUrl: post.videoUrl!,
+                                  aspectMode: post.videoAspectMode,
+                                ),
                               _buildHtmlContent(
                                   context, normalizedContent, isDark),
                               _buildAuthorFooter(),
