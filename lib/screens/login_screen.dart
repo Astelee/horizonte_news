@@ -5,7 +5,6 @@ import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
-import '../services/sound_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -163,7 +162,6 @@ class _LoginScreenState extends State<LoginScreen>
         password: _passwordController.text.trim(),
         remember: _rememberMe,
       );
-      SoundService.instance.playSystemClick();
 
       // Pede permissão de notificação logo após o login, uma única vez
       // (NotificationService já controla isso via _permissionKey — se o
@@ -477,7 +475,6 @@ class _LoginScreenState extends State<LoginScreen>
     return InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: () {
-        SoundService.instance.playSystemClick();
         setState(() => _rememberMe = !_rememberMe);
       },
       child: Padding(
