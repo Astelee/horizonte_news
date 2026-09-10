@@ -1363,8 +1363,7 @@ class _CommentTileState extends State<_CommentTile>
                                 UnlockedBadgesRow(
                                   unlockedAchievements:
                                       widget.comment.userAchievements,
-                                  maxVisible:
-                                      widget.comment.userAchievements.length,
+                                  maxVisible: 3,
                                   badgeSize: 9,
                                 ),
                             ],
