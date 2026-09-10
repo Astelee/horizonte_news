@@ -1,15 +1,24 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'ad_config.dart';
 
 // ============================================================
 // HybridBannerAd
 // ============================================================
 // Coloque-o em qualquer Scaffold como bottomNavigationBar.
-// Decide automaticamente:
-//   Parceiro ativo → imagem local (asset)
-//   Sem parceiro   → BannerAd AdMob
-//   AdMob falhou   → Container vazio (sem quebrar a tela)
+//
+// O modo exibido é controlado pelo painel administrativo (aba
+// "Barra de anúncios"), salvo em Firestore em
+// app_config/global.adsBarMode: 'admob' | 'partner' | 'off'.
+// A mudança se aplica em tempo real, sem precisar publicar uma
+// nova versão do app.
+//
+//   'admob'   → BannerAd do AdMob
+//   'partner' → imagem do parceiro configurada no painel
+//               (adsPartnerName / adsPartnerImageUrl / adsPartnerLinkUrl)
+//   'off'     → nada é exibido, espaço totalmente limpo
 // ============================================================
 
 class HybridBannerAd extends StatefulWidget {
@@ -23,21 +32,21 @@ class _HybridBannerAdState extends State<HybridBannerAd> {
   BannerAd? _bannerAd;
   bool _adLoaded = false;
   bool _adFailed = false;
+  bool _admobRequested = false;
 
   // Altura padrão do banner AdMob BANNER (320×50 → altura 50 dp)
   // Usamos 52 para dar uma margem confortável.
   static const double _bannerHeight = 52;
 
-  @override
-  void initState() {
-    super.initState();
-    // Só cria o AdMob se não houver parceiro ativo
-    if (!AdConfig.hasActivePartner) {
-      _loadAdMobBanner();
-    }
-  }
+  final Stream<DocumentSnapshot<Map<String, dynamic>>> _configStream =
+      FirebaseFirestore.instance
+          .collection('app_config')
+          .doc('global')
+          .snapshots();
 
-  void _loadAdMobBanner() {
+  void _ensureAdMobLoaded() {
+    if (_admobRequested) return;
+    _admobRequested = true;
     _bannerAd = BannerAd(
       adUnitId: AdConfig.admobBannerId,
       size: AdSize.banner,
@@ -62,50 +71,76 @@ class _HybridBannerAdState extends State<HybridBannerAd> {
 
   @override
   Widget build(BuildContext context) {
-    // ── Parceiro local ativo ───────────────────────────────
-    final partner = AdConfig.activePartner;
-    if (partner != null) {
-      return _PartnerBanner(assetPath: partner.assetPath);
-    }
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: _configStream,
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data();
+        // Enquanto a config ainda não carregou, não exibe nada — evita
+        // "piscar" um AdMob que pode ter sido desativado pelo admin.
+        if (!snapshot.hasData) return const SizedBox.shrink();
 
-    // ── AdMob carregando ──────────────────────────────────
-    if (!_adLoaded && !_adFailed) {
-      return const _AdPlaceholder();
-    }
+        final mode = (data?['adsBarMode'] as String?) ?? 'admob';
 
-    // ── AdMob falhou ──────────────────────────────────────
-    if (_adFailed) {
-      return const SizedBox.shrink(); // Sem espaço vazio visível
-    }
+        if (mode == 'off') {
+          return const SizedBox.shrink();
+        }
 
-    // ── AdMob pronto ──────────────────────────────────────
-    return SafeArea(
-      top: false,
-      child: SizedBox(
-        height: _bannerHeight,
-        child: AdWidget(ad: _bannerAd!),
-      ),
+        if (mode == 'partner') {
+          final imageUrl = (data?['adsPartnerImageUrl'] as String?) ?? '';
+          final linkUrl = (data?['adsPartnerLinkUrl'] as String?) ?? '';
+          if (imageUrl.isEmpty) return const SizedBox.shrink();
+          return _PartnerBanner(imageUrl: imageUrl, linkUrl: linkUrl);
+        }
+
+        // mode == 'admob' (padrão)
+        _ensureAdMobLoaded();
+
+        if (!_adLoaded && !_adFailed) {
+          return const _AdPlaceholder();
+        }
+        if (_adFailed) {
+          return const SizedBox.shrink(); // Sem espaço vazio visível
+        }
+        return SafeArea(
+          top: false,
+          child: SizedBox(
+            height: _bannerHeight,
+            child: AdWidget(ad: _bannerAd!),
+          ),
+        );
+      },
     );
   }
 }
 
-// ── Banner do parceiro local ──────────────────────────────────
+// ── Banner do parceiro (imagem hospedada, definida no painel) ────
 class _PartnerBanner extends StatelessWidget {
-  final String assetPath;
-  const _PartnerBanner({required this.assetPath});
+  final String imageUrl;
+  final String linkUrl;
+  const _PartnerBanner({required this.imageUrl, required this.linkUrl});
+
+  Future<void> _handleTap() async {
+    if (linkUrl.isEmpty) return;
+    final uri = Uri.tryParse(linkUrl);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      child: SizedBox(
-        height: 52,
-        width: double.infinity,
-        child: Image.asset(
-          assetPath,
-          fit: BoxFit.cover,
-          // Se a imagem não existir no asset, exibe fallback silencioso
-          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+      child: GestureDetector(
+        onTap: linkUrl.isEmpty ? null : _handleTap,
+        child: SizedBox(
+          height: 52,
+          width: double.infinity,
+          child: Image.network(
+            imageUrl,
+            fit: BoxFit.cover,
+            // Se a imagem falhar ao carregar, exibe fallback silencioso
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          ),
         ),
       ),
     );
