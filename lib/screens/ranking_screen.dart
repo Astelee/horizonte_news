@@ -31,11 +31,19 @@ class _RankUser {
 
   factory _RankUser.fromDoc(QueryDocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    // Prioridade: nome escolhido pelo usuário (displayName) > ID de
+    // usuário (username) > e-mail (fallback final). Antes o ranking
+    // caía direto para o e-mail quando displayName estava vazio, o
+    // que mostrava usernames/e-mails em vez do ID escolhido para
+    // quem ainda não definiu um nome de exibição.
     final displayName = (data['displayName'] as String?)?.trim() ?? '';
+    final username = (data['username'] as String?)?.trim() ?? '';
     final email = (data['email'] as String?) ?? '';
     final name = displayName.isNotEmpty
         ? displayName
-        : (email.isNotEmpty ? email.split('@').first : 'Usuário');
+        : (username.isNotEmpty
+            ? username
+            : (email.isNotEmpty ? email.split('@').first : 'Usuário'));
     return _RankUser(
       uid: doc.id,
       name: name,
