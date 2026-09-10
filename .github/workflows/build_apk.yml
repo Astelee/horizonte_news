@@ -18,20 +18,25 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
       - name: Configurar Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.27.x'
           channel: 'stable'
-          cache: false
+          cache: true
 
       - name: Decodificar Keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/horizonte-key.jks
-
-      - name: Mostrar SHA256 do Keystore
-        run: |
-          keytool -list -v -keystore android/horizonte-key.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" -alias "${{ secrets.KEY_ALIAS }}" | grep "SHA256"
 
       - name: Criar key.properties
         run: |
@@ -41,9 +46,7 @@ jobs:
           echo "storeFile=../horizonte-key.jks" >> android/key.properties
 
       - name: Instalar Dependências
-        run: |
-          flutter clean
-          flutter pub get
+        run: flutter pub get
 
       - name: Rodar Testes Automatizados
         run: flutter test
