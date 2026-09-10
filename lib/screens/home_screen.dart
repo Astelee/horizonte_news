@@ -558,34 +558,15 @@ class _PulsingLogoBadgeState extends State<_PulsingLogoBadge>
                 ),
               ),
               child: Center(
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Contorno escuro para dar peso e contraste ao traço
-                    Text(
-                      'HN',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.2,
-                        height: 1,
-                        foreground: Paint()
-                          ..style = PaintingStyle.stroke
-                          ..strokeWidth = 2.2
-                          ..color = const Color(0xFF3D0F00),
-                      ),
-                    ),
-                    const Text(
-                      'HN',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.2,
-                        height: 1,
-                      ),
-                    ),
-                  ],
+                child: const Text(
+                  'HN',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.2,
+                    height: 1,
+                  ),
                 ),
               ),
             ),
