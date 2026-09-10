@@ -49,6 +49,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
   String _coverUrl = '';
   List<String> _gallery = [];
   String? _videoUrl;
+  VideoAspectMode _videoAspectMode = VideoAspectMode.original;
 
   bool _uploadingCover = false;
   bool _uploadingGallery = false;
@@ -78,6 +79,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
     _coverUrl = post?.thumbnailUrl ?? '';
     _gallery = List<String>.from(post?.gallery ?? []);
     _videoUrl = post?.videoUrl;
+    _videoAspectMode = post?.videoAspectMode ?? VideoAspectMode.original;
 
     _particleCtrl = AnimationController(
       vsync: this,
@@ -168,6 +170,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
       thumbnailUrl: _coverUrl,
       gallery: _gallery,
       videoUrl: _videoUrl,
+      videoAspectMode: _videoAspectMode,
       categories: categories,
       publishedAt: widget.existingPost?.publishedAt ?? DateTime.now(),
       status: status,
@@ -796,6 +799,10 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
               ],
             ),
           ),
+        if (_videoUrl != null) ...[
+          _buildVideoAspectModeSelector(),
+          const SizedBox(height: 8),
+        ],
         _uploadButton(
           onPressed: _uploadingVideo ? null : _pickAndUploadVideo,
           loading: _uploadingVideo,
@@ -803,6 +810,79 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
           label: _videoUrl == null ? 'Adicionar vídeo' : 'Trocar vídeo',
         ),
       ],
+    );
+  }
+
+  // ── Tamanho de exibição do vídeo ─────────────────────────────────────
+  // "Padrão (menor)" força uma caixa 16:9 compacta, igual capa de
+  // vídeo — bom para a maioria dos casos. "Tamanho original" mantém a
+  // proporção real do arquivo, útil quando o vídeo é vertical (feito no
+  // celular) e precisa aparecer inteiro, mesmo ocupando mais altura.
+  Widget _buildVideoAspectModeSelector() {
+    return Row(
+      children: [
+        Expanded(
+          child: _aspectModeChip(
+            mode: VideoAspectMode.compact,
+            icon: Icons.crop_16_9_rounded,
+            label: 'Padrão (menor)',
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _aspectModeChip(
+            mode: VideoAspectMode.original,
+            icon: Icons.crop_free_rounded,
+            label: 'Tamanho original',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _aspectModeChip({
+    required VideoAspectMode mode,
+    required IconData icon,
+    required String label,
+  }) {
+    final selected = _videoAspectMode == mode;
+    return GestureDetector(
+      onTap: () => setState(() => _videoAspectMode = mode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.primaryOrange.withOpacity(0.12)
+              : const Color(0xFF0A0A0A),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected
+                ? AppColors.primaryOrange
+                : const Color(0xFF262626),
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon,
+                size: 18,
+                color: selected
+                    ? AppColors.primaryOrange
+                    : AppColors.textSecondary),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: selected ? AppColors.primaryOrange : Colors.white70,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
