@@ -292,16 +292,22 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                                 postId: post.id,
                                 postTitle: post.title,
                               ),
-                              // Respiro extra no fim do scroll: sem
-                              // isso, quando o teclado abre perto do
-                              // fim da lista de comentários não há
-                              // espaço de rolagem sobrando para o
-                              // campo de comentário/resposta subir
-                              // acima do teclado (a tela "trava" no
-                              // fundo). Cresce junto com a altura do
-                              // teclado para garantir folga.
+                              // Respiro extra no fim do scroll. Além de
+                              // dar folga para o campo de comentário/
+                              // resposta subir acima do teclado quando
+                              // ele abre perto do fim da lista (sem
+                              // isso a tela "trava" no fundo), também
+                              // garante espaço de rolagem suficiente
+                              // para o botão "Comentários (N)" e a
+                              // lista de comentários poderem subir até
+                              // perto do centro da tela, em vez de
+                              // ficarem presos lá embaixo. Por isso a
+                              // base é uma fração da altura da tela,
+                              // não um valor fixo pequeno, e ainda
+                              // cresce junto com a altura do teclado.
                               SizedBox(
-                                height: 40 +
+                                height: MediaQuery.of(context).size.height *
+                                        0.45 +
                                     MediaQuery.of(context)
                                         .viewInsets
                                         .bottom,
