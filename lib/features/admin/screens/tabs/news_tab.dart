@@ -30,17 +30,16 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
   String _search = '';
   PostStatus? _filterStatus; // null = "todas"
 
-  late final AnimationController _particleCtrl;
   late final AnimationController _glowCtrl;
   late final Animation<double> _glowAnim;
 
   @override
   void initState() {
     super.initState();
-    _particleCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 10),
-    )..repeat();
+    // O fundo de partículas era animado (AnimationController + repaint a
+    // cada tick), assim como no editor. Trocado por um frame estático
+    // (ver _buildParticleBackground / _NewsParticlePainter) para eliminar
+    // o custo de repaint contínuo por trás da lista.
 
     _glowCtrl = AnimationController(
       vsync: this,
@@ -54,7 +53,6 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _particleCtrl.dispose();
     _glowCtrl.dispose();
     super.dispose();
   }
@@ -145,11 +143,8 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
           child: Container(color: Colors.black),
         ),
         Positioned.fill(
-          child: AnimatedBuilder(
-            animation: _particleCtrl,
-            builder: (_, __) => CustomPaint(
-              painter: _NewsParticlePainter(_particleCtrl.value),
-            ),
+          child: CustomPaint(
+            painter: _NewsParticlePainter(),
           ),
         ),
         StreamBuilder(
@@ -217,7 +212,6 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
                                   statusColor: _statusColor(posts[i].status),
                                   statusIcon: _statusIcon(posts[i].status),
                                   statusLabel: _statusLabel(posts[i].status),
-                                  glowAnim: _glowAnim,
                                   onEdit: () => _openEditor(post: posts[i]),
                                   onTogglePublish: () => _togglePublish(posts[i]),
                                   onDelete: () => _delete(posts[i]),
@@ -468,7 +462,6 @@ class _NewsCard extends StatelessWidget {
   final Color statusColor;
   final IconData statusIcon;
   final String statusLabel;
-  final Animation<double> glowAnim;
   final VoidCallback onEdit;
   final VoidCallback onTogglePublish;
   final VoidCallback onDelete;
@@ -478,7 +471,6 @@ class _NewsCard extends StatelessWidget {
     required this.statusColor,
     required this.statusIcon,
     required this.statusLabel,
-    required this.glowAnim,
     required this.onEdit,
     required this.onTogglePublish,
     required this.onDelete,
@@ -507,26 +499,28 @@ class _NewsCard extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF161616).withOpacity(0.80),
-                    const Color(0xFF0D0D0D).withOpacity(0.80),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                border: Border.all(
-                  color: isPublished
-                      ? AppColors.primaryOrange.withOpacity(0.28)
-                      : const Color(0xFF232323),
-                ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              // Antes: gradiente com opacity 0.80 sobre um BackdropFilter
+              // (blur em tempo real). O blur foi removido por custo de
+              // performance; a opacity foi reduzida para compensar
+              // visualmente a ausência do desfoque de fundo.
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF161616).withOpacity(0.94),
+                  const Color(0xFF0D0D0D).withOpacity(0.94),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              child: Padding(
+              border: Border.all(
+                color: isPublished
+                    ? AppColors.primaryOrange.withOpacity(0.28)
+                    : const Color(0xFF232323),
+              ),
+            ),
+            child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -561,23 +555,24 @@ class _NewsCard extends StatelessWidget {
                           Positioned(
                             top: -3,
                             right: -3,
-                            child: AnimatedBuilder(
-                              animation: glowAnim,
-                              builder: (_, __) => Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: statusColor,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: statusColor.withOpacity(glowAnim.value),
-                                      blurRadius: 6,
-                                      spreadRadius: 1,
-                                    ),
-                                  ],
-                                  border: Border.all(color: Colors.black, width: 1.5),
-                                ),
+                            // Antes: AnimatedBuilder por card, redesenhando
+                            // o selo ~30x/s multiplicado pelos cards visíveis.
+                            // Opacidade fixada num valor médio do glow original
+                            // (0.5–1.0) para manter o visual sem repaint contínuo.
+                            child: Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: statusColor,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: statusColor.withOpacity(0.75),
+                                    blurRadius: 6,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                                border: Border.all(color: Colors.black, width: 1.5),
                               ),
                             ),
                           ),
@@ -660,7 +655,6 @@ class _NewsCard extends StatelessWidget {
             ),
           ),
         ),
-      ),
     );
   }
 
@@ -746,8 +740,11 @@ class _NewsCard extends StatelessWidget {
 // PARTÍCULAS DE FOGO DE FUNDO (mesmo padrão visual do Ranking)
 // ═══════════════════════════════════════════════════════════════════
 class _NewsParticlePainter extends CustomPainter {
-  final double t;
-  _NewsParticlePainter(this.t);
+  // Antes: `t` vinha de um AnimationController em loop, redesenhando o
+  // fundo inteiro a cada frame. Agora é um valor fixo — o visual das
+  // partículas "congela" num estado, mas fica idêntico visualmente a um
+  // frame do que já era antes, sem custo de repaint contínuo.
+  static const double _t = 0.35;
 
   static final _rng = math.Random(41);
   static final _particles = List.generate(
@@ -786,8 +783,8 @@ class _NewsParticlePainter extends CustomPainter {
     );
 
     for (final p in _particles) {
-      final dy = 1.0 - ((p.y + t * p.speed + p.phase) % 1.0);
-      final dx = p.x + 0.02 * math.sin((t * 2 * math.pi * 0.6) + p.phase * 6.28);
+      final dy = 1.0 - ((p.y + _t * p.speed + p.phase) % 1.0);
+      final dx = p.x + 0.02 * math.sin((_t * 2 * math.pi * 0.6) + p.phase * 6.28);
       final fireRatio = 1.0 - dy;
       final color = Color.lerp(
         const Color(0xFFFF6B00),
@@ -795,7 +792,7 @@ class _NewsParticlePainter extends CustomPainter {
         fireRatio,
       )!;
       final opacity = p.opacity *
-          (0.5 + 0.5 * math.sin(t * 2 * math.pi * p.speed * 10 + p.phase));
+          (0.5 + 0.5 * math.sin(_t * 2 * math.pi * p.speed * 10 + p.phase));
 
       canvas.drawCircle(
         Offset(dx * size.width, dy * size.height),
@@ -806,7 +803,7 @@ class _NewsParticlePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_NewsParticlePainter old) => old.t != t;
+  bool shouldRepaint(_NewsParticlePainter old) => false;
 }
 
 class _NPData {
