@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -60,7 +59,6 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
 
   final FocusNode _contentFocusNode = FocusNode();
 
-  late final AnimationController _particleCtrl;
   late final AnimationController _glowCtrl;
   late final Animation<double> _glowAnim;
 
@@ -81,11 +79,6 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
     _videoUrl = post?.videoUrl;
     _videoAspectMode = post?.videoAspectMode ?? VideoAspectMode.original;
 
-    _particleCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 10),
-    )..repeat();
-
     _glowCtrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -103,7 +96,6 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
     _contentCtrl.dispose();
     _categoryCtrl.dispose();
     _contentFocusNode.dispose();
-    _particleCtrl.dispose();
     _glowCtrl.dispose();
     super.dispose();
   }
@@ -341,12 +333,9 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
       body: Stack(
         children: [
           Positioned.fill(child: Container(color: Colors.black)),
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _particleCtrl,
-              builder: (_, __) => CustomPaint(
-                painter: _EditorParticlePainter(_particleCtrl.value),
-              ),
+          const Positioned.fill(
+            child: RepaintBoundary(
+              child: CustomPaint(painter: _EditorStaticBackgroundPainter()),
             ),
           ),
           SafeArea(
@@ -947,24 +936,15 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// PARTÍCULAS DE FOGO DE FUNDO (mesmo padrão visual do Ranking / Notícias)
-// ═══════════════════════════════════════════════════════════════════
-class _EditorParticlePainter extends CustomPainter {
-  final double t;
-  _EditorParticlePainter(this.t);
-
-  static final _rng = math.Random(19);
-  static final _particles = List.generate(
-    36,
-    (i) => _EPData(
-      x: _rng.nextDouble(),
-      y: _rng.nextDouble(),
-      size: 1.2 + _rng.nextDouble() * 2.6,
-      speed: 0.02 + _rng.nextDouble() * 0.05,
-      opacity: 0.25 + _rng.nextDouble() * 0.45,
-      phase: _rng.nextDouble(),
-    ),
-  );
+// FUNDO ESTÁTICO (sem animação) — apenas os dois glows radiais fixos.
+// Trocado por não-animado porque esta é a tela de formulário (editor de
+// notícia): antes tinha um AnimationController rodando em loop
+// infinito repintando partículas a 60fps, o que pesava bastante ao
+// sair/voltar do app nesta tela (ex.: puxar notificações). Como é uma
+// tela de digitação/upload, não precisa de fogo se movendo atrás —
+// aqui é só um CustomPaint pintado uma única vez, sem custo por frame.
+class _EditorStaticBackgroundPainter extends CustomPainter {
+  const _EditorStaticBackgroundPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -973,7 +953,6 @@ class _EditorParticlePainter extends CustomPainter {
       Paint()..color = Colors.black,
     );
 
-    // Dois glows radiais bem mais fortes e visíveis, cantos opostos.
     final orbPaint = Paint()
       ..shader = RadialGradient(
         colors: [
@@ -1005,50 +984,10 @@ class _EditorParticlePainter extends CustomPainter {
       size.width * 0.75,
       orbPaint2,
     );
-
-    for (final p in _particles) {
-      final dy = 1.0 - ((p.y + t * p.speed + p.phase) % 1.0);
-      final dx = p.x + 0.025 * math.sin((t * 2 * math.pi * 0.6) + p.phase * 6.28);
-      final fireRatio = 1.0 - dy;
-      final color = Color.lerp(
-        const Color(0xFFFFA040),
-        const Color(0xFFFF2200),
-        fireRatio,
-      )!;
-      final opacity = p.opacity *
-          (0.5 + 0.5 * math.sin(t * 2 * math.pi * p.speed * 10 + p.phase));
-
-      final center = Offset(dx * size.width, dy * size.height);
-      final finalOpacity = opacity.clamp(0.0, 0.7);
-
-      // Halo suave em volta de cada partícula para dar sensação de brilho/fogo.
-      canvas.drawCircle(
-        center,
-        p.size * 3,
-        Paint()..color = color.withOpacity(finalOpacity * 0.15),
-      );
-      canvas.drawCircle(
-        center,
-        p.size,
-        Paint()..color = color.withOpacity(finalOpacity),
-      );
-    }
   }
 
   @override
-  bool shouldRepaint(_EditorParticlePainter old) => old.t != t;
-}
-
-class _EPData {
-  final double x, y, size, speed, opacity, phase;
-  const _EPData({
-    required this.x,
-    required this.y,
-    required this.size,
-    required this.speed,
-    required this.opacity,
-    required this.phase,
-  });
+  bool shouldRepaint(_EditorStaticBackgroundPainter old) => false;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1068,6 +1007,16 @@ class _RichTextEditingController extends TextEditingController {
     caseSensitive: false,
   );
 
+  // Cache do último resultado: buildTextSpan é chamado pelo Flutter não só
+  // quando o texto muda, mas também a cada toque/arrasto de seleção (ex.:
+  // ao selecionar um trecho para copiar). Sem esse cache, cada um desses
+  // toques recalculava e recriava todos os spans do zero, fazendo o menu
+  // de copiar/colar "tremer"/reposicionar. Agora só reprocessa quando o
+  // texto realmente muda; seleção sozinha reaproveita o resultado.
+  String? _cachedSource;
+  TextStyle? _cachedBaseStyle;
+  TextSpan? _cachedSpan;
+
   @override
   TextSpan buildTextSpan({
     required BuildContext context,
@@ -1083,11 +1032,19 @@ class _RichTextEditingController extends TextEditingController {
     // não tem tag nenhuma), e evita qualquer risco de quebrar o gesto
     // de selecionar/colar.
     if (!_tagPattern.hasMatch(source)) {
+      _cachedSource = null;
+      _cachedSpan = null;
       return super.buildTextSpan(
         context: context,
         style: style,
         withComposing: withComposing,
       );
+    }
+
+    if (_cachedSource == source &&
+        _cachedBaseStyle == baseStyle &&
+        _cachedSpan != null) {
+      return _cachedSpan!;
     }
 
     final children = <InlineSpan>[];
@@ -1136,6 +1093,10 @@ class _RichTextEditingController extends TextEditingController {
       children.add(TextSpan(text: source.substring(cursor), style: currentStyle()));
     }
 
-    return TextSpan(style: baseStyle, children: children);
+    final span = TextSpan(style: baseStyle, children: children);
+    _cachedSource = source;
+    _cachedBaseStyle = baseStyle;
+    _cachedSpan = span;
+    return span;
   }
 }
