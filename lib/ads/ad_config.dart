@@ -34,7 +34,7 @@ class AdConfig {
 
   // ── AdMob IDs reais ───────────────────────────────────────
   static const String admobBannerId =
-      'ca-app-pub-5015489666829491/6354307271';
+      'ca-app-pub-5015489666829491/2735673618';
 
   // ── Helpers ───────────────────────────────────────────────
 
