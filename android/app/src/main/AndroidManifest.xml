@@ -53,10 +53,10 @@
             android:name="flutterEmbedding"
             android:value="2"/>
 
-        <!-- AdMob App ID real -->
+        <!-- AdMob App ID real (app "Horizonte News" vinculado ao Google Play, status "Pronta") -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-5015489666829491~3415589645"/>
+            android:value="ca-app-pub-5015489666829491~7620356711"/>
 
         <!-- Corrige conflito entre AdMob e Firebase Analytics -->
         <property
