@@ -146,18 +146,12 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    // Scaffold próprio, mesmo sendo uma aba dentro do NestedScrollView do
-    // AdminPanelScreen: sem ele, o TextField de busca vivia direto sob o
-    // scroll coordenado pelo NestedScrollView pai, e a abertura do
-    // teclado (que muda os insets da tela) disparava um recálculo de
-    // slivers que desfocava o campo imediatamente — dava aquele "abre e
-    // fecha na hora" sem chance de digitar nada. Um Scaffold aninhado
-    // isola esse gerenciamento de teclado/inset da NewsTab, então o
-    // foco do TextField passa a se manter normalmente.
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      resizeToAvoidBottomInset: true,
-      body: Stack(
+    // O isolamento de teclado (Scaffold com resizeToAvoidBottomInset)
+    // agora é feito de forma centralizada pelo _TabScaffold, em
+    // admin_panel_screen.dart, ao redor de cada aba — inclusive esta.
+    // Não duplicamos o Scaffold aqui para não aninhar dois Scaffolds
+    // sem necessidade.
+    return Stack(
       children: [
         // ── Fundo: preto + partículas de fogo subindo (mesmo padrão do Ranking) ──
         Positioned.fill(
@@ -305,7 +299,6 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
           },
         ),
       ],
-      ),
     );
   }
 
