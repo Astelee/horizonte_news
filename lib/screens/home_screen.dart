@@ -1,3 +1,4 @@
+// Caminho original: lib/screens/home_screen.dart
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -63,9 +64,14 @@ class _HomeScreenState extends State<HomeScreen>
       if (scrolled != _isScrolled) setState(() => _isScrolled = scrolled);
     });
 
+    // Não definimos statusBarColor aqui: em Android 15+ (edge-to-edge
+    // forçado) essa propriedade é ignorada e gera o aviso do Play
+    // Console sobre APIs descontinuadas. A cor por trás da status bar
+    // já é transparente por padrão no modo edge-to-edge; só controlamos
+    // o brilho dos ícones.
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
     ));
   }
 
