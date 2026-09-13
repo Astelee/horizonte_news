@@ -38,6 +38,22 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
+  // CAUSA RAIZ do "campo abre e recarrega sozinho": antes, o
+  // StreamBuilder chamava widget.newsService.allNewsStream() direto no
+  // build(). Toda vez que o build() rodava de novo — e digitar no campo
+  // de busca faz isso a cada tecla, via setState(() => _search = v) —
+  // uma CHAMADA NOVA a allNewsStream() criava um Stream novo
+  // (_col.orderBy(...).snapshots() sempre retorna uma instância nova).
+  // O StreamBuilder, ao ver um `stream` diferente do anterior, descarta
+  // a assinatura antiga e assina a nova do zero — daí o
+  // ConnectionState.waiting (o "carregamento de 1 segundo") toda vez
+  // que se digitava, e a lista de posts sendo recriada no meio disso.
+  // Guardando o Stream aqui, criado uma única vez, ele nunca muda de
+  // identidade entre rebuilds — só é criado de novo se a tela inteira
+  // for desmontada e remontada (troca real de aba/tela).
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _newsStream =
+      widget.newsService.allNewsStream();
+
   late final AnimationController _glowCtrl;
   late final Animation<double> _glowAnim;
 
@@ -163,7 +179,7 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
           ),
         ),
         StreamBuilder(
-          stream: widget.newsService.allNewsStream(),
+          stream: _newsStream,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
