@@ -30,6 +30,14 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
   String _search = '';
   PostStatus? _filterStatus; // null = "todas"
 
+  // Controller e FocusNode fixos: sem eles, o TextField recriado a cada
+  // rebuild do StreamBuilder perdia o foco e "piscava" ao ser tocado —
+  // era um widget novo a cada build, então o Flutter descartava o
+  // estado interno de edição (cursor, foco, seleção) toda vez que o
+  // stream do Firestore reemitia ou o teclado abria.
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+
   late final AnimationController _glowCtrl;
   late final Animation<double> _glowAnim;
 
@@ -54,6 +62,8 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
   @override
   void dispose() {
     _glowCtrl.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -190,13 +200,49 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
             if (_search.isNotEmpty) {
               final q = _search.toLowerCase();
               posts = posts.where((p) => p.title.toLowerCase().contains(q)).toList();
+            } else if (_filterStatus == null) {
+              // Sem busca nem filtro ativo: mostra só as 3 notícias mais
+              // recentes (a lista já vem ordenada por atualizadoEm
+              // descendente do allNewsStream). Para ver as demais, o
+              // usuário busca pelo título ou usa um dos chips de filtro
+              // acima, que continuam mostrando a lista inteira daquele
+              // status.
+              posts = posts.take(3).toList();
             }
 
+            // O header (contadores + chips + campo de busca) é um widget
+            // próprio (_NewsHeader), com Key fixa, em vez de ser montado
+            // "inline" aqui dentro do builder do StreamBuilder. Antes,
+            // toda vez que o Firestore reemitia o stream (o que acontece
+            // a cada setStatus/deleteNews, de QUALQUER notícia, em
+            // QUALQUER lugar do app), essa árvore inteira — TextField
+            // incluso — era descartada e recriada do zero. Mesmo com
+            // controller, recriar o TextField no meio da digitação causa
+            // o "flash" e a perda de foco relatados. Como _NewsHeader é
+            // um StatefulWidget com Key própria, o Flutter agora só
+            // atualiza as props que mudaram (contadores) e preserva o
+            // Element/State do campo de busca intacto.
             return Stack(
               children: [
                 Column(
                   children: [
-                    _buildHeader(total, publishedCount, draftCount, unpublishedCount),
+                    _NewsHeader(
+                      key: const ValueKey('news_header'),
+                      total: total,
+                      published: publishedCount,
+                      draft: draftCount,
+                      unpublished: unpublishedCount,
+                      filterStatus: _filterStatus,
+                      searchController: _searchController,
+                      searchFocusNode: _searchFocusNode,
+                      searchValue: _search,
+                      onFilterChanged: (s) => setState(() => _filterStatus = s),
+                      onSearchChanged: (v) => setState(() => _search = v),
+                      onSearchCleared: () {
+                        _searchController.clear();
+                        setState(() => _search = '');
+                      },
+                    ),
                     Expanded(
                       child: posts.isEmpty
                           ? const AdminEmptyState(
@@ -205,8 +251,29 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
                             )
                           : ListView.builder(
                               padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                              itemCount: posts.length,
+                              itemCount: posts.length +
+                                  (_search.isEmpty && _filterStatus == null && total > 3
+                                      ? 1
+                                      : 0),
                               itemBuilder: (context, i) {
+                                if (i == posts.length) {
+                                  // Aviso ao final das 3 mais recentes,
+                                  // só quando não há busca/filtro ativo
+                                  // e existem mais notícias além dessas.
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    child: Text(
+                                      'Mostrando as 3 mais recentes de $total. '
+                                      'Busque pelo título ou use um filtro acima '
+                                      'para ver as demais.',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  );
+                                }
                                 return _NewsCard(
                                   post: posts[i],
                                   statusColor: _statusColor(posts[i].status),
@@ -230,8 +297,76 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildHeader(
-      int total, int published, int draft, int unpublished) {
+  Widget _buildFab() {
+    return Positioned(
+      right: 16,
+      bottom: 16,
+      child: AnimatedBuilder(
+        animation: _glowAnim,
+        builder: (_, child) => Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primaryOrange.withOpacity(0.45 * _glowAnim.value),
+                blurRadius: 22,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: child,
+        ),
+        child: FloatingActionButton.extended(
+          onPressed: () => _openEditor(),
+          backgroundColor: AppColors.primaryOrange,
+          foregroundColor: Colors.white,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('Nova notícia',
+              style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CABEÇALHO (contadores + chips de filtro + campo de busca)
+// ═══════════════════════════════════════════════════════════════════
+// Extraído como StatefulWidget próprio, com Key fixa no pai, para que o
+// StreamBuilder da tela principal não recrie o TextField do zero a cada
+// nova emissão do Firestore. O Flutter só reaproveita o Element/State de
+// um widget entre rebuilds quando ele mantém o mesmo runtimeType + Key
+// na mesma posição da árvore — daí a Key fixa aqui e no ponto de uso.
+class _NewsHeader extends StatelessWidget {
+  final int total;
+  final int published;
+  final int draft;
+  final int unpublished;
+  final PostStatus? filterStatus;
+  final TextEditingController searchController;
+  final FocusNode searchFocusNode;
+  final String searchValue;
+  final ValueChanged<PostStatus?> onFilterChanged;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback onSearchCleared;
+
+  const _NewsHeader({
+    required Key key,
+    required this.total,
+    required this.published,
+    required this.draft,
+    required this.unpublished,
+    required this.filterStatus,
+    required this.searchController,
+    required this.searchFocusNode,
+    required this.searchValue,
+    required this.onFilterChanged,
+    required this.onSearchChanged,
+    required this.onSearchCleared,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
       decoration: BoxDecoration(
@@ -287,51 +422,53 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
                   label: 'Todas',
                   count: total,
                   color: AppColors.primaryOrange,
-                  selected: _filterStatus == null,
-                  onTap: () => setState(() => _filterStatus = null),
+                  selected: filterStatus == null,
+                  onTap: () => onFilterChanged(null),
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
                   label: 'Publicadas',
                   count: published,
                   color: const Color(0xFF4CAF50),
-                  selected: _filterStatus == PostStatus.published,
-                  onTap: () => setState(() => _filterStatus = PostStatus.published),
+                  selected: filterStatus == PostStatus.published,
+                  onTap: () => onFilterChanged(PostStatus.published),
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
                   label: 'Rascunhos',
                   count: draft,
                   color: const Color(0xFFFFC107),
-                  selected: _filterStatus == PostStatus.draft,
-                  onTap: () => setState(() => _filterStatus = PostStatus.draft),
+                  selected: filterStatus == PostStatus.draft,
+                  onTap: () => onFilterChanged(PostStatus.draft),
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
                   label: 'Despublicadas',
                   count: unpublished,
                   color: AppColors.textSecondary,
-                  selected: _filterStatus == PostStatus.unpublished,
-                  onTap: () => setState(() => _filterStatus = PostStatus.unpublished),
+                  selected: filterStatus == PostStatus.unpublished,
+                  onTap: () => onFilterChanged(PostStatus.unpublished),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
           TextField(
-            onChanged: (v) => setState(() => _search = v),
+            controller: searchController,
+            focusNode: searchFocusNode,
+            onChanged: onSearchChanged,
             style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
               hintText: 'Buscar por título...',
               hintStyle: const TextStyle(color: AppColors.textSecondary),
               prefixIcon: const Icon(Icons.search_rounded,
                   color: AppColors.primaryOrange, size: 20),
-              suffixIcon: _search.isEmpty
+              suffixIcon: searchValue.isEmpty
                   ? null
                   : IconButton(
                       icon: const Icon(Icons.close_rounded,
                           color: AppColors.textSecondary, size: 18),
-                      onPressed: () => setState(() => _search = ''),
+                      onPressed: onSearchCleared,
                     ),
               filled: true,
               fillColor: const Color(0xFF141414),
@@ -351,37 +488,6 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildFab() {
-    return Positioned(
-      right: 16,
-      bottom: 16,
-      child: AnimatedBuilder(
-        animation: _glowAnim,
-        builder: (_, child) => Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primaryOrange.withOpacity(0.45 * _glowAnim.value),
-                blurRadius: 22,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: child,
-        ),
-        child: FloatingActionButton.extended(
-          onPressed: () => _openEditor(),
-          backgroundColor: AppColors.primaryOrange,
-          foregroundColor: Colors.white,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('Nova notícia',
-              style: TextStyle(fontWeight: FontWeight.w700)),
-        ),
       ),
     );
   }
