@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- windowFullscreen removido: essa flag legada esconde a status bar
+         via API antiga e conflita com o modo edge-to-edge obrigatório a
+         partir do Android 15, causando o aviso do Play Console de que a
+         exibição de ponta a ponta pode não funcionar para todos os
+         usuários. O Flutter já cuida dos insets via SafeArea/MediaQuery. -->
     <style name="LaunchTheme" parent="android:Theme.Light.NoTitleBar">
         <item name="android:windowBackground">@drawable/launch_background</item>
-        <item name="android:windowFullscreen">true</item>
         <item name="android:windowIsTranslucent">false</item>
     </style>
 
