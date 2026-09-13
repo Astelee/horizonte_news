@@ -9,6 +9,13 @@
 -keep class io.flutter.plugins.**  { *; }
 -dontwarn io.flutter.embedding.**
 
+# io.flutter.app.FlutterPlayStoreSplitApplication referencia classes da
+# Play Core (com.google.android.play.core.splitcompat.*) usadas só para
+# apps que fazem split install por feature — não é o caso deste app, e
+# a dependência da Play Core nem está no projeto. Sem esse -dontwarn o
+# R8 falha com "Missing class" ao tentar manter essa classe.
+-dontwarn com.google.android.play.core.**
+
 # ── Firebase / Firestore ────────────────────────────────────────
 # Firestore serializa modelos via reflection; sem isso o R8 pode
 # remover campos/construtores usados só implicitamente.
