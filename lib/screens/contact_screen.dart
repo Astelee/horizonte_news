@@ -86,9 +86,11 @@ class _ContactScreenState extends State<ContactScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
+      // Sem statusBarColor: descontinuado a partir do Android 15
+      // (edge-to-edge obrigatório). Controlamos só o brilho dos ícones.
       value: const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
         backgroundColor:
