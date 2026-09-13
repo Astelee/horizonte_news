@@ -107,6 +107,19 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         },
         child: Scaffold(
           backgroundColor: AppColors.backgroundDark,
+          // resizeToAvoidBottomInset: false aqui é essencial. Por padrão
+          // (true), quando o teclado abre em qualquer aba, o Scaffold
+          // EXTERNO encolhe o body inteiro — inclusive o NestedScrollView
+          // e o SliverAppBar colapsável dentro dele. O NestedScrollView
+          // então recalcula a posição/expansão do SliverAppBar em reação
+          // a essa mudança de tamanho, e esse recálculo interrompe o
+          // foco de qualquer TextField que tenha acabado de abrir o
+          // teclado (ex.: a busca da aba PUBLICAÇÕES) — o teclado sobe e
+          // desce na hora, antes de dar tempo de digitar.
+          // Com false, é o Scaffold interno de cada aba (ex.: o da
+          // NewsTab) que reage ao teclado; o NestedScrollView e o
+          // SliverAppBar externos nunca veem esse inset mudar.
+          resizeToAvoidBottomInset: false,
           body: NestedScrollView(
             headerSliverBuilder: (context, _) => [_buildAppBar()],
             body: MediaQuery.removePadding(
@@ -117,39 +130,58 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 child: TabBarView(
                   controller: _tabController,
                   physics: const NeverScrollableScrollPhysics(),
+                  // Cada aba é envolvida no próprio _TabScaffold (ver
+                  // definição abaixo da classe): um Scaffold transparente
+                  // que trata o teclado individualmente por aba. Antes,
+                  // resizeToAvoidBottomInset:false só no Scaffold externo
+                  // teria deixado ConfigTab, AdsBarTab e UsersTab (que
+                  // também têm TextField) sem nenhum tratamento de
+                  // teclado — o teclado poderia cobrir o campo sendo
+                  // editado nessas abas. Com isso, todas ganham o mesmo
+                  // isolamento que a NewsTab já tinha.
                   children: [
-                  OverviewTab(
-                    dashboardService: _dashboardService,
-                    userService: _userService,
-                    newsService: _newsService,
-                    commentService: _commentService,
-                    avatarApprovalService: _avatarApprovalService,
-                    onGoToUsers: () => _goToTab(3),
-                    onGoToViews: () => _goToTab(4),
-                    onGoToBanned: () => _goToTab(2),
-                    onGoToNews: () => _goToTab(6),
-                    onGoToComments: () => _goToTab(1),
-                    onGoToLevels: () => _goToTab(5),
-                    onGoToAvatarApprovals: () => _goToTab(7),
-                    onGoToConfig: () => _goToTab(8),
-                    onGoToAdsBar: () => _goToTab(9),
+                  _TabScaffold(
+                    child: OverviewTab(
+                      dashboardService: _dashboardService,
+                      userService: _userService,
+                      newsService: _newsService,
+                      commentService: _commentService,
+                      avatarApprovalService: _avatarApprovalService,
+                      onGoToUsers: () => _goToTab(3),
+                      onGoToViews: () => _goToTab(4),
+                      onGoToBanned: () => _goToTab(2),
+                      onGoToNews: () => _goToTab(6),
+                      onGoToComments: () => _goToTab(1),
+                      onGoToLevels: () => _goToTab(5),
+                      onGoToAvatarApprovals: () => _goToTab(7),
+                      onGoToConfig: () => _goToTab(8),
+                      onGoToAdsBar: () => _goToTab(9),
+                    ),
                   ),
-                  CommentsTab(
-                    commentService: _commentService,
-                    userService: _userService,
+                  _TabScaffold(
+                    child: CommentsTab(
+                      commentService: _commentService,
+                      userService: _userService,
+                    ),
                   ),
-                  BannedTab(userService: _userService),
-                  UsersTab(userService: _userService),
-                  ViewsTab(
-                    viewsService: _viewsService,
-                    commentService: _commentService,
+                  _TabScaffold(child: BannedTab(userService: _userService)),
+                  _TabScaffold(child: UsersTab(userService: _userService)),
+                  _TabScaffold(
+                    child: ViewsTab(
+                      viewsService: _viewsService,
+                      commentService: _commentService,
+                    ),
                   ),
-                    const PoderesTab(),
-                    NewsTab(newsService: _newsService),
-                    AvatarApprovalsTab(
-                        approvalService: _avatarApprovalService),
-                    ConfigTab(configService: _configService),
-                    AdsBarTab(configService: _configService),
+                    const _TabScaffold(child: PoderesTab()),
+                    _TabScaffold(child: NewsTab(newsService: _newsService)),
+                    _TabScaffold(
+                      child: AvatarApprovalsTab(
+                          approvalService: _avatarApprovalService),
+                    ),
+                    _TabScaffold(
+                        child: ConfigTab(configService: _configService)),
+                    _TabScaffold(
+                        child: AdsBarTab(configService: _configService)),
                   ],
                 ),
               ),
@@ -257,6 +289,30 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Envolve cada aba do painel ADM em seu próprio Scaffold transparente.
+///
+/// Isola o teclado por aba: com resizeToAvoidBottomInset:false no
+/// Scaffold externo (ver AdminPanelScreen.build), nenhuma aba recebe
+/// tratamento de teclado automaticamente. Este wrapper devolve esse
+/// tratamento individualmente para cada uma, sem prender o
+/// NestedScrollView/SliverAppBar externos ao ciclo de abrir/fechar
+/// teclado — que era o que causava o campo de busca da aba
+/// PUBLICAÇÕES (e teria o mesmo efeito em CONFIGURAÇÕES, BARRA DE
+/// ANÚNCIOS e USUÁRIOS) perder o foco assim que o teclado tentava subir.
+class _TabScaffold extends StatelessWidget {
+  final Widget child;
+  const _TabScaffold({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      resizeToAvoidBottomInset: true,
+      body: child,
     );
   }
 }
