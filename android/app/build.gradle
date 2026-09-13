@@ -64,9 +64,4 @@ flutter {
     source '../..'
 }
 
-dependencies {
-    // Necessário para enableEdgeToEdge() usado em MainActivity.kt
-    implementation "androidx.activity:activity-ktx:1.9.3"
-}
-
 apply plugin: 'com.google.gms.google-services'
