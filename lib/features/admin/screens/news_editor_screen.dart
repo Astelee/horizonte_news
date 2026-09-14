@@ -9,6 +9,7 @@ import '../../../services/cloudinary_upload_service.dart';
 import '../services/admin_news_service.dart';
 import '../services/push_notification_service.dart';
 import '../../../utils/plain_text_html_converter.dart';
+import '../widgets/video_frame_editor.dart';
 
 /// Formulário de criação/edição de notícia, usado pela aba NOTÍCIAS
 /// do painel ADM. Cobre: título, resumo, conteúdo, categoria, capa,
@@ -48,7 +49,8 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
   String _coverUrl = '';
   List<String> _gallery = [];
   String? _videoUrl;
-  VideoAspectMode _videoAspectMode = VideoAspectMode.original;
+  File? _pendingVideoFile; // arquivo local só enquanto ajusta o enquadramento
+  VideoFrameConfig _videoFrameConfig = VideoFrameConfig.original;
 
   bool _uploadingCover = false;
   bool _uploadingGallery = false;
@@ -77,7 +79,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
     _coverUrl = post?.thumbnailUrl ?? '';
     _gallery = List<String>.from(post?.gallery ?? []);
     _videoUrl = post?.videoUrl;
-    _videoAspectMode = post?.videoAspectMode ?? VideoAspectMode.original;
+    _videoFrameConfig = post?.videoFrameConfig ?? VideoFrameConfig.original;
 
     _glowCtrl = AnimationController(
       vsync: this,
@@ -162,7 +164,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
       thumbnailUrl: _coverUrl,
       gallery: _gallery,
       videoUrl: _videoUrl,
-      videoAspectMode: _videoAspectMode,
+      videoFrameConfig: _videoFrameConfig,
       categories: categories,
       publishedAt: widget.existingPost?.publishedAt ?? DateTime.now(),
       status: status,
@@ -204,15 +206,55 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
   Future<void> _pickAndUploadVideo() async {
     final picked = await _picker.pickVideo(source: ImageSource.gallery);
     if (picked == null) return;
-    setState(() => _uploadingVideo = true);
+    final file = File(picked.path);
+
+    // Antes de subir, abre o editor de enquadramento com o próprio
+    // arquivo local — assim o preview é instantâneo (não depende do
+    // upload terminar) e o usuário já escolhe o corte/zoom/proporção
+    // com o vídeo real, vendo exatamente como vai ficar publicado.
+    final config = await Navigator.of(context).push<VideoFrameConfig>(
+      MaterialPageRoute(
+        builder: (_) => VideoFrameEditor(
+          videoFile: file,
+          initialConfig: _videoFrameConfig,
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+    if (config == null) return; // usuário cancelou o ajuste
+
+    setState(() {
+      _pendingVideoFile = file;
+      _videoFrameConfig = config;
+      _uploadingVideo = true;
+    });
     try {
-      final url = await _cloudinary.uploadVideo(File(picked.path));
+      final url = await _cloudinary.uploadVideo(file);
       setState(() => _videoUrl = url);
     } catch (e) {
       _showError('Falha ao enviar vídeo: $e');
     } finally {
       if (mounted) setState(() => _uploadingVideo = false);
+      // _pendingVideoFile é mantido (não zerado) para permitir reabrir
+      // o editor de enquadramento depois, sem pedir o arquivo de novo.
     }
+  }
+
+  /// Reabre o editor de enquadramento para um vídeo já enviado (ou em
+  /// preview), sem precisar escolher o arquivo de novo.
+  Future<void> _adjustVideoFrame() async {
+    final file = _pendingVideoFile;
+    if (file == null) return;
+    final config = await Navigator.of(context).push<VideoFrameConfig>(
+      MaterialPageRoute(
+        builder: (_) => VideoFrameEditor(
+          videoFile: file,
+          initialConfig: _videoFrameConfig,
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+    if (config != null) setState(() => _videoFrameConfig = config);
   }
 
   void _showError(String message) {
@@ -781,15 +823,47 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
                       style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 ),
                 GestureDetector(
-                  onTap: () => setState(() => _videoUrl = null),
+                  onTap: () => setState(() {
+                    _videoUrl = null;
+                    _pendingVideoFile = null;
+                    _videoFrameConfig = VideoFrameConfig.original;
+                  }),
                   child: const Icon(Icons.close_rounded,
                       color: AppColors.textSecondary, size: 18),
                 ),
               ],
             ),
           ),
-        if (_videoUrl != null) ...[
-          _buildVideoAspectModeSelector(),
+        if (_videoUrl != null && _pendingVideoFile != null) ...[
+          _buildVideoFrameSummary(),
+          const SizedBox(height: 8),
+        ] else if (_videoUrl != null) ...[
+          // Editando um post já existente: o arquivo local não está
+          // disponível (só a URL já publicada), então não dá pra reabrir
+          // o editor com preview ao vivo. Mostra o enquadramento salvo
+          // como informação, e orienta a trocar o vídeo para poder
+          // ajustar de novo.
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0A0A0A),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF262626)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.crop_rounded,
+                    color: Colors.white38, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$_videoFramePresetLabel · para ajustar, troque o vídeo',
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 8),
         ],
         _uploadButton(
@@ -802,73 +876,58 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
     );
   }
 
-  // ── Tamanho de exibição do vídeo ─────────────────────────────────────
-  // "Padrão (menor)" força uma caixa 16:9 compacta, igual capa de
-  // vídeo — bom para a maioria dos casos. "Tamanho original" mantém a
-  // proporção real do arquivo, útil quando o vídeo é vertical (feito no
-  // celular) e precisa aparecer inteiro, mesmo ocupando mais altura.
-  Widget _buildVideoAspectModeSelector() {
-    return Row(
-      children: [
-        Expanded(
-          child: _aspectModeChip(
-            mode: VideoAspectMode.compact,
-            icon: Icons.crop_16_9_rounded,
-            label: 'Padrão (menor)',
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _aspectModeChip(
-            mode: VideoAspectMode.original,
-            icon: Icons.crop_free_rounded,
-            label: 'Tamanho original',
-          ),
-        ),
-      ],
-    );
+  // ── Enquadramento de exibição do vídeo ────────────────────────────────
+  // Mostra o preset/proporção atualmente escolhidos e permite reabrir o
+  // editor de enquadramento (VideoFrameEditor) a qualquer momento antes
+  // de publicar, com preview ao vivo do próprio vídeo selecionado.
+  String get _videoFramePresetLabel {
+    switch (_videoFrameConfig.preset) {
+      case VideoFramePreset.original:
+        return 'Tamanho original';
+      case VideoFramePreset.ratio16x9:
+        return 'Proporção 16:9';
+      case VideoFramePreset.ratio1x1:
+        return 'Proporção 1:1';
+      case VideoFramePreset.ratio4x5:
+        return 'Proporção 4:5';
+      case VideoFramePreset.ratio9x16:
+        return 'Proporção 9:16';
+      case VideoFramePreset.custom:
+        return 'Enquadramento livre';
+    }
   }
 
-  Widget _aspectModeChip({
-    required VideoAspectMode mode,
-    required IconData icon,
-    required String label,
-  }) {
-    final selected = _videoAspectMode == mode;
+  Widget _buildVideoFrameSummary() {
     return GestureDetector(
-      onTap: () => setState(() => _videoAspectMode = mode),
+      onTap: _adjustVideoFrame,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
         decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primaryOrange.withOpacity(0.12)
-              : const Color(0xFF0A0A0A),
+          color: const Color(0xFF0A0A0A),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected
-                ? AppColors.primaryOrange
-                : const Color(0xFF262626),
-            width: selected ? 1.4 : 1,
-          ),
+          border: Border.all(color: const Color(0xFF262626)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            Icon(icon,
-                size: 18,
-                color: selected
-                    ? AppColors.primaryOrange
-                    : AppColors.textSecondary),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: selected ? AppColors.primaryOrange : Colors.white70,
+            const Icon(Icons.crop_rounded,
+                color: AppColors.primaryOrange, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _videoFramePresetLabel,
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
               ),
             ),
+            const Text(
+              'Ajustar',
+              style: TextStyle(
+                  color: AppColors.primaryOrange,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right_rounded,
+                color: AppColors.primaryOrange, size: 18),
           ],
         ),
       ),
