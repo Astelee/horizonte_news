@@ -181,12 +181,18 @@ class _OverviewTabState extends State<OverviewTab> {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: StatCard(
-                icon: Icons.circle,
-                color: const Color(0xFF43B581),
-                label: 'Online agora',
-                value: data.onlineNow,
-                live: true,
+              child: StreamBuilder<int>(
+                stream: widget.dashboardService.onlineNowStream(),
+                initialData: data.onlineNow,
+                builder: (context, snapshot) {
+                  return StatCard(
+                    icon: Icons.circle,
+                    color: const Color(0xFF43B581),
+                    label: 'Online agora',
+                    value: snapshot.data ?? data.onlineNow,
+                    live: true,
+                  );
+                },
               ),
             ),
           ],
