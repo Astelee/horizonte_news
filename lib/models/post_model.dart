@@ -7,27 +7,133 @@ enum PostStatus { draft, published, unpublished }
 
 /// Como o player deve exibir o vídeo da matéria.
 ///
-/// [original] usa a proporção real do arquivo enviado (pode ficar bem
-/// alto/esticado em vídeos verticais ou de celular). [compact] força uma
-/// proporção 16:9 menor e padronizada, cortando o excesso do vídeo
-/// (como capa de vídeo do YouTube) para não dominar a tela.
-enum VideoAspectMode { original, compact }
+/// [original] mantém a proporção real do arquivo (nada é cortado, mas
+/// pode ficar bem alto em vídeos verticais). Os presets fixos
+/// ([ratio16x9], [ratio1x1], [ratio4x5], [ratio9x16]) cortam o vídeo
+/// (cover) para caber numa caixa com essa proporção — o enquadramento
+/// (o que fica visível dentro do corte) é controlado por [offsetX] e
+/// [offsetY]. [custom] é o modo de recorte livre: usa [aspectRatio],
+/// [zoom], [offsetX] e [offsetY] definidos manualmente no editor.
+enum VideoFramePreset { original, ratio16x9, ratio1x1, ratio4x5, ratio9x16, custom }
 
-VideoAspectMode _videoAspectModeFromString(String? raw) {
-  switch (raw) {
-    case 'compact':
-      return VideoAspectMode.compact;
-    case 'original':
-    default:
-      return VideoAspectMode.original;
+/// Configuração completa de como o vídeo deve ser enquadrado/cortado
+/// ao ser exibido. [offsetX]/[offsetY] vão de -1.0 a 1.0 e representam
+/// o quanto o enquadramento é deslocado a partir do centro (0,0) do
+/// vídeo original, nas direções horizontal e vertical. [zoom] é o
+/// fator de ampliação aplicado antes do corte (1.0 = sem zoom extra).
+class VideoFrameConfig {
+  final VideoFramePreset preset;
+  final double customAspectRatio; // usado só quando preset == custom
+  final double zoom;
+  final double offsetX;
+  final double offsetY;
+
+  const VideoFrameConfig({
+    this.preset = VideoFramePreset.original,
+    this.customAspectRatio = 16 / 9,
+    this.zoom = 1.0,
+    this.offsetX = 0.0,
+    this.offsetY = 0.0,
+  });
+
+  static const original = VideoFrameConfig(preset: VideoFramePreset.original);
+
+  /// A proporção (largura/altura) da caixa de exibição para presets
+  /// fixos. Para [VideoFramePreset.original] e [VideoFramePreset.custom]
+  /// a proporção depende do vídeo ou da escolha livre do usuário, então
+  /// retorna null (quem chama decide o que usar nesses casos).
+  double? get fixedAspectRatio {
+    switch (preset) {
+      case VideoFramePreset.ratio16x9:
+        return 16 / 9;
+      case VideoFramePreset.ratio1x1:
+        return 1.0;
+      case VideoFramePreset.ratio4x5:
+        return 4 / 5;
+      case VideoFramePreset.ratio9x16:
+        return 9 / 16;
+      case VideoFramePreset.original:
+      case VideoFramePreset.custom:
+        return null;
+    }
+  }
+
+  bool get isCropped => preset != VideoFramePreset.original;
+
+  VideoFrameConfig copyWith({
+    VideoFramePreset? preset,
+    double? customAspectRatio,
+    double? zoom,
+    double? offsetX,
+    double? offsetY,
+  }) {
+    return VideoFrameConfig(
+      preset: preset ?? this.preset,
+      customAspectRatio: customAspectRatio ?? this.customAspectRatio,
+      zoom: zoom ?? this.zoom,
+      offsetX: offsetX ?? this.offsetX,
+      offsetY: offsetY ?? this.offsetY,
+    );
+  }
+
+  factory VideoFrameConfig.fromMap(Map<String, dynamic>? raw) {
+    if (raw == null) return VideoFrameConfig.original;
+    return VideoFrameConfig(
+      preset: _videoFramePresetFromString(raw['preset'] as String?),
+      customAspectRatio:
+          (raw['customAspectRatio'] as num?)?.toDouble() ?? 16 / 9,
+      zoom: (raw['zoom'] as num?)?.toDouble() ?? 1.0,
+      offsetX: (raw['offsetX'] as num?)?.toDouble() ?? 0.0,
+      offsetY: (raw['offsetY'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'preset': _videoFramePresetToString(preset),
+      'customAspectRatio': customAspectRatio,
+      'zoom': zoom,
+      'offsetX': offsetX,
+      'offsetY': offsetY,
+    };
   }
 }
 
-String videoAspectModeToFirestoreString(VideoAspectMode mode) {
-  switch (mode) {
-    case VideoAspectMode.compact:
-      return 'compact';
-    case VideoAspectMode.original:
+VideoFramePreset _videoFramePresetFromString(String? raw) {
+  switch (raw) {
+    case 'ratio16x9':
+      return VideoFramePreset.ratio16x9;
+    case 'ratio1x1':
+      return VideoFramePreset.ratio1x1;
+    case 'ratio4x5':
+      return VideoFramePreset.ratio4x5;
+    case 'ratio9x16':
+      return VideoFramePreset.ratio9x16;
+    case 'custom':
+      return VideoFramePreset.custom;
+    // Compatibilidade com o campo antigo `videoAspectMode`, que só
+    // tinha "compact" (equivalente ao preset 16:9) e "original".
+    case 'compact':
+      return VideoFramePreset.ratio16x9;
+    case 'original':
+    default:
+      return VideoFramePreset.original;
+  }
+}
+
+String _videoFramePresetToString(VideoFramePreset preset) {
+  switch (preset) {
+    case VideoFramePreset.ratio16x9:
+      return 'ratio16x9';
+    case VideoFramePreset.ratio1x1:
+      return 'ratio1x1';
+    case VideoFramePreset.ratio4x5:
+      return 'ratio4x5';
+    case VideoFramePreset.ratio9x16:
+      return 'ratio9x16';
+    case VideoFramePreset.custom:
+      return 'custom';
+    case VideoFramePreset.original:
       return 'original';
   }
 }
@@ -71,7 +177,7 @@ class PostModel {
   final String thumbnailUrl;
   final List<String> gallery;
   final String? videoUrl;
-  final VideoAspectMode videoAspectMode;
+  final VideoFrameConfig videoFrameConfig;
   final List<CategoryModel> categories;
   final String replyCount;
   final PostStatus status;
@@ -89,7 +195,7 @@ class PostModel {
     required this.thumbnailUrl,
     this.gallery = const [],
     this.videoUrl,
-    this.videoAspectMode = VideoAspectMode.original,
+    this.videoFrameConfig = VideoFrameConfig.original,
     required this.categories,
     this.replyCount = '0',
     this.status = PostStatus.published,
@@ -111,7 +217,7 @@ class PostModel {
       thumbnailUrl: thumbnailUrl,
       gallery: gallery,
       videoUrl: videoUrl,
-      videoAspectMode: videoAspectMode,
+      videoFrameConfig: videoFrameConfig,
       categories: categories,
       replyCount: replyCount,
       status: status,
@@ -156,8 +262,15 @@ class PostModel {
       thumbnailUrl: (data['capaUrl'] as String?) ?? '',
       gallery: gallery,
       videoUrl: data['videoUrl'] as String?,
-      videoAspectMode: _videoAspectModeFromString(
-          data['videoAspectMode'] as String?),
+      videoFrameConfig: data['videoFrameConfig'] is Map
+          ? VideoFrameConfig.fromMap(
+              Map<String, dynamic>.from(data['videoFrameConfig'] as Map))
+          // Posts antigos só tinham o campo `videoAspectMode` (string
+          // "compact"/"original"); o parser do preset já sabe convertê-lo.
+          : VideoFrameConfig(
+              preset:
+                  _videoFramePresetFromString(data['videoAspectMode'] as String?),
+            ),
       categories: parsedCategories,
       replyCount: (data['replyCount'] ?? '0').toString(),
       status: _statusFromString(data['status'] as String?),
@@ -178,7 +291,13 @@ class PostModel {
       'capaUrl': thumbnailUrl,
       'galeria': gallery,
       'videoUrl': videoUrl,
-      'videoAspectMode': videoAspectModeToFirestoreString(videoAspectMode),
+      'videoFrameConfig': videoFrameConfig.toMap(),
+      // Mantido por compatibilidade com versões antigas do app que só
+      // leem `videoAspectMode` (string). Ignorado pelo app atual.
+      'videoAspectMode':
+          videoFrameConfig.preset == VideoFramePreset.original
+              ? 'original'
+              : 'compact',
       'status': statusToFirestoreString(status),
       'autorUid': authorUid,
       'autorNome': authorName,
