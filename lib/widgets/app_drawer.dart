@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../config/app_navigator.dart';
@@ -899,7 +900,34 @@ class _XpBadge extends StatelessWidget {
   }
 }
 
-class _StreakBadge extends StatelessWidget {
+class _StreakBadge extends StatefulWidget {
+  @override
+  State<_StreakBadge> createState() => _StreakBadgeState();
+}
+
+class _StreakBadgeState extends State<_StreakBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _pulse = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>>(
@@ -909,30 +937,54 @@ class _StreakBadge extends StatelessWidget {
             (snapshot.data?['checkinStreak'] as num?)?.toInt() ?? 0;
         if (streak <= 0) return const SizedBox.shrink();
 
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF6D00), Color(0xFFCC2200)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primaryOrange.withOpacity(0.4),
-                blurRadius: 8,
-                spreadRadius: 0,
+        return AnimatedBuilder(
+          animation: _pulse,
+          builder: (_, __) {
+            final t = _pulse.value; // 0 → 1 → 0, respirando
+            return Transform.scale(
+              scale: 1.0 + 0.08 * t,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF6D00), Color(0xFFCC2200)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primaryOrange.withOpacity(0.35 + 0.35 * t),
+                      blurRadius: 6 + 8 * t,
+                      spreadRadius: 0.5 * t,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FaIcon(
+                      FontAwesomeIcons.fire,
+                      size: 10,
+                      color: Color.lerp(
+                        Colors.white,
+                        const Color(0xFFFFD54F),
+                        t,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$streak',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
-          child: Text(
-            '🔥 $streak',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 9,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.3,
-            ),
-          ),
+            );
+          },
         );
       },
     );
