@@ -7,6 +7,7 @@ import '../config/app_routes.dart';
 import '../config/app_navigator.dart';
 import '../providers/user_xp_provider.dart';
 import '../features/admin/providers/admin_provider.dart';
+import '../services/checkin_service.dart';
 
 class AppDrawer extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -29,6 +30,7 @@ class _AppDrawerState extends State<AppDrawer>
   static const List<_NavItem> _mainItems = [
     _NavItem(icon: Icons.home_rounded, label: 'Início', route: AppRoutes.home),
     _NavItem(icon: Icons.person_rounded, label: 'Meu Perfil', route: AppRoutes.profile),
+    _NavItem(icon: Icons.calendar_month_rounded, label: 'Check-in Diário', route: AppRoutes.checkin),
     _NavItem(icon: Icons.emoji_events_rounded, label: 'Ranking', route: AppRoutes.ranking),
     _NavItem(icon: Icons.bookmark_rounded, label: 'Notícias Salvas', route: AppRoutes.favorites),
     _NavItem(icon: Icons.search_rounded, label: 'Pesquisar', route: AppRoutes.search),
@@ -226,7 +228,9 @@ class _AppDrawerState extends State<AppDrawer>
                               glowCtrl: _glowCtrl,
                               badge: e.value.route == AppRoutes.profile
                                   ? _XpBadge()
-                                  : null,
+                                  : e.value.route == AppRoutes.checkin
+                                      ? _StreakBadge()
+                                      : null,
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -887,6 +891,46 @@ class _XpBadge extends StatelessWidget {
               fontSize: 9,
               fontWeight: FontWeight.w900,
               letterSpacing: 0.5,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _StreakBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Map<String, dynamic>>(
+      stream: CheckinService().watchSummary(),
+      builder: (context, snapshot) {
+        final streak =
+            (snapshot.data?['checkinStreak'] as num?)?.toInt() ?? 0;
+        if (streak <= 0) return const SizedBox.shrink();
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFF6D00), Color(0xFFCC2200)],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primaryOrange.withOpacity(0.4),
+                blurRadius: 8,
+                spreadRadius: 0,
+              ),
+            ],
+          ),
+          child: Text(
+            '🔥 $streak',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.3,
             ),
           ),
         );
