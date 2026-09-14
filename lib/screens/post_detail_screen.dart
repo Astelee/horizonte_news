@@ -240,7 +240,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                                   post.videoUrl!.trim().isNotEmpty)
                                 PostVideoPlayer(
                                   videoUrl: post.videoUrl!,
-                                  aspectMode: post.videoAspectMode,
+                                  frameConfig: post.videoFrameConfig,
                                 ),
                               _buildHtmlContent(
                                   context, normalizedContent, isDark),
