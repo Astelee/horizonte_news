@@ -141,6 +141,25 @@ class AdminDashboardService {
         .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
   }
 
+  /// Contagem de "online agora" em tempo real, escutando a mesma coleção
+  /// (users_xp) e o mesmo critério (lastSeenAt há menos de 5 min) que a
+  /// tela de Usuários usa. Isso mantém os dois lugares sempre iguais,
+  /// em vez de depender de um recarregamento manual do dashboard.
+  Stream<int> onlineNowStream() {
+    return _db.collection('users_xp').snapshots().map((snap) {
+      final now = DateTime.now();
+      var count = 0;
+      for (final doc in snap.docs) {
+        final d = doc.data();
+        final lastSeenAt = (d['lastSeenAt'] as Timestamp?)?.toDate();
+        if (lastSeenAt != null && now.difference(lastSeenAt).inMinutes < 5) {
+          count++;
+        }
+      }
+      return count;
+    });
+  }
+
   DashboardSnapshot _build(
     List<QueryDocumentSnapshot> userDocs,
     List<QueryDocumentSnapshot> viewDocs,
