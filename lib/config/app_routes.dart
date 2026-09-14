@@ -15,6 +15,7 @@ import '../screens/most_read_screen.dart';
 import '../screens/horizon_now_screen.dart';
 import '../screens/events_screen.dart';
 import '../screens/ranking_screen.dart';
+import '../screens/checkin_screen.dart';
 
 class AppRoutes {
   static const String home           = '/';
@@ -33,6 +34,7 @@ class AppRoutes {
   static const String horizonNow     = '/horizon-now';
   static const String events         = '/events';
   static const String ranking        = '/ranking';
+  static const String checkin        = '/checkin';
 
   static Map<String, WidgetBuilder> get routes => {
     home:           (context) => const HomeScreen(),
@@ -51,5 +53,6 @@ class AppRoutes {
     horizonNow:     (context) => HorizonNowScreen(),
     events:         (context) => EventsScreen(),
     ranking:        (context) => const RankingScreen(),
+    checkin:        (context) => const CheckinScreen(),
   };
 }
