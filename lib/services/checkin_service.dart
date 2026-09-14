@@ -144,15 +144,11 @@ class CheckinService {
 
   // ── Piso a partir de onde os dias perdidos podem ser recuperados.
   // Regra atual: qualquer dia do MÊS ATUAL é recuperável para todo
-  // mundo, independente de quando a conta/recurso começou. Nunca
-  // volta antes de firstPossibleDate (não existe check-in antes de
-  // o recurso existir para o usuário).
+  // mundo — sem exceção, mesmo que checkinFirstDate seja recente
+  // (esse campo só marca o 1º check-in feito, não quando a conta
+  // foi criada, então não deve travar a recuperação).
   DateTime _recoverableFloor(DateTime today, DateTime? firstPossibleDate) {
-    final startOfMonth = DateTime(today.year, today.month, 1);
-    if (firstPossibleDate != null && firstPossibleDate.isAfter(startOfMonth)) {
-      return firstPossibleDate;
-    }
-    return startOfMonth;
+    return DateTime(today.year, today.month, 1);
   }
 
   DateTime? _parseKey(String key) {
