@@ -142,6 +142,19 @@ class CheckinService {
     return DateTime(now.year, now.month, now.day);
   }
 
+  // ── Piso a partir de onde os dias perdidos podem ser recuperados.
+  // Regra atual: qualquer dia do MÊS ATUAL é recuperável para todo
+  // mundo, independente de quando a conta/recurso começou. Nunca
+  // volta antes de firstPossibleDate (não existe check-in antes de
+  // o recurso existir para o usuário).
+  DateTime _recoverableFloor(DateTime today, DateTime? firstPossibleDate) {
+    final startOfMonth = DateTime(today.year, today.month, 1);
+    if (firstPossibleDate != null && firstPossibleDate.isAfter(startOfMonth)) {
+      return firstPossibleDate;
+    }
+    return startOfMonth;
+  }
+
   DateTime? _parseKey(String key) {
     try {
       final parts = key.split('-');
@@ -200,9 +213,10 @@ class CheckinService {
   }) {
     final today = _todayDate();
     final key = dateKey(day);
+    final recoverableFrom = _recoverableFloor(today, firstPossibleDate);
 
     if (day.isAfter(today)) return CheckinDayStatus.future;
-    if (firstPossibleDate != null && day.isBefore(firstPossibleDate)) {
+    if (day.isBefore(recoverableFrom)) {
       return CheckinDayStatus.beforeStart;
     }
 
@@ -360,13 +374,11 @@ class CheckinService {
   Future<int> countRecoverableDays({
     required DateTime? firstPossibleDate,
   }) async {
-    if (firstPossibleDate == null) return 0;
     final col = _checkinsCol;
     if (col == null) return 0;
 
     final today = _todayDate();
-    final start = DateTime(
-        firstPossibleDate.year, firstPossibleDate.month, firstPossibleDate.day);
+    final start = _recoverableFloor(today, firstPossibleDate);
 
     final totalDaysSpan = today.difference(start).inDays; // exclui hoje
     if (totalDaysSpan <= 0) return 0;
