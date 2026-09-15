@@ -77,7 +77,6 @@ flutter:
     - assets/icons/
     - assets/sounds/
     - assets/ads/parceiros/
-    - assets/frames/
 
 flutter_launcher_icons:
   android: "launcher_icon"
