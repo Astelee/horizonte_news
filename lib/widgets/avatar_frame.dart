@@ -320,15 +320,56 @@ class _AvatarFrameState extends State<AvatarFrame>
                   // Moldura-imagem (dragão / fênix), girando por cima
                   // de tudo — usa o mesmo _rotationCtrl da moldura
                   // desenhada, então os dois ficam sincronizados.
+                  //
+                  // IMPORTANTE: o tamanho da imagem é limitado ao
+                  // SizedBox pai (widget.size * 1.6). Antes, para
+                  // raridades com imageAvatarFraction < 0.625, a
+                  // imagem calculada (widget.size / fraction) ficava
+                  // MAIOR que o próprio container pai — o que podia
+                  // fazer o Stack simplesmente não desenhar nada em
+                  // release mode. Usamos min() para nunca estourar.
                   if (imageAsset != null)
                     IgnorePointer(
                       child: Transform.rotate(
                         angle: _rotationCtrl.value * 2 * math.pi,
                         child: Image.asset(
                           imageAsset,
-                          width: widget.size / rarity.imageAvatarFraction,
-                          height: widget.size / rarity.imageAvatarFraction,
+                          width: math.min(
+                            widget.size / rarity.imageAvatarFraction,
+                            widget.size * 1.6,
+                          ),
+                          height: math.min(
+                            widget.size / rarity.imageAvatarFraction,
+                            widget.size * 1.6,
+                          ),
                           fit: BoxFit.contain,
+                          // Se o asset não for encontrado (nome errado,
+                          // não registrado no pubspec, etc), mostra um
+                          // aviso visível em vez de falhar em silêncio
+                          // — assim fica óbvio que é problema de asset,
+                          // não de lógica.
+                          errorBuilder: (context, error, stackTrace) {
+                            debugPrint(
+                                '[AvatarFrame] Falha ao carregar $imageAsset: $error');
+                            return Container(
+                              width: widget.size * 1.5,
+                              height: widget.size * 1.5,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.redAccent.withOpacity(0.6),
+                                  width: 2,
+                                ),
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.broken_image_rounded,
+                                  color: Colors.redAccent,
+                                  size: 16,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
