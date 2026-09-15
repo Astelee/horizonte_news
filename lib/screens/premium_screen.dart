@@ -139,6 +139,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
   bool _purchaseInFlight = false;
   StreamSubscription<PurchaseResult>? _purchaseSub;
 
+  // ── Diagnóstico temporário ───────────────────────────────────────
+  // Mostra na própria tela o motivo de queryProductDetails não achar
+  // os produtos, sem precisar de adb logcat. Remover depois que a
+  // compra estiver validada de ponta a ponta.
+  List<String> _debugNotFoundIDs = [];
+  String? _debugError;
+
   @override
   void initState() {
     super.initState();
@@ -154,11 +161,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
   }
 
   Future<void> _loadProducts() async {
-    final products = await _purchaseService.loadProducts();
+    final result = await _purchaseService.loadProductsDebug();
     if (!mounted) return;
     setState(() {
-      _productsById = {for (final p in products) p.id: p};
+      _productsById = {for (final p in result.products) p.id: p};
       _loadingProducts = false;
+      _debugNotFoundIDs = result.notFoundIDs;
+      _debugError = result.error;
     });
   }
 
@@ -288,6 +297,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
   Widget _buildFooter(BuildContext context) {
     return Column(
       children: [
+        if (!_loadingProducts &&
+            (_debugError != null || _debugNotFoundIDs.isNotEmpty))
+          _DebugProductPanel(
+            error: _debugError,
+            notFoundIDs: _debugNotFoundIDs,
+          ),
         const _InfoBar(),
         const SizedBox(height: 16),
         Wrap(
@@ -674,6 +689,60 @@ class _InfoItem extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PAINEL DE DIAGNÓSTICO TEMPORÁRIO — remover após validar a compra
+// ═══════════════════════════════════════════════════════════════════
+// Mostra na tela o motivo exato de queryProductDetails não ter
+// encontrado os produtos no Play Console (mesma informação que já
+// ia para debugPrint), para diagnosticar direto pelo celular sem
+// precisar de adb logcat.
+class _DebugProductPanel extends StatelessWidget {
+  final String? error;
+  final List<String> notFoundIDs;
+
+  const _DebugProductPanel({required this.error, required this.notFoundIDs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A0F0F),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '⚠ Diagnóstico de produtos (temporário)',
+            style: TextStyle(
+              color: Colors.redAccent,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (error != null)
+            Text(
+              'Erro: $error',
+              style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+            ),
+          if (notFoundIDs.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'IDs não encontrados no Play Console: ${notFoundIDs.join(', ')}',
+                style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
