@@ -1,12 +1,8 @@
 # ── Flutter ──────────────────────────────────────────────────────
-# O próprio engine do Flutter já embute regras básicas, mas mantemos
-# essas aqui de forma explícita para não depender só do padrão.
--keep class io.flutter.app.** { *; }
--keep class io.flutter.plugin.**  { *; }
--keep class io.flutter.util.**  { *; }
--keep class io.flutter.view.**  { *; }
--keep class io.flutter.**  { *; }
--keep class io.flutter.plugins.**  { *; }
+# O engine do Flutter já embute suas próprias regras via
+# flutter-embedding; não precisamos manter tudo sem ofuscar.
+-keep class io.flutter.embedding.engine.FlutterJNI { *; }
+-keep class io.flutter.plugin.editing.** { *; }
 -dontwarn io.flutter.embedding.**
 
 # io.flutter.app.FlutterPlayStoreSplitApplication referencia classes da
@@ -17,23 +13,30 @@
 -dontwarn com.google.android.play.core.**
 
 # ── Firebase / Firestore ────────────────────────────────────────
-# Firestore serializa modelos via reflection; sem isso o R8 pode
-# remover campos/construtores usados só implicitamente.
--keep class com.google.firebase.** { *; }
--keep class com.google.android.gms.** { *; }
+# Firestore serializa modelos via reflection; mantemos só os
+# construtores/campos anotados, não o pacote inteiro.
+-keepclassmembers class * {
+    @com.google.firebase.firestore.PropertyName <fields>;
+    @com.google.firebase.firestore.PropertyName <methods>;
+}
+-keep class com.google.firebase.firestore.** { *; }
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.gms.**
 
 # ── OneSignal ────────────────────────────────────────────────────
--keep class com.onesignal.** { *; }
+-keep class com.onesignal.OneSignal { *; }
+-keep class com.onesignal.NotificationExtenderService { *; }
 -dontwarn com.onesignal.**
 
 # ── Google Mobile Ads (AdMob) ───────────────────────────────────
--keep class com.google.android.gms.ads.** { *; }
+-keep class com.google.android.gms.ads.internal.util.WorkManagerUtil { *; }
+-keep public class com.google.android.gms.ads.** {
+    public *;
+}
 -dontwarn com.google.android.gms.ads.**
 
 # ── video_player / ExoPlayer ─────────────────────────────────────
--keep class com.google.android.exoplayer2.** { *; }
+-keep class com.google.android.exoplayer2.database.** { *; }
 -dontwarn com.google.android.exoplayer2.**
 
 # ── Gson / modelos serializados (se usados por dependências) ────
