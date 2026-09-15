@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../config/premium_config.dart';
 import '../../../services/xp_service.dart';
 
 class AdminUserService {
@@ -115,6 +116,39 @@ class AdminUserService {
       'adminOverrideTitleLevel': FieldValue.delete(),
     });
     await _log('title_reset', uid);
+  }
+
+  // ── Plano Premium (PRO/ULTRA) — concessão manual pelo admin ───────
+  // Enquanto a compra real (Google Play Billing) não está integrada,
+  // esta é a única forma de um usuário virar Premium: usada tanto
+  // para testar o sistema quanto para suporte manual (cortesia,
+  // reembolso, compra feita por outro canal, etc.).
+  //
+  // Sempre que a validação de compra automática existir, ela deve
+  // escrever esses MESMOS campos (premiumTier/premiumExpiresAt) via
+  // Cloud Function com Admin SDK — que passa pela mesma regra
+  // isAdmin() do Firestore, sem precisar de tratamento especial.
+  Future<void> grantPremium(
+    String uid,
+    PremiumTier tier, {
+    required DateTime expiresAt,
+  }) async {
+    await _db.collection('users_xp').doc(uid).update({
+      'premiumTier': tier.id,
+      'premiumExpiresAt': Timestamp.fromDate(expiresAt),
+    });
+    await _log('premium_granted', uid, extra: {
+      'tier': tier.id,
+      'expiresAt': expiresAt.toIso8601String(),
+    });
+  }
+
+  Future<void> revokePremium(String uid) async {
+    await _db.collection('users_xp').doc(uid).update({
+      'premiumTier': FieldValue.delete(),
+      'premiumExpiresAt': FieldValue.delete(),
+    });
+    await _log('premium_revoked', uid);
   }
 
   Future<void> syncAllUserLevels() async {
