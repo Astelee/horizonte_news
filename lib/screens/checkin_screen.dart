@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
+import '../providers/user_xp_provider.dart';
 import '../services/checkin_service.dart';
 import '../services/rewarded_ad_service.dart';
 import '../widgets/checkin_calendar.dart';
@@ -154,18 +156,50 @@ class _CheckinScreenState extends State<CheckinScreen>
 
   void _showRecoverSheet(DateTime day) {
     final key = _service.dateKey(day);
+    final isPremium =
+        Provider.of<UserXpProvider>(context, listen: false).data.isPremium;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isDismissible: !_recoveringDayKeyIs(key),
       builder: (ctx) => _RecoverSheet(
         day: day,
+        isPremium: isPremium,
         onWatchAd: () => _recoverDayWithAd(day, ctx),
+        onRecoverFree: () => _recoverDayFree(day, ctx),
       ),
     );
   }
 
   bool _recoveringDayKeyIs(String key) => _recoveringDayKey == key;
+
+  // ── Recuperação direta para usuários Premium (PRO/ULTRA) ──────────
+  // Mesma lógica de recoverDay() do fluxo com anúncio, só que sem
+  // precisar carregar/exibir o RewardedAd — a vantagem Premium É
+  // pular esse passo.
+  Future<void> _recoverDayFree(DateTime day, BuildContext sheetContext) async {
+    final key = _service.dateKey(day);
+    setState(() => _recoveringDayKey = key);
+
+    final result = await _service.recoverDay(day);
+    if (!mounted) return;
+    setState(() => _recoveringDayKey = null);
+
+    if (Navigator.of(sheetContext, rootNavigator: true).canPop()) {
+      Navigator.of(sheetContext).pop();
+    }
+
+    if (result.success) {
+      _loadMonth();
+      _refreshRecoverableCount();
+      _showSnack('Dia recuperado! +${result.xpGained} XP 🟢', isError: false);
+    } else if (result.error == 'already_done') {
+      _showSnack('Esse dia já foi recuperado.', isError: false);
+    } else {
+      _showSnack('Não foi possível recuperar o dia agora.', isError: true);
+    }
+  }
 
   Future<void> _recoverDayWithAd(DateTime day, BuildContext sheetContext) async {
     final key = _service.dateKey(day);
@@ -676,9 +710,16 @@ class _CheckinSuccessSheet extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════
 class _RecoverSheet extends StatefulWidget {
   final DateTime day;
+  final bool isPremium;
   final VoidCallback onWatchAd;
+  final VoidCallback onRecoverFree;
 
-  const _RecoverSheet({required this.day, required this.onWatchAd});
+  const _RecoverSheet({
+    required this.day,
+    required this.onWatchAd,
+    required this.onRecoverFree,
+    this.isPremium = false,
+  });
 
   @override
   State<_RecoverSheet> createState() => _RecoverSheetState();
@@ -727,10 +768,13 @@ class _RecoverSheetState extends State<_RecoverSheet> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Assista a um anúncio para recuperar este dia e manter sua sequência.',
+          Text(
+            widget.isPremium
+                ? 'Como Premium, você recupera este dia na hora, sem anúncio.'
+                : 'Assista a um anúncio para recuperar este dia e manter sua sequência.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white60, fontSize: 12.5, height: 1.4),
+            style: const TextStyle(
+                color: Colors.white60, fontSize: 12.5, height: 1.4),
           ),
           const SizedBox(height: 22),
           SizedBox(
@@ -741,10 +785,14 @@ class _RecoverSheetState extends State<_RecoverSheet> {
                   ? null
                   : () {
                       setState(() => _loading = true);
-                      widget.onWatchAd();
+                      widget.isPremium
+                          ? widget.onRecoverFree()
+                          : widget.onWatchAd();
                     },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryOrange,
+                backgroundColor: widget.isPremium
+                    ? const Color(0xFFF2B705)
+                    : AppColors.primaryOrange,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
               ),
@@ -755,16 +803,27 @@ class _RecoverSheetState extends State<_RecoverSheet> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2.5, color: Colors.white),
                     )
-                  : const Row(
+                  : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.play_circle_fill_rounded,
-                            color: Colors.white, size: 20),
-                        SizedBox(width: 8),
+                        Icon(
+                          widget.isPremium
+                              ? Icons.bolt_rounded
+                              : Icons.play_circle_fill_rounded,
+                          color: widget.isPremium
+                              ? Colors.black87
+                              : Colors.white,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
                         Text(
-                          'Assistir anúncio e recuperar',
+                          widget.isPremium
+                              ? 'Recuperar agora (Premium)'
+                              : 'Assistir anúncio e recuperar',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: widget.isPremium
+                                ? Colors.black87
+                                : Colors.white,
                             fontWeight: FontWeight.w800,
                             fontSize: 13.5,
                           ),
