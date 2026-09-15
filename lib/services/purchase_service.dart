@@ -46,21 +46,6 @@ class PremiumProductIds {
   }
 }
 
-/// Resultado de diagnóstico de [PurchaseService.loadProductsDebug] —
-/// mesmos dados que já eram logados via debugPrint, só que
-/// estruturados para a UI poder exibi-los diretamente na tela.
-class ProductQueryDebug {
-  final List<ProductDetails> products;
-  final List<String> notFoundIDs;
-  final String? error;
-
-  const ProductQueryDebug({
-    required this.products,
-    required this.notFoundIDs,
-    required this.error,
-  });
-}
-
 enum PurchaseResultStatus { success, pending, error, cancelled }
 
 class PurchaseResult {
@@ -111,23 +96,6 @@ class PurchaseService {
   /// tratar isso mostrando os cards como "indisponível" em vez de
   /// travar a compra.
   Future<List<ProductDetails>> loadProducts() async {
-    final result = await loadProductsDebug();
-    return result.products;
-  }
-
-  /// Igual a [loadProducts], mas devolve também o motivo de qualquer
-  /// produto não encontrado/erro — usado apenas para diagnóstico
-  /// visível na tela (ver ProductQueryDebug), sem precisar de adb.
-  Future<ProductQueryDebug> loadProductsDebug() async {
-    final billingAvailable = await _iap.isAvailable();
-    if (!billingAvailable) {
-      return const ProductQueryDebug(
-        products: [],
-        notFoundIDs: [],
-        error: 'Google Play Billing indisponível neste dispositivo/conta.',
-      );
-    }
-
     final response = await _iap.queryProductDetails(PremiumProductIds.all);
     if (response.error != null) {
       debugPrint('Erro ao carregar produtos Premium: ${response.error}');
@@ -137,11 +105,7 @@ class PurchaseService {
         'Product IDs não encontrados no Play Console: ${response.notFoundIDs}',
       );
     }
-    return ProductQueryDebug(
-      products: response.productDetails,
-      notFoundIDs: response.notFoundIDs,
-      error: response.error?.message,
-    );
+    return response.productDetails;
   }
 
   /// Inicia a compra de uma assinatura. O resultado (sucesso, erro,
