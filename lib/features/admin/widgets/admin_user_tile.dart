@@ -2,10 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
 import '../../../config/badge_config.dart';
+import '../../../config/premium_config.dart';
 import '../../../services/xp_service.dart';
 import '../../../widgets/app_avatar.dart';
 import '../services/admin_user_service.dart';
 import 'admin_shared_widgets.dart';
+import 'premium_grant_dialog.dart';
 
 class AdminUserTile extends StatelessWidget {
   final String userId;
@@ -22,6 +24,50 @@ class AdminUserTile extends StatelessWidget {
     this.userService,
     Key? key,
   }) : super(key: key);
+
+  Future<void> _handlePremiumTap(
+    BuildContext context,
+    String userName,
+    PremiumTier currentTier,
+  ) async {
+    final service = userService;
+    if (service == null) return;
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => PremiumGrantDialog(
+        userName: userName,
+        currentTier: currentTier,
+      ),
+    );
+    if (result == null) return;
+
+    if (result['revoke'] == true) {
+      await service.revokePremium(userId);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Premium revogado.')),
+        );
+      }
+      return;
+    }
+
+    final tier = result['tier'] as PremiumTier;
+    final days = result['days'] as int;
+    await service.grantPremium(
+      userId,
+      tier,
+      expiresAt: DateTime.now().add(Duration(days: days)),
+    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('${tier.label} concedido por $days dias.'),
+        ),
+      );
+    }
+  }
 
   String _lastSeenLabel(DateTime? lastSeen) {
     if (lastSeen == null) return 'Nunca visto';
@@ -93,6 +139,7 @@ class AdminUserTile extends StatelessWidget {
 
         final hasOverride = d['adminOverrideActive'] == true;
         final hasTitleOverride = d['adminOverrideTitleActive'] == true;
+        final premiumTier = premiumTierFromData(d);
 
         // ── Último visto ────────────────────────────────────────
         final lastSeenAt = (d['lastSeenAt'] as Timestamp?)?.toDate();
@@ -223,6 +270,14 @@ class AdminUserTile extends StatelessWidget {
                                   color: const Color(0xFFFFD700),
                                 ),
                               ],
+                              if (premiumTier.isPremium) ...[
+                                const SizedBox(width: 6),
+                                AdminStatChip(
+                                  icon: premiumTier.icon,
+                                  label: premiumTier.label,
+                                  color: premiumTier.accentColor,
+                                ),
+                              ],
                             ],
                           ),
                           const SizedBox(height: 4),
@@ -252,6 +307,27 @@ class AdminUserTile extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (userService != null) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      AdminActionButton(
+                        icon: premiumTier.isPremium
+                            ? Icons.workspace_premium_rounded
+                            : Icons.workspace_premium_outlined,
+                        label: premiumTier.isPremium
+                            ? 'Gerenciar ${premiumTier.label}'
+                            : 'Conceder Premium',
+                        color: premiumTier.isPremium
+                            ? premiumTier.accentColor
+                            : const Color(0xFFF2B705),
+                        onTap: () => _handlePremiumTap(
+                            context, name, premiumTier),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
