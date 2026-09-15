@@ -1,4 +1,41 @@
-// ── XP dos usuários ───────────────────────────────────────────
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // ── Admins ────────────────────────────────────────────────────
+    match /admins/{adminId} {
+      // O próprio usuário pode checar se é admin (isOwner), e um
+      // admin pode listar todos (usado pelo painel, em
+      // Configurações → Administradores, para mostrar quem tem
+      // acesso).
+      allow read: if isOwner(adminId) || isAdmin();
+      // Só admin adiciona/remove outro admin — pelo painel
+      // (Configurações → Administradores). O primeiro admin do
+      // projeto precisa ser criado manualmente pelo console do
+      // Firebase (não existe "auto-promoção").
+      allow write: if isAdmin();
+    }
+
+    // ── Configurações globais do app (manutenção, comentários) ────
+    // Documento único (app_config/global), lido por todo mundo — o
+    // app precisa saber se está em manutenção ou se comentários
+    // estão desativados mesmo sem o usuário estar logado. Só admin
+    // escreve (ver Configurações no painel).
+    match /app_config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── XP dos usuários ───────────────────────────────────────────
     match /users_xp/{userId} {
       allow read: if request.auth != null;
 
@@ -15,11 +52,19 @@
       // fila de fotos pendentes (avatarApprovals). Sem essa
       // restrição, o usuário poderia escrever a foto direto aqui e
       // pular a fila de aprovação.
+      //
+      // premiumTier/premiumExpiresAt seguem a MESMA lógica: só admin
+      // (ou, no futuro, a Cloud Function que valida a compra no
+      // Google Play com o Admin SDK — que também passa por isAdmin())
+      // pode escrever nesses campos. Sem essa trava, qualquer usuário
+      // logado poderia se autoconceder Premium direto pelo app.
       allow update: if isAdmin() || (
         isOwner(userId) &&
         (!('photoUrl' in request.resource.data) ||
          !request.resource.data.diff(resource.data).affectedKeys()
-           .hasAny(['photoUrl']))
+           .hasAny(['photoUrl'])) &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['premiumTier', 'premiumExpiresAt'])
       );
 
       // ── XP ganho por curtida em comentário ───────────────────────
@@ -34,81 +79,153 @@
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['totalXp', 'level']) &&
         request.resource.data.totalXp == resource.data.totalXp + 5;
+    }
 
-      // ── CHECK-IN DIÁRIO ───────────────────────────────────────────
-      // Constantes espelhadas de CheckinService (checkin_service.dart)
-      // — se os valores de XP mudarem lá, precisam mudar aqui também.
-      function checkinBaseXp() { return 10; }
+    // ── Perfis ────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isOwner(userId) || isAdmin();
+    }
 
-      function checkinBonusForStreak(streak) {
-        return streak == 7   ? 30  :
-               streak == 14  ? 60  :
-               streak == 30  ? 150 :
-               streak == 60  ? 300 :
-               streak == 100 ? 500 : 0;
-      }
+    // ── Suspensões (sistema de banimento usado pelo painel admin) ──
+    match /suspensions/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
 
-      // 'today' no fuso do SERVIDOR (request.time), nunca calculado a
-      // partir de um valor enviado pelo cliente — isso é o que
-      // impede alguém de manipular o relógio do aparelho para burlar
-      // o check-in diário.
-      //
-      // Zero-padded (ex.: '2026-09-05'), para bater EXATAMENTE com o
-      // formato gerado por CheckinService.dateKey() no Dart — sem
-      // isso a comparação de string nunca seria igual e nenhum
-      // check-in passaria.
-      function pad2(n) {
-        return n < 10 ? '0' + n.toString() : n.toString();
-      }
+    // ── Banimento legado (usado hoje só na exclusão de conta) ──────
+    match /banned_users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isOwner(userId);
+    }
 
-      function todayKey() {
-        return request.time.toDate().year.toString() + '-' +
-               pad2(request.time.toDate().month) + '-' +
-               pad2(request.time.toDate().day);
-      }
+    // ── Nomes de usuário (reserva de username) ──────────────────────
+    match /usernames/{userId} {
+      allow read: if true;
+      allow write: if isOwner(userId) || isAdmin();
+    }
 
-      // Check-in do dia atual: só aceita se lastCheckinDate ainda não
-      // é hoje (trava contra check-in repetido no mesmo dia) e só
-      // permite alterar exatamente os campos do check-in, com o XP
-      // batendo com baseXp + o bônus do novo streak declarado.
-      allow update: if isOwner(userId) &&
-        resource.data.get('lastCheckinDate', '') != todayKey() &&
-        request.resource.data.lastCheckinDate == todayKey() &&
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly([
-            'totalXp', 'level', 'lastActivity', 'lastCheckinDate',
-            'checkinStreak', 'longestCheckinStreak', 'checkinFirstDate',
-            'achievements'
-          ]) &&
-        request.resource.data.totalXp == resource.data.totalXp +
-          checkinBaseXp() +
-          checkinBonusForStreak(request.resource.data.checkinStreak);
+    // ── Aprovação de fotos de perfil (moderação manual) ───────────
+    // O usuário registra a foto recém-enviada (já hospedada no
+    // Cloudinary) como pendente — ela NÃO vira pública sozinha; só
+    // um admin, aprovando pelo painel, grava a URL em
+    // users_xp/{uid}.photoUrl (ver a regra de users_xp acima, que
+    // bloqueia o próprio usuário de definir esse campo).
+    function validAvatarApprovalSubmit(uid) {
+      return isOwner(uid)
+          && request.resource.data.uid == uid
+          && request.resource.data.status == 'pending'
+          && request.resource.data.pendingPhotoUrl is string
+          && request.resource.data.pendingPhotoUrl.size() > 0;
+    }
 
-      // ── Registro de cada dia (feito ou recuperado) ────────────────
-      match /checkins/{dayId} {
-        allow read: if isOwner(userId) || isAdmin();
+    match /avatarApprovals/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if validAvatarApprovalSubmit(uid);
+      // Reenvio: o próprio dono pode sobrescrever sua pendência
+      // enquanto ela ainda não foi revisada (status era e continua
+      // 'pending'). Depois de aprovada/rejeitada, só admin decide o
+      // que acontece com o registro (ex.: uma nova submissão do
+      // usuário deve criar um novo ciclo de revisão, não apagar
+      // silenciosamente a decisão anterior).
+      allow update: if isAdmin()
+          || (validAvatarApprovalSubmit(uid) && resource.data.status == 'pending');
+      allow delete: if isAdmin();
+    }
 
-        // Um doc por dia (o próprio ID já é a data) — criar de novo
-        // um dia que já existe é sempre negado (isso é o que impede
-        // recuperar/repetir o mesmo dia mais de uma vez).
-        //
-        // Usa getAfter() (não get()) no doc pai: o check-in de hoje
-        // grava o novo checkinStreak no MESMO batch que cria este
-        // documento, e get() dentro de uma regra enxerga o estado
-        // ANTES da transação ser aplicada — pegaria sempre o streak
-        // antigo. getAfter() lê o resultado já com essa escrita
-        // simultânea aplicada, então o bônus é validado contra o
-        // streak novo de verdade.
-        allow create: if isOwner(userId) &&
-          !exists(/databases/$(database)/documents/users_xp/$(userId)/checkins/$(dayId)) &&
-          request.resource.data.status in ['done', 'recovered'] &&
-          request.resource.data.xpAwarded == checkinBaseXp() +
-            (request.resource.data.status == 'done'
-              ? checkinBonusForStreak(
-                  getAfter(/databases/$(database)/documents/users_xp/$(userId))
-                    .data.get('checkinStreak', 0))
-              : 0);
+    // ── Visualizações e compartilhamentos de posts ───────────────────
+    match /post_views/{postId} {
+      allow read: if true;
+      allow write: if request.auth != null;
 
-        allow update, delete: if isAdmin();
+      match /viewers/{userId} {
+        allow read: if request.auth != null;
+        allow write: if isOwner(userId) || isAdmin();
       }
     }
+
+    match /post_shares/{postId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // ── Log ADM ───────────────────────────────────────────────────
+    match /admin_logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── Comentários ───────────────────────────────────────────────
+    // Campos aceitos na criação de um comentário/resposta. username e
+    // replyToUsername são opcionais (podem vir null), então só são
+    // conferidos quando presentes.
+    function validCommentCreate() {
+      return request.auth != null
+          && request.resource.data.text is string
+          && request.resource.data.text.size() >= 3
+          && request.resource.data.text.size() <= 500
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.likesCount == 0;
+    }
+
+    // Único jeito de um não-admin "atualizar" um comentário/resposta:
+    // mexer em exatamente likesCount OU repliesCount, em ±1, e nada
+    // mais no documento. Isso cobre curtir/descurtir e o contador de
+    // respostas, sem abrir brecha para editar texto ou trocar autor.
+    function isCounterBump(field) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly([field])
+          && (request.resource.data[field] == resource.data[field] + 1
+              || request.resource.data[field] == resource.data[field] - 1);
+    }
+
+    function validCommentCounterUpdate() {
+      return request.auth != null
+          && (isCounterBump('likesCount') || isCounterBump('repliesCount'));
+    }
+
+    match /comments/{postId}/postComments/{commentId} {
+      allow read: if true;
+      allow create: if validCommentCreate();
+      allow delete: if request.auth != null
+          && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAdmin() || validCommentCounterUpdate();
+
+      // ── Respostas (1 nível, estilo Instagram) ─────────────────────
+      match /replies/{replyId} {
+        allow read: if true;
+        allow create: if validCommentCreate();
+        allow delete: if request.auth != null
+            && (resource.data.userId == request.auth.uid || isAdmin());
+        allow update: if isAdmin() || validCommentCounterUpdate();
+
+        // ── Curtidas de uma resposta ─────────────────────────────────
+        match /likes/{likerId} {
+          allow read: if true;
+          allow create: if isOwner(likerId);
+          allow delete: if isOwner(likerId) || isAdmin();
+          allow update: if false;
+        }
+      }
+
+      // ── Curtidas de um comentário-raiz ───────────────────────────
+      match /likes/{likerId} {
+        allow read: if true;
+        allow create: if isOwner(likerId);
+        allow delete: if isOwner(likerId) || isAdmin();
+        allow update: if false;
+      }
+    }
+
+    // ── Presença (online/offline) ────────────────────────────────
+    match /presence/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isOwner(userId);
+    }
+
+    // ── Demais coleções ───────────────────────────────────────────
+    match /{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
