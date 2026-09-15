@@ -42,6 +42,16 @@ class AppTheme {
         surface: AppColors.surfaceLight,
         error: AppColors.emergencyRed,
       ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.backgroundElevated,
+        contentTextStyle: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        actionTextColor: AppColors.primaryOrange,
+      ),
     );
   }
 
@@ -87,6 +97,16 @@ class AppTheme {
         secondary: AppColors.primaryOrange,
         surface: AppColors.surfaceDark,
         error: AppColors.emergencyRed,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.backgroundElevated,
+        contentTextStyle: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        actionTextColor: AppColors.primaryOrange,
       ),
     );
   }
