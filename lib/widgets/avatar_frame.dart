@@ -136,6 +136,35 @@ extension FrameRarityExt on FrameRarity {
       case FrameRarity.elite:     return 4.0;
     }
   }
+
+  // ═════════════════════════════════════════════════════════════════
+  // MOLDURA-IMAGEM (dragão / fênix / etc) — desenhada por cima do
+  // anel gerado via CustomPainter, nas raridades mais altas.
+  // Deixe null para uma raridade continuar usando só o anel desenhado.
+  // ═════════════════════════════════════════════════════════════════
+  String? get imageAssetPath {
+    switch (this) {
+      case FrameRarity.mythic:
+        return 'assets/frames/moldura_dragao_cristal.png';
+      case FrameRarity.elite:
+        return 'assets/frames/trono_solar.png';
+      default:
+        return null;
+    }
+  }
+
+  /// Fração do canvas da imagem ocupada pelo avatar — calibrada por
+  /// asset (a "janela" vazia no centro varia de arte para arte).
+  double get imageAvatarFraction {
+    switch (this) {
+      case FrameRarity.mythic:
+        return 0.60;
+      case FrameRarity.elite:
+        return 0.55;
+      default:
+        return 0.60;
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -246,6 +275,8 @@ class _AvatarFrameState extends State<AvatarFrame>
         final opacity =
             widget.enableEntryAnimation ? _entryFadeAnim.value : 1.0;
 
+        final imageAsset = rarity.imageAssetPath;
+
         return Opacity(
           opacity: opacity,
           child: Transform.scale(
@@ -253,34 +284,55 @@ class _AvatarFrameState extends State<AvatarFrame>
             child: SizedBox(
               width: widget.size * 1.6,
               height: widget.size * 1.6,
-              child: CustomPaint(
-                painter: _FramePainter(
-                  rarity: rarity,
-                  color: color,
-                  gradient: gradient,
-                  rotation: _rotationCtrl.value,
-                  glow: _glowAnim.value,
-                  particleProgress: _particleCtrl.value,
-                  avatarSize: widget.size,
-                ),
-                child: Center(
-                  child: Container(
-                    width: widget.size,
-                    height: widget.size,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: color.withOpacity(
-                              rarity.glowIntensity * _glowAnim.value),
-                          blurRadius: 12 + (rarity.index * 3.5),
-                          spreadRadius: 1 + (rarity.index * 0.6),
-                        ),
-                      ],
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CustomPaint(
+                    painter: _FramePainter(
+                      rarity: rarity,
+                      color: color,
+                      gradient: gradient,
+                      rotation: _rotationCtrl.value,
+                      glow: _glowAnim.value,
+                      particleProgress: _particleCtrl.value,
+                      avatarSize: widget.size,
                     ),
-                    child: widget.child,
+                    child: Center(
+                      child: Container(
+                        width: widget.size,
+                        height: widget.size,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: color.withOpacity(
+                                  rarity.glowIntensity * _glowAnim.value),
+                              blurRadius: 12 + (rarity.index * 3.5),
+                              spreadRadius: 1 + (rarity.index * 0.6),
+                            ),
+                          ],
+                        ),
+                        child: widget.child,
+                      ),
+                    ),
                   ),
-                ),
+
+                  // Moldura-imagem (dragão / fênix), girando por cima
+                  // de tudo — usa o mesmo _rotationCtrl da moldura
+                  // desenhada, então os dois ficam sincronizados.
+                  if (imageAsset != null)
+                    IgnorePointer(
+                      child: Transform.rotate(
+                        angle: _rotationCtrl.value * 2 * math.pi,
+                        child: Image.asset(
+                          imageAsset,
+                          width: widget.size / rarity.imageAvatarFraction,
+                          height: widget.size / rarity.imageAvatarFraction,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
