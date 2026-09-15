@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../providers/user_xp_provider.dart';
 import 'ad_config.dart';
 
 // ============================================================
@@ -71,6 +73,14 @@ class _HybridBannerAdState extends State<HybridBannerAd> {
 
   @override
   Widget build(BuildContext context) {
+    // ── Usuários Premium (PRO/ULTRA) não veem o banner de anúncios,
+    // em lugar nenhum do app onde este widget é usado. Isso é lido
+    // do UserXpProvider já carregado (mesmo stream de users_xp/{uid}
+    // que alimenta o perfil), sem precisar de mais uma leitura.
+    final isPremium =
+        context.watch<UserXpProvider>().data.isPremium;
+    if (isPremium) return const SizedBox.shrink();
+
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: _configStream,
       builder: (context, snapshot) {
