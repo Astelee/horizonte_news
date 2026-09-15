@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../config/premium_config.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // MODELO DE DADOS DO USUÁRIO XP
@@ -21,6 +22,8 @@ class UserXpData {
   final String? photoUrl;
   final String? username;
   final bool showAge;
+  final PremiumTier premiumTier;
+  final DateTime? premiumExpiresAt;
 
   const UserXpData({
     required this.totalXp,
@@ -38,6 +41,8 @@ class UserXpData {
     this.photoUrl,
     this.username,
     this.showAge = false,
+    this.premiumTier = PremiumTier.none,
+    this.premiumExpiresAt,
   });
 
   factory UserXpData.empty() => const UserXpData(
@@ -61,6 +66,8 @@ class UserXpData {
     String? photoUrl,
     String? username,
     bool? showAge,
+    PremiumTier? premiumTier,
+    DateTime? premiumExpiresAt,
   }) {
     return UserXpData(
       totalXp: totalXp,
@@ -78,6 +85,8 @@ class UserXpData {
       photoUrl: photoUrl ?? this.photoUrl,
       username: username ?? this.username,
       showAge: showAge ?? this.showAge,
+      premiumTier: premiumTier ?? this.premiumTier,
+      premiumExpiresAt: premiumExpiresAt ?? this.premiumExpiresAt,
     );
   }
 
@@ -96,6 +105,8 @@ class UserXpData {
       (dailyMissions['articlesShared'] as num?)?.toInt() ?? 0;
   int get dailyMinutes =>
       (dailyMissions['minutesOnline'] as num?)?.toInt() ?? 0;
+
+  bool get isPremium => premiumTier.isPremium;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -177,6 +188,8 @@ class XpService {
     String? photoUrl,
     String? username,
     bool showAge = false,
+    PremiumTier premiumTier = PremiumTier.none,
+    DateTime? premiumExpiresAt,
   }) {
     final calculatedLevel = levelFromXp(totalXp);
     final level = (overrideLevel ?? calculatedLevel).clamp(1, maxLevel).toInt();
@@ -205,6 +218,8 @@ class XpService {
       photoUrl: photoUrl,
       username: username,
       showAge: showAge,
+      premiumTier: premiumTier,
+      premiumExpiresAt: premiumExpiresAt,
     );
   }
 
@@ -269,6 +284,12 @@ class XpService {
           ? (dataUpdated['adminOverrideTitleLevel'] as String?)
           : null;
 
+      // ── Lê plano Premium (PRO/ULTRA) e sua expiração ─────────────
+      final premiumTier =
+          PremiumTierX.fromId(dataUpdated['premiumTier'] as String?);
+      final premiumExpiresAt =
+          (dataUpdated['premiumExpiresAt'] as Timestamp?)?.toDate();
+
       final xpData = buildXpData(
         totalXp: totalXp,
         totalSecondsOnline: totalSeconds,
@@ -282,6 +303,8 @@ class XpService {
         photoUrl: photoUrl,
         username: username,
         showAge: showAge,
+        premiumTier: premiumTier,
+        premiumExpiresAt: premiumExpiresAt,
       );
 
       // Só sincroniza level no Firestore se NÃO houver override ativo
@@ -326,6 +349,10 @@ class XpService {
         ? (data['adminOverrideTitleLevel'] as String?)
         : null;
 
+    final premiumTier = PremiumTierX.fromId(data['premiumTier'] as String?);
+    final premiumExpiresAt =
+        (data['premiumExpiresAt'] as Timestamp?)?.toDate();
+
     return buildXpData(
       totalXp: totalXp,
       totalSecondsOnline: totalSeconds,
@@ -339,6 +366,8 @@ class XpService {
       photoUrl: photoUrl,
       username: username,
       showAge: showAge,
+      premiumTier: premiumTier,
+      premiumExpiresAt: premiumExpiresAt,
     );
   }
 
@@ -476,6 +505,16 @@ class XpService {
   // total cruzasse a fronteira de um nível, e como o erro era engolido
   // silenciosamente (catch vazio), o usuário simplesmente parava de
   // ganhar XP dali em diante, sem nenhum aviso.
+  //
+  // ── Multiplicador Premium (PRO 2x / ULTRA 8x) ───────────────────────
+  // Aplicado aqui, no ponto único por onde passa todo ganho "normal"
+  // de XP (tempo online, leitura, comentário, compartilhamento e
+  // recompensas de missão diária). NÃO se aplica a likeComment (XP
+  // fixo creditado ao autor curtido, validado à parte por regra
+  // própria) nem ao check-in diário (CheckinService tem sua própria
+  // trava exata no Firestore) — esses dois precisam da regra do
+  // Console atualizada antes de multiplicar, para não serem
+  // rejeitados pelo servidor.
   Future<void> _applyXpGain(
     DocumentReference<Map<String, dynamic>> doc,
     int xpGained,
@@ -485,10 +524,13 @@ class XpService {
     final data = snap.data() ?? {};
     final overrideActive = data['adminOverrideActive'] == true;
     final currentTotalXp = (data['totalXp'] as num?)?.toInt() ?? 0;
-    final newTotalXp = currentTotalXp + xpGained;
+
+    final tier = premiumTierFromData(data);
+    final multipliedGain = xpGained * tier.xpMultiplier;
+    final newTotalXp = currentTotalXp + multipliedGain;
 
     final update = <String, dynamic>{
-      'totalXp': FieldValue.increment(xpGained),
+      'totalXp': FieldValue.increment(multipliedGain),
       'lastActivity': FieldValue.serverTimestamp(),
       ...extraUpdate,
     };
