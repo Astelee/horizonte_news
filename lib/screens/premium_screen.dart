@@ -136,7 +136,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   Map<String, ProductDetails> _productsById = {};
   bool _loadingProducts = true;
-  bool _purchaseInFlight = false;
+  // Guarda o productId em compra no momento (não um bool genérico),
+  // para que só o card daquele plano específico entre em loading —
+  // clicar em ULTRA não pode travar o botão do PRO junto.
+  String? _purchaseInFlightProductId;
   StreamSubscription<PurchaseResult>? _purchaseSub;
 
   @override
@@ -164,7 +167,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   void _onPurchaseResult(PurchaseResult result) {
     if (!mounted) return;
-    setState(() => _purchaseInFlight = false);
+    setState(() => _purchaseInFlightProductId = null);
 
     switch (result.status) {
       case PurchaseResultStatus.success:
@@ -196,7 +199,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
       );
       return;
     }
-    setState(() => _purchaseInFlight = true);
+    setState(() => _purchaseInFlightProductId = plan.productId);
     await _purchaseService.buy(product);
   }
 
@@ -227,13 +230,18 @@ class _PremiumScreenState extends State<PremiumScreen> {
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final plan = _plans[index];
+                  final isThisPlanBuying =
+                      _purchaseInFlightProductId == plan.productId;
+                  final anyPurchaseInFlight =
+                      _purchaseInFlightProductId != null;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: _PlanCard(
                       plan: plan,
                       product: _productsById[plan.productId],
                       loadingProduct: _loadingProducts,
-                      purchaseInFlight: _purchaseInFlight,
+                      isBuying: isThisPlanBuying,
+                      disabled: anyPurchaseInFlight && !isThisPlanBuying,
                       onSubscribe: () => _buyPlan(plan),
                     ),
                   );
@@ -393,14 +401,16 @@ class _PlanCard extends StatelessWidget {
   final PremiumPlan plan;
   final ProductDetails? product;
   final bool loadingProduct;
-  final bool purchaseInFlight;
+  final bool isBuying;
+  final bool disabled;
   final VoidCallback onSubscribe;
 
   const _PlanCard({
     required this.plan,
     required this.product,
     required this.loadingProduct,
-    required this.purchaseInFlight,
+    required this.isBuying,
+    required this.disabled,
     required this.onSubscribe,
   });
 
@@ -533,36 +543,40 @@ class _PlanCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             height: 50,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: plan.gradient),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
+            child: Opacity(
+              opacity: disabled ? 0.5 : 1,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: plan.gradient),
                   borderRadius: BorderRadius.circular(14),
-                  onTap: purchaseInFlight ? null : onSubscribe,
-                  child: Center(
-                    child: purchaseInFlight
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: (isBuying || disabled) ? null : onSubscribe,
+                    child: Center(
+                      child: isBuying
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              'Assinar',
+                              style: TextStyle(
+                                color:
+                                    plan.productId == PremiumProductIds.ultra
+                                        ? Colors.black.withOpacity(0.85)
+                                        : Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15.5,
+                              ),
                             ),
-                          )
-                        : Text(
-                            'Assinar',
-                            style: TextStyle(
-                              color: plan.productId == PremiumProductIds.ultra
-                                  ? Colors.black.withOpacity(0.85)
-                                  : Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15.5,
-                            ),
-                          ),
+                    ),
                   ),
                 ),
               ),
