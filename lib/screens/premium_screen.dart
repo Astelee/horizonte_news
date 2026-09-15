@@ -1,25 +1,36 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config/app_colors.dart';
+import '../services/purchase_service.dart';
+
+// ── URLs oficiais (mesmas usadas no cadastro) ────────────────────────
+const String _kTermsUrl = 'https://astelee.github.io/horizonte_termos/';
+const String _kPrivacyUrl = 'https://astelee.github.io/horizonte-news-privacy/';
 
 // ═══════════════════════════════════════════════════════════════════
 // TELA PREMIUM — planos PRO e ULTRA
 // ═══════════════════════════════════════════════════════════════════
-// Por enquanto é só a interface (igual ao layout de referência do
-// RaidCall): mostra os planos, preços e vantagens de cada um.
+// A vitrine (preço) vem do que foi cadastrado no Google Play Console
+// — PremiumProductIds.pro/ultra em purchase_service.dart — e não mais
+// de texto fixo aqui. Ícones, cores e lista de benefícios continuam
+// definidos no app, já que a Play Store não guarda esse tipo de
+// informação visual.
 //
-// O botão "Assinar" ainda não faz a compra de verdade — isso entra
-// numa etapa seguinte, quando integrarmos o Google Play Billing
-// (pacote in_app_purchase) e uma Cloud Function para validar o
-// recibo da compra com segurança antes de liberar o Premium.
+// Enquanto os produtos não existirem no Play Console (ou o app não
+// estiver rodando num dispositivo com Play Store), os cards mostram
+// os preços de referência abaixo e o botão "Assinar" informa que o
+// plano ainda não está disponível — sem travar a tela.
 // ═══════════════════════════════════════════════════════════════════
 
 class PremiumPlan {
-  final String id;
+  final String productId;
   final String name;
   final String subtitle;
-  final String price;
-  final String period;
+  final String fallbackPrice;
   final String xpTag;
   final Color accentColor;
   final List<Color> gradient;
@@ -27,11 +38,10 @@ class PremiumPlan {
   final List<PremiumFeature> features;
 
   const PremiumPlan({
-    required this.id,
+    required this.productId,
     required this.name,
     required this.subtitle,
-    required this.price,
-    required this.period,
+    required this.fallbackPrice,
     required this.xpTag,
     required this.accentColor,
     required this.gradient,
@@ -48,16 +58,20 @@ class PremiumFeature {
   const PremiumFeature({required this.icon, required this.label, this.tag});
 }
 
-class PremiumScreen extends StatelessWidget {
+class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
 
+  @override
+  State<PremiumScreen> createState() => _PremiumScreenState();
+}
+
+class _PremiumScreenState extends State<PremiumScreen> {
   static const List<PremiumPlan> _plans = [
     PremiumPlan(
-      id: 'premium_pro_monthly',
+      productId: PremiumProductIds.pro,
       name: 'PRO',
       subtitle: 'Distintivo Pro',
-      price: 'R\$ 14,99',
-      period: '/ mês',
+      fallbackPrice: 'R\$ 14,99 / mês',
       xpTag: '2x XP',
       accentColor: Color(0xFF4C8DFF),
       gradient: [Color(0xFF4C8DFF), Color(0xFF2E5FE8)],
@@ -83,11 +97,10 @@ class PremiumScreen extends StatelessWidget {
       ],
     ),
     PremiumPlan(
-      id: 'premium_ultra_monthly',
+      productId: PremiumProductIds.ultra,
       name: 'ULTRA',
       subtitle: 'Distintivo Ultra',
-      price: 'R\$ 39,99',
-      period: '/ mês',
+      fallbackPrice: 'R\$ 39,99 / mês',
       xpTag: '8x XP',
       accentColor: Color(0xFFF2B705),
       gradient: [Color(0xFFF2B705), Color(0xFFE08E00)],
@@ -119,6 +132,74 @@ class PremiumScreen extends StatelessWidget {
     ),
   ];
 
+  final _purchaseService = PurchaseService.instance;
+
+  Map<String, ProductDetails> _productsById = {};
+  bool _loadingProducts = true;
+  bool _purchaseInFlight = false;
+  StreamSubscription<PurchaseResult>? _purchaseSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _purchaseService.initialize();
+    _loadProducts();
+    _purchaseSub = _purchaseService.purchaseResults.listen(_onPurchaseResult);
+  }
+
+  @override
+  void dispose() {
+    _purchaseSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadProducts() async {
+    final products = await _purchaseService.loadProducts();
+    if (!mounted) return;
+    setState(() {
+      _productsById = {for (final p in products) p.id: p};
+      _loadingProducts = false;
+    });
+  }
+
+  void _onPurchaseResult(PurchaseResult result) {
+    if (!mounted) return;
+    setState(() => _purchaseInFlight = false);
+
+    switch (result.status) {
+      case PurchaseResultStatus.success:
+        _showSnack(context, 'Premium ativado com sucesso! 🎉');
+        break;
+      case PurchaseResultStatus.pending:
+        _showSnack(context, 'Pagamento em processamento...');
+        break;
+      case PurchaseResultStatus.cancelled:
+        // Usuário cancelou o fluxo de pagamento — não precisa de aviso.
+        break;
+      case PurchaseResultStatus.error:
+        _showSnack(
+          context,
+          result.message ?? 'Não foi possível concluir a compra.',
+          isError: true,
+        );
+        break;
+    }
+  }
+
+  Future<void> _buyPlan(PremiumPlan plan) async {
+    final product = _productsById[plan.productId];
+    if (product == null) {
+      _showSnack(
+        context,
+        'Esse plano ainda não está disponível para compra.',
+        isError: true,
+      );
+      return;
+    }
+    setState(() => _purchaseInFlight = true);
+    await _purchaseService.buy(product);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -144,10 +225,19 @@ class PremiumScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
-                (context, index) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _PlanCard(plan: _plans[index]),
-                ),
+                (context, index) {
+                  final plan = _plans[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: _PlanCard(
+                      plan: plan,
+                      product: _productsById[plan.productId],
+                      loadingProduct: _loadingProducts,
+                      purchaseInFlight: _purchaseInFlight,
+                      onSubscribe: () => _buyPlan(plan),
+                    ),
+                  );
+                },
                 childCount: _plans.length,
               ),
             ),
@@ -204,19 +294,13 @@ class PremiumScreen extends StatelessWidget {
           alignment: WrapAlignment.center,
           spacing: 16,
           children: [
-            _footerLink(context, 'Termos de Uso'),
-            _footerLink(context, 'Política de Privacidade'),
+            _footerLink(context, 'Termos de Uso', _kTermsUrl),
+            _footerLink(context, 'Política de Privacidade', _kPrivacyUrl),
           ],
         ),
         const SizedBox(height: 20),
         TextButton(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Restaurar compras ainda não disponível.'),
-              ),
-            );
-          },
+          onPressed: () => _restorePurchases(context),
           child: Text(
             'Restaurar compras',
             style: TextStyle(
@@ -230,9 +314,9 @@ class PremiumScreen extends StatelessWidget {
     );
   }
 
-  Widget _footerLink(BuildContext context, String label) {
+  Widget _footerLink(BuildContext context, String label, String url) {
     return InkWell(
-      onTap: () {},
+      onTap: () => _openUrl(context, url),
       child: Text(
         label,
         style: const TextStyle(
@@ -243,6 +327,63 @@ class PremiumScreen extends StatelessWidget {
       ),
     );
   }
+
+  // ── Abre Termos / Privacidade no navegador ───────────────────────
+  Future<void> _openUrl(BuildContext context, String url) async {
+    final uri = Uri.parse(url);
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && context.mounted) {
+        _showSnack(context, 'Não foi possível abrir o link.');
+      }
+    } catch (_) {
+      if (context.mounted) {
+        _showSnack(context, 'Não foi possível abrir o link.');
+      }
+    }
+  }
+
+  // ── Restaura compras já feitas na conta Google Play do usuário ───
+  // O resultado chega de forma assíncrona em _onPurchaseResult, pelo
+  // mesmo purchaseStream usado para compras novas.
+  Future<void> _restorePurchases(BuildContext context) async {
+    final available = await _purchaseService.isAvailable;
+    if (!context.mounted) return;
+
+    if (!available) {
+      _showSnack(
+        context,
+        'A Google Play Store não está disponível no momento.',
+        isError: true,
+      );
+      return;
+    }
+
+    try {
+      await _purchaseService.restore();
+      if (!context.mounted) return;
+      _showSnack(context, 'Verificando suas compras anteriores...');
+    } catch (_) {
+      if (!context.mounted) return;
+      _showSnack(
+        context,
+        'Não foi possível restaurar as compras agora.',
+        isError: true,
+      );
+    }
+  }
+
+  void _showSnack(BuildContext context, String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor:
+            isError ? const Color(0xFFE53935) : const Color(0xFF1A1A1A),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -250,10 +391,24 @@ class PremiumScreen extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════
 class _PlanCard extends StatelessWidget {
   final PremiumPlan plan;
-  const _PlanCard({required this.plan});
+  final ProductDetails? product;
+  final bool loadingProduct;
+  final bool purchaseInFlight;
+  final VoidCallback onSubscribe;
+
+  const _PlanCard({
+    required this.plan,
+    required this.product,
+    required this.loadingProduct,
+    required this.purchaseInFlight,
+    required this.onSubscribe,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final priceLabel = product?.price ?? plan.fallbackPrice;
+    final available = product != null;
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.backgroundCard,
@@ -336,25 +491,37 @@ class _PlanCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(
-                plan.price,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 30,
-                  fontWeight: FontWeight.w900,
+              if (loadingProduct)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white54,
+                  ),
+                )
+              else
+                Text(
+                  priceLabel,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                plan.period,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.55),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
             ],
           ),
+          if (!loadingProduct && !available) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Plano ainda não disponível para compra.',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.4),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           Divider(color: Colors.white.withOpacity(0.08), height: 1),
           const SizedBox(height: 14),
@@ -375,32 +542,33 @@ class _PlanCard extends StatelessWidget {
                 color: Colors.transparent,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(14),
-                  onTap: () => _showComingSoon(context),
+                  onTap: purchaseInFlight ? null : onSubscribe,
                   child: Center(
-                    child: Text(
-                      'Assinar',
-                      style: TextStyle(
-                        color: plan.id == 'premium_ultra_monthly'
-                            ? Colors.black.withOpacity(0.85)
-                            : Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15.5,
-                      ),
-                    ),
+                    child: purchaseInFlight
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Assinar',
+                            style: TextStyle(
+                              color: plan.productId == PremiumProductIds.ultra
+                                  ? Colors.black.withOpacity(0.85)
+                                  : Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15.5,
+                            ),
+                          ),
                   ),
                 ),
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Assinaturas chegam em breve por aqui 🚧'),
       ),
     );
   }
