@@ -13,6 +13,8 @@ import '../widgets/avatar_frame.dart';
 import '../widgets/badge_widgets.dart';
 import '../widgets/level_up_overlay.dart';
 import '../widgets/profile_edit_sheets.dart';
+import '../widgets/subscriber_badge.dart';
+import 'premium_avatar_gallery_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -360,61 +362,119 @@ class _ProfileScreenState extends State<ProfileScreen>
               right: 0,
               child: Column(
                 children: [
-                  GestureDetector(
-                    onTap: _uploadingAvatar
-                        ? null
-                        : () => _handleAvatarTap(context),
-                    child: AvatarFrame(
-                      level: data.level,
-                      size: 84,
-                      enableEntryAnimation: true,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          AppAvatar(
-                            name: user?.displayName ??
-                                user?.email?.split('@').first ??
-                                'Usuário',
-                            seed: user?.uid,
-                            photoUrl: data.photoUrl,
-                            size: 84,
-                          ),
-                          if (_uploadingAvatar)
-                            Container(
-                              width: 84,
-                              height: 84,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.black54,
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      GestureDetector(
+                        onTap: _uploadingAvatar
+                            ? null
+                            : () => _handleAvatarTap(context),
+                        child: AvatarFrame(
+                          level: data.level,
+                          size: 84,
+                          enableEntryAnimation: true,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              UserAvatarDisplay(
+                                name: user?.displayName ??
+                                    user?.email?.split('@').first ??
+                                    'Usuário',
+                                seed: user?.uid,
+                                photoUrl: data.photoUrl,
+                                equippedPremiumAvatarId:
+                                    data.equippedPremiumAvatarId,
+                                size: 84,
                               ),
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.primaryOrange,
+                              if (_uploadingAvatar)
+                                Container(
+                                  width: 84,
+                                  height: 84,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.black54,
+                                  ),
+                                  child: const Center(
+                                    child: SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.primaryOrange,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                        ],
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                      // Atalho para a galeria de avatares animados
+                      // premium — não interfere no tap de troca de
+                      // foto, que continua no restante do círculo.
+                      Positioned(
+                        right: -2,
+                        bottom: 6,
+                        child: GestureDetector(
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  const PremiumAvatarGalleryScreen(),
+                            ),
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFF141414),
+                              border: Border.all(
+                                color: AppColors.primaryOrange
+                                    .withOpacity(0.7),
+                                width: 1.4,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primaryOrange
+                                      .withOpacity(0.35),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              FontAwesomeIcons.wandMagicSparkles,
+                              size: 12,
+                              color: AppColors.primaryOrange,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   GestureDetector(
                     onTap: () => _handleNameTap(context),
-                    child: Text(
-                      user?.displayName ??
-                          user?.email?.split('@').first ??
-                          'Usuário',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            user?.displayName ??
+                                user?.email?.split('@').first ??
+                                'Usuário',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        if (data.isPremium) ...[
+                          const SizedBox(width: 8),
+                          const SubscriberBadge(size: 18),
+                        ],
+                      ],
                     ),
                   ),
                   const SizedBox(height: 4),
