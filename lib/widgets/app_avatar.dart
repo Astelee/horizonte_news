@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/initials_helper.dart';
+import '../config/premium_avatars_config.dart';
+import 'premium_avatars.dart';
 
 /// Avatar circular do app. Quando [photoUrl] é informado, exibe a foto
 /// de perfil do usuário; caso contrário, gera as iniciais do nome em
@@ -137,6 +139,69 @@ class AppAvatar extends StatelessWidget {
             ),
           )
         : _initialsContent();
+
+    if (onTap == null) return content;
+    return GestureDetector(onTap: onTap, child: content);
+  }
+}
+
+/// Decide o que mostrar dentro do círculo do avatar: se o usuário tem
+/// um avatar animado premium equipado (equippedPremiumAvatarId), ele
+/// tem prioridade máxima sobre foto e iniciais; caso contrário, cai
+/// para o comportamento normal de [AppAvatar] (foto ou iniciais).
+///
+/// Este é o único ponto de decisão dessa prioridade — usado como
+/// substituto direto de AppAvatar em todo lugar que já compõe
+/// `AvatarFrame(child: AppAvatar(...))`, preservando exatamente o
+/// mesmo tamanho e posição, sem alterar o resto do layout.
+class UserAvatarDisplay extends StatelessWidget {
+  final String? name;
+  final String? seed;
+  final String? photoUrl;
+
+  /// Chave salva em equippedPremiumAvatarId (UserXpData). Quando nula
+  /// ou desconhecida, o avatar animado é ignorado e o widget se
+  /// comporta como um AppAvatar comum.
+  final String? equippedPremiumAvatarId;
+
+  final double size;
+  final bool showBorder;
+  final Color? borderColor;
+  final VoidCallback? onTap;
+
+  const UserAvatarDisplay({
+    Key? key,
+    required this.name,
+    this.seed,
+    this.photoUrl,
+    this.equippedPremiumAvatarId,
+    this.size = 44,
+    this.showBorder = false,
+    this.borderColor,
+    this.onTap,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarId =
+        PremiumAvatarIdX.fromStorageKey(equippedPremiumAvatarId);
+
+    final content = avatarId != null
+        ? ClipOval(
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: PremiumAnimatedAvatar(avatarId: avatarId, size: size),
+            ),
+          )
+        : AppAvatar(
+            name: name,
+            seed: seed,
+            photoUrl: photoUrl,
+            size: size,
+            showBorder: showBorder,
+            borderColor: borderColor,
+          );
 
     if (onTap == null) return content;
     return GestureDetector(onTap: onTap, child: content);
