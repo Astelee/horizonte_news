@@ -314,6 +314,18 @@ class CheckinService {
 
   // ── Recupera um dia perdido específico, APÓS o anúncio ter sido
   // concluído com sucesso (chamar só dentro de onUserEarnedReward) ───
+  // Além de gravar o dia como 'recovered' e creditar XP, também
+  // precisa atualizar checkinStreak/lastCheckinDate — do contrário o
+  // dia recuperado não conta pra sequência e ela fica "presa" no
+  // primeiro dia feito de verdade depois da recuperação (era esse o
+  // bug: recuperar dias antigos não fazia a sequência crescer).
+  //
+  // Regra usada: depois de recuperar o dia, contamos pra trás a
+  // partir de HOJE (ou de ontem, se hoje ainda não tiver check-in)
+  // quantos dias consecutivos têm um registro em `checkins/` — seja
+  // 'done' ou 'recovered'. Essa contagem é feita ANTES da transação
+  // (leituras normais, sem limite de tamanho de transação); a
+  // transação em si só grava o resultado de forma atômica.
   Future<CheckinResult> recoverDay(DateTime day) async {
     final doc = _userDoc;
     final col = _checkinsCol;
@@ -336,25 +348,72 @@ class CheckinService {
         return const CheckinResult(success: false, error: 'already_done');
       }
 
+      // Grava o dia recuperado primeiro (fora da transação de update
+      // do resumo) — se falhar por corrida, a transação abaixo nem
+      // roda, e o pior caso é o usuário tentar de novo.
+      final userSnapBefore = await doc.get();
+      final userDataBefore = userSnapBefore.data() ?? {};
+      final currentLastDate = userDataBefore['lastCheckinDate'] as String?;
+      final todayKey = dateKey(today);
+
       await _db.runTransaction((tx) async {
         final freshExisting = await tx.get(checkinDoc);
         if (freshExisting.exists) {
           throw StateError('already_done');
         }
-
         tx.set(checkinDoc, {
           'status': 'recovered',
           'xpAwarded': baseXp,
           'timestamp': FieldValue.serverTimestamp(),
         });
-
-        tx.update(doc, {
-          'totalXp': FieldValue.increment(baseXp),
-          'lastActivity': FieldValue.serverTimestamp(),
-        });
       });
 
-      return CheckinResult(success: true, xpGained: baseXp, streak: 0);
+      // ── Recontagem da sequência (leituras normais, fora de transação) ──
+      // Ponto de partida: hoje, se já tiver check-in feito hoje;
+      // senão, ontem (hoje só entra na contagem quando o usuário
+      // efetivamente faz o check-in do dia).
+      DateTime cursor =
+          currentLastDate == todayKey ? today : today.subtract(const Duration(days: 1));
+
+      int streak = 0;
+      DateTime probe = cursor;
+      while (true) {
+        final probeKey = dateKey(probe);
+        if (probeKey == key) {
+          // O dia que acabamos de recuperar.
+          streak++;
+        } else {
+          final probeSnap = await col.doc(probeKey).get();
+          if (probeSnap.exists) {
+            streak++;
+          } else {
+            break;
+          }
+        }
+        probe = probe.subtract(const Duration(days: 1));
+      }
+
+      final longestBefore =
+          (userDataBefore['longestCheckinStreak'] as num?)?.toInt() ?? 0;
+      final newLongest = streak > longestBefore ? streak : longestBefore;
+
+      // lastCheckinDate só avança se o dia recuperado for o mais
+      // recente coberto até agora — recuperar um dia antigo no meio
+      // de uma sequência não deve "voltar" essa data para trás.
+      final newLastDate =
+          (currentLastDate == null || key.compareTo(currentLastDate) > 0)
+              ? key
+              : currentLastDate;
+
+      await doc.update({
+        'totalXp': FieldValue.increment(baseXp),
+        'lastActivity': FieldValue.serverTimestamp(),
+        'checkinStreak': streak,
+        'longestCheckinStreak': newLongest,
+        'lastCheckinDate': newLastDate,
+      });
+
+      return CheckinResult(success: true, xpGained: baseXp, streak: streak);
     } catch (e) {
       if (e is StateError && e.message == 'already_done') {
         return const CheckinResult(success: false, error: 'already_done');
