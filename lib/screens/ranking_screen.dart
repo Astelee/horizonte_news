@@ -19,6 +19,7 @@ class _RankUser {
   final int level;
   final String avatarId;
   final String? photoUrl;
+  final String? equippedPremiumAvatarId;
 
   _RankUser({
     required this.uid,
@@ -27,6 +28,7 @@ class _RankUser {
     required this.level,
     required this.avatarId,
     this.photoUrl,
+    this.equippedPremiumAvatarId,
   });
 
   factory _RankUser.fromDoc(QueryDocumentSnapshot doc) {
@@ -51,6 +53,7 @@ class _RankUser {
       level: (data['level'] as num?)?.toInt() ?? 1,
       avatarId: (data['avatarId'] as String?) ?? 'animais_01',
       photoUrl: (data['photoUrl'] as String?),
+      equippedPremiumAvatarId: data['equippedPremiumAvatarId'] as String?,
     );
   }
 }
@@ -658,10 +661,12 @@ class _PodiumSpotState extends State<_PodiumSpot>
                 AvatarFrame(
                   level: widget.user.level,
                   size: widget.avatarSize,
-                  child: AppAvatar(
+                  child: UserAvatarDisplay(
                     name: widget.user.name,
                     seed: widget.user.uid,
                     photoUrl: widget.user.photoUrl,
+                    equippedPremiumAvatarId:
+                        widget.user.equippedPremiumAvatarId,
                     size: widget.avatarSize,
                   ),
                 ),
@@ -844,10 +849,11 @@ class _RankTileState extends State<_RankTile>
               AvatarFrame(
                 level: widget.user.level,
                 size: 40,
-                child: AppAvatar(
+                child: UserAvatarDisplay(
                   name: widget.user.name,
                   seed: widget.user.uid,
                   photoUrl: widget.user.photoUrl,
+                  equippedPremiumAvatarId: widget.user.equippedPremiumAvatarId,
                   size: 40,
                 ),
               ),
@@ -978,10 +984,11 @@ class _MyPositionBar extends StatelessWidget {
             AvatarFrame(
               level: user.level,
               size: 36,
-              child: AppAvatar(
+              child: UserAvatarDisplay(
                 name: user.name,
                 seed: user.uid,
                 photoUrl: user.photoUrl,
+                equippedPremiumAvatarId: user.equippedPremiumAvatarId,
                 size: 36,
               ),
             ),
