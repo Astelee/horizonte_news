@@ -214,11 +214,14 @@ class _DayCell extends StatelessWidget {
           tappable: false,
         );
       case CheckinDayStatus.recovered:
+        // Mesmo visual de "Feito" (✓) — o usuário pediu para não
+        // haver diferença de ícone entre check-in feito no dia e
+        // check-in recuperado depois; ambos contam igual.
         return _DayVisual(
           bg: const Color(0xFF43B581).withOpacity(0.18),
           border: const Color(0xFF43B581),
           fg: const Color(0xFF43B581),
-          icon: Icons.replay_rounded,
+          icon: Icons.check_rounded,
           tappable: false,
         );
       case CheckinDayStatus.today:
