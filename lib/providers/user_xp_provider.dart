@@ -207,6 +207,20 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     );
   }
 
+  // ── Avatares animados premium ────────────────────────────────────
+  // Atualiza otimisticamente (_data local) e grava no Firestore. O
+  // stream de _startWatching também vai receber a mudança logo em
+  // seguida e confirmar o mesmo valor, então não há risco de
+  // divergência — só evita esperar o round-trip para a UI reagir.
+  Future<void> setEquippedPremiumAvatar(String? avatarStorageKeyOrNull) async {
+    _data = _data.copyWith(
+      equippedPremiumAvatarId: avatarStorageKeyOrNull,
+      clearEquippedPremiumAvatar: avatarStorageKeyOrNull == null,
+    );
+    notifyListeners();
+    await _service.setEquippedPremiumAvatar(avatarStorageKeyOrNull);
+  }
+
   Future<void> reload() async {
     _isLoading = true;
     notifyListeners();
