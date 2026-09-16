@@ -6,6 +6,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/app_colors.dart';
 import '../services/purchase_service.dart';
+import 'premium_avatar_gallery_screen.dart';
 
 // ── URLs oficiais (mesmas usadas no cadastro) ────────────────────────
 const String _kTermsUrl = 'https://astelee.github.io/horizonte_termos/';
@@ -94,6 +95,15 @@ class _PremiumScreenState extends State<PremiumScreen> {
           icon: FontAwesomeIcons.chartLine,
           label: 'Ganho de 2x XP',
         ),
+        PremiumFeature(
+          icon: FontAwesomeIcons.wandMagicSparkles,
+          label: '6 avatares animados exclusivos',
+          tag: 'Novo',
+        ),
+        PremiumFeature(
+          icon: FontAwesomeIcons.gem,
+          label: 'Distintivo exclusivo de assinante',
+        ),
       ],
     ),
     PremiumPlan(
@@ -124,9 +134,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
           label: 'Ganho de 8x XP',
         ),
         PremiumFeature(
+          icon: FontAwesomeIcons.wandMagicSparkles,
+          label: '6 avatares animados exclusivos',
+          tag: 'Novo',
+        ),
+        PremiumFeature(
           icon: FontAwesomeIcons.gem,
-          label: 'Avatar animado',
-          tag: 'GIF',
+          label: 'Distintivo exclusivo de assinante',
         ),
       ],
     ),
@@ -225,6 +239,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
             ),
           ),
           SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            sliver: SliverToBoxAdapter(
+              child: _buildAvatarsTeaser(context),
+            ),
+          ),
+          SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
@@ -287,6 +307,74 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 AppColors.backgroundDark,
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarsTeaser(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const PremiumAvatarGalleryScreen(),
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: const Color(0xFF0A0A0A),
+            border: Border.all(
+              color: AppColors.primaryOrange.withOpacity(0.25),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryOrange.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  FontAwesomeIcons.wandMagicSparkles,
+                  color: AppColors.primaryOrange,
+                  size: 15,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '6 avatares animados exclusivos',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.95),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Toque para ver todos em movimento',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded,
+                  color: Colors.white.withOpacity(0.4)),
+            ],
           ),
         ),
       ),
