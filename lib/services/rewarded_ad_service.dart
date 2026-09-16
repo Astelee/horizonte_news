@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -55,6 +56,12 @@ class RewardedAdService {
   RewardedAd? _rewardedAd;
   bool _isLoading = false;
 
+  // Guarda o motivo da última falha de carregamento, para diagnóstico
+  // (ex.: testar no celular de outra pessoa e o botão ficar preso em
+  // "carregando" sem explicação nenhuma). Não aparece pro usuário
+  // final — só em debugPrint, visível via `flutter run` / logcat.
+  String? lastLoadError;
+
   bool get isReady => _rewardedAd != null;
 
   // ── Pré-carrega o anúncio ────────────────────────────────────────
@@ -71,10 +78,25 @@ class RewardedAdService {
         onAdLoaded: (ad) {
           _rewardedAd = ad;
           _isLoading = false;
+          lastLoadError = null;
         },
         onAdFailedToLoad: (error) {
           _rewardedAd = null;
           _isLoading = false;
+          lastLoadError = '${error.code}: ${error.message}';
+          // Causas mais comuns quando isso acontece SÓ em alguns
+          // aparelhos (ex.: funciona no seu, não funciona no de outra
+          // pessoa): (1) unidade de anúncio real do AdMob ainda sem
+          // preenchimento de anúncio pra aquele país/dispositivo —
+          // é normal levar de horas a 1-2 dias depois de criada;
+          // (2) o e-mail/conta Google daquele aparelho não está
+          // liberado como "testador" e a conta AdMob ainda está em
+          // revisão; (3) sem internet estável no momento da chamada.
+          // O ID de teste oficial do Google (_testAndroidId) sempre
+          // preenche, então testar com ele primeiro isola se é
+          // problema de rede/código ou de preenchimento do anúncio
+          // real.
+          debugPrint('RewardedAd falhou ao carregar: $lastLoadError');
         },
       ),
     );
