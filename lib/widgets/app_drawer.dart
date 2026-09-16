@@ -86,10 +86,6 @@ class _AppDrawerState extends State<AppDrawer>
   void _navigate(BuildContext context, String route) async {
     HapticFeedback.lightImpact();
 
-    // Referência estável ao Scaffold da tela ATUAL (Home, Mais Lidas,
-    // Eventos etc.) — capturada ANTES de fechar o drawer.
-    final scaffoldKey = widget.scaffoldKey;
-
     // Usamos o Navigator GLOBAL (navigatorKey), não o `context` local
     // do tile do Drawer. Isso é essencial: assim que o drawer começa
     // a fechar, o `_AppDrawerState` (com seus AnimationControllers)
@@ -107,26 +103,19 @@ class _AppDrawerState extends State<AppDrawer>
       return;
     }
 
-    // Fecha o drawer normalmente.
-    Navigator.pop(context);
-
-    // Empilha a nova rota e ESPERA o usuário voltar dela (botão da
-    // AppBar, gesto de voltar do Android ou botão físico — todos
-    // resolvem esse mesmo Future ao remover a rota da pilha).
+    // NÃO fechamos o drawer aqui. Empilhamos a nova rota por CIMA do
+    // drawer ainda aberto — como o Drawer é conteúdo do Scaffold da
+    // tela de baixo (Home), ele simplesmente fica coberto pela rota
+    // nova, sem precisar fechar/reabrir.
+    //
+    // Isso evita o antigo efeito de "fecha, mostra a Home pelada por
+    // um frame, e só depois reabre": fechar e reabrir o Drawer nunca
+    // acontece de fato — ele estava aberto o tempo todo, só escondido
+    // atrás da rota empilhada.
     await navigator?.pushNamed(route);
 
-    // Ao voltar, a tela anterior (Home, Mais Lidas etc.) já está de
-    // volta na árvore, mas ainda vai passar por pelo menos um frame
-    // de build antes de aparecer na tela. Se chamarmos openDrawer()
-    // agora mesmo, corremos o risco de o Flutter ainda estar no meio
-    // de um frame e o comando ser processado só depois desse frame
-    // já ter sido pintado — daí o efeito de "aparece fechado e só
-    // depois abre". Agendando no callback de pós-frame, garantimos
-    // que o drawer comece a abrir no PRIMEIRO frame em que a Home
-    // está pronta, eliminando esse intervalo visível.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      scaffoldKey?.currentState?.openDrawer();
-    });
+    // Ao voltar, a Home reaparece com o drawer já aberto, exatamente
+    // como estava antes de navegar — sem flash e sem reabrir.
   }
 
   @override
