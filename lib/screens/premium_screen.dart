@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/app_colors.dart';
+import '../config/premium_config.dart';
 import '../services/purchase_service.dart';
 import 'premium_avatar_gallery_screen.dart';
 
@@ -156,18 +159,45 @@ class _PremiumScreenState extends State<PremiumScreen> {
   String? _purchaseInFlightProductId;
   StreamSubscription<PurchaseResult>? _purchaseSub;
 
+  // Tier Premium que o usuário JÁ possui (lido de users_xp/{uid}).
+  // Usado para desabilitar/renomear o botão "Assinar" do plano que
+  // ele já tem — evita reenviar a compra pro Google Play e receber
+  // o erro itemAlreadyOwned.
+  PremiumTier _currentTier = PremiumTier.none;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _tierSub;
+
   @override
   void initState() {
     super.initState();
     _purchaseService.initialize();
     _loadProducts();
     _purchaseSub = _purchaseService.purchaseResults.listen(_onPurchaseResult);
+    _listenCurrentTier();
   }
 
   @override
   void dispose() {
     _purchaseSub?.cancel();
+    _tierSub?.cancel();
     super.dispose();
+  }
+
+  void _listenCurrentTier() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    _tierSub = FirebaseFirestore.instance
+        .collection('users_xp')
+        .doc(uid)
+        .snapshots()
+        .listen((snap) {
+      if (!mounted) return;
+      final data = snap.data();
+      setState(() {
+        _currentTier =
+            data != null ? premiumTierFromData(data) : PremiumTier.none;
+      });
+    });
   }
 
   Future<void> _loadProducts() async {
@@ -204,6 +234,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
   }
 
   Future<void> _buyPlan(PremiumPlan plan) async {
+    // Já é assinante deste exato plano — não reenvia pro Google Play
+    // (evita o erro itemAlreadyOwned). O botão já deveria estar
+    // desabilitado neste caso, isso aqui é uma segunda trava.
+    if (PremiumProductIds.tierFor(plan.productId) == _currentTier) {
+      return;
+    }
+
     final product = _productsById[plan.productId];
     if (product == null) {
       _showSnack(
@@ -254,6 +291,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       _purchaseInFlightProductId == plan.productId;
                   final anyPurchaseInFlight =
                       _purchaseInFlightProductId != null;
+                  final isOwned =
+                      PremiumProductIds.tierFor(plan.productId) ==
+                          _currentTier;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: _PlanCard(
@@ -261,7 +301,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       product: _productsById[plan.productId],
                       loadingProduct: _loadingProducts,
                       isBuying: isThisPlanBuying,
-                      disabled: anyPurchaseInFlight && !isThisPlanBuying,
+                      isOwned: isOwned,
+                      disabled:
+                          (anyPurchaseInFlight && !isThisPlanBuying) ||
+                              isOwned,
                       onSubscribe: () => _buyPlan(plan),
                     ),
                   );
@@ -490,6 +533,7 @@ class _PlanCard extends StatelessWidget {
   final ProductDetails? product;
   final bool loadingProduct;
   final bool isBuying;
+  final bool isOwned;
   final bool disabled;
   final VoidCallback onSubscribe;
 
@@ -498,6 +542,7 @@ class _PlanCard extends StatelessWidget {
     required this.product,
     required this.loadingProduct,
     required this.isBuying,
+    required this.isOwned,
     required this.disabled,
     required this.onSubscribe,
   });
@@ -632,17 +677,31 @@ class _PlanCard extends StatelessWidget {
             width: double.infinity,
             height: 50,
             child: Opacity(
-              opacity: disabled ? 0.5 : 1,
+              opacity: isOwned
+                  ? 1
+                  : (disabled ? 0.5 : 1),
               child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: plan.gradient),
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                decoration: isOwned
+                    ? BoxDecoration(
+                        color: Colors.white.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: plan.accentColor.withOpacity(0.5),
+                        ),
+                      )
+                    : BoxDecoration(
+                        gradient: LinearGradient(colors: plan.gradient),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(14),
-                    onTap: (isBuying || disabled) ? null : onSubscribe,
+                    // Plano já é do usuário → botão nunca é clicável,
+                    // nem mostra loading (não há compra a iniciar).
+                    onTap: (isOwned || isBuying || disabled)
+                        ? null
+                        : onSubscribe,
                     child: Center(
                       child: isBuying
                           ? const SizedBox(
@@ -653,16 +712,31 @@ class _PlanCard extends StatelessWidget {
                                 color: Colors.white,
                               ),
                             )
-                          : Text(
-                              'Assinar',
-                              style: TextStyle(
-                                color:
-                                    plan.productId == PremiumProductIds.ultra
-                                        ? Colors.black.withOpacity(0.85)
-                                        : Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15.5,
-                              ),
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (isOwned) ...[
+                                  Icon(
+                                    FontAwesomeIcons.circleCheck,
+                                    size: 15,
+                                    color: plan.accentColor,
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                Text(
+                                  isOwned ? 'Plano atual' : 'Assinar',
+                                  style: TextStyle(
+                                    color: isOwned
+                                        ? plan.accentColor
+                                        : (plan.productId ==
+                                                PremiumProductIds.ultra
+                                            ? Colors.black.withOpacity(0.85)
+                                            : Colors.white),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15.5,
+                                  ),
+                                ),
+                              ],
                             ),
                     ),
                   ),
