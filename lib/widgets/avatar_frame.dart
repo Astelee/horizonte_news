@@ -138,33 +138,14 @@ extension FrameRarityExt on FrameRarity {
   }
 
   // ═════════════════════════════════════════════════════════════════
-  // MOLDURA-IMAGEM (dragão / fênix / etc) — desenhada por cima do
-  // anel gerado via CustomPainter, nas raridades mais altas.
-  // Deixe null para uma raridade continuar usando só o anel desenhado.
+  // MOLDURAS ESPECIAIS DESENHADAS (dragão de cristal / trono solar)
   // ═════════════════════════════════════════════════════════════════
-  String? get imageAssetPath {
-    switch (this) {
-      case FrameRarity.mythic:
-        return 'assets/frames/moldura_dragao_cristal.png';
-      case FrameRarity.elite:
-        return 'assets/frames/trono_solar.png';
-      default:
-        return null;
-    }
-  }
-
-  /// Fração do canvas da imagem ocupada pelo avatar — calibrada por
-  /// asset (a "janela" vazia no centro varia de arte para arte).
-  double get imageAvatarFraction {
-    switch (this) {
-      case FrameRarity.mythic:
-        return 0.60;
-      case FrameRarity.elite:
-        return 0.55;
-      default:
-        return 0.60;
-    }
-  }
+  // Antes eram imagens (moldura_dragao_cristal.png / trono_solar.png).
+  // Agora são 100% CustomPainter — sem dependência de assets — mas
+  // continuam raras e visualmente distintas: são desenhadas por cima
+  // de tudo, nas duas raridades mais altas.
+  bool get hasCrystalDragonFrame => this == FrameRarity.mythic;
+  bool get hasSolarThroneFrame => this == FrameRarity.elite;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -275,8 +256,6 @@ class _AvatarFrameState extends State<AvatarFrame>
         final opacity =
             widget.enableEntryAnimation ? _entryFadeAnim.value : 1.0;
 
-        final imageAsset = rarity.imageAssetPath;
-
         return Opacity(
           opacity: opacity,
           child: Transform.scale(
@@ -316,63 +295,6 @@ class _AvatarFrameState extends State<AvatarFrame>
                       ),
                     ),
                   ),
-
-                  // Moldura-imagem (dragão / fênix), girando por cima
-                  // de tudo — usa o mesmo _rotationCtrl da moldura
-                  // desenhada, então os dois ficam sincronizados.
-                  //
-                  // IMPORTANTE: o tamanho da imagem é limitado ao
-                  // SizedBox pai (widget.size * 1.6). Antes, para
-                  // raridades com imageAvatarFraction < 0.625, a
-                  // imagem calculada (widget.size / fraction) ficava
-                  // MAIOR que o próprio container pai — o que podia
-                  // fazer o Stack simplesmente não desenhar nada em
-                  // release mode. Usamos min() para nunca estourar.
-                  if (imageAsset != null)
-                    IgnorePointer(
-                      child: Transform.rotate(
-                        angle: _rotationCtrl.value * 2 * math.pi,
-                        child: Image.asset(
-                          imageAsset,
-                          width: math.min(
-                            widget.size / rarity.imageAvatarFraction,
-                            widget.size * 1.6,
-                          ),
-                          height: math.min(
-                            widget.size / rarity.imageAvatarFraction,
-                            widget.size * 1.6,
-                          ),
-                          fit: BoxFit.contain,
-                          // Se o asset não for encontrado (nome errado,
-                          // não registrado no pubspec, etc), mostra um
-                          // aviso visível em vez de falhar em silêncio
-                          // — assim fica óbvio que é problema de asset,
-                          // não de lógica.
-                          errorBuilder: (context, error, stackTrace) {
-                            debugPrint(
-                                '[AvatarFrame] Falha ao carregar $imageAsset: $error');
-                            return Container(
-                              width: widget.size * 1.5,
-                              height: widget.size * 1.5,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.redAccent.withOpacity(0.6),
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.broken_image_rounded,
-                                  color: Colors.redAccent,
-                                  size: 16,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -437,6 +359,180 @@ class _FramePainter extends CustomPainter {
     if (rarity == FrameRarity.elite) {
       _paintEliteMark(canvas, center, ringRadius);
     }
+
+    // ── Molduras especiais desenhadas (antes eram imagens PNG) ──────
+    if (rarity.hasCrystalDragonFrame) {
+      _paintCrystalDragonFrame(canvas, center, ringRadius);
+    }
+    if (rarity.hasSolarThroneFrame) {
+      _paintSolarThroneFrame(canvas, center, ringRadius);
+    }
+  }
+
+  // ── MOLDURA DRAGÃO DE CRISTAL (Mítico) ────────────────────────────
+  // Recompensa rara: duas "cabeças de dragão" facetadas guardando o
+  // avatar nas laterais, com cristais orbitando e respiro de energia
+  // fria. Desenhada 100% em código — sem depender de nenhuma imagem.
+  void _paintCrystalDragonFrame(Canvas canvas, Offset center, double radius) {
+    final dragonRadius = radius + 20;
+
+    // Névoa cristalina de fundo
+    final mistPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFF00E5FF).withOpacity(0.12 * glow),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: dragonRadius + 12));
+    canvas.drawCircle(center, dragonRadius + 12, mistPaint);
+
+    // Duas cabeças de dragão estilizadas (esquerda/direita), feitas de
+    // triângulos facetados apontando para o avatar central.
+    for (final side in [-1.0, 1.0]) {
+      final baseAngle = side < 0 ? math.pi * 0.82 : math.pi * 0.18;
+      final sway = math.sin(rotation * 2 * math.pi) * 0.05;
+      final angle = baseAngle + sway * side;
+
+      final headCenter = Offset(
+        center.dx + math.cos(angle) * dragonRadius,
+        center.dy - math.sin(angle) * dragonRadius * 0.7,
+      );
+
+      canvas.save();
+      canvas.translate(headCenter.dx, headCenter.dy);
+      canvas.rotate(-angle * side);
+
+      final headPath = Path()
+        ..moveTo(0, -9)
+        ..lineTo(14 * side, 0)
+        ..lineTo(6 * side, 6)
+        ..lineTo(-6 * side, 10)
+        ..lineTo(-10 * side, 0)
+        ..close();
+
+      final headPaint = Paint()
+        ..shader = LinearGradient(
+          colors: [
+            const Color(0xFF00E5FF).withOpacity(0.85 * glow),
+            const Color(0xFF7C4DFF).withOpacity(0.85 * glow),
+          ],
+        ).createShader(const Rect.fromLTWH(-14, -9, 28, 19));
+      canvas.drawPath(headPath, headPaint);
+
+      final headOutline = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..color = Colors.white.withOpacity(0.7 * glow);
+      canvas.drawPath(headPath, headOutline);
+
+      // "Olho" do dragão
+      final eyePaint = Paint()..color = Colors.white.withOpacity(glow);
+      canvas.drawCircle(Offset(2 * side, -1), 1.4, eyePaint);
+
+      canvas.restore();
+    }
+
+    // Cristais pequenos orbitando entre as duas cabeças
+    for (int i = 0; i < 6; i++) {
+      final a = (i / 6) * 2 * math.pi + rotation * 2 * math.pi;
+      final pos = Offset(
+        center.dx + math.cos(a) * (dragonRadius + 6),
+        center.dy + math.sin(a) * (dragonRadius + 6) * 0.6,
+      );
+      final crystalPaint = Paint()
+        ..color = Color.lerp(
+                const Color(0xFF00E5FF), const Color(0xFF7C4DFF), i / 6)!
+            .withOpacity(0.7 * glow);
+      canvas.save();
+      canvas.translate(pos.dx, pos.dy);
+      canvas.rotate(a);
+      final crystalPath = Path()
+        ..moveTo(0, -3.5)
+        ..lineTo(2.2, 0)
+        ..lineTo(0, 3.5)
+        ..lineTo(-2.2, 0)
+        ..close();
+      canvas.drawPath(crystalPath, crystalPaint);
+      canvas.restore();
+    }
+  }
+
+  // ── MOLDURA TRONO SOLAR (Horizonte Elite) ─────────────────────────
+  // Recompensa máxima: raios solares geométricos irradiando atrás do
+  // avatar, como o encosto de um trono, com um arco duplo de energia
+  // dourada circulando por cima. 100% código, sem imagem.
+  void _paintSolarThroneFrame(Canvas canvas, Offset center, double radius) {
+    final throneRadius = radius + 22;
+
+    // Resplendor solar de fundo (glow amplo)
+    final haloPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFFFFD700).withOpacity(0.22 * glow),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: throneRadius + 16));
+    canvas.drawCircle(center, throneRadius + 16, haloPaint);
+
+    // Raios triangulares alternando comprimento, como o encosto de um
+    // trono solar — desenhados em leque atrás do avatar.
+    const rayCount = 16;
+    for (int i = 0; i < rayCount; i++) {
+      final a = (i / rayCount) * 2 * math.pi + rotation * 0.3 * math.pi;
+      final isLong = i.isEven;
+      final len = isLong ? throneRadius + 16 : throneRadius + 8;
+      final width = isLong ? 5.0 : 3.0;
+
+      final dir = Offset(math.cos(a), math.sin(a));
+      final base = center + dir * throneRadius * 0.92;
+      final tip = center + dir * len;
+      final normal = Offset(-dir.dy, dir.dx) * width;
+
+      final rayPath = Path()
+        ..moveTo(base.dx - normal.dx, base.dy - normal.dy)
+        ..lineTo(tip.dx, tip.dy)
+        ..lineTo(base.dx + normal.dx, base.dy + normal.dy)
+        ..close();
+
+      final rayPaint = Paint()
+        ..shader = LinearGradient(
+          colors: [
+            const Color(0xFFFFD700).withOpacity(0.85 * glow),
+            const Color(0xFFFF6D00).withOpacity(0.15 * glow),
+          ],
+        ).createShader(Rect.fromPoints(base, tip));
+      canvas.drawPath(rayPath, rayPaint);
+    }
+
+    // Arco duplo de energia dourada circulando por cima dos raios
+    final arcPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round
+      ..shader = SweepGradient(
+        startAngle: -rotation * 2.2 * math.pi,
+        endAngle: -rotation * 2.2 * math.pi + math.pi * 1.1,
+        colors: [
+          Colors.transparent,
+          const Color(0xFFFFF176).withOpacity(0.9 * glow),
+          const Color(0xFFFFD700).withOpacity(0.9 * glow),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: throneRadius + 4));
+    canvas.drawCircle(center, throneRadius + 4, arcPaint);
+
+    // Pequeno brasão central no topo, marcando o "trono"
+    final crestCenter = Offset(center.dx, center.dy - throneRadius - 4);
+    final crestPaint = Paint()
+      ..color = Colors.white.withOpacity(0.9 * glow)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+    final crestPath = Path()
+      ..moveTo(crestCenter.dx, crestCenter.dy - 5)
+      ..lineTo(crestCenter.dx + 4, crestCenter.dy + 3)
+      ..lineTo(crestCenter.dx, crestCenter.dy + 1)
+      ..lineTo(crestCenter.dx - 4, crestCenter.dy + 3)
+      ..close();
+    canvas.drawPath(crestPath, crestPaint);
   }
 
   // ── Aura dinâmica 360° (Mítico / Supremo / Elite) ────────────────
