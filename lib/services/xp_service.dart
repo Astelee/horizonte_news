@@ -24,6 +24,9 @@ class UserXpData {
   final bool showAge;
   final PremiumTier premiumTier;
   final DateTime? premiumExpiresAt;
+  // Avatar animado premium equipado (chave de PremiumAvatarId.storageKey).
+  // Null = nenhum avatar premium equipado (usa foto/iniciais normais).
+  final String? equippedPremiumAvatarId;
 
   const UserXpData({
     required this.totalXp,
@@ -43,6 +46,7 @@ class UserXpData {
     this.showAge = false,
     this.premiumTier = PremiumTier.none,
     this.premiumExpiresAt,
+    this.equippedPremiumAvatarId,
   });
 
   factory UserXpData.empty() => const UserXpData(
@@ -68,6 +72,8 @@ class UserXpData {
     bool? showAge,
     PremiumTier? premiumTier,
     DateTime? premiumExpiresAt,
+    String? equippedPremiumAvatarId,
+    bool clearEquippedPremiumAvatar = false,
   }) {
     return UserXpData(
       totalXp: totalXp,
@@ -87,6 +93,9 @@ class UserXpData {
       showAge: showAge ?? this.showAge,
       premiumTier: premiumTier ?? this.premiumTier,
       premiumExpiresAt: premiumExpiresAt ?? this.premiumExpiresAt,
+      equippedPremiumAvatarId: clearEquippedPremiumAvatar
+          ? null
+          : (equippedPremiumAvatarId ?? this.equippedPremiumAvatarId),
     );
   }
 
@@ -190,6 +199,7 @@ class XpService {
     bool showAge = false,
     PremiumTier premiumTier = PremiumTier.none,
     DateTime? premiumExpiresAt,
+    String? equippedPremiumAvatarId,
   }) {
     final calculatedLevel = levelFromXp(totalXp);
     final level = (overrideLevel ?? calculatedLevel).clamp(1, maxLevel).toInt();
@@ -220,6 +230,7 @@ class XpService {
       showAge: showAge,
       premiumTier: premiumTier,
       premiumExpiresAt: premiumExpiresAt,
+      equippedPremiumAvatarId: equippedPremiumAvatarId,
     );
   }
 
@@ -289,6 +300,8 @@ class XpService {
           PremiumTierX.fromId(dataUpdated['premiumTier'] as String?);
       final premiumExpiresAt =
           (dataUpdated['premiumExpiresAt'] as Timestamp?)?.toDate();
+      final equippedPremiumAvatarId =
+          dataUpdated['equippedPremiumAvatarId'] as String?;
 
       final xpData = buildXpData(
         totalXp: totalXp,
@@ -305,6 +318,7 @@ class XpService {
         showAge: showAge,
         premiumTier: premiumTier,
         premiumExpiresAt: premiumExpiresAt,
+        equippedPremiumAvatarId: equippedPremiumAvatarId,
       );
 
       // Só sincroniza level no Firestore se NÃO houver override ativo
@@ -352,6 +366,8 @@ class XpService {
     final premiumTier = PremiumTierX.fromId(data['premiumTier'] as String?);
     final premiumExpiresAt =
         (data['premiumExpiresAt'] as Timestamp?)?.toDate();
+    final equippedPremiumAvatarId =
+        data['equippedPremiumAvatarId'] as String?;
 
     return buildXpData(
       totalXp: totalXp,
@@ -368,6 +384,7 @@ class XpService {
       showAge: showAge,
       premiumTier: premiumTier,
       premiumExpiresAt: premiumExpiresAt,
+      equippedPremiumAvatarId: equippedPremiumAvatarId,
     );
   }
 
@@ -748,6 +765,31 @@ class XpService {
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  // ── AVATARES ANIMADOS PREMIUM ─────────────────────────────────────
+  // Grava/limpa o avatar animado premium equipado pelo usuário. Só o
+  // dono do documento escreve este campo (permitido pelas regras do
+  // Firestore, já que não está na lista de campos restritos a admin),
+  // e a validação de "é assinante?" acontece no cliente antes de
+  // chamar este método (ver PremiumAvatarGalleryScreen) — o campo em
+  // si não concede nada sozinho, é só a preferência salva de qual
+  // avatar mostrar quando o usuário tem acesso.
+  Future<void> setEquippedPremiumAvatar(String? avatarStorageKeyOrNull) async {
+    final doc = _userDoc;
+    if (doc == null) return;
+
+    if (avatarStorageKeyOrNull == null) {
+      await doc.set(
+        {'equippedPremiumAvatarId': FieldValue.delete()},
+        SetOptions(merge: true),
+      );
+    } else {
+      await doc.set(
+        {'equippedPremiumAvatarId': avatarStorageKeyOrNull},
+        SetOptions(merge: true),
+      );
     }
   }
 
