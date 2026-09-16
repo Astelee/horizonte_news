@@ -22,6 +22,7 @@ class CommentModel {
   final List<String> userAchievements;
   final String userAvatarId;
   final String? userPhotoUrl;
+  final String? userEquippedPremiumAvatarId;
   final int likesCount;
   final int repliesCount;
   final String? replyToUsername;
@@ -37,6 +38,7 @@ class CommentModel {
     this.userAchievements = const [],
     this.userAvatarId = 'animais_01',
     this.userPhotoUrl,
+    this.userEquippedPremiumAvatarId,
     this.likesCount = 0,
     this.repliesCount = 0,
     this.replyToUsername,
@@ -55,6 +57,8 @@ class CommentModel {
       userAchievements: List<String>.from(data['userAchievements'] ?? []),
       userAvatarId: (data['userAvatarId'] as String?) ?? 'animais_01',
       userPhotoUrl: data['userPhotoUrl'] as String?,
+      userEquippedPremiumAvatarId:
+          data['userEquippedPremiumAvatarId'] as String?,
       likesCount: (data['likesCount'] as num?)?.toInt() ?? 0,
       repliesCount: (data['repliesCount'] as num?)?.toInt() ?? 0,
       replyToUsername: data['replyToUsername'] as String?,
@@ -125,6 +129,8 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
     final username = (_userData?['username'] as String?) ?? '';
     final totalXp = (_userData?['totalXp'] as num?)?.toInt() ?? 0;
     final photoUrl = _userData?['photoUrl'] as String?;
+    final equippedPremiumAvatarId =
+        _userData?['equippedPremiumAvatarId'] as String?;
     final showAge = _userData?['showAge'] as bool? ?? false;
     final birthDate = (_userData?['birthDate'] as Timestamp?)?.toDate();
     final age = (showAge && birthDate != null) ? _calculateAge(birthDate) : null;
@@ -165,10 +171,11 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
               AvatarFrame(
                 level: widget.userLevel,
                 size: 60,
-                child: AppAvatar(
+                child: UserAvatarDisplay(
                   name: widget.userName,
                   seed: widget.userId,
                   photoUrl: photoUrl,
+                  equippedPremiumAvatarId: equippedPremiumAvatarId,
                   size: 60,
                 ),
               ),
@@ -576,6 +583,8 @@ class _CommentsSectionState extends State<CommentsSection>
       final userAchievements = xpProvider.data.achievements;
       final userAvatarId = xpProvider.data.avatarId;
       final userPhotoUrl = xpProvider.data.photoUrl;
+      final userEquippedPremiumAvatarId =
+          xpProvider.data.equippedPremiumAvatarId;
       final username = xpProvider.data.username;
 
       final payload = {
@@ -588,6 +597,7 @@ class _CommentsSectionState extends State<CommentsSection>
         'userAchievements': userAchievements,
         'userAvatarId': userAvatarId,
         'userPhotoUrl': userPhotoUrl,
+        'userEquippedPremiumAvatarId': userEquippedPremiumAvatarId,
         'likesCount': 0,
       };
 
@@ -1041,12 +1051,13 @@ class _CommentsSectionState extends State<CommentsSection>
         return AvatarFrame(
           level: xpProvider.data.level,
           size: 36,
-          child: AppAvatar(
+          child: UserAvatarDisplay(
             name: currentUser?.displayName ??
                 currentUser?.email?.split('@').first ??
                 'Leitor',
             seed: currentUser?.uid,
             photoUrl: xpProvider.data.photoUrl,
+            equippedPremiumAvatarId: xpProvider.data.equippedPremiumAvatarId,
             size: 36,
           ),
         );
@@ -1269,10 +1280,12 @@ class _CommentTileState extends State<_CommentTile>
       child: AvatarFrame(
         level: widget.comment.userLevel,
         size: 36,
-        child: AppAvatar(
+        child: UserAvatarDisplay(
           name: widget.comment.userName,
           seed: widget.comment.userId,
           photoUrl: widget.comment.userPhotoUrl,
+          equippedPremiumAvatarId:
+              widget.comment.userEquippedPremiumAvatarId,
           size: 36,
         ),
       ),
@@ -1771,10 +1784,11 @@ class _ReplyTile extends StatelessWidget {
         AvatarFrame(
           level: reply.userLevel,
           size: 28,
-          child: AppAvatar(
+          child: UserAvatarDisplay(
             name: reply.userName,
             seed: reply.userId,
             photoUrl: reply.userPhotoUrl,
+            equippedPremiumAvatarId: reply.userEquippedPremiumAvatarId,
             size: 28,
           ),
         ),
