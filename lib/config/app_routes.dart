@@ -17,6 +17,7 @@ import '../screens/events_screen.dart';
 import '../screens/ranking_screen.dart';
 import '../screens/checkin_screen.dart';
 import '../screens/premium_screen.dart';
+import '../screens/premium_avatar_gallery_screen.dart';
 
 class AppRoutes {
   static const String home           = '/';
@@ -37,6 +38,7 @@ class AppRoutes {
   static const String ranking        = '/ranking';
   static const String checkin        = '/checkin';
   static const String premium        = '/premium';
+  static const String premiumAvatars = '/premium-avatars';
 
   static Map<String, WidgetBuilder> get routes => {
     home:           (context) => const HomeScreen(),
@@ -57,5 +59,6 @@ class AppRoutes {
     ranking:        (context) => const RankingScreen(),
     checkin:        (context) => const CheckinScreen(),
     premium:        (context) => const PremiumScreen(),
+    premiumAvatars: (context) => const PremiumAvatarGalleryScreen(),
   };
 }
