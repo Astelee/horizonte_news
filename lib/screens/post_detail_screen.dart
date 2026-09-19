@@ -38,6 +38,28 @@ class DateFormatter {
   }
 }
 
+/// Argumentos de navegação para PostDetailScreen quando, além de
+/// abrir a notícia, é preciso já abrir a área de comentários e
+/// destacar um comentário/resposta específico — caso de notificações
+/// de "respondeu ao seu comentário" / "curtiu seu comentário" (ver
+/// NotificationService._openPost).
+///
+/// Continua compatível com o uso normal da tela: quem só passa um
+/// PostModel puro como argument (news_card, carrossel, mais lidos,
+/// deep link de compartilhamento etc.) não precisa mudar nada — ver
+/// _routeArgs, que aceita os dois formatos.
+class PostDetailArgs {
+  final PostModel post;
+  final String? highlightCommentId;
+  final String? highlightReplyId;
+
+  const PostDetailArgs({
+    required this.post,
+    this.highlightCommentId,
+    this.highlightReplyId,
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────
 // TELA PRINCIPAL
 // ─────────────────────────────────────────────────────────────────
@@ -56,6 +78,17 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   Timer? _articleReadTimer;
   late AnimationController _animController;
   late Animation<double> _fadeIn;
+
+  /// Normaliza os argumentos de rota: aceita tanto um PostModel puro
+  /// (uso normal, vindo de news_card/carrossel/deep link/etc.) quanto
+  /// um PostDetailArgs (uso vindo de notificação de comentário, que
+  /// também carrega qual comentário/resposta destacar).
+  PostDetailArgs? get _routeArgs {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is PostDetailArgs) return args;
+    if (args is PostModel) return PostDetailArgs(post: args);
+    return null;
+  }
 
   late AnimationController _authorPulseController;
   late Animation<double> _authorPulseAnim;
@@ -108,8 +141,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     _articleReadRegistered = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final post =
-          ModalRoute.of(context)?.settings.arguments as PostModel?;
+      final post = _routeArgs?.post;
       if (post == null) return;
       Provider.of<UserXpProvider>(context, listen: false)
           .onArticleRead(post.id);
@@ -130,8 +162,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     if (_viewRegistered) return;
     _viewRegistered = true;
 
-    final post =
-        ModalRoute.of(context)?.settings.arguments as PostModel?;
+    final post = _routeArgs?.post;
     if (post == null) return;
 
     await AdminViewsService().recordUniqueView(
@@ -169,8 +200,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
 
   @override
   Widget build(BuildContext context) {
-    final PostModel post =
-        ModalRoute.of(context)!.settings.arguments as PostModel;
+    final routeArgs = _routeArgs!;
+    final PostModel post = routeArgs.post;
     final favoritesProvider = Provider.of<FavoritesProvider>(context);
     final bool isFav = favoritesProvider.isFavorite(post.id);
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -249,6 +280,10 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                               CommentsSection(
                                 postId: post.id,
                                 postTitle: post.title,
+                                highlightCommentId:
+                                    routeArgs.highlightCommentId,
+                                highlightReplyId:
+                                    routeArgs.highlightReplyId,
                               ),
                               // Respiro extra no fim do scroll. Além de
                               // dar folga para o campo de comentário/
