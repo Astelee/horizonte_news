@@ -237,15 +237,30 @@ class _AuthenticatedGate extends StatelessWidget {
         }
 
         if (snapshot.hasData && snapshot.data != null) {
+          final user = snapshot.data!;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             Provider.of<UserXpProvider>(context, listen: false).initialize();
             Provider.of<AdminProvider>(context, listen: false).initialize();
+            // Associa este dispositivo ao uid do Firebase no OneSignal
+            // (External ID) — é isso que permite mandar push
+            // individual (notificação de resposta/curtida em
+            // comentário) para ESTE usuário específico, em vez de só
+            // o broadcast "All" usado para notícias novas. Chamado a
+            // cada vez que authStateChanges emite um usuário logado,
+            // então cobre tanto login manual quanto sessão retomada
+            // via "Lembrar login".
+            NotificationService.loginExternalUser(user.uid);
           });
           return AppRoutes.routes[AppRoutes.home]!(context);
         }
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           Provider.of<AdminProvider>(context, listen: false).reset();
+          // Sem usuário logado: desassocia o dispositivo do OneSignal
+          // para que pushes individuais direcionados ao uid anterior
+          // parem de chegar aqui (ex.: usuário deslogou ou trocou de
+          // conta no mesmo aparelho).
+          NotificationService.logoutExternalUser();
         });
 
         return AppRoutes.routes[AppRoutes.login]!(context);
