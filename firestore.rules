@@ -183,12 +183,33 @@ service cloud.firestore {
           && (isCounterBump('likesCount') || isCounterBump('repliesCount'));
     }
 
+    // ── Edição do próprio texto (botão "Editar comentário") ─────────
+    // Só o AUTOR do comentário (não admin — edição alheia continua
+    // proibida mesmo para admin, que só pode excluir) pode alterar
+    // exatamente os campos text/edited/editedAt, mantendo o mesmo
+    // userId e sem tocar em likesCount/repliesCount/demais campos.
+    // Isso garante que a edição nunca é usada como brecha para trocar
+    // autoria ou zerar/inflar contadores.
+    function validCommentTextEdit() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return request.auth != null
+          && resource.data.userId == request.auth.uid
+          && request.resource.data.userId == resource.data.userId
+          && changed.hasOnly(['text', 'edited', 'editedAt'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() >= 3
+          && request.resource.data.text.size() <= 500
+          && request.resource.data.edited == true;
+    }
+
     match /comments/{postId}/postComments/{commentId} {
       allow read: if true;
       allow create: if validCommentCreate();
       allow delete: if request.auth != null
           && (resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if isAdmin() || validCommentCounterUpdate();
+      allow update: if isAdmin()
+          || validCommentCounterUpdate()
+          || validCommentTextEdit();
 
       // ── Respostas (1 nível, estilo Instagram) ─────────────────────
       match /replies/{replyId} {
@@ -196,7 +217,9 @@ service cloud.firestore {
         allow create: if validCommentCreate();
         allow delete: if request.auth != null
             && (resource.data.userId == request.auth.uid || isAdmin());
-        allow update: if isAdmin() || validCommentCounterUpdate();
+        allow update: if isAdmin()
+            || validCommentCounterUpdate()
+            || validCommentTextEdit();
 
         // ── Curtidas de uma resposta ─────────────────────────────────
         match /likes/{likerId} {
@@ -214,6 +237,57 @@ service cloud.firestore {
         allow delete: if isOwner(likerId) || isAdmin();
         allow update: if false;
       }
+    }
+
+    // ── Central de notificações (respostas/curtidas em comentários) ──
+    // Cada notificação pertence a UM destinatário (recipientUserId).
+    // Só ele pode ler as próprias notificações, e só ele pode marcá-
+    // las como lidas (update restrito ao campo `read`). A CRIAÇÃO é
+    // feita pelo autor da AÇÃO (quem respondeu/curtiu, gravando o uid
+    // dele em actorUserId) diretamente do app — não há Cloud Function
+    // nesse projeto — então validamos aqui o suficiente para impedir
+    // que alguém crie notificação em nome de outro usuário ou
+    // falsificando o campo `read`/`type`.
+    function validNotificationCreate() {
+      return request.auth != null
+          && request.resource.data.actorUserId == request.auth.uid
+          && request.resource.data.actorUserId != request.resource.data.recipientUserId
+          && request.resource.data.recipientUserId is string
+          && request.resource.data.recipientUserId.size() > 0
+          && request.resource.data.type in ['comment_reply', 'comment_like']
+          && request.resource.data.read == false;
+    }
+
+    // Reabrir uma notificação de curtida já existente (curtir de novo
+    // depois de descurtir) só pode mexer em `read`/`createdAt`, sem
+    // trocar remetente/destinatário/tipo — mesma lógica de
+    // isCounterBump acima, mas para os dois campos permitidos aqui.
+    function validNotificationReopen() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return request.auth != null
+          && request.auth.uid == resource.data.actorUserId
+          && changed.hasOnly(['read', 'createdAt'])
+          && request.resource.data.read == false;
+    }
+
+    function validNotificationMarkRead() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return request.auth != null
+          && request.auth.uid == resource.data.recipientUserId
+          && changed.hasOnly(['read'])
+          && request.resource.data.read == true;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if request.auth != null
+          && resource.data.recipientUserId == request.auth.uid;
+      allow create: if validNotificationCreate();
+      allow update: if validNotificationMarkRead() || validNotificationReopen();
+      // Só admin apaga notificações diretamente — o app não expõe
+      // exclusão manual pelo usuário comum (ver GUIA_DA_IA: usuário
+      // não pode criar/alterar notificações manualmente além do que
+      // as regras acima autorizam).
+      allow delete: if isAdmin();
     }
 
     // ── Presença (online/offline) ────────────────────────────────
