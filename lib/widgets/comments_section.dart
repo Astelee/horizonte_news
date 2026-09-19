@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../providers/user_xp_provider.dart';
 import '../features/admin/providers/admin_provider.dart';
+import '../services/app_notification_service.dart';
 import 'badge_widgets.dart';
 import 'avatar_frame.dart';
 import 'app_avatar.dart';
@@ -26,6 +28,7 @@ class CommentModel {
   final int likesCount;
   final int repliesCount;
   final String? replyToUsername;
+  final bool edited;
 
   CommentModel({
     required this.id,
@@ -42,6 +45,7 @@ class CommentModel {
     this.likesCount = 0,
     this.repliesCount = 0,
     this.replyToUsername,
+    this.edited = false,
   });
 
   factory CommentModel.fromDoc(DocumentSnapshot doc) {
@@ -62,6 +66,7 @@ class CommentModel {
       likesCount: (data['likesCount'] as num?)?.toInt() ?? 0,
       repliesCount: (data['repliesCount'] as num?)?.toInt() ?? 0,
       replyToUsername: data['replyToUsername'] as String?,
+      edited: data['edited'] as bool? ?? false,
     );
   }
 }
@@ -327,10 +332,18 @@ class CommentsSection extends StatefulWidget {
   final String postId;
   final String postTitle;
 
+  /// Quando vindos de uma notificação de resposta/curtida (ver
+  /// PostDetailArgs), abrem a seção de comentários já expandida e
+  /// destacam o comentário/resposta correspondente.
+  final String? highlightCommentId;
+  final String? highlightReplyId;
+
   const CommentsSection({
     Key? key,
     required this.postId,
     required this.postTitle,
+    this.highlightCommentId,
+    this.highlightReplyId,
   }) : super(key: key);
 
   @override
@@ -369,6 +382,16 @@ class _CommentsSectionState extends State<CommentsSection>
 
   bool get _isReplying => _replyToCommentId != null;
 
+  // ── Edição de comentário ───────────────────────────────────────────
+  // Quando != null, identifica o comentário/resposta cujo texto está
+  // sendo editado no momento — controla qual _CommentTile/_ReplyTile
+  // troca o texto normal pelo campo de edição inline.
+  String? _editingCommentId;
+  String? _editingParentCommentId; // != null quando é uma resposta
+
+  // ── Destaque vindo de notificação (ver highlightCommentId/ReplyId) ──
+  String? _highlightedCommentId;
+  String? _highlightedReplyId;
 
   @override
   void initState() {
@@ -395,6 +418,18 @@ class _CommentsSectionState extends State<CommentsSection>
     _focusNode.addListener(() {
       if (_focusNode.hasFocus) _scrollInputIntoView();
     });
+
+    // Se a tela foi aberta a partir de uma notificação de resposta/
+    // curtida, já abre os comentários expandidos e guarda o alvo a
+    // destacar — o scroll até ele acontece assim que a lista
+    // renderizar o item (cada _CommentTile/_ReplyTile tem sua
+    // própria GlobalKey e chama Scrollable.ensureVisible sozinho).
+    if (widget.highlightCommentId != null) {
+      _highlightedCommentId = widget.highlightCommentId;
+      _highlightedReplyId = widget.highlightReplyId;
+      _expanded = true;
+      _expandCtrl.value = 1.0;
+    }
   }
 
   // Chamado pelo Flutter sempre que as métricas da tela mudam —
@@ -602,13 +637,36 @@ class _CommentsSectionState extends State<CommentsSection>
       };
 
       if (replyingToCommentId != null) {
-        await _repliesRef(replyingToCommentId).add({
+        final replyDoc = await _repliesRef(replyingToCommentId).add({
           ...payload,
           'replyToUsername': replyingToUsername,
         });
         await _commentsRef
             .doc(replyingToCommentId)
             .update({'repliesCount': FieldValue.increment(1)});
+
+        // Notifica o autor do comentário-pai (a resposta pode ser a
+        // uma resposta de outra pessoa dentro da mesma thread — o
+        // destinatário é sempre quem escreveu o item ao qual esta
+        // resposta está diretamente ligada, ou seja, _replyToUserId,
+        // que _startReply já preenche corretamente tanto para
+        // "Responder" no comentário raiz quanto numa resposta).
+        final recipientUserId = _replyToUserId;
+        if (recipientUserId != null && recipientUserId != user.uid) {
+          unawaited(AppNotificationService.notifyCommentReply(
+            recipientUserId: recipientUserId,
+            actorUserId: user.uid,
+            actorUserName: username?.trim().isNotEmpty == true
+                ? username!
+                : userName,
+            actorPhotoUrl: userPhotoUrl,
+            postId: widget.postId,
+            postTitle: widget.postTitle,
+            commentId: replyingToCommentId,
+            replyId: replyDoc.id,
+            previewText: text,
+          ));
+        }
       } else {
         await _commentsRef.add({
           ...payload,
@@ -646,6 +704,61 @@ class _CommentsSectionState extends State<CommentsSection>
     }
   }
 
+  /// Atualiza o texto de um comentário/resposta já existente (edição
+  /// própria — a regra do Firestore garante que só o dono ou um admin
+  /// pode chegar até aqui, ver validCommentTextEdit). Marca `edited:
+  /// true` e grava `editedAt` para o "(editado)" na UI. Preserva tudo
+  /// mais do documento (id, likesCount, repliesCount, respostas,
+  /// curtidas) porque é um update pontual de dois campos, nunca uma
+  /// recriação do documento.
+  Future<void> _editComment({
+    required String commentId,
+    required String newText,
+    String? parentCommentId,
+  }) async {
+    final text = newText.trim();
+    if (text.isEmpty || text.length < 3) {
+      _showSnack('Comentário muito curto.');
+      return;
+    }
+    try {
+      final ref = parentCommentId != null
+          ? _repliesRef(parentCommentId).doc(commentId)
+          : _commentsRef.doc(commentId);
+      await ref.update({
+        'text': text,
+        'edited': true,
+        'editedAt': FieldValue.serverTimestamp(),
+      });
+      if (mounted) {
+        setState(() {
+          _editingCommentId = null;
+          _editingParentCommentId = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) _showSnack('Erro ao salvar edição: $e');
+    }
+  }
+
+  void _startEditing({
+    required String commentId,
+    String? parentCommentId,
+  }) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _editingCommentId = commentId;
+      _editingParentCommentId = parentCommentId;
+    });
+  }
+
+  void _cancelEditing() {
+    setState(() {
+      _editingCommentId = null;
+      _editingParentCommentId = null;
+    });
+  }
+
   Future<void> _deleteReply({
     required String parentCommentId,
     required String replyId,
@@ -679,14 +792,34 @@ class _CommentsSectionState extends State<CommentsSection>
         likerUid: user.uid,
         parentCommentId: parentCommentId,
       );
-    } else {
-      await xpProvider.likeComment(
-        postId: widget.postId,
-        commentId: commentId,
-        authorUid: authorUid,
-        parentCommentId: parentCommentId,
-      );
+      // Descurtir nunca gera notificação — só o ato de curtir
+      // notifica o autor (ver notifyCommentLike para a lógica de
+      // dedupe quando a pessoa curte/descurte/curte de novo).
+      return;
     }
+
+    final liked = await xpProvider.likeComment(
+      postId: widget.postId,
+      commentId: commentId,
+      authorUid: authorUid,
+      parentCommentId: parentCommentId,
+    );
+    if (!liked) return; // já estava curtido, ou falhou — sem notificar
+
+    final actorName =
+        user.displayName ?? user.email?.split('@').first ?? 'Leitor';
+    final actorPhotoUrl =
+        Provider.of<UserXpProvider>(context, listen: false).data.photoUrl;
+    unawaited(AppNotificationService.notifyCommentLike(
+      recipientUserId: authorUid,
+      actorUserId: user.uid,
+      actorUserName: actorName,
+      actorPhotoUrl: actorPhotoUrl,
+      postId: widget.postId,
+      postTitle: widget.postTitle,
+      commentId: parentCommentId ?? commentId,
+      replyId: parentCommentId != null ? commentId : null,
+    ));
   }
 
   void _openUserProfile(CommentModel comment) {
@@ -790,11 +923,26 @@ class _CommentsSectionState extends State<CommentsSection>
   }
 
   // ── Botão único que abre/fecha os comentários ────────────────────
+  // O contador precisa somar comentários-raiz + TODAS as respostas
+  // (repliesCount de cada comentário), não só docs.length da
+  // coleção postComments — do contrário um comentário com respostas
+  // aparece como "1" mesmo tendo, por exemplo, 3 respostas.
+  // repliesCount já é mantido corretamente em tempo real (ver
+  // _sendComment/_deleteReply, que fazem FieldValue.increment(±1) a
+  // cada resposta criada/excluída), então basta somar esse campo em
+  // cada comentário-raiz — sem precisar de uma segunda query nas
+  // subcoleções replies/*.
   Widget _buildToggleButton() {
     return StreamBuilder<QuerySnapshot>(
       stream: _commentsRef.orderBy('createdAt', descending: true).snapshots(),
       builder: (context, snapshot) {
-        final count = snapshot.data?.docs.length ?? 0;
+        final docs = snapshot.data?.docs ?? const [];
+        final int rootCount = docs.length;
+        final int repliesTotal = docs.fold<int>(0, (sum, doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return sum + ((data['repliesCount'] as num?)?.toInt() ?? 0);
+        });
+        final count = rootCount + repliesTotal;
         return Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
           child: GestureDetector(
@@ -1097,6 +1245,23 @@ class _CommentsSectionState extends State<CommentsSection>
             .map((doc) => CommentModel.fromDoc(doc))
             .toList();
 
+        // Se veio de uma notificação apontando para um comentário que
+        // não está mais entre os 50 mais recentes carregados (thread
+        // antiga), não há como destacar — evita ficar tentando rolar
+        // para um item que nunca vai aparecer na lista.
+        final highlightStillVisible = _highlightedCommentId == null ||
+            comments.any((c) => c.id == _highlightedCommentId);
+        if (!highlightStillVisible) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                _highlightedCommentId = null;
+                _highlightedReplyId = null;
+              });
+            }
+          });
+        }
+
         return ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -1144,6 +1309,40 @@ class _CommentsSectionState extends State<CommentsSection>
               alreadyLiked: alreadyLiked,
               parentCommentId: parentCommentId,
             ),
+            isEditing: _editingCommentId == comments[index].id &&
+                _editingParentCommentId == null,
+            editingReplyId: _editingParentCommentId == comments[index].id
+                ? _editingCommentId
+                : null,
+            onStartEdit: () => _startEditing(commentId: comments[index].id),
+            onStartEditReply: (replyId) => _startEditing(
+              commentId: replyId,
+              parentCommentId: comments[index].id,
+            ),
+            onCancelEdit: _cancelEditing,
+            onSaveEdit: (newText) => _editComment(
+              commentId: comments[index].id,
+              newText: newText,
+            ),
+            onSaveEditReply: (replyId, newText) => _editComment(
+              commentId: replyId,
+              newText: newText,
+              parentCommentId: comments[index].id,
+            ),
+            isHighlighted: _highlightedCommentId == comments[index].id &&
+                _highlightedReplyId == null,
+            highlightedReplyId: _highlightedCommentId == comments[index].id
+                ? _highlightedReplyId
+                : null,
+            autoExpandReplies: _highlightedCommentId == comments[index].id,
+            onHighlightShown: () {
+              if (_highlightedCommentId == comments[index].id) {
+                setState(() {
+                  _highlightedCommentId = null;
+                  _highlightedReplyId = null;
+                });
+              }
+            },
             repliesRef: _repliesRef(comments[index].id),
             timeAgoBuilder: _timeAgo,
           ),
@@ -1185,6 +1384,21 @@ class _CommentTile extends StatefulWidget {
   final CollectionReference repliesRef;
   final String Function(DateTime) timeAgoBuilder;
 
+  // ── Edição ──────────────────────────────────────────────────────
+  final bool isEditing;
+  final String? editingReplyId;
+  final VoidCallback onStartEdit;
+  final ValueChanged<String> onStartEditReply;
+  final VoidCallback onCancelEdit;
+  final ValueChanged<String> onSaveEdit;
+  final void Function(String replyId, String newText) onSaveEditReply;
+
+  // ── Destaque vindo de notificação ──────────────────────────────
+  final bool isHighlighted;
+  final String? highlightedReplyId;
+  final bool autoExpandReplies;
+  final VoidCallback onHighlightShown;
+
   const _CommentTile({
     Key? key,
     required this.postId,
@@ -1200,6 +1414,17 @@ class _CommentTile extends StatefulWidget {
     required this.onToggleLike,
     required this.repliesRef,
     required this.timeAgoBuilder,
+    required this.isEditing,
+    required this.editingReplyId,
+    required this.onStartEdit,
+    required this.onStartEditReply,
+    required this.onCancelEdit,
+    required this.onSaveEdit,
+    required this.onSaveEditReply,
+    required this.isHighlighted,
+    required this.highlightedReplyId,
+    required this.autoExpandReplies,
+    required this.onHighlightShown,
   }) : super(key: key);
 
   @override
@@ -1212,6 +1437,7 @@ class _CommentTileState extends State<_CommentTile>
   late Animation<double> _opacity;
   late Animation<Offset> _slide;
   bool _repliesExpanded = false;
+  final GlobalKey _tileKey = GlobalKey();
 
   @override
   void initState() {
@@ -1222,6 +1448,34 @@ class _CommentTileState extends State<_CommentTile>
     _slide = Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero)
         .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
     _ctrl.forward();
+
+    if (widget.autoExpandReplies) _repliesExpanded = true;
+    if (widget.isHighlighted || widget.highlightedReplyId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollIntoView());
+    }
+  }
+
+  /// Rola a tela até este comentário ficar visível — usado quando a
+  /// tela foi aberta a partir de uma notificação de resposta/curtida.
+  /// Tenta em múltiplos instantes porque, no primeiro frame após
+  /// abrir a notícia, o CustomScrollView pai ainda pode não ter o
+  /// tamanho final (imagem de capa/HTML ainda carregando).
+  void _scrollIntoView() {
+    for (final delay in const [200, 500, 900]) {
+      Future.delayed(Duration(milliseconds: delay), () {
+        final ctx = _tileKey.currentContext;
+        if (ctx == null || !mounted) return;
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          alignment: 0.3,
+        );
+      });
+    }
+    // Some o destaque sozinho depois de dar tempo da pessoa ver —
+    // evita que o comentário fique "aceso" para sempre na tela.
+    Future.delayed(const Duration(seconds: 3), widget.onHighlightShown);
   }
 
   @override
@@ -1292,23 +1546,92 @@ class _CommentTileState extends State<_CommentTile>
     );
   }
 
+  Widget _buildMenuButton(BuildContext context) {
+    // Só mostra o menu (⋮) se há pelo menos uma ação disponível —
+    // editar (só o dono) ou excluir (dono ou admin). Substitui o
+    // ícone de lixeira solto por um menu, deixando espaço visual
+    // para a nova opção "Editar" sem poluir a linha de metadados.
+    if (!_isOwner && !_canDelete) return const SizedBox.shrink();
+    return PopupMenuButton<String>(
+      padding: EdgeInsets.zero,
+      icon: const Icon(Icons.more_vert_rounded,
+          size: 16, color: AppColors.textMuted),
+      color: const Color(0xFF141414),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.15)),
+      ),
+      onSelected: (value) {
+        if (value == 'edit') {
+          widget.onStartEdit();
+        } else if (value == 'delete') {
+          _confirmDelete(context);
+        }
+      },
+      itemBuilder: (context) => [
+        // Editar: só o próprio autor do comentário — nunca aparece
+        // para admin em comentário de outra pessoa (edição alheia
+        // continua proibida mesmo para admin, só exclusão é permitida).
+        if (_isOwner)
+          const PopupMenuItem(
+            value: 'edit',
+            child: Row(
+              children: [
+                Icon(Icons.edit_outlined,
+                    size: 16, color: AppColors.primaryOrange),
+                SizedBox(width: 10),
+                Text('Editar', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+        if (_canDelete)
+          PopupMenuItem(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline_rounded,
+                    size: 16, color: AppColors.emergencyRed.withOpacity(0.9)),
+                const SizedBox(width: 10),
+                const Text('Excluir', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FadeTransition(
       opacity: _opacity,
       child: SlideTransition(
         position: _slide,
-        child: Container(
+        child: AnimatedContainer(
+          key: _tileKey,
+          duration: const Duration(milliseconds: 400),
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            color: const Color(0xFF0D0D0D),
+            color: widget.isHighlighted
+                ? AppColors.primaryOrange.withOpacity(0.10)
+                : const Color(0xFF0D0D0D),
             border: Border.all(
-              color: _isOwner
-                  ? AppColors.primaryOrange.withOpacity(0.25)
-                  : AppColors.borderSubtle,
+              color: widget.isHighlighted
+                  ? AppColors.primaryOrange.withOpacity(0.7)
+                  : _isOwner
+                      ? AppColors.primaryOrange.withOpacity(0.25)
+                      : AppColors.borderSubtle,
+              width: widget.isHighlighted ? 1.4 : 1,
             ),
+            boxShadow: widget.isHighlighted
+                ? [
+                    BoxShadow(
+                      color: AppColors.primaryOrange.withOpacity(0.18),
+                      blurRadius: 16,
+                    ),
+                  ]
+                : null,
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1389,26 +1712,31 @@ class _CommentTileState extends State<_CommentTile>
                               style: const TextStyle(
                                   color: AppColors.textMuted, fontSize: 11),
                             ),
-                            if (_canDelete) ...[
-                              const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: () => _confirmDelete(context),
-                                child: Icon(
-                                  Icons.delete_outline_rounded,
-                                  size: 15,
-                                  color: widget.isAdmin && !_isOwner
-                                      ? AppColors.emergencyRed
-                                          .withOpacity(0.7)
-                                      : AppColors.textMuted,
+                            if (widget.comment.edited) ...[
+                              const SizedBox(width: 5),
+                              Text(
+                                '· editado',
+                                style: TextStyle(
+                                  color: AppColors.textMuted.withOpacity(0.8),
+                                  fontSize: 10,
+                                  fontStyle: FontStyle.italic,
                                 ),
                               ),
                             ],
+                            _buildMenuButton(context),
                           ],
                         ),
                       ],
                     ),
                     const SizedBox(height: 6),
-                    _CommentText(comment: widget.comment),
+                    if (widget.isEditing)
+                      _CommentEditField(
+                        initialText: widget.comment.text,
+                        onCancel: widget.onCancelEdit,
+                        onSave: widget.onSaveEdit,
+                      )
+                    else
+                      _CommentText(comment: widget.comment),
                     const SizedBox(height: 8),
                     _CommentActionsRow(
                       postId: widget.postId,
@@ -1463,6 +1791,12 @@ class _CommentTileState extends State<_CommentTile>
                           userName: reply.userName,
                         ),
                         timeAgoBuilder: widget.timeAgoBuilder,
+                        editingReplyId: widget.editingReplyId,
+                        onStartEditReply: widget.onStartEditReply,
+                        onCancelEdit: widget.onCancelEdit,
+                        onSaveEditReply: widget.onSaveEditReply,
+                        highlightedReplyId: widget.highlightedReplyId,
+                        onHighlightShown: widget.onHighlightShown,
                       ),
                   ],
                 ),
@@ -1470,6 +1804,144 @@ class _CommentTileState extends State<_CommentTile>
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Campo de edição inline (substitui _CommentText quando editando) ──
+// Compartilhado entre comentário-raiz e resposta. Mantém visual
+// coerente com o campo de novo comentário (mesma paleta laranja/
+// preto), só que compacto o bastante para caber dentro do próprio
+// card do comentário sendo editado.
+class _CommentEditField extends StatefulWidget {
+  final String initialText;
+  final VoidCallback onCancel;
+  final ValueChanged<String> onSave;
+
+  const _CommentEditField({
+    required this.initialText,
+    required this.onCancel,
+    required this.onSave,
+  });
+
+  @override
+  State<_CommentEditField> createState() => _CommentEditFieldState();
+}
+
+class _CommentEditFieldState extends State<_CommentEditField> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initialText);
+  late final FocusNode _focusNode = FocusNode();
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Foca automaticamente e já seleciona o texto todo, para a
+    // pessoa poder simplesmente começar a digitar por cima se quiser
+    // reescrever do zero (comportamento padrão de "editar" na maioria
+    // dos apps).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _focusNode.requestFocus();
+      _controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _controller.text.length,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty || _saving) return;
+    setState(() => _saving = true);
+    widget.onSave(text);
+    // Não desligamos _saving aqui de propósito: o widget é
+    // desmontado pelo pai assim que _editingCommentId volta a null
+    // (onSaveEdit conclui e sai do modo de edição), então não há
+    // necessidade de reverter o estado de um widget que já vai
+    // sumir da árvore.
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFF141414),
+        border: Border.all(color: AppColors.primaryOrange.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _controller,
+            focusNode: _focusNode,
+            maxLines: 4,
+            minLines: 1,
+            maxLength: 500,
+            style: const TextStyle(
+                color: Colors.white, fontSize: 13, height: 1.4),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+              counterStyle:
+                  TextStyle(color: AppColors.textMuted, fontSize: 10),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: _saving ? null : widget.onCancel,
+                style: TextButton.styleFrom(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10)),
+                child: const Text('Cancelar',
+                    style:
+                        TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              ),
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: _saving ? null : _save,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    gradient: _saving ? null : AppColors.orangeGradient,
+                    color: _saving ? AppColors.backgroundElevated : null,
+                  ),
+                  child: _saving
+                      ? const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: AppColors.primaryOrange),
+                        )
+                      : const Text(
+                          'Salvar',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1650,6 +2122,16 @@ class _RepliesList extends StatelessWidget {
   final ValueChanged<CommentModel> onReplyToReply;
   final String Function(DateTime) timeAgoBuilder;
 
+  // ── Edição ──────────────────────────────────────────────────────
+  final String? editingReplyId;
+  final ValueChanged<String> onStartEditReply;
+  final VoidCallback onCancelEdit;
+  final void Function(String replyId, String newText) onSaveEditReply;
+
+  // ── Destaque vindo de notificação ──────────────────────────────
+  final String? highlightedReplyId;
+  final VoidCallback onHighlightShown;
+
   const _RepliesList({
     required this.postId,
     required this.parentCommentId,
@@ -1660,6 +2142,12 @@ class _RepliesList extends StatelessWidget {
     required this.onToggleLike,
     required this.onReplyToReply,
     required this.timeAgoBuilder,
+    this.editingReplyId,
+    required this.onStartEditReply,
+    required this.onCancelEdit,
+    required this.onSaveEditReply,
+    this.highlightedReplyId,
+    required this.onHighlightShown,
   });
 
   @override
@@ -1698,6 +2186,13 @@ class _RepliesList extends StatelessWidget {
                         onDelete: () => onDeleteReply(reply.id),
                         onReply: () => onReplyToReply(reply),
                         onToggleLike: onToggleLike,
+                        isEditing: editingReplyId == reply.id,
+                        onStartEdit: () => onStartEditReply(reply.id),
+                        onCancelEdit: onCancelEdit,
+                        onSaveEdit: (newText) =>
+                            onSaveEditReply(reply.id, newText),
+                        isHighlighted: highlightedReplyId == reply.id,
+                        onHighlightShown: onHighlightShown,
                       ),
                     ))
                 .toList(),
@@ -1709,7 +2204,7 @@ class _RepliesList extends StatelessWidget {
 }
 
 // ── Tile de uma resposta individual — visual mais compacto ──────────
-class _ReplyTile extends StatelessWidget {
+class _ReplyTile extends StatefulWidget {
   final String postId;
   final String parentCommentId;
   final CommentModel reply;
@@ -1719,6 +2214,12 @@ class _ReplyTile extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onReply;
   final LikeToggleCallback onToggleLike;
+  final bool isEditing;
+  final VoidCallback onStartEdit;
+  final VoidCallback onCancelEdit;
+  final ValueChanged<String> onSaveEdit;
+  final bool isHighlighted;
+  final VoidCallback onHighlightShown;
 
   const _ReplyTile({
     required this.postId,
@@ -1730,10 +2231,51 @@ class _ReplyTile extends StatelessWidget {
     required this.onDelete,
     required this.onReply,
     required this.onToggleLike,
+    required this.isEditing,
+    required this.onStartEdit,
+    required this.onCancelEdit,
+    required this.onSaveEdit,
+    required this.isHighlighted,
+    required this.onHighlightShown,
   });
+
+  @override
+  State<_ReplyTile> createState() => _ReplyTileState();
+}
+
+class _ReplyTileState extends State<_ReplyTile> {
+  final GlobalKey _tileKey = GlobalKey();
+
+  CommentModel get reply => widget.reply;
+  String get currentUserId => widget.currentUserId;
+  bool get isAdmin => widget.isAdmin;
 
   bool get _isOwner => reply.userId == currentUserId;
   bool get _canDelete => _isOwner || isAdmin;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isHighlighted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollIntoView());
+    }
+  }
+
+  void _scrollIntoView() {
+    for (final delay in const [200, 500, 900]) {
+      Future.delayed(Duration(milliseconds: delay), () {
+        final ctx = _tileKey.currentContext;
+        if (ctx == null || !mounted) return;
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          alignment: 0.3,
+        );
+      });
+    }
+    Future.delayed(const Duration(seconds: 3), widget.onHighlightShown);
+  }
 
   void _confirmDelete(BuildContext context) {
     final rootNav = Navigator.of(context, rootNavigator: true);
@@ -1764,7 +2306,7 @@ class _ReplyTile extends StatelessWidget {
           TextButton(
             onPressed: () {
               rootNav.pop();
-              onDelete();
+              widget.onDelete();
             },
             child: const Text('Excluir',
                 style: TextStyle(
@@ -1776,92 +2318,159 @@ class _ReplyTile extends StatelessWidget {
     );
   }
 
+  Widget _buildMenuButton(BuildContext context) {
+    if (!_isOwner && !_canDelete) return const SizedBox.shrink();
+    return PopupMenuButton<String>(
+      padding: EdgeInsets.zero,
+      icon: const Icon(Icons.more_vert_rounded,
+          size: 13, color: AppColors.textMuted),
+      color: const Color(0xFF141414),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.15)),
+      ),
+      onSelected: (value) {
+        if (value == 'edit') {
+          widget.onStartEdit();
+        } else if (value == 'delete') {
+          _confirmDelete(context);
+        }
+      },
+      itemBuilder: (context) => [
+        if (_isOwner)
+          const PopupMenuItem(
+            value: 'edit',
+            child: Row(
+              children: [
+                Icon(Icons.edit_outlined,
+                    size: 16, color: AppColors.primaryOrange),
+                SizedBox(width: 10),
+                Text('Editar', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+        if (_canDelete)
+          PopupMenuItem(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline_rounded,
+                    size: 16, color: AppColors.emergencyRed.withOpacity(0.9)),
+                const SizedBox(width: 10),
+                const Text('Excluir', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AvatarFrame(
-          level: reply.userLevel,
-          size: 28,
-          child: UserAvatarDisplay(
-            name: reply.userName,
-            seed: reply.userId,
-            photoUrl: reply.userPhotoUrl,
-            equippedPremiumAvatarId: reply.userEquippedPremiumAvatarId,
+    return AnimatedContainer(
+      key: _tileKey,
+      duration: const Duration(milliseconds: 400),
+      padding: widget.isHighlighted ? const EdgeInsets.all(8) : EdgeInsets.zero,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: widget.isHighlighted
+            ? AppColors.primaryOrange.withOpacity(0.10)
+            : Colors.transparent,
+        border: widget.isHighlighted
+            ? Border.all(color: AppColors.primaryOrange.withOpacity(0.6))
+            : null,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AvatarFrame(
+            level: reply.userLevel,
             size: 28,
+            child: UserAvatarDisplay(
+              name: reply.userName,
+              seed: reply.userId,
+              photoUrl: reply.userPhotoUrl,
+              equippedPremiumAvatarId: reply.userEquippedPremiumAvatarId,
+              size: 28,
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            reply.userName,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: _isOwner
-                                  ? AppColors.primaryOrange
-                                  : Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              reply.userName,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: _isOwner
+                                    ? AppColors.primaryOrange
+                                    : Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
+                          const SizedBox(width: 5),
+                          LevelBadgeInline(level: reply.userLevel),
+                        ],
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Text(
+                          widget.timeAgo,
+                          style: const TextStyle(
+                              color: AppColors.textMuted, fontSize: 10),
                         ),
-                        const SizedBox(width: 5),
-                        LevelBadgeInline(level: reply.userLevel),
+                        if (reply.edited) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            '· editado',
+                            style: TextStyle(
+                              color: AppColors.textMuted.withOpacity(0.8),
+                              fontSize: 9,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                        _buildMenuButton(context),
                       ],
                     ),
-                  ),
-                  Row(
-                    children: [
-                      Text(
-                        timeAgo,
-                        style: const TextStyle(
-                            color: AppColors.textMuted, fontSize: 10),
-                      ),
-                      if (_canDelete) ...[
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: () => _confirmDelete(context),
-                          child: Icon(
-                            Icons.delete_outline_rounded,
-                            size: 13,
-                            color: isAdmin && !_isOwner
-                                ? AppColors.emergencyRed.withOpacity(0.7)
-                                : AppColors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              _CommentText(comment: reply),
-              const SizedBox(height: 6),
-              _CommentActionsRow(
-                postId: postId,
-                commentId: reply.id,
-                authorUid: reply.userId,
-                likesCount: reply.likesCount,
-                currentUserId: currentUserId,
-                onToggleLike: onToggleLike,
-                onReply: onReply,
-                parentCommentId: parentCommentId,
-              ),
-            ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                if (widget.isEditing)
+                  _CommentEditField(
+                    initialText: reply.text,
+                    onCancel: widget.onCancelEdit,
+                    onSave: widget.onSaveEdit,
+                  )
+                else
+                  _CommentText(comment: reply),
+                const SizedBox(height: 6),
+                _CommentActionsRow(
+                  postId: widget.postId,
+                  commentId: reply.id,
+                  authorUid: reply.userId,
+                  likesCount: reply.likesCount,
+                  currentUserId: currentUserId,
+                  onToggleLike: widget.onToggleLike,
+                  onReply: widget.onReply,
+                  parentCommentId: widget.parentCommentId,
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
