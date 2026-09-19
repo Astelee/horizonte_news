@@ -393,6 +393,35 @@ class _CommentsSectionState extends State<CommentsSection>
   String? _highlightedCommentId;
   String? _highlightedReplyId;
 
+  // ── Streams de comentários, criadas UMA VEZ ──────────────────────
+  // Antes, `_commentsRef.orderBy(...).snapshots()` era chamado direto
+  // dentro do build() de _buildCommentsList/_buildToggleButton. Isso
+  // parece inofensivo, mas cria uma NOVA instância de Stream a cada
+  // rebuild do widget pai — e todo setState() local (editar, abrir
+  // reply, destacar notificação etc.) dispara um desses rebuilds.
+  // O StreamBuilder, ao receber uma Stream diferente (mesmo que
+  // logicamente idêntica), cancela a subscription antiga e recomeça
+  // do zero em ConnectionState.waiting, reconstruindo toda a lista de
+  // comentários do zero — o que resetava qualquer estado local que
+  // dependesse do rebuild anterior (como o modo de edição recém-
+  // ativado) quase instantaneamente. Guardar as Streams em campos,
+  // criadas apenas no initState, resolve isso: o StreamBuilder passa
+  // a reconectar na MESMA subscription entre rebuilds.
+  //
+  // São duas streams separadas (não uma reaproveitada): a lista
+  // renderizada sempre teve limit(50) — carregar só os 50 comentários
+  // mais recentes é intencional para não pesar a tela. Mas o
+  // contador do topo ("Comentários (X)") precisa somar TODOS os
+  // comentários-raiz + respostas, exato, mesmo que existam mais de
+  // 50 — senão o contador subcontaria threads antigas que a lista
+  // nem carrega. Por isso o contador usa a query SEM limite.
+  late final Stream<QuerySnapshot> _commentsStream =
+      _commentsRef.orderBy('createdAt', descending: true).snapshots();
+  late final Stream<QuerySnapshot> _commentsListStream = _commentsRef
+      .orderBy('createdAt', descending: true)
+      .limit(50)
+      .snapshots();
+
   @override
   void initState() {
     super.initState();
@@ -934,7 +963,7 @@ class _CommentsSectionState extends State<CommentsSection>
   // subcoleções replies/*.
   Widget _buildToggleButton() {
     return StreamBuilder<QuerySnapshot>(
-      stream: _commentsRef.orderBy('createdAt', descending: true).snapshots(),
+      stream: _commentsStream,
       builder: (context, snapshot) {
         final docs = snapshot.data?.docs ?? const [];
         final int rootCount = docs.length;
@@ -1218,10 +1247,7 @@ class _CommentsSectionState extends State<CommentsSection>
         Provider.of<AdminProvider>(context, listen: false).isAdmin;
 
     return StreamBuilder<QuerySnapshot>(
-      stream: _commentsRef
-          .orderBy('createdAt', descending: true)
-          .limit(50)
-          .snapshots(),
+      stream: _commentsListStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
@@ -1438,6 +1464,19 @@ class _CommentTileState extends State<_CommentTile>
   late Animation<Offset> _slide;
   bool _repliesExpanded = false;
   final GlobalKey _tileKey = GlobalKey();
+
+  // Mesma correção aplicada em _CommentsSectionState: a stream de
+  // respostas precisa ser criada UMA VEZ (aqui, no initState), nunca
+  // dentro do build() de _RepliesList (que é StatelessWidget e por
+  // isso não tem onde guardar esse cache sozinho) — senão qualquer
+  // setState local neste tile (como ativar o modo de edição de uma
+  // resposta) recriava a Stream a cada rebuild, o StreamBuilder
+  // cancelava a subscription antiga e reconstruía as respostas do
+  // zero em ConnectionState.waiting, resetando o modo de edição quase
+  // instantaneamente.
+  late final Stream<QuerySnapshot> _repliesStream = widget.repliesRef
+      .orderBy('createdAt', descending: false)
+      .snapshots();
 
   @override
   void initState() {
@@ -1779,7 +1818,7 @@ class _CommentTileState extends State<_CommentTile>
                       _RepliesList(
                         postId: widget.postId,
                         parentCommentId: widget.comment.id,
-                        repliesRef: widget.repliesRef,
+                        repliesStream: _repliesStream,
                         currentUserId: widget.currentUserId,
                         isAdmin: widget.isAdmin,
                         onDeleteReply: widget.onDeleteReply,
@@ -2114,7 +2153,7 @@ class _LikeButton extends StatelessWidget {
 class _RepliesList extends StatelessWidget {
   final String postId;
   final String parentCommentId;
-  final CollectionReference repliesRef;
+  final Stream<QuerySnapshot> repliesStream;
   final String currentUserId;
   final bool isAdmin;
   final ValueChanged<String> onDeleteReply;
@@ -2135,7 +2174,7 @@ class _RepliesList extends StatelessWidget {
   const _RepliesList({
     required this.postId,
     required this.parentCommentId,
-    required this.repliesRef,
+    required this.repliesStream,
     required this.currentUserId,
     required this.isAdmin,
     required this.onDeleteReply,
@@ -2153,7 +2192,7 @@ class _RepliesList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: repliesRef.orderBy('createdAt', descending: false).snapshots(),
+      stream: repliesStream,
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Padding(
