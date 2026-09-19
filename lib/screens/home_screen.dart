@@ -11,6 +11,7 @@ import '../widgets/featured_carousel.dart';
 import '../widgets/breaking_news_banner.dart';
 import '../widgets/news_card.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/notification_bell.dart';
 import '../ads/hybrid_banner_ad.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -248,6 +249,7 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               centerTitle: true,
               actions: [
+                const NotificationBell(),
                 _NeoIconButton(
                   icon: Icons.search_rounded,
                   onTap: () =>
