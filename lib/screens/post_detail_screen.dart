@@ -79,6 +79,18 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   late AnimationController _animController;
   late Animation<double> _fadeIn;
 
+  // ── Barra de comentário/resposta fixa no rodapé (estilo Instagram) ──
+  // A CommentsSection não desenha mais sua própria barra dentro do
+  // scroll do artigo — ela só constrói o widget pronto sob pedido
+  // (buildFixedInputBar) e avisa esta tela sempre que os comentários
+  // abrem/fecham (onExpandedChanged). Esta tela é quem decide ONDE
+  // esse widget aparece: um Positioned fora do CustomScrollView,
+  // preso ao rodapé real da tela, que sobe sozinho junto com o
+  // teclado porque soma MediaQuery.viewInsets.bottom à sua posição.
+  final GlobalKey<CommentsSectionState> _commentsKey =
+      GlobalKey<CommentsSectionState>();
+  bool _commentsExpanded = false;
+
   /// Normaliza os argumentos de rota: aceita tanto um PostModel puro
   /// (uso normal, vindo de news_card/carrossel/deep link/etc.) quanto
   /// um PostDetailArgs (uso vindo de notificação de comentário, que
@@ -278,33 +290,30 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                               _buildAuthorFooter(),
                               _buildGlowDivider(),
                               CommentsSection(
+                                key: _commentsKey,
                                 postId: post.id,
                                 postTitle: post.title,
                                 highlightCommentId:
                                     routeArgs.highlightCommentId,
                                 highlightReplyId:
                                     routeArgs.highlightReplyId,
+                                onExpandedChanged: (expanded) {
+                                  if (mounted) {
+                                    setState(
+                                        () => _commentsExpanded = expanded);
+                                  }
+                                },
                               ),
-                              // Respiro extra no fim do scroll. Além de
-                              // dar folga para o campo de comentário/
-                              // resposta subir acima do teclado quando
-                              // ele abre perto do fim da lista (sem
-                              // isso a tela "trava" no fundo), também
-                              // garante espaço de rolagem suficiente
-                              // para o botão "Comentários (N)" e a
-                              // lista de comentários poderem subir até
-                              // perto do centro da tela, em vez de
-                              // ficarem presos lá embaixo. Por isso a
-                              // base é uma fração da altura da tela,
-                              // não um valor fixo pequeno, e ainda
-                              // cresce junto com a altura do teclado.
-                              SizedBox(
-                                height: MediaQuery.of(context).size.height *
-                                        0.45 +
-                                    MediaQuery.of(context)
-                                        .viewInsets
-                                        .bottom,
-                              ),
+                              // Pequeno respiro no fim do artigo/lista
+                              // de comentários — puramente estético
+                              // agora (antes precisava crescer com a
+                              // altura do teclado para "empurrar" o
+                              // campo de comentário para cima dele;
+                              // isso não é mais necessário porque a
+                              // barra saiu do scroll e virou um
+                              // Positioned fixo no rodapé da tela, ver
+                              // _commentsExpanded/_commentsKey acima).
+                              const SizedBox(height: 24),
                             ],
                           ),
                         ),
@@ -351,6 +360,44 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                   ],
                 ),
               ),
+
+              // Barra de comentário/resposta, fixa fora do scroll —
+              // padrão Instagram: enquanto os comentários estiverem
+              // abertos (_commentsExpanded), ela fica presa ao rodapé
+              // da TELA (não do artigo). bottom: 0 (sem somar
+              // viewInsets.bottom aqui) é intencional: como o Scaffold
+              // já tem resizeToAvoidBottomInset: true, o `body` inteiro
+              // — e portanto este Stack — já encolhe sozinho para caber
+              // acima do teclado quando ele abre; se somássemos
+              // viewInsets.bottom de novo aqui, a barra subiria alto
+              // demais (a altura do teclado seria descontada duas
+              // vezes). Com os comentários fechados, nenhuma barra é
+              // desenhada aqui — a única coisa visível nesse estado é o
+              // botão "Comentários (N)" dentro do próprio scroll, como
+              // antes.
+              //
+              // O ListenableBuilder escuta o FocusNode do campo (por
+              // dentro de CommentsSectionState) porque buildFixedInputBar
+              // recalcula seu padding inferior conforme o campo está ou
+              // não focado — e um setState dentro de CommentsSection
+              // não alcançaria este Positioned, que vive numa subtree
+              // irmã aqui no Stack, então escutamos o FocusNode
+              // diretamente para saber quando reconstruir.
+              if (_commentsExpanded)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: ListenableBuilder(
+                    listenable: _commentsKey.currentState?.inputFocusNode ??
+                        ValueNotifier(null),
+                    builder: (context, _) =>
+                        _commentsKey.currentState?.buildFixedInputBar(
+                          context,
+                        ) ??
+                        const SizedBox.shrink(),
+                  ),
+                ),
             ],
           ),
         ),
