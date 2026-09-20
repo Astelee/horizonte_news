@@ -338,27 +338,39 @@ class CommentsSection extends StatefulWidget {
   final String? highlightCommentId;
   final String? highlightReplyId;
 
+  /// Chamado toda vez que a seção abre/fecha (usuário tocando em
+  /// "Comentários (N)", ou abertura automática vinda de notificação).
+  /// PostDetailScreen usa isso para saber quando desenhar/esconder a
+  /// barra fixa no rodapé da tela — sem esse aviso, o pai não tem
+  /// como saber que `expanded` mudou, já que é só um getter.
+  final ValueChanged<bool>? onExpandedChanged;
+
   const CommentsSection({
     Key? key,
     required this.postId,
     required this.postTitle,
     this.highlightCommentId,
     this.highlightReplyId,
+    this.onExpandedChanged,
   }) : super(key: key);
 
   @override
-  State<CommentsSection> createState() => _CommentsSectionState();
+  State<CommentsSection> createState() => CommentsSectionState();
 }
 
-class _CommentsSectionState extends State<CommentsSection>
-    with TickerProviderStateMixin, WidgetsBindingObserver {
+/// Estado público (não `_CommentsSectionState`) de propósito: a barra
+/// de comentário/resposta agora é desenhada FORA desta árvore, presa
+/// ao rodapé da TELA (ver PostDetailScreen), não mais dentro do
+/// CustomScrollView do artigo — é assim que o Instagram funciona: a
+/// barra nunca rola junto com o conteúdo, fica sempre ancorada.
+/// PostDetailScreen guarda um GlobalKey<CommentsSectionState> e chama
+/// `buildFixedInputBar()` para pedir o widget da barra pronto, além
+/// de observar `expanded`/`inputBarVisible` para saber se e quando
+/// desenhar esse Positioned externo.
+class CommentsSectionState extends State<CommentsSection>
+    with TickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
-  // Chave do container do campo de comentário/resposta — usada para
-  // rolar a tela até ele ficar visível acima do teclado (ver
-  // _scrollInputIntoView), já que essa seção mora dentro do
-  // CustomScrollView da tela de detalhe da notícia.
-  final GlobalKey _inputAreaKey = GlobalKey();
   bool _isSending = false;
   bool _xpAwarded = false;
   bool _expanded = false;
@@ -366,11 +378,19 @@ class _CommentsSectionState extends State<CommentsSection>
   late AnimationController _expandCtrl;
   late Animation<double> _expandAnim;
 
-  // Última altura de teclado observada — usada por didChangeMetrics
-  // para saber quando o teclado terminou de abrir/mudar de tamanho
-  // (ex.: trocar de "aa" para sugestões) e então re-rolar o campo
-  // para a área visível.
-  double _lastBottomInset = 0;
+  /// True quando a seção de comentários está expandida — é o sinal
+  /// que PostDetailScreen usa para saber se deve desenhar a barra
+  /// fixa no rodapé da tela ou escondê-la por completo (comentários
+  /// fechados = nenhuma barra, igual ao Instagram).
+  bool get expanded => _expanded;
+
+  /// Exposto para PostDetailScreen conseguir ouvir foco/desfoco do
+  /// campo de comentário/resposta e recalcular o padding inferior da
+  /// barra fixa (ver buildFixedInputBar) sempre que ele mudar — um
+  /// setState daqui de dentro não alcança o Positioned que vive numa
+  /// subtree irmã em PostDetailScreen, então quem precisa reagir a
+  /// esse FocusNode escuta-o diretamente com um ListenableBuilder.
+  FocusNode get inputFocusNode => _focusNode;
 
   // ── Estado de "respondendo a" ──────────────────────────────────────
   // Quando != null, o próximo envio vira uma resposta (subcoleção
@@ -425,7 +445,6 @@ class _CommentsSectionState extends State<CommentsSection>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _sendAnim = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
@@ -440,13 +459,15 @@ class _CommentsSectionState extends State<CommentsSection>
     _expandAnim =
         CurvedAnimation(parent: _expandCtrl, curve: Curves.easeOutCubic);
 
-    // Sempre que o campo ganha foco (comentário novo ou resposta),
-    // o teclado abre e o campo precisa subir para ficar visível.
-    // Sem isso, o campo (que fica no meio do scroll longo da tela
-    // de detalhe) pode ficar escondido atrás do teclado.
-    _focusNode.addListener(() {
-      if (_focusNode.hasFocus) _scrollInputIntoView();
-    });
+    // Diferente de antes, não é mais preciso rolar a tela ao focar o
+    // campo: a barra agora é desenhada FORA do CustomScrollView do
+    // artigo, presa ao rodapé da TELA (ver buildFixedInputBar() e
+    // PostDetailScreen, que a posiciona com Positioned(bottom: 0)
+    // dentro do body já redimensionado pelo teclado) — ela já nasce
+    // sempre visível, acima do teclado, sem depender de nenhum scroll
+    // reativo. Quem precisa reagir a foco/desfoco do campo (o padding
+    // inferior calculado em buildFixedInputBar) escuta inputFocusNode
+    // diretamente — ver o ListenableBuilder em PostDetailScreen.
 
     // Se a tela foi aberta a partir de uma notificação de resposta/
     // curtida, já abre os comentários expandidos e guarda o alvo a
@@ -458,65 +479,19 @@ class _CommentsSectionState extends State<CommentsSection>
       _highlightedReplyId = widget.highlightReplyId;
       _expanded = true;
       _expandCtrl.value = 1.0;
-    }
-  }
-
-  // Chamado pelo Flutter sempre que as métricas da tela mudam —
-  // inclui a altura do teclado. É o sinal confiável de que o teclado
-  // terminou de abrir (ou mudou de tamanho, ex.: barra de sugestões),
-  // bem mais preciso que um Future.delayed de duração fixa, que em
-  // aparelhos mais lentos podia disparar antes da animação do
-  // teclado terminar e calcular a posição de rolagem errada.
-  @override
-  void didChangeMetrics() {
-    super.didChangeMetrics();
-    if (!_focusNode.hasFocus || !mounted) return;
-    // Adiado um frame: no momento exato de didChangeMetrics o
-    // MediaQuery do context ainda pode não refletir o novo valor.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_focusNode.hasFocus) return;
-      final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-      if ((bottomInset - _lastBottomInset).abs() > 1) {
-        _lastBottomInset = bottomInset;
-        _scrollInputIntoView();
-      }
-    });
-  }
-
-  /// Rola a tela (o CustomScrollView pai, da tela de detalhe da
-  /// notícia) até o campo de comentário/resposta ficar visível acima
-  /// do teclado. Chamado ao focar o campo, ao tocar em "Responder" e
-  /// sempre que a altura do teclado muda (ver didChangeMetrics).
-  ///
-  /// Tenta em múltiplos instantes (e não só uma vez) porque a
-  /// animação de abertura do teclado do Android não é instantânea:
-  /// se calcularmos a posição cedo demais, o viewport visível ainda
-  /// vai encolher mais depois, e o botão "ENVIAR" acaba ficando
-  /// atrás do teclado mesmo depois do scroll.
-  void _scrollInputIntoView() {
-    for (final delay in const [50, 150, 300, 450, 650]) {
-      Future.delayed(Duration(milliseconds: delay), () {
-        final ctx = _inputAreaKey.currentContext;
-        if (ctx == null || !mounted || !_focusNode.hasFocus) return;
-        Scrollable.ensureVisible(
-          ctx,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          // alignment 1.0 = alinha o FIM do widget ao fim do
-          // viewport visível (a área que sobra acima do teclado). O
-          // container inclui o TextField e, logo abaixo, o botão
-          // "ENVIAR" — alinhando pelo fim garantimos que o botão
-          // sempre fique dentro da área visível, mesmo que o
-          // container seja mais alto que o espaço livre.
-          alignment: 1.0,
-        );
+      // Avisa o pai depois do primeiro frame (nunca dentro do
+      // initState/build em si) de que já nasceu expandido, para ele
+      // desenhar a barra fixa desde já — sem isso, quem chegou aqui
+      // via notificação só veria a barra aparecer depois de tocar
+      // manualmente em "Comentários".
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.onExpandedChanged?.call(true);
       });
     }
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     _focusNode.dispose();
     _sendAnim.dispose();
@@ -556,7 +531,6 @@ class _CommentsSectionState extends State<CommentsSection>
     });
     if (!_expanded) _toggleExpanded();
     FocusScope.of(context).requestFocus(_focusNode);
-    _scrollInputIntoView();
   }
 
   void _cancelReply() {
@@ -575,7 +549,14 @@ class _CommentsSectionState extends State<CommentsSection>
       _expandCtrl.forward();
     } else {
       _expandCtrl.reverse();
+      // Fechar a seção com o teclado aberto (usuário estava digitando
+      // e tocou em "Comentários (N)" de novo para recolher) precisa
+      // também tirar o foco do campo — senão a barra fixa some da
+      // árvore (ver PostDetailScreen, que só a desenha enquanto
+      // expanded) mas o teclado continua aberto sem nada acima dele.
+      _focusNode.unfocus();
     }
+    widget.onExpandedChanged?.call(_expanded);
   }
 
   String _timeAgo(DateTime date) {
@@ -916,7 +897,6 @@ class _CommentsSectionState extends State<CommentsSection>
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -930,19 +910,14 @@ class _CommentsSectionState extends State<CommentsSection>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 16),
-                StreamBuilder<AppGlobalConfig>(
-                  stream: AppConfigService().stream(),
-                  builder: (context, snapshot) {
-                    final commentsEnabled =
-                        snapshot.data?.commentsEnabled ?? true;
-                    if (!commentsEnabled) {
-                      return _buildCommentsDisabledNotice();
-                    }
-                    return _buildInputArea(user);
-                  },
-                ),
-                const SizedBox(height: 8),
                 _buildCommentsList(),
+                // Respiro no fim da lista para a última linha não
+                // ficar colada/escondida atrás da barra fixa que
+                // PostDetailScreen desenha por cima do rodapé (ver
+                // buildFixedInputBar) — a barra não faz mais parte
+                // deste scroll, então precisa desse espaço reservado
+                // manualmente aqui.
+                const SizedBox(height: 88),
               ],
             ),
           ),
@@ -1056,6 +1031,64 @@ class _CommentsSectionState extends State<CommentsSection>
     );
   }
 
+  /// Constrói a barra de comentário/resposta pronta para ser
+  /// desenhada FORA desta árvore, fixa ao rodapé da tela — chamado
+  /// por PostDetailScreen dentro de um Positioned(bottom: 0) no Stack
+  /// do body. O Scaffold já tem resizeToAvoidBottomInset: true, então
+  /// o próprio body (e este Stack dentro dele) encolhe sozinho para
+  /// caber acima do teclado — não precisamos somar
+  /// MediaQuery.viewInsets.bottom manualmente em lugar nenhum aqui;
+  /// isso é exatamente como o Instagram ancora a barra de comentário:
+  /// ela nunca rola junto com o artigo, e sobe junto com o teclado
+  /// porque a área em que ela vive já subiu.
+  ///
+  /// PostDetailScreen só deve chamar isso enquanto `expanded` for
+  /// true (comentários abertos) — com comentários fechados não há
+  /// barra nenhuma, igual ao Instagram. Inclui o próprio fundo/
+  /// borda/safe-area do rodapé, então quem chama não precisa embrulhar
+  /// em mais nenhum Container.
+  Widget buildFixedInputBar(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final bottomSafeArea = MediaQuery.of(context).padding.bottom;
+    // Não dá para usar MediaQuery.viewInsets.bottom > 0 aqui como
+    // sinal de "teclado aberto": com resizeToAvoidBottomInset: true,
+    // o body (e este widget, que vive dentro dele) já foi encolhido
+    // para caber acima do teclado, então nesse ponto da árvore
+    // viewInsets.bottom já está zerado — usar isso aqui sempre daria
+    // "fechado". O sinal confiável é o próprio foco do campo: com o
+    // teclado provavelmente aberto (campo focado), a barra já está
+    // colada nele, então não precisa do respiro extra da safe area;
+    // sem foco, a barra está no rodapé "de repouso" da tela e precisa
+    // desse respiro para não ficar colada no gesture bar do aparelho.
+    final keyboardLikelyOpen = _focusNode.hasFocus;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFF050505),
+        border: Border(
+          top: BorderSide(color: AppColors.primaryOrange.withOpacity(0.15)),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 10,
+          bottom: keyboardLikelyOpen ? 10 : 10 + bottomSafeArea,
+        ),
+        child: StreamBuilder<AppGlobalConfig>(
+          stream: AppConfigService().stream(),
+          builder: (context, snapshot) {
+            final commentsEnabled = snapshot.data?.commentsEnabled ?? true;
+            if (!commentsEnabled) {
+              return _buildCommentsDisabledNotice();
+            }
+            return _buildInputArea(user);
+          },
+        ),
+      ),
+    );
+  }
+
   /// Aviso mostrado no lugar do campo de comentar quando um admin
   /// desativa comentários pelas Configurações do painel. Os
   /// comentários já existentes continuam visíveis normalmente — só o
@@ -1093,9 +1126,8 @@ class _CommentsSectionState extends State<CommentsSection>
 
   Widget _buildInputArea(User? user) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Container(
-        key: _inputAreaKey,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
@@ -1465,7 +1497,7 @@ class _CommentTileState extends State<_CommentTile>
   bool _repliesExpanded = false;
   final GlobalKey _tileKey = GlobalKey();
 
-  // Mesma correção aplicada em _CommentsSectionState: a stream de
+  // Mesma correção aplicada em CommentsSectionState: a stream de
   // respostas precisa ser criada UMA VEZ (aqui, no initState), nunca
   // dentro do build() de _RepliesList (que é StatelessWidget e por
   // isso não tem onde guardar esse cache sozinho) — senão qualquer
