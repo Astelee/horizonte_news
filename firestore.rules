@@ -79,6 +79,44 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['totalXp', 'level']) &&
         request.resource.data.totalXp == resource.data.totalXp + 5;
+
+      // ── Check-in diário ───────────────────────────────────────────
+      // checkInToday()/recoverDay() (ver checkin_service.dart) gravam
+      // dois lugares: os campos-resumo aqui no doc principal
+      // (checkinStreak, lastCheckinDate etc.) e um documento por dia
+      // na subcoleção checkins/{yyyy-MM-dd}. Sem uma regra própria
+      // para a subcoleção, ela caía na regra "Demais coleções" do
+      // fim do arquivo (allow write: if isAdmin()) — por isso só
+      // administradores conseguiam fazer check-in; usuários comuns
+      // eram bloqueados silenciosamente pela regra padrão.
+      //
+      // xpAwarded é validado contra os MESMOS valores hardcoded no
+      // cliente (CheckinService.baseXp = 10 e os bônus de sequência
+      // em bonusForStreak) para impedir que alguém edite o app e
+      // grave um valor de XP maior do que o check-in realmente vale.
+      // O streak em si (campo `checkinStreak` no doc pai) não dá pra
+      // validar aqui com segurança sem duplicar toda a lógica de
+      // sequência em regras — fica só a trava de valor de XP, que é
+      // o que evita ganho arbitrário de pontos.
+      function isValidCheckinXp(xp) {
+        return xp == 10  // baseXp
+            || xp == 40  // baseXp + bônus de 7 dias (10+30)
+            || xp == 70  // baseXp + bônus de 14 dias (10+60)
+            || xp == 160 // baseXp + bônus de 30 dias (10+150)
+            || xp == 310 // baseXp + bônus de 60 dias (10+300)
+            || xp == 510; // baseXp + bônus de 100 dias (10+500)
+      }
+
+      match /checkins/{dateKey} {
+        allow read: if isOwner(userId) || isAdmin();
+        // create, não update: cada dia só é gravado uma vez (tanto
+        // checkInToday quanto recoverDay checam existence antes e
+        // nunca sobrescrevem um dia já registrado).
+        allow create: if isOwner(userId)
+            && request.resource.data.status in ['done', 'recovered']
+            && isValidCheckinXp(request.resource.data.xpAwarded);
+        allow update, delete: if isAdmin();
+      }
     }
 
     // ── Perfis ────────────────────────────────────────────────────
