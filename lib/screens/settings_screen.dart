@@ -328,88 +328,92 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final uid = user.uid;
       final db = FirebaseFirestore.instance;
 
-      // 1. Subcoleções do usuário
-      await _deleteSubcollection(
-        db,
-        'users/$uid/favorites',
-      );
+      // O Firebase Auth só deixa apagar a conta se o login for
+      // RECENTE (cerca de 5 minutos). Se não for, user.delete() falha
+      // com 'requires-recent-login' — e como ele é o ÚLTIMO passo
+      // (precisa vir depois dos dados, que dependem de o usuário
+      // ainda estar autenticado), a pessoa acabava com o perfil e os
+      // comentários JÁ apagados e continuava logada, sem conta.
+      // Por isso conferimos o horário do último login ANTES de apagar
+      // qualquer coisa e, se estiver velho, pedimos para entrar de novo.
+      final lastSignIn = user.metadata.lastSignInTime;
+      final loginIsFresh = lastSignIn != null &&
+          DateTime.now().difference(lastSignIn) < const Duration(minutes: 4);
+      if (!loginIsFresh) {
+        if (mounted) {
+          Navigator.of(context).pop();
+          _showSnack(
+            'Por segurança, saia e entre novamente antes de excluir sua conta.',
+            icon: Icons.warning_amber_rounded,
+          );
+        }
+        return;
+      }
 
-      await _deleteSubcollection(
-        db,
-        'users/$uid/notifications',
-      );
+      // ORDEM IMPORTANTE: primeiro tudo que depende de o usuário ainda
+      // ter permissão (comentários, viewers, notificações), e só no
+      // fim os documentos de perfil. Antes, o perfil era apagado no
+      // começo e qualquer falha no meio deixava a conta pela metade:
+      // sem perfil, mas com comentários e ainda logada.
 
-      await _deleteSubcollection(
-        db,
-        'users/$uid/friends',
-      );
+      // 1. Remove comentários e respostas do usuário
+      //
+      // Os comentários ficam em comments/{postId}/postComments/{id} e
+      // as respostas em .../{id}/replies/{id}. O código antigo
+      // buscava collectionGroup('comments'), um nome que não existe
+      // no banco (a coleção se chama 'postComments'), então NENHUM
+      // comentário era apagado. Além disso, apagar um comentário
+      // raiz não apaga as respostas dele, e apagar uma resposta não
+      // corrige o repliesCount do comentário pai.
+      await _deleteUserComments(db, uid);
 
-      await _deleteSubcollection(
-        db,
-        'users/$uid/friend_requests',
-      );
+      // 2. Remove visualizações
+      final postViews = await db.collection('post_views').get();
+      for (final postDoc in postViews.docs) {
+        try {
+          await postDoc.reference.collection('viewers').doc(uid).delete();
+        } catch (_) {
+          // Sem viewer para este usuário neste post — segue.
+        }
+      }
 
-      await _deleteSubcollection(
-        db,
-        'users/$uid/conversations',
-      );
+      // 3. Remove logs
+      try {
+        final adminLogs = await db
+            .collection('admin_logs')
+            .where('targetUid', isEqualTo: uid)
+            .get();
+        for (final log in adminLogs.docs) {
+          await log.reference.delete();
+        }
+      } catch (_) {
+        // Usuário comum não tem permissão de ler admin_logs — ignora.
+      }
 
-      // 2. Documento principal
+      // 4. Remove banimento, presença e username
+      for (final ref in [
+        db.collection('banned_users').doc(uid),
+        db.collection('presence').doc(uid),
+        db.collection('usernames').doc(uid),
+      ]) {
+        try {
+          await ref.delete();
+        } catch (_) {}
+      }
+
+      // 5. Check-ins (subcoleção de users_xp) antes do doc principal
+      await _deleteSubcollection(db, 'users_xp/$uid/checkins');
+
+      // 6. Perfil e XP — por último, depois de tudo que dependia deles
       await db.collection('users').doc(uid).delete();
-
-      // 3. XP
       await db.collection('users_xp').doc(uid).delete();
 
-      // 4. Admin
-      await db.collection('admins').doc(uid).delete();
+      // 7. Admin (só existe se o usuário era admin)
+      try {
+        await db.collection('admins').doc(uid).delete();
+      } catch (_) {}
 
-      // 5. Username
-      await db.collection('usernames').doc(uid).delete();
-
-      // 6. Remove visualizações
-      final postViews =
-          await db.collection('post_views').get();
-
-      for (final postDoc in postViews.docs) {
-        await postDoc.reference
-            .collection('viewers')
-            .doc(uid)
-            .delete();
-      }
-
-      // 7. Remove comentários
-      final comments = await db
-          .collectionGroup('comments')
-          .where('userId', isEqualTo: uid)
-          .get();
-
-      for (final commentDoc in comments.docs) {
-        await commentDoc.reference.delete();
-      }
-
-      // 8. Remove logs
-      final adminLogs = await db
-          .collection('admin_logs')
-          .where('targetUid', isEqualTo: uid)
-          .get();
-
-      for (final log in adminLogs.docs) {
-        await log.reference.delete();
-      }
-
-      // 9. Remove banimento
-      await db
-          .collection('banned_users')
-          .doc(uid)
-          .delete();
-
-      // 10. Remove presença
-      await db
-          .collection('presence')
-          .doc(uid)
-          .delete();
-
-      // 11. Exclui Firebase Auth
+      // 8. Exclui Firebase Auth
       await user.delete();
 
       if (mounted) {
@@ -449,6 +453,76 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'Erro inesperado. Tente novamente.',
           icon: Icons.error_outline_rounded,
         );
+      }
+    }
+  }
+
+  // ================================================================
+  // HELPER PARA COMENTÁRIOS DO USUÁRIO
+  // ================================================================
+
+  /// Apaga todos os comentários e respostas escritos por [uid].
+  ///
+  /// Percorre comments/{postId}/postComments em vez de usar
+  /// collectionGroup().where('userId'): uma consulta de grupo com
+  /// filtro exige um índice de escopo "grupo de coleções" criado à
+  /// mão no console do Firebase, e sem ele a busca falha. Percorrer
+  /// os posts é mais lento, mas funciona sem nenhuma configuração.
+  ///
+  /// Limites impostos pelas regras do Firestore (usuário comum só
+  /// apaga o que ele mesmo escreveu):
+  ///  • comentário raiz do usuário: apaga só o documento dele. As
+  ///    respostas de OUTRAS pessoas a ele não podem ser apagadas
+  ///    aqui (o dono é outro) e ficam órfãs — invisíveis no app,
+  ///    porque a lista só mostra respostas de comentários que
+  ///    existem;
+  ///  • resposta do usuário em comentário de outra pessoa: apaga e
+  ///    decrementa o repliesCount do pai de 1 em 1 (a regra só
+  ///    aceita ±1 por escrita, então -N de uma vez seria negado).
+  ///
+  /// Cada apagamento é isolado num try/catch: uma permissão negada
+  /// num item não pode impedir a exclusão do resto da conta.
+  Future<void> _deleteUserComments(FirebaseFirestore db, String uid) async {
+    final posts = await db.collection('comments').get();
+
+    for (final post in posts.docs) {
+      final roots = await post.reference.collection('postComments').get();
+
+      for (final root in roots.docs) {
+        final rootData = root.data();
+
+        if (rootData['userId'] == uid) {
+          try {
+            await root.reference.delete();
+          } catch (_) {}
+          continue;
+        }
+
+        // Comentário de outra pessoa: procura respostas MINHAS nele.
+        QuerySnapshot<Map<String, dynamic>> mine;
+        try {
+          mine = await root.reference
+              .collection('replies')
+              .where('userId', isEqualTo: uid)
+              .get();
+        } catch (_) {
+          continue;
+        }
+
+        for (final r in mine.docs) {
+          try {
+            await r.reference.delete();
+          } catch (_) {
+            continue;
+          }
+          try {
+            await root.reference.update({
+              'repliesCount': FieldValue.increment(-1),
+            });
+          } catch (_) {
+            // Contador não ajustado — não impede a exclusão da conta.
+          }
+        }
       }
     }
   }
