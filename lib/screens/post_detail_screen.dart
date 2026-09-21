@@ -91,6 +91,38 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       GlobalKey<CommentsSectionState>();
   bool _commentsExpanded = false;
 
+  // Chave só do CONTEÚDO da barra fixa (não do Positioned em si) —
+  // usada para medir a altura real dela depois de renderizada, e
+  // então reservar esse tanto de espaço extra no fim do scroll do
+  // artigo/comentários. Sem isso, o último comentário da lista (e o
+  // botão "Responder" dele) não conseguem subir alto o suficiente
+  // para escapar de trás da barra fixa + do teclado quando abertos
+  // perto do fim da lista — a barra cobre por cima e o toque não
+  // alcança o que está atrás dela.
+  final GlobalKey _fixedBarKey = GlobalKey();
+  // Chute inicial plausível para o respiro no fim do scroll, usado
+  // só até a primeira medição real da barra chegar (_measureFixedBarHeight
+  // roda um frame depois dela aparecer). Sem esse fallback, o respiro
+  // começa em 0 no exato momento em que o usuário toca em "Responder"
+  // — janela pequena, mas suficiente para o botão tocado ficar preso
+  // atrás da barra que acabou de surgir por cima dele. O valor abaixo
+  // é generoso de propósito (a barra real costuma ficar bem menor que
+  // isso quando não está respondendo) — melhor sobrar um pouco de
+  // espaço em branco por uma fração de segundo do que faltar.
+  double _fixedBarHeight = 160;
+
+  void _measureFixedBarHeight() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box =
+          _fixedBarKey.currentContext?.findRenderObject() as RenderBox?;
+      final height = box?.size.height ?? 0;
+      if (height > 0 && (height - _fixedBarHeight).abs() > 1) {
+        setState(() => _fixedBarHeight = height);
+      }
+    });
+  }
+
   /// Normaliza os argumentos de rota: aceita tanto um PostModel puro
   /// (uso normal, vindo de news_card/carrossel/deep link/etc.) quanto
   /// um PostDetailArgs (uso vindo de notificação de comentário, que
@@ -304,16 +336,32 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                                   }
                                 },
                               ),
-                              // Pequeno respiro no fim do artigo/lista
-                              // de comentários — puramente estético
-                              // agora (antes precisava crescer com a
-                              // altura do teclado para "empurrar" o
-                              // campo de comentário para cima dele;
-                              // isso não é mais necessário porque a
-                              // barra saiu do scroll e virou um
-                              // Positioned fixo no rodapé da tela, ver
-                              // _commentsExpanded/_commentsKey acima).
-                              const SizedBox(height: 24),
+                              // Respiro no fim do artigo/lista de
+                              // comentários. Precisa ser pelo menos do
+                              // tamanho da barra fixa (ver
+                              // _fixedBarHeight, medida de verdade em
+                              // _measureFixedBarHeight) — senão o
+                              // último comentário da lista (e o botão
+                              // "Responder" dele) não consegue subir
+                              // alto o suficiente para escapar de trás
+                              // da barra fixa quando ela aparece por
+                              // cima do fim do scroll. Não soma
+                              // viewInsets.bottom aqui: com
+                              // resizeToAvoidBottomInset: true o body
+                              // inteiro (logo, este SizedBox também)
+                              // já vive numa área que o Flutter já
+                              // encolheu para caber acima do teclado,
+                              // então viewInsets.bottom já é 0 dentro
+                              // deste contexto — somar de novo aqui
+                              // não teria efeito nenhum com o teclado
+                              // aberto (e daria um respiro exagerado à
+                              // toa quando fechado).
+                              SizedBox(
+                                height: (_commentsExpanded
+                                        ? _fixedBarHeight
+                                        : 0) +
+                                    24,
+                              ),
                             ],
                           ),
                         ),
@@ -388,14 +436,25 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  child: ListenableBuilder(
-                    listenable: _commentsKey.currentState?.inputFocusNode ??
-                        ValueNotifier(null),
-                    builder: (context, _) =>
-                        _commentsKey.currentState?.buildFixedInputBar(
-                          context,
-                        ) ??
-                        const SizedBox.shrink(),
+                  child: KeyedSubtree(
+                    key: _fixedBarKey,
+                    child: ListenableBuilder(
+                      listenable:
+                          _commentsKey.currentState?.inputFocusNode ??
+                              ValueNotifier(null),
+                      builder: (context, _) {
+                        // Remedida a cada rebuild da barra (foco muda,
+                        // banner "Respondendo a" aparece/some — a
+                        // altura real varia entre esses estados) para
+                        // o respiro reservado no fim do scroll (ver
+                        // SizedBox logo após CommentsSection) sempre
+                        // bater com o tamanho atual da barra.
+                        _measureFixedBarHeight();
+                        return _commentsKey.currentState
+                                ?.buildFixedInputBar(context) ??
+                            const SizedBox.shrink();
+                      },
+                    ),
                   ),
                 ),
             ],
