@@ -1,8 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../config/premium_config.dart';
@@ -12,18 +13,19 @@ import '../config/premium_config.dart';
 // ═══════════════════════════════════════════════════════════════════
 // Fonte única de verdade para o fluxo de compra: consulta os produtos
 // cadastrados no Play Console, dispara a compra, escuta o resultado
-// (compra nova, restaurada ou pendente) e grava o tier Premium em
-// users_xp/{uid} — o mesmo campo que o admin usa em grantPremium.
+// (compra nova, restaurada ou pendente) e envia o purchaseToken para
+// o Worker de validação (Cloudflare) — é ELE quem valida a compra na
+// Play Developer API e grava o tier Premium em users_xp/{uid}, não
+// mais o app diretamente.
 //
-// IMPORTANTE — validação de servidor:
-// Este serviço libera o Premium confiando na resposta local do
-// Google Play Billing (purchase.status == purchased/restored), sem
-// validar o token de compra contra a Play Developer API num backend.
-// Isso é suficiente para uso normal, mas não protege contra recibos
-// forjados por um dispositivo modificado. Quando o projeto sair do
-// plano Spark do Firebase (ou ganhar um Cloudflare Worker próprio
-// para isso), o ideal é mover a chamada a completePurchase() e a
-// gravação em users_xp para depois dessa validação server-side.
+// VALIDAÇÃO DE SERVIDOR:
+// O app não grava mais premiumTier/premiumExpiresAt diretamente no
+// Firestore (as regras do Firestore inclusive bloqueiam isso, só
+// admin pode escrever nesses campos). Em vez disso, chamamos o
+// endpoint _validatorEndpoint abaixo, que confirma a compra contra a
+// Play Developer API do Google antes de liberar o Premium — fechando
+// o buraco de segurança de confiar só na resposta local do Google
+// Play Billing.
 // ═══════════════════════════════════════════════════════════════════
 
 /// IDs de produto que devem ser cadastrados EXATAMENTE assim no
@@ -46,6 +48,12 @@ class PremiumProductIds {
   }
 }
 
+/// URL do Cloudflare Worker que valida a compra na Play Developer API
+/// e grava o Premium no Firestore (com privilégio de admin — o app
+/// não tem mais permissão de gravar esses campos diretamente).
+const String _validatorEndpoint =
+    'https://horizonte-premium-validator.diego-magno321.workers.dev';
+
 enum PurchaseResultStatus { success, pending, error, cancelled }
 
 class PurchaseResult {
@@ -59,7 +67,7 @@ class PurchaseService {
   static final PurchaseService instance = PurchaseService._internal();
 
   final InAppPurchase _iap = InAppPurchase.instance;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final http.Client _http = http.Client();
 
   StreamSubscription<List<PurchaseDetails>>? _subscription;
 
@@ -181,40 +189,74 @@ class PurchaseService {
 
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          await _grantPremiumFor(purchase);
+          final validated = await _validateAndGrantPremium(purchase);
           if (purchase.pendingCompletePurchase) {
             await _iap.completePurchase(purchase);
           }
-          _resultController.add(
-            const PurchaseResult(PurchaseResultStatus.success),
-          );
+          if (validated) {
+            _resultController.add(
+              const PurchaseResult(PurchaseResultStatus.success),
+            );
+          } else {
+            _resultController.add(
+              const PurchaseResult(
+                PurchaseResultStatus.error,
+                message:
+                    'Não foi possível confirmar sua compra. Se o valor foi '
+                    'cobrado, tente "Restaurar compras" em alguns instantes '
+                    'ou fale com o suporte.',
+              ),
+            );
+          }
           break;
       }
     }
   }
 
-  /// Grava o tier Premium em users_xp/{uid}, no mesmo formato que o
-  /// admin usa em AdminUserService.grantPremium — a diferença é que
-  /// aqui a expiração é sempre "daqui a 1 mês", já que é uma
-  /// assinatura mensal recorrente (o Google renova automaticamente
-  /// enquanto ativa; se cancelada, simplesmente para de renovar e o
-  /// campo expira sozinho na data prevista).
-  Future<void> _grantPremiumFor(PurchaseDetails purchase) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+  /// Envia a compra para o Worker de validação, que confirma o
+  /// purchaseToken na Play Developer API do Google e só então grava
+  /// premiumTier/premiumExpiresAt em users_xp/{uid} — com privilégio
+  /// de admin, já que o app não tem mais permissão de gravar esses
+  /// campos diretamente (ver firestore.rules).
+  ///
+  /// Retorna true se o Premium foi liberado com sucesso, false caso
+  /// contrário (rede indisponível, compra inválida, uid não bate etc).
+  Future<bool> _validateAndGrantPremium(PurchaseDetails purchase) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
 
     final tier = PremiumProductIds.tierFor(purchase.productID);
-    if (tier == PremiumTier.none) return;
+    if (tier == PremiumTier.none) return false;
 
-    final expiresAt = DateTime.now().add(const Duration(days: 32));
+    try {
+      final idToken = await user.getIdToken();
+      if (idToken == null) return false;
 
-    await _db.collection('users_xp').doc(uid).update({
-      'premiumTier': tier.id,
-      'premiumExpiresAt': Timestamp.fromDate(expiresAt),
-      'premiumPurchaseToken': purchase.verificationData.serverVerificationData,
-      'premiumProductId': purchase.productID,
-      'premiumUpdatedAt': FieldValue.serverTimestamp(),
-    });
+      final response = await _http.post(
+        Uri.parse(_validatorEndpoint),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'purchaseToken': purchase.verificationData.serverVerificationData,
+          'productId': purchase.productID,
+          'userId': user.uid,
+          'idToken': idToken,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        debugPrint(
+          'Validação de compra falhou (${response.statusCode}): '
+          '${response.body}',
+        );
+        return false;
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['ok'] == true;
+    } catch (e) {
+      debugPrint('Erro ao validar compra com o Worker: $e');
+      return false;
+    }
   }
 
   /// No Android, trocar de plano (ex.: Pro → Ultra) usa
@@ -228,5 +270,6 @@ class PurchaseService {
   void dispose() {
     _subscription?.cancel();
     _resultController.close();
+    _http.close();
   }
 }
