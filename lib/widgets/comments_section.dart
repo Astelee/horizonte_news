@@ -71,6 +71,84 @@ class CommentModel {
   }
 }
 
+/// Dados do autor de um comentário já resolvidos — ou os "ao vivo"
+/// vindos do perfil atual (users_xp/{uid}), ou o fallback congelado
+/// salvo no próprio comentário quando o perfil ainda não carregou ou
+/// não existe mais (conta excluída, por exemplo). Ver _LiveAuthorData.
+class LiveAuthorInfo {
+  final int level;
+  final List<String> achievements;
+  final String? photoUrl;
+  final String? equippedPremiumAvatarId;
+
+  const LiveAuthorInfo({
+    required this.level,
+    required this.achievements,
+    required this.photoUrl,
+    required this.equippedPremiumAvatarId,
+  });
+}
+
+/// Busca ao vivo o nível/título/cor/conquistas/foto/avatar premium
+/// ATUAIS do autor de um comentário, em vez do snapshot congelado que
+/// foi salvo no documento do comentário no momento do envio — assim
+/// um comentário antigo passa a refletir o nível/foto de agora, não o
+/// de quando foi escrito.
+///
+/// Recebe a stream já pronta (authorStream) em vez de montá-la
+/// sozinho, porque quem chama (CommentsSectionState) mantém um cache
+/// de UMA stream por userId compartilhada entre todos os tiles
+/// daquele autor — evita abrir dezenas de listeners idênticos numa
+/// notícia com muitos comentários da mesma pessoa.
+class _LiveAuthorData extends StatelessWidget {
+  final Stream<DocumentSnapshot> authorStream;
+  final CommentModel fallback;
+  final Widget Function(BuildContext context, LiveAuthorInfo info) builder;
+
+  const _LiveAuthorData({
+    required this.authorStream,
+    required this.fallback,
+    required this.builder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: authorStream,
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() as Map<String, dynamic>?;
+        // Sem dados ainda (carregando) ou perfil não existe mais:
+        // cai no snapshot congelado do próprio comentário, que
+        // continua sendo um valor razoável para não deixar a linha
+        // do comentário em branco por um instante ou para sempre
+        // (conta excluída).
+        final info = data == null
+            ? LiveAuthorInfo(
+                level: fallback.userLevel,
+                achievements: fallback.userAchievements,
+                photoUrl: fallback.userPhotoUrl,
+                equippedPremiumAvatarId:
+                    fallback.userEquippedPremiumAvatarId,
+              )
+            : LiveAuthorInfo(
+                level: (data['level'] as num?)?.toInt() ??
+                    fallback.userLevel,
+                achievements: (data['achievements'] as List?)
+                        ?.map((e) => e.toString())
+                        .toList() ??
+                    fallback.userAchievements,
+                photoUrl:
+                    (data['photoUrl'] as String?) ?? fallback.userPhotoUrl,
+                equippedPremiumAvatarId:
+                    (data['equippedPremiumAvatarId'] as String?) ??
+                        fallback.userEquippedPremiumAvatarId,
+              );
+        return builder(context, info);
+      },
+    );
+  }
+}
+
 
 // ═══════════════════════════════════════════════════════════════════
 // BOTTOM SHEET — PERFIL DO COMENTARISTA
@@ -139,6 +217,19 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
     final showAge = _userData?['showAge'] as bool? ?? false;
     final birthDate = (_userData?['birthDate'] as Timestamp?)?.toDate();
     final age = (showAge && birthDate != null) ? _calculateAge(birthDate) : null;
+    // Nível e conquistas ATUAIS (não mais o snapshot congelado salvo
+    // no comentário no momento em que foi escrito, ver
+    // widget.userLevel/userAchievements): _userData já é buscado ao
+    // vivo de users_xp/{uid} (ver _loadUserData), então lemos os
+    // mesmos campos que o resto do perfil usa. Enquanto ainda está
+    // carregando (ou se o perfil não existir mais), cai no valor que
+    // veio junto com o comentário, para a folha não abrir em branco.
+    final level =
+        (_userData?['level'] as num?)?.toInt() ?? widget.userLevel;
+    final achievements = (_userData?['achievements'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        widget.userAchievements;
 
     return Container(
       decoration: const BoxDecoration(
@@ -174,7 +265,7 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
           Row(
             children: [
               AvatarFrame(
-                level: widget.userLevel,
+                level: level,
                 size: 60,
                 child: UserAvatarDisplay(
                   name: widget.userName,
@@ -220,9 +311,9 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        LevelBadgeInline(level: widget.userLevel),
+                        LevelBadgeInline(level: level),
                         const SizedBox(width: 6),
-                        FrameRarityTag(level: widget.userLevel, fontSize: 8),
+                        FrameRarityTag(level: level, fontSize: 8),
                         if (totalXp > 0) ...[
                           const SizedBox(width: 8),
                           Text(
@@ -242,13 +333,13 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
           ),
 
           // Conquistas
-          if (widget.userAchievements.isNotEmpty) ...[
+          if (achievements.isNotEmpty) ...[
             const SizedBox(height: 16),
             Align(
               alignment: Alignment.centerLeft,
               child: UnlockedBadgesRow(
-                unlockedAchievements: widget.userAchievements,
-                maxVisible: widget.userAchievements.length,
+                unlockedAchievements: achievements,
+                maxVisible: achievements.length,
                 badgeSize: 13,
               ),
             ),
@@ -412,6 +503,32 @@ class CommentsSectionState extends State<CommentsSection>
   // ── Destaque vindo de notificação (ver highlightCommentId/ReplyId) ──
   String? _highlightedCommentId;
   String? _highlightedReplyId;
+
+  // ── Dados "ao vivo" do autor de cada comentário/resposta ─────────
+  // Antes, nível, título, cor, conquistas, foto e avatar premium
+  // equipado exibidos num comentário vinham de um SNAPSHOT gravado no
+  // documento do comentário no momento do envio (ver _sendComment) —
+  // um comentário antigo continuava mostrando o nível/foto de quando
+  // foi escrito, mesmo que o autor tivesse subido de nível ou trocado
+  // de foto depois. Agora usamos os dados atuais do perfil
+  // (users_xp/{uid}), buscados ao vivo.
+  //
+  // Para não abrir um listener do Firestore por comentário (uma
+  // notícia com 50 comentários da mesma pessoa não deveria abrir 50
+  // streams idênticas), este cache guarda UMA stream por userId único,
+  // compartilhada entre todos os tiles que mostram aquele autor — veja
+  // _liveAuthorStream, usada pelo widget _LiveAuthorData.
+  final Map<String, Stream<DocumentSnapshot>> _authorStreamCache = {};
+
+  Stream<DocumentSnapshot> _liveAuthorStream(String userId) {
+    return _authorStreamCache.putIfAbsent(
+      userId,
+      () => FirebaseFirestore.instance
+          .collection('users_xp')
+          .doc(userId)
+          .snapshots(),
+    );
+  }
 
   // ── Streams de comentários, criadas UMA VEZ ──────────────────────
   // Antes, `_commentsRef.orderBy(...).snapshots()` era chamado direto
@@ -1328,6 +1445,8 @@ class CommentsSectionState extends State<CommentsSection>
           itemBuilder: (context, index) => _CommentTile(
             postId: widget.postId,
             comment: comments[index],
+            authorStream: _liveAuthorStream(comments[index].userId),
+            authorStreamFor: _liveAuthorStream,
             timeAgo: _timeAgo(comments[index].createdAt),
             currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
             isAdmin: isAdmin,
@@ -1430,6 +1549,10 @@ typedef ReplyTargetCallback = void Function({
 class _CommentTile extends StatefulWidget {
   final String postId;
   final CommentModel comment;
+  final Stream<DocumentSnapshot> authorStream;
+  /// Repassada para _RepliesList — cada resposta busca sua própria
+  /// stream ao vivo (cacheada por userId) sob demanda com isso.
+  final Stream<DocumentSnapshot> Function(String userId) authorStreamFor;
   final String timeAgo;
   final String currentUserId;
   final bool isAdmin;
@@ -1461,6 +1584,8 @@ class _CommentTile extends StatefulWidget {
     Key? key,
     required this.postId,
     required this.comment,
+    required this.authorStream,
+    required this.authorStreamFor,
     required this.timeAgo,
     required this.currentUserId,
     required this.isAdmin,
@@ -1599,18 +1724,17 @@ class _CommentTileState extends State<_CommentTile>
     );
   }
 
-  Widget _buildAvatar() {
+  Widget _buildAvatar(LiveAuthorInfo info) {
     return GestureDetector(
       onTap: widget.onTapUser,
       child: AvatarFrame(
-        level: widget.comment.userLevel,
+        level: info.level,
         size: 36,
         child: UserAvatarDisplay(
           name: widget.comment.userName,
           seed: widget.comment.userId,
-          photoUrl: widget.comment.userPhotoUrl,
-          equippedPremiumAvatarId:
-              widget.comment.userEquippedPremiumAvatarId,
+          photoUrl: info.photoUrl,
+          equippedPremiumAvatarId: info.equippedPremiumAvatarId,
           size: 36,
         ),
       ),
@@ -1704,175 +1828,192 @@ class _CommentTileState extends State<_CommentTile>
                   ]
                 : null,
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildAvatar(),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Flexible(
-                                child: GestureDetector(
-                                  onTap: widget.onTapUser,
-                                  child: Text(
-                                    widget.comment.userName,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: _isOwner
-                                          ? AppColors.primaryOrange
-                                          : Colors.white,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      decoration: TextDecoration.underline,
-                                      decorationColor: _isOwner
-                                          ? AppColors.primaryOrange
-                                              .withOpacity(0.4)
-                                          : Colors.white.withOpacity(0.2),
-                                      decorationStyle:
-                                          TextDecorationStyle.dotted,
+          // Avatar, moldura, nível e conquistas exibidos aqui vêm do
+          // perfil ATUAL do autor (ver _LiveAuthorData), não mais do
+          // snapshot congelado salvo no momento em que o comentário
+          // foi enviado — um comentário antigo agora reflete o
+          // nível/título/cor/foto de agora do autor, não os de
+          // quando ele comentou.
+          child: _LiveAuthorData(
+            authorStream: widget.authorStream,
+            fallback: widget.comment,
+            builder: (context, info) => Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildAvatar(info),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: GestureDetector(
+                                    onTap: widget.onTapUser,
+                                    child: Text(
+                                      widget.comment.userName,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: _isOwner
+                                            ? AppColors.primaryOrange
+                                            : Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        decoration:
+                                            TextDecoration.underline,
+                                        decorationColor: _isOwner
+                                            ? AppColors.primaryOrange
+                                                .withOpacity(0.4)
+                                            : Colors.white
+                                                .withOpacity(0.2),
+                                        decorationStyle:
+                                            TextDecorationStyle.dotted,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              if (_isOwner) ...[
-                                const SizedBox(width: 5),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 5, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(4),
-                                    color: AppColors.primaryOrange
-                                        .withOpacity(0.15),
-                                  ),
-                                  child: const Text(
-                                    'EU',
-                                    style: TextStyle(
-                                      color: AppColors.primaryOrange,
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.5,
+                                if (_isOwner) ...[
+                                  const SizedBox(width: 5),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      borderRadius:
+                                          BorderRadius.circular(4),
+                                      color: AppColors.primaryOrange
+                                          .withOpacity(0.15),
                                     ),
+                                    child: const Text(
+                                      'EU',
+                                      style: TextStyle(
+                                        color: AppColors.primaryOrange,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(width: 5),
+                                LevelBadgeInline(level: info.level),
+                                if (info.achievements.isNotEmpty)
+                                  UnlockedBadgesRow(
+                                    unlockedAchievements:
+                                        info.achievements,
+                                    maxVisible: 3,
+                                    badgeSize: 9,
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Text(
+                                widget.timeAgo,
+                                style: const TextStyle(
+                                    color: AppColors.textMuted,
+                                    fontSize: 11),
+                              ),
+                              if (widget.comment.edited) ...[
+                                const SizedBox(width: 5),
+                                Text(
+                                  '· editado',
+                                  style: TextStyle(
+                                    color: AppColors.textMuted
+                                        .withOpacity(0.8),
+                                    fontSize: 10,
+                                    fontStyle: FontStyle.italic,
                                   ),
                                 ),
                               ],
-                              const SizedBox(width: 5),
-                              LevelBadgeInline(
-                                  level: widget.comment.userLevel),
-                              if (widget.comment.userAchievements.isNotEmpty)
-                                UnlockedBadgesRow(
-                                  unlockedAchievements:
-                                      widget.comment.userAchievements,
-                                  maxVisible: 3,
-                                  badgeSize: 9,
+                              _buildMenuButton(context),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      if (widget.isEditing)
+                        _CommentEditField(
+                          initialText: widget.comment.text,
+                          onCancel: widget.onCancelEdit,
+                          onSave: widget.onSaveEdit,
+                        )
+                      else
+                        _CommentText(comment: widget.comment),
+                      const SizedBox(height: 8),
+                      _CommentActionsRow(
+                        postId: widget.postId,
+                        commentId: widget.comment.id,
+                        authorUid: widget.comment.userId,
+                        likesCount: widget.comment.likesCount,
+                        currentUserId: widget.currentUserId,
+                        onToggleLike: widget.onToggleLike,
+                        onReply: widget.onReply,
+                      ),
+                      if (widget.comment.repliesCount > 0) ...[
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: () => setState(() =>
+                              _repliesExpanded = !_repliesExpanded),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 24,
+                                height: 1,
+                                color:
+                                    AppColors.textMuted.withOpacity(0.4),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _repliesExpanded
+                                    ? 'Ocultar respostas'
+                                    : 'Ver ${widget.comment.repliesCount} ${widget.comment.repliesCount == 1 ? 'resposta' : 'respostas'}',
+                                style: TextStyle(
+                                  color: AppColors.primaryOrange
+                                      .withOpacity(0.85),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
                                 ),
+                              ),
                             ],
                           ),
                         ),
-                        Row(
-                          children: [
-                            Text(
-                              widget.timeAgo,
-                              style: const TextStyle(
-                                  color: AppColors.textMuted, fontSize: 11),
-                            ),
-                            if (widget.comment.edited) ...[
-                              const SizedBox(width: 5),
-                              Text(
-                                '· editado',
-                                style: TextStyle(
-                                  color: AppColors.textMuted.withOpacity(0.8),
-                                  fontSize: 10,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ],
-                            _buildMenuButton(context),
-                          ],
-                        ),
                       ],
-                    ),
-                    const SizedBox(height: 6),
-                    if (widget.isEditing)
-                      _CommentEditField(
-                        initialText: widget.comment.text,
-                        onCancel: widget.onCancelEdit,
-                        onSave: widget.onSaveEdit,
-                      )
-                    else
-                      _CommentText(comment: widget.comment),
-                    const SizedBox(height: 8),
-                    _CommentActionsRow(
-                      postId: widget.postId,
-                      commentId: widget.comment.id,
-                      authorUid: widget.comment.userId,
-                      likesCount: widget.comment.likesCount,
-                      currentUserId: widget.currentUserId,
-                      onToggleLike: widget.onToggleLike,
-                      onReply: widget.onReply,
-                    ),
-                    if (widget.comment.repliesCount > 0) ...[
-                      const SizedBox(height: 8),
-                      GestureDetector(
-                        onTap: () => setState(
-                            () => _repliesExpanded = !_repliesExpanded),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 24,
-                              height: 1,
-                              color: AppColors.textMuted.withOpacity(0.4),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              _repliesExpanded
-                                  ? 'Ocultar respostas'
-                                  : 'Ver ${widget.comment.repliesCount} ${widget.comment.repliesCount == 1 ? 'resposta' : 'respostas'}',
-                              style: TextStyle(
-                                color: AppColors.primaryOrange
-                                    .withOpacity(0.85),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
+                      if (_repliesExpanded)
+                        _RepliesList(
+                          postId: widget.postId,
+                          parentCommentId: widget.comment.id,
+                          repliesStream: _repliesStream,
+                          authorStreamFor: widget.authorStreamFor,
+                          currentUserId: widget.currentUserId,
+                          isAdmin: widget.isAdmin,
+                          onDeleteReply: widget.onDeleteReply,
+                          onToggleLike: widget.onToggleLike,
+                          onReplyToReply: (reply) =>
+                              widget.onReplyToTarget(
+                            commentId: widget.comment.id,
+                            userId: reply.userId,
+                            username: reply.username,
+                            userName: reply.userName,
+                          ),
+                          timeAgoBuilder: widget.timeAgoBuilder,
+                          editingReplyId: widget.editingReplyId,
+                          onStartEditReply: widget.onStartEditReply,
+                          onCancelEdit: widget.onCancelEdit,
+                          onSaveEditReply: widget.onSaveEditReply,
+                          highlightedReplyId: widget.highlightedReplyId,
+                          onHighlightShown: widget.onHighlightShown,
                         ),
-                      ),
                     ],
-                    if (_repliesExpanded)
-                      _RepliesList(
-                        postId: widget.postId,
-                        parentCommentId: widget.comment.id,
-                        repliesStream: _repliesStream,
-                        currentUserId: widget.currentUserId,
-                        isAdmin: widget.isAdmin,
-                        onDeleteReply: widget.onDeleteReply,
-                        onToggleLike: widget.onToggleLike,
-                        onReplyToReply: (reply) => widget.onReplyToTarget(
-                          commentId: widget.comment.id,
-                          userId: reply.userId,
-                          username: reply.username,
-                          userName: reply.userName,
-                        ),
-                        timeAgoBuilder: widget.timeAgoBuilder,
-                        editingReplyId: widget.editingReplyId,
-                        onStartEditReply: widget.onStartEditReply,
-                        onCancelEdit: widget.onCancelEdit,
-                        onSaveEditReply: widget.onSaveEditReply,
-                        highlightedReplyId: widget.highlightedReplyId,
-                        onHighlightShown: widget.onHighlightShown,
-                      ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -2215,6 +2356,12 @@ class _RepliesList extends StatelessWidget {
   final ValueChanged<CommentModel> onReplyToReply;
   final String Function(DateTime) timeAgoBuilder;
 
+  /// Pede ao CommentsSectionState a stream (cacheada, compartilhada
+  /// entre todos os tiles do mesmo autor) do perfil ao vivo de um
+  /// userId — usada por cada _ReplyTile para nível/título/cor/foto
+  /// atuais do autor da resposta.
+  final Stream<DocumentSnapshot> Function(String userId) authorStreamFor;
+
   // ── Edição ──────────────────────────────────────────────────────
   final String? editingReplyId;
   final ValueChanged<String> onStartEditReply;
@@ -2235,6 +2382,7 @@ class _RepliesList extends StatelessWidget {
     required this.onToggleLike,
     required this.onReplyToReply,
     required this.timeAgoBuilder,
+    required this.authorStreamFor,
     this.editingReplyId,
     required this.onStartEditReply,
     required this.onCancelEdit,
@@ -2273,6 +2421,7 @@ class _RepliesList extends StatelessWidget {
                         postId: postId,
                         parentCommentId: parentCommentId,
                         reply: reply,
+                        authorStream: authorStreamFor(reply.userId),
                         timeAgo: timeAgoBuilder(reply.createdAt),
                         currentUserId: currentUserId,
                         isAdmin: isAdmin,
@@ -2301,6 +2450,7 @@ class _ReplyTile extends StatefulWidget {
   final String postId;
   final String parentCommentId;
   final CommentModel reply;
+  final Stream<DocumentSnapshot> authorStream;
   final String timeAgo;
   final String currentUserId;
   final bool isAdmin;
@@ -2318,6 +2468,7 @@ class _ReplyTile extends StatefulWidget {
     required this.postId,
     required this.parentCommentId,
     required this.reply,
+    required this.authorStream,
     required this.timeAgo,
     required this.currentUserId,
     required this.isAdmin,
@@ -2463,7 +2614,8 @@ class _ReplyTileState extends State<_ReplyTile> {
     return AnimatedContainer(
       key: _tileKey,
       duration: const Duration(milliseconds: 400),
-      padding: widget.isHighlighted ? const EdgeInsets.all(8) : EdgeInsets.zero,
+      padding:
+          widget.isHighlighted ? const EdgeInsets.all(8) : EdgeInsets.zero,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
         color: widget.isHighlighted
@@ -2473,96 +2625,105 @@ class _ReplyTileState extends State<_ReplyTile> {
             ? Border.all(color: AppColors.primaryOrange.withOpacity(0.6))
             : null,
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AvatarFrame(
-            level: reply.userLevel,
-            size: 28,
-            child: UserAvatarDisplay(
-              name: reply.userName,
-              seed: reply.userId,
-              photoUrl: reply.userPhotoUrl,
-              equippedPremiumAvatarId: reply.userEquippedPremiumAvatarId,
+      // Mesmo tratamento do _CommentTile: avatar, moldura e nível
+      // aqui vêm do perfil ATUAL do autor da resposta (ver
+      // _LiveAuthorData), não do snapshot congelado salvo quando a
+      // resposta foi enviada.
+      child: _LiveAuthorData(
+        authorStream: widget.authorStream,
+        fallback: reply,
+        builder: (context, info) => Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AvatarFrame(
+              level: info.level,
               size: 28,
+              child: UserAvatarDisplay(
+                name: reply.userName,
+                seed: reply.userId,
+                photoUrl: info.photoUrl,
+                equippedPremiumAvatarId: info.equippedPremiumAvatarId,
+                size: 28,
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              reply.userName,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: _isOwner
-                                    ? AppColors.primaryOrange
-                                    : Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                reply.userName,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: _isOwner
+                                      ? AppColors.primaryOrange
+                                      : Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
+                            const SizedBox(width: 5),
+                            LevelBadgeInline(level: info.level),
+                          ],
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Text(
+                            widget.timeAgo,
+                            style: const TextStyle(
+                                color: AppColors.textMuted, fontSize: 10),
                           ),
-                          const SizedBox(width: 5),
-                          LevelBadgeInline(level: reply.userLevel),
+                          if (reply.edited) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              '· editado',
+                              style: TextStyle(
+                                color:
+                                    AppColors.textMuted.withOpacity(0.8),
+                                fontSize: 9,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                          _buildMenuButton(context),
                         ],
                       ),
-                    ),
-                    Row(
-                      children: [
-                        Text(
-                          widget.timeAgo,
-                          style: const TextStyle(
-                              color: AppColors.textMuted, fontSize: 10),
-                        ),
-                        if (reply.edited) ...[
-                          const SizedBox(width: 4),
-                          Text(
-                            '· editado',
-                            style: TextStyle(
-                              color: AppColors.textMuted.withOpacity(0.8),
-                              fontSize: 9,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                        _buildMenuButton(context),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                if (widget.isEditing)
-                  _CommentEditField(
-                    initialText: reply.text,
-                    onCancel: widget.onCancelEdit,
-                    onSave: widget.onSaveEdit,
-                  )
-                else
-                  _CommentText(comment: reply),
-                const SizedBox(height: 6),
-                _CommentActionsRow(
-                  postId: widget.postId,
-                  commentId: reply.id,
-                  authorUid: reply.userId,
-                  likesCount: reply.likesCount,
-                  currentUserId: currentUserId,
-                  onToggleLike: widget.onToggleLike,
-                  onReply: widget.onReply,
-                  parentCommentId: widget.parentCommentId,
-                ),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  if (widget.isEditing)
+                    _CommentEditField(
+                      initialText: reply.text,
+                      onCancel: widget.onCancelEdit,
+                      onSave: widget.onSaveEdit,
+                    )
+                  else
+                    _CommentText(comment: reply),
+                  const SizedBox(height: 6),
+                  _CommentActionsRow(
+                    postId: widget.postId,
+                    commentId: reply.id,
+                    authorUid: reply.userId,
+                    likesCount: reply.likesCount,
+                    currentUserId: currentUserId,
+                    onToggleLike: widget.onToggleLike,
+                    onReply: widget.onReply,
+                    parentCommentId: widget.parentCommentId,
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
