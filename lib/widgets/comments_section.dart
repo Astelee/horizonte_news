@@ -1416,7 +1416,16 @@ class CommentsSectionState extends State<CommentsSection>
           return const SizedBox.shrink();
         }
 
+        // Comentários ocultos pela moderação (campo `hidden`, gravado
+        // pelo painel ADM em AdminCommentService.hideComment) só ficam
+        // visíveis para admin. O filtro é feito aqui no cliente, e não
+        // com where('hidden', isNotEqualTo: true) na query, porque
+        // comentários antigos não têm o campo `hidden` e seriam
+        // excluídos do resultado pelo Firestore.
         final comments = snapshot.data!.docs
+            .where((doc) =>
+                isAdmin ||
+                (doc.data() as Map<String, dynamic>)['hidden'] != true)
             .map((doc) => CommentModel.fromDoc(doc))
             .toList();
 
@@ -2407,7 +2416,12 @@ class _RepliesList extends StatelessWidget {
             ),
           );
         }
+        // Respostas ocultas pela moderação só aparecem para admin
+        // (mesma regra da lista de comentários-raiz).
         final replies = snapshot.data!.docs
+            .where((doc) =>
+                isAdmin ||
+                (doc.data() as Map<String, dynamic>)['hidden'] != true)
             .map((doc) => CommentModel.fromDoc(doc))
             .toList();
 
