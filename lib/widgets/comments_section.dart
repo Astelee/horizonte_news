@@ -2125,14 +2125,36 @@ class _CommentActionsRow extends StatelessWidget {
             },
           ),
         const SizedBox(width: 16),
-        GestureDetector(
-          onTap: onReply,
-          child: const Text(
-            'Responder',
-            style: TextStyle(
-              color: AppColors.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+        Builder(
+          builder: (context) => GestureDetector(
+            onTap: () {
+              onReply();
+              // Rola este botão "Responder" para uma posição visível
+              // ANTES da barra fixa cobrir o rodapé — sem isso, se o
+              // comentário/resposta tocado já estava perto do fim da
+              // lista, ele pode ficar (parcial ou totalmente) atrás
+              // da barra que acabou de aparecer, tornando o próprio
+              // botão que o usuário tocou inacessível para um
+              // segundo toque (ex.: cancelar e responder outro).
+              // alignment: 0.3 deixa uma folga confortável acima do
+              // botão, não cola ele na borda exata da área visível.
+              Future.delayed(const Duration(milliseconds: 80), () {
+                if (!context.mounted) return;
+                Scrollable.ensureVisible(
+                  context,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  alignment: 0.3,
+                );
+              });
+            },
+            child: const Text(
+              'Responder',
+              style: TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ),
