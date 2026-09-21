@@ -42,8 +42,23 @@ service cloud.firestore {
       // O dono pode criar seu próprio documento de XP, mas nunca com
       // photoUrl já definido — a foto de perfil só entra depois de
       // aprovada por um admin (ver avatarApprovals mais abaixo).
+      //
+      // Também não pode nascer já com XP/nível acima do inicial nem com
+      // premiumTier/premiumExpiresAt. Isso importa porque o dono agora
+      // pode APAGAR o próprio documento (exclusão de conta, mais
+      // abaixo): sem esta trava, bastaria apagar e recriar o doc já
+      // com premiumTier='ultra' e nível alto para burlar a regra de
+      // update que protege esses campos. Os dois fluxos legítimos de
+      // criação (register_screen e XpService._initializeUser) gravam
+      // totalXp: 0 e level: 1 e nunca gravam premiumTier.
       allow create: if isOwner(userId) &&
-        !('photoUrl' in request.resource.data);
+        !('photoUrl' in request.resource.data) &&
+        !('premiumTier' in request.resource.data) &&
+        !('premiumExpiresAt' in request.resource.data) &&
+        (!('totalXp' in request.resource.data) ||
+          request.resource.data.totalXp == 0) &&
+        (!('level' in request.resource.data) ||
+          request.resource.data.level == 1);
 
       // O dono pode atualizar seus dados livremente, incluindo
       // REMOVER photoUrl (apagar a própria foto continua uma ação
@@ -66,6 +81,14 @@ service cloud.firestore {
         !request.resource.data.diff(resource.data).affectedKeys()
           .hasAny(['premiumTier', 'premiumExpiresAt'])
       );
+
+      // ── Exclusão da própria conta ────────────────────────────────
+      // Sem esta regra, o usuário comum tomava "permissão negada" ao
+      // apagar o próprio documento de XP durante a exclusão de conta
+      // (Configurações → Excluir conta): o app apagava o perfil, falhava
+      // aqui e deixava a conta pela metade. Só o DONO (ou um admin)
+      // pode apagar este documento; ninguém apaga o de outra pessoa.
+      allow delete: if isOwner(userId) || isAdmin();
 
       // ── XP ganho por curtida em comentário ───────────────────────
       // A curtida credita XP fixo (5) ao AUTOR do comentário curtido,
@@ -115,7 +138,11 @@ service cloud.firestore {
         allow create: if isOwner(userId)
             && request.resource.data.status in ['done', 'recovered']
             && isValidCheckinXp(request.resource.data.xpAwarded);
-        allow update, delete: if isAdmin();
+        allow update: if isAdmin();
+        // O dono pode apagar os próprios check-ins: necessário para a
+        // exclusão de conta (a subcoleção não some sozinha quando o
+        // documento pai é apagado).
+        allow delete: if isOwner(userId) || isAdmin();
       }
     }
 
