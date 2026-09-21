@@ -664,7 +664,23 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                 .collection('postComments')
                 .snapshots(),
             builder: (context, snap) {
-              final count = snap.data?.docs.length ?? 0;
+              // Mesmo cuidado do contador "Comentários (N)" dentro da
+              // seção de comentários (ver comments_section.dart): esta
+              // é uma contagem SEPARADA e independente daquela, então
+              // precisava do mesmo ajuste aqui também — contar só
+              // docs.length ignora as respostas, que ficam guardadas
+              // numa subcoleção replies à parte de cada comentário-
+              // raiz. repliesCount já é mantido corretamente em tempo
+              // real a cada resposta criada/excluída, então soma-lo
+              // aqui dá o total real (comentários-raiz + respostas)
+              // sem precisar de uma segunda query nas subcoleções.
+              final docs = snap.data?.docs ?? const [];
+              final rootCount = docs.length;
+              final repliesTotal = docs.fold<int>(0, (sum, doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return sum + ((data['repliesCount'] as num?)?.toInt() ?? 0);
+              });
+              final count = rootCount + repliesTotal;
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
