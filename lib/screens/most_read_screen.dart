@@ -74,13 +74,26 @@ class _MostReadScreenState extends State<MostReadScreen>
       final views =
           (viewsDoc.data()?['uniqueViewers'] as num?)?.toInt() ?? 0;
 
+      // Mesmo ajuste feito nos outros dois contadores de comentários
+      // do app (o "Comentários (N)" da seção de comentários, e o
+      // contador junto de visualizações no topo da notícia): contar
+      // só os documentos da coleção postComments ignora as respostas,
+      // guardadas numa subcoleção replies à parte de cada comentário-
+      // raiz. Por isso aqui usamos .get() (busca os documentos, não
+      // só a contagem) em vez de .count().get() — precisamos ler o
+      // campo repliesCount de cada comentário para somar ao total, o
+      // que uma agregação count() não permite.
       final commentsSnap = await _db
           .collection('comments')
           .doc(post.id)
           .collection('postComments')
-          .count()
           .get();
-      final comments = commentsSnap.count ?? 0;
+      final rootCount = commentsSnap.docs.length;
+      final repliesTotal = commentsSnap.docs.fold<int>(0, (sum, doc) {
+        final data = doc.data();
+        return sum + ((data['repliesCount'] as num?)?.toInt() ?? 0);
+      });
+      final comments = rootCount + repliesTotal;
 
       return _RankedPost(post: post, views: views, comments: comments);
     });
