@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/premium_config.dart';
+import 'purchase_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // SUBSCRIPTION REQUEST SERVICE — aprovação manual de assinaturas
