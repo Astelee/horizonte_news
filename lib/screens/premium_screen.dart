@@ -7,6 +7,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/app_colors.dart';
+import '../config/app_routes.dart';
 import '../config/premium_config.dart';
 import '../services/purchase_service.dart';
 import 'premium_avatar_gallery_screen.dart';
@@ -214,8 +215,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
     setState(() => _purchaseInFlightProductId = null);
 
     switch (result.status) {
-      case PurchaseResultStatus.success:
-        _showSnack(context, 'Premium ativado com sucesso! 🎉');
+      case PurchaseResultStatus.pendingApproval:
+        _showPendingApprovalDialog(context);
         break;
       case PurchaseResultStatus.pending:
         _showSnack(context, 'Pagamento em processamento...');
@@ -231,6 +232,74 @@ class _PremiumScreenState extends State<PremiumScreen> {
         );
         break;
     }
+  }
+
+  // ── Compra confirmada pelo Google Play, aguardando aprovação ────
+  // A compra em si já foi concluída — isso NÃO é revertido nem
+  // burlado —, mas o Premium só é ativado depois que um admin aprovar
+  // a solicitação pelo painel. Mostramos isso claramente aqui, com um
+  // atalho para o canal de contato já existente no app, caso o
+  // usuário queira acelerar ou tirar dúvidas.
+  void _showPendingApprovalDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF111111),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(FontAwesomeIcons.circleCheck,
+                color: AppColors.primaryOrange, size: 20),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Compra registrada',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'A compra foi registrada e está aguardando a validação '
+          'do administrador.',
+          style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _openContactChannel(context);
+            },
+            child: Text(
+              'Entrar em contato',
+              style: TextStyle(
+                color: AppColors.primaryOrangeLight,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text(
+              'Entendi',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Abre o canal de contato que já existe no app (tela ContactScreen,
+  // rota AppRoutes.contact) — mesmo canal usado no resto do app, sem
+  // criar um novo.
+  void _openContactChannel(BuildContext context) {
+    Navigator.of(context).pushNamed(AppRoutes.contact);
   }
 
   Future<void> _buyPlan(PremiumPlan plan) async {
@@ -446,6 +515,34 @@ class _PremiumScreenState extends State<PremiumScreen> {
               color: Colors.white.withOpacity(0.7),
               fontWeight: FontWeight.w600,
               fontSize: 14,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        // Toda compra fica pendente de aprovação manual do admin — este
+        // botão dá acesso direto ao canal de contato já existente no
+        // app (mesma ContactScreen usada no resto do app) para quem
+        // quiser tirar dúvidas ou acelerar a validação.
+        OutlinedButton.icon(
+          onPressed: () => _openContactChannel(context),
+          icon: Icon(FontAwesomeIcons.headset,
+              size: 14, color: AppColors.primaryOrangeLight),
+          label: Text(
+            'Entrar em contato',
+            style: TextStyle(
+              color: AppColors.primaryOrangeLight,
+              fontWeight: FontWeight.w700,
+              fontSize: 13.5,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(
+              color: AppColors.primaryOrangeLight.withOpacity(0.4),
+            ),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
         ),
