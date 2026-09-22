@@ -7,6 +7,7 @@ import '../services/admin_comment_service.dart';
 import '../services/admin_config_service.dart';
 import '../services/admin_dashboard_service.dart';
 import '../services/admin_news_service.dart';
+import '../services/admin_subscription_request_service.dart';
 import '../services/admin_user_service.dart';
 import '../services/admin_views_service.dart';
 import 'tabs/overview_tab.dart';
@@ -17,6 +18,7 @@ import 'tabs/views_tab.dart';
 import 'tabs/poderes_tab.dart';
 import 'tabs/news_tab.dart';
 import 'tabs/avatar_approvals_tab.dart';
+import 'tabs/subscription_requests_tab.dart';
 import 'tabs/config_tab.dart';
 import 'tabs/ads_bar_tab.dart';
 
@@ -37,6 +39,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   final _dashboardService = AdminDashboardService();
   final _newsService = AdminNewsService();
   final _avatarApprovalService = AdminAvatarApprovalService();
+  final _subscriptionRequestService = AdminSubscriptionRequestService();
   final _configService = AdminConfigService();
 
   static const List<String> _tabTitles = [
@@ -48,6 +51,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     'NÍVEIS & XP',
     'PUBLICAÇÕES',
     'FOTOS PENDENTES',
+    'ASSINATURAS PENDENTES',
     'CONFIGURAÇÕES',
     'BARRA DE ANÚNCIOS',
   ];
@@ -55,7 +59,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 10, vsync: this);
+    _tabController = TabController(length: 11, vsync: this);
     _tabController.addListener(() {
       // Reconstrói o AppBar (título + botão voltar) ao trocar de aba,
       // mesmo durante o gesto (sem esperar a animação terminar).
@@ -154,8 +158,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                       onGoToComments: () => _goToTab(1),
                       onGoToLevels: () => _goToTab(5),
                       onGoToAvatarApprovals: () => _goToTab(7),
-                      onGoToConfig: () => _goToTab(8),
-                      onGoToAdsBar: () => _goToTab(9),
+                      onGoToConfig: () => _goToTab(9),
+                      onGoToAdsBar: () => _goToTab(10),
                     ),
                   ),
                   _TabScaffold(
@@ -177,6 +181,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     _TabScaffold(
                       child: AvatarApprovalsTab(
                           approvalService: _avatarApprovalService),
+                    ),
+                    _TabScaffold(
+                      child: SubscriptionRequestsTab(
+                          requestService: _subscriptionRequestService),
                     ),
                     _TabScaffold(
                         child: ConfigTab(configService: _configService)),
