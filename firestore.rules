@@ -361,6 +361,32 @@ service cloud.firestore {
       allow write: if isOwner(userId);
     }
 
+    // ── Solicitações de assinatura (aprovação manual PRO/ULTRA) ───
+    // Depois que o Google Play Billing confirma a compra, o app cria
+    // aqui um registro pendente (ver SubscriptionRequestService) em
+    // vez de liberar o Premium sozinho. Só o próprio usuário pode
+    // criar sua solicitação (sempre com status: 'pendente' e o uid
+    // batendo com quem está autenticado), e só um admin pode
+    // aprovar/recusar (mudar o status), evitando que o usuário
+    // aprove a própria compra.
+    function validSubscriptionRequestCreate() {
+      return request.auth != null
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.status == 'pendente'
+          && request.resource.data.plan in ['pro', 'ultra'];
+    }
+
+    match /subscriptionRequests/{requestId} {
+      allow read: if isAdmin()
+          || (request.auth != null &&
+              resource.data.uid == request.auth.uid);
+      allow create: if validSubscriptionRequestCreate();
+      // Só admin pode mudar o status (aprovar/recusar) — o usuário
+      // nunca pode alterar a própria solicitação depois de criada.
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
     // ── Demais coleções ───────────────────────────────────────────
     match /{document=**} {
       allow read: if true;
