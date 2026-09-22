@@ -1,31 +1,36 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../config/premium_config.dart';
+import 'subscription_request_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // PURCHASE SERVICE — assinaturas Premium via Google Play Billing
 // ═══════════════════════════════════════════════════════════════════
 // Fonte única de verdade para o fluxo de compra: consulta os produtos
-// cadastrados no Play Console, dispara a compra, escuta o resultado
-// (compra nova, restaurada ou pendente) e envia o purchaseToken para
-// o Worker de validação (Cloudflare) — é ELE quem valida a compra na
-// Play Developer API e grava o tier Premium em users_xp/{uid}, não
-// mais o app diretamente.
+// cadastrados no Play Console e dispara a compra.
 //
-// VALIDAÇÃO DE SERVIDOR:
-// O app não grava mais premiumTier/premiumExpiresAt diretamente no
-// Firestore (as regras do Firestore inclusive bloqueiam isso, só
-// admin pode escrever nesses campos). Em vez disso, chamamos o
-// endpoint _validatorEndpoint abaixo, que confirma a compra contra a
-// Play Developer API do Google antes de liberar o Premium — fechando
-// o buraco de segurança de confiar só na resposta local do Google
-// Play Billing.
+// APROVAÇÃO MANUAL (sem liberação automática):
+// Quando o Google Play confirma a compra (PurchaseStatus.purchased ou
+// .restored), o app NÃO valida a compra contra nenhum servidor nem
+// grava premiumTier/premiumExpiresAt diretamente. Em vez disso, cria
+// uma solicitação de assinatura pendente em `subscriptionRequests`
+// (ver SubscriptionRequestService) e avisa os administradores — o
+// Premium só é ativado quando um admin aprova manualmente pelo
+// painel (ver AdminSubscriptionRequestService.approve, que usa o
+// MESMO AdminUserService.grantPremium da concessão manual).
+//
+// O antigo Cloudflare Worker de validação automática NÃO é mais
+// chamado por este serviço: ele existia só para confirmar a compra
+// na Play Developer API e liberar o Premium sozinho, o que o novo
+// fluxo de aprovação manual substitui por completo. As regras do
+// Firestore continuam bloqueando o app de escrever premiumTier/
+// premiumExpiresAt diretamente (ver firestore.rules) — só admin (via
+// aprovação) ou a própria concessão manual no painel podem gravar
+// esses campos.
 // ═══════════════════════════════════════════════════════════════════
 
 /// IDs de produto que devem ser cadastrados EXATAMENTE assim no
@@ -48,13 +53,15 @@ class PremiumProductIds {
   }
 }
 
-/// URL do Cloudflare Worker que valida a compra na Play Developer API
-/// e grava o Premium no Firestore (com privilégio de admin — o app
-/// não tem mais permissão de gravar esses campos diretamente).
-const String _validatorEndpoint =
-    'https://horizonte-premium-validator.diego-magno321.workers.dev';
-
-enum PurchaseResultStatus { success, pending, error, cancelled }
+enum PurchaseResultStatus {
+  /// A compra foi confirmada pelo Google Play e a solicitação de
+  /// assinatura foi registrada, aguardando aprovação do admin. Ainda
+  /// NÃO significa que o Premium está ativo.
+  pendingApproval,
+  pending,
+  error,
+  cancelled,
+}
 
 class PurchaseResult {
   final PurchaseResultStatus status;
@@ -67,7 +74,7 @@ class PurchaseService {
   static final PurchaseService instance = PurchaseService._internal();
 
   final InAppPurchase _iap = InAppPurchase.instance;
-  final http.Client _http = http.Client();
+  final _requestService = SubscriptionRequestService.instance;
 
   StreamSubscription<List<PurchaseDetails>>? _subscription;
 
@@ -116,8 +123,9 @@ class PurchaseService {
     return response.productDetails;
   }
 
-  /// Inicia a compra de uma assinatura. O resultado (sucesso, erro,
-  /// pendente) chega depois, de forma assíncrona, por [purchaseResults].
+  /// Inicia a compra de uma assinatura. O resultado (solicitação
+  /// registrada, erro, pendente) chega depois, de forma assíncrona,
+  /// por [purchaseResults].
   Future<void> buy(ProductDetails product) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -149,7 +157,10 @@ class PurchaseService {
 
   /// Dispara o fluxo de restauração de compras do Google Play. O
   /// resultado (se havia algo para restaurar) chega pelo mesmo
-  /// purchaseStream tratado em [_handlePurchaseUpdates].
+  /// purchaseStream tratado em [_handlePurchaseUpdates]. Uma compra
+  /// restaurada também não libera Premium sozinha — se ainda não
+  /// houver solicitação aprovada para ela, cai no mesmo fluxo de
+  /// aprovação manual.
   Future<void> restore() async {
     await _iap.restorePurchases();
   }
@@ -189,22 +200,28 @@ class PurchaseService {
 
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          final validated = await _validateAndGrantPremium(purchase);
+          // IMPORTANTE: não liberar Premium automaticamente aqui.
+          // A compra em si já foi concluída no Google Play — isso
+          // não é burlado nem revertido —, mas o Premium só é
+          // ativado depois que um admin aprovar a solicitação
+          // correspondente pelo painel.
+          final registered = await _registerPendingRequest(purchase);
           if (purchase.pendingCompletePurchase) {
             await _iap.completePurchase(purchase);
           }
-          if (validated) {
+          if (registered) {
             _resultController.add(
-              const PurchaseResult(PurchaseResultStatus.success),
+              const PurchaseResult(PurchaseResultStatus.pendingApproval),
             );
           } else {
             _resultController.add(
               const PurchaseResult(
                 PurchaseResultStatus.error,
                 message:
-                    'Não foi possível confirmar sua compra. Se o valor foi '
-                    'cobrado, tente "Restaurar compras" em alguns instantes '
-                    'ou fale com o suporte.',
+                    'A compra foi concluída, mas não foi possível '
+                    'registrar sua solicitação agora. Toque em '
+                    '"Restaurar compras" em alguns instantes ou fale '
+                    'com o suporte.',
               ),
             );
           }
@@ -213,15 +230,11 @@ class PurchaseService {
     }
   }
 
-  /// Envia a compra para o Worker de validação, que confirma o
-  /// purchaseToken na Play Developer API do Google e só então grava
-  /// premiumTier/premiumExpiresAt em users_xp/{uid} — com privilégio
-  /// de admin, já que o app não tem mais permissão de gravar esses
-  /// campos diretamente (ver firestore.rules).
-  ///
-  /// Retorna true se o Premium foi liberado com sucesso, false caso
-  /// contrário (rede indisponível, compra inválida, uid não bate etc).
-  Future<bool> _validateAndGrantPremium(PurchaseDetails purchase) async {
+  /// Registra a solicitação de assinatura pendente (ver
+  /// SubscriptionRequestService) a partir de uma compra já confirmada
+  /// pelo Google Play. Retorna true se a solicitação foi criada com
+  /// sucesso.
+  Future<bool> _registerPendingRequest(PurchaseDetails purchase) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
 
@@ -229,32 +242,12 @@ class PurchaseService {
     if (tier == PremiumTier.none) return false;
 
     try {
-      final idToken = await user.getIdToken();
-      if (idToken == null) return false;
-
-      final response = await _http.post(
-        Uri.parse(_validatorEndpoint),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'purchaseToken': purchase.verificationData.serverVerificationData,
-          'productId': purchase.productID,
-          'userId': user.uid,
-          'idToken': idToken,
-        }),
+      await _requestService.createPendingRequest(
+        productId: purchase.productID,
       );
-
-      if (response.statusCode != 200) {
-        debugPrint(
-          'Validação de compra falhou (${response.statusCode}): '
-          '${response.body}',
-        );
-        return false;
-      }
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return data['ok'] == true;
+      return true;
     } catch (e) {
-      debugPrint('Erro ao validar compra com o Worker: $e');
+      debugPrint('Erro ao registrar solicitação de assinatura: $e');
       return false;
     }
   }
@@ -270,6 +263,5 @@ class PurchaseService {
   void dispose() {
     _subscription?.cancel();
     _resultController.close();
-    _http.close();
   }
 }
