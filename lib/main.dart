@@ -19,7 +19,6 @@ import 'services/auth_service.dart';
 import 'services/app_config_service.dart';
 import 'services/deep_link_service.dart';
 import 'screens/splash_screen.dart';
-import 'config/app_navigator.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -96,7 +95,6 @@ class _HorizonteNewsAppState extends State<HorizonteNewsApp> {
 
     return MaterialApp(
       navigatorKey: navigatorKey,
-      navigatorObservers: [RouteTrackerObserver()],
       title: 'Horizonte News',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
