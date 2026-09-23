@@ -204,6 +204,21 @@ class PostsProvider with ChangeNotifier {
     return _newsService.fetchById(postId);
   }
 
+  /// Busca notícias relacionadas para a seção "Mais matérias" da tela
+  /// de detalhe. Não é armazenado em estado do provider (cada tela de
+  /// matéria chama isso independentemente) — só repassa ao serviço.
+  Future<List<PostModel>> fetchRelatedPosts({
+    required String excludeId,
+    String? categoryName,
+    int maxResults = 3,
+  }) {
+    return _newsService.fetchRelatedPosts(
+      excludeId: excludeId,
+      categoryName: categoryName,
+      maxResults: maxResults,
+    );
+  }
+
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
