@@ -139,4 +139,45 @@ class NewsService {
     final doc = await _col.doc(postId).get();
     return doc.exists ? doc : null;
   }
+
+  /// Busca notícias "relacionadas" a [excludeId], priorizando a mesma
+  /// categoria. Usado pela seção "Mais matérias" no fim da tela de
+  /// detalhe. Se a categoria não tiver [maxResults] notícias
+  /// suficientes (descontando a própria matéria), completa com as
+  /// publicadas mais recentes de qualquer categoria, sem duplicar.
+  Future<List<PostModel>> fetchRelatedPosts({
+    required String excludeId,
+    String? categoryName,
+    int maxResults = 3,
+  }) async {
+    final seen = <String>{excludeId};
+    final result = <PostModel>[];
+
+    if (categoryName != null && categoryName.trim().isNotEmpty) {
+      final sameCategory = await fetchPostsByCategory(
+        categoryName,
+        maxResults: maxResults + 1, // +1 para sobrar folga ao excluir a atual
+      );
+      for (final p in sameCategory) {
+        if (result.length >= maxResults) break;
+        if (seen.add(p.id)) result.add(p);
+      }
+    }
+
+    if (result.length < maxResults) {
+      final recentSnap = await _col
+          .where('status', isEqualTo: _publishedStatus)
+          .orderBy('publicadoEm', descending: true)
+          .limit(maxResults + seen.length)
+          .get();
+      for (final d in recentSnap.docs) {
+        if (result.length >= maxResults) break;
+        if (seen.add(d.id)) {
+          result.add(PostModel.fromFirestore(d));
+        }
+      }
+    }
+
+    return result;
+  }
 }
