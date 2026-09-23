@@ -86,6 +86,13 @@ class _AppDrawerState extends State<AppDrawer>
   void _navigate(BuildContext context, String route) async {
     HapticFeedback.lightImpact();
 
+    // O destaque do item no Drawer é atualizado aqui, no momento do
+    // toque — e não com base na rota real da tela. Ele representa o
+    // ÚLTIMO ITEM ESCOLHIDO pelo usuário no Drawer, então permanece
+    // aceso mesmo depois de o usuário apertar voltar; só muda quando
+    // outro item do Drawer é escolhido.
+    selectedDrawerRouteNotifier.value = route;
+
     // Usamos o Navigator GLOBAL (navigatorKey), não o `context` local
     // do tile do Drawer. Isso é essencial: assim que o drawer começa
     // a fechar, o `_AppDrawerState` (com seus AnimationControllers)
@@ -115,23 +122,23 @@ class _AppDrawerState extends State<AppDrawer>
     await navigator?.pushNamed(route);
 
     // Ao voltar, a Home reaparece com o drawer já aberto, exatamente
-    // como estava antes de navegar — sem flash e sem reabrir.
+    // como estava antes de navegar — sem flash e sem reabrir. O
+    // destaque NÃO muda aqui: continua no último item escolhido
+    // (setado no início desta função), mesmo com a Home visível.
   }
 
   @override
   Widget build(BuildContext context) {
-    // A rota ativa vem do currentRouteNotifier (atualizado pelo
-    // RouteTrackerObserver a cada navegação), e não de
-    // ModalRoute.of(context): este AppDrawer é filho do Scaffold da
-    // tela em que foi instanciado (ex.: HomeScreen) e continua vivo
-    // por baixo quando outra rota é empilhada por cima dele — então
-    // ModalRoute.of(context) sempre apontaria para a rota daquela
-    // tela original, nunca para a tela realmente visível no topo da
-    // pilha. O ValueListenableBuilder garante que o destaque some
-    // reconstruindo o Drawer sempre que a rota ativa muda.
+    // O item destacado vem do selectedDrawerRouteNotifier — o último
+    // item que o próprio usuário escolheu no Drawer — e não da rota
+    // real da tela (ModalRoute.of(context)). Isso é intencional: ao
+    // apertar voltar, a tela muda mas o destaque deve permanecer no
+    // item escolhido anteriormente, só trocando quando outro item do
+    // Drawer for tocado. O ValueListenableBuilder reconstrói apenas
+    // o conteúdo do Drawer quando essa seleção muda.
     return ValueListenableBuilder<String>(
-      valueListenable: currentRouteNotifier,
-      builder: (context, currentRoute, _) => _buildDrawerContent(context, currentRoute),
+      valueListenable: selectedDrawerRouteNotifier,
+      builder: (context, selectedRoute, _) => _buildDrawerContent(context, selectedRoute),
     );
   }
 
