@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // ✅ AdMob adicionado
 import 'config/app_theme.dart';
 import 'config/app_routes.dart';
+import 'config/app_navigator.dart';
 import 'providers/posts_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/favorites_provider.dart';
@@ -95,6 +96,7 @@ class _HorizonteNewsAppState extends State<HorizonteNewsApp> {
 
     return MaterialApp(
       navigatorKey: navigatorKey,
+      navigatorObservers: [RouteTrackerObserver()],
       title: 'Horizonte News',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
