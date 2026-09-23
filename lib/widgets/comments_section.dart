@@ -5,12 +5,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
+import '../config/premium_config.dart';
 import '../providers/user_xp_provider.dart';
 import '../features/admin/providers/admin_provider.dart';
 import '../services/app_notification_service.dart';
 import 'badge_widgets.dart';
 import 'avatar_frame.dart';
 import 'app_avatar.dart';
+import 'subscriber_badge.dart';
 import '../services/app_config_service.dart';
 
 class CommentModel {
@@ -80,12 +82,14 @@ class LiveAuthorInfo {
   final List<String> achievements;
   final String? photoUrl;
   final String? equippedPremiumAvatarId;
+  final bool isPremium;
 
   const LiveAuthorInfo({
     required this.level,
     required this.achievements,
     required this.photoUrl,
     required this.equippedPremiumAvatarId,
+    this.isPremium = false,
   });
 }
 
@@ -129,6 +133,12 @@ class _LiveAuthorData extends StatelessWidget {
                 photoUrl: fallback.userPhotoUrl,
                 equippedPremiumAvatarId:
                     fallback.userEquippedPremiumAvatarId,
+                // Sem doc carregado ainda: não há como saber se é
+                // assinante a partir do comentário (esse dado nunca
+                // foi congelado nele), então não exibe o selo até o
+                // stream trazer o dado real — melhor não mostrar por
+                // um instante do que mostrar errado.
+                isPremium: false,
               )
             : LiveAuthorInfo(
                 level: (data['level'] as num?)?.toInt() ??
@@ -142,6 +152,9 @@ class _LiveAuthorData extends StatelessWidget {
                 equippedPremiumAvatarId:
                     (data['equippedPremiumAvatarId'] as String?) ??
                         fallback.userEquippedPremiumAvatarId,
+                isPremium: PremiumTierX.fromId(
+                        data['premiumTier'] as String?)
+                    .isPremium,
               );
         return builder(context, info);
       },
@@ -230,6 +243,8 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
             ?.map((e) => e.toString())
             .toList() ??
         widget.userAchievements;
+    final isPremium =
+        PremiumTierX.fromId(_userData?['premiumTier'] as String?).isPremium;
 
     return Container(
       decoration: const BoxDecoration(
@@ -280,13 +295,26 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      widget.userName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            widget.userName,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        // Selo de assinante: primeiro badge logo após
+                        // o nome, igual à tela de perfil.
+                        if (isPremium) ...[
+                          const SizedBox(width: 6),
+                          const SubscriberBadge(size: 16),
+                        ],
+                      ],
                     ),
                     if (username.isNotEmpty) ...[
                       const SizedBox(height: 2),
@@ -1886,6 +1914,13 @@ class _CommentTileState extends State<_CommentTile>
                                     ),
                                   ),
                                 ),
+                                // Selo de assinante: primeiro badge
+                                // logo após o nome, antes até da tag
+                                // "EU" e do nível.
+                                if (info.isPremium) ...[
+                                  const SizedBox(width: 5),
+                                  SubscriberBadge(size: 13),
+                                ],
                                 if (_isOwner) ...[
                                   const SizedBox(width: 5),
                                   Container(
@@ -2684,6 +2719,12 @@ class _ReplyTileState extends State<_ReplyTile> {
                                 ),
                               ),
                             ),
+                            // Selo de assinante: primeiro badge logo
+                            // após o nome, antes do nível.
+                            if (info.isPremium) ...[
+                              const SizedBox(width: 5),
+                              SubscriberBadge(size: 12),
+                            ],
                             const SizedBox(width: 5),
                             LevelBadgeInline(level: info.level),
                           ],
