@@ -14,6 +14,7 @@ import '../providers/user_xp_provider.dart';
 import '../config/app_colors.dart';
 import '../widgets/comments_section.dart';
 import '../widgets/post_video_player.dart';
+import '../widgets/news_card.dart';
 import '../features/admin/services/admin_views_service.dart';
 
 // ─────────────────────────────────────────────────────────────────
@@ -90,6 +91,13 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   final GlobalKey<CommentsSectionState> _commentsKey =
       GlobalKey<CommentsSectionState>();
   bool _commentsExpanded = false;
+
+  // ── "Mais matérias" (fim da página, abaixo dos comentários) ──────
+  // Busca é feita uma única vez por matéria aberta e cacheada aqui,
+  // para não refazer a query do Firestore a cada rebuild/setState
+  // desta tela (ex.: ao abrir/fechar os comentários).
+  Future<List<PostModel>>? _relatedPostsFuture;
+  String? _relatedPostsForId;
 
   // Chave só do CONTEÚDO da barra fixa (não do Positioned em si) —
   // usada para medir a altura real dela depois de renderizada, e
@@ -336,6 +344,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                                   }
                                 },
                               ),
+                              _buildRelatedPosts(context, post, category),
                               // Respiro no fim do artigo/lista de
                               // comentários. Precisa ser pelo menos do
                               // tamanho da barra fixa (ver
@@ -708,6 +717,102 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
     if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
     return '$n';
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // MAIS MATÉRIAS (recomendações, abaixo dos comentários)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildRelatedPosts(
+      BuildContext context, PostModel post, String category) {
+    // Recalcula só quando a matéria exibida muda (não a cada rebuild).
+    if (_relatedPostsForId != post.id) {
+      _relatedPostsForId = post.id;
+      _relatedPostsFuture =
+          Provider.of<PostsProvider>(context, listen: false)
+              .fetchRelatedPosts(
+        excludeId: post.id,
+        categoryName: post.categories.isNotEmpty
+            ? post.categories.first.name
+            : null,
+      );
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return FutureBuilder<List<PostModel>>(
+      future: _relatedPostsFuture,
+      builder: (context, snapshot) {
+        final related = snapshot.data ?? const <PostModel>[];
+        if (snapshot.connectionState == ConnectionState.done &&
+            related.isEmpty) {
+          // Sem matérias relacionadas disponíveis: nada é exibido,
+          // sem deixar um espaço/título vazio na tela.
+          return const SizedBox.shrink();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 3,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        gradient: AppColors.orangeVertical,
+                        borderRadius: BorderRadius.circular(2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryOrange.withOpacity(0.6),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'MAIS MATÉRIAS',
+                      style: TextStyle(
+                        color: isDark
+                            ? AppColors.textPrimaryDark
+                            : AppColors.textPrimaryLight,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (related.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: SizedBox(
+                    height: 76,
+                    child: Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primaryOrange,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ...related.map((p) => NewsCard(key: ValueKey(p.id), post: p)),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   // ─────────────────────────────────────────────────────────────
