@@ -1,401 +1,709 @@
-GUIA_DA_IA.md
+# Horizonte News — Guia para IA
 
-Horizonte News - Guia para IA
-
-IMPORTANTE
-
-Antes de criar qualquer arquivo novo:
-
-1. Verifique se já existe um arquivo com função semelhante.
-2. Prefira editar arquivos existentes em vez de criar duplicatas.
-3. Nunca recrie sistemas já existentes.
-4. Sempre respeite a estrutura atual do projeto.
-5. Se precisar alterar um sistema, identifique primeiro quais arquivos estão envolvidos.
-6. Consulte sempre o ESTRUTURA_PROJETO.md antes de assumir que uma tela ou serviço existe.
+> **Revisado em:** 23/09/2026
+>
+> Este guia deve ser usado junto com `ESTRUTURA_PROJETO.md`. Ambos foram revisados com base no código atual do projeto.
 
 ---
 
-Visão Geral
+## 1. Regra principal
 
-Horizonte News é um aplicativo Flutter de notícias com:
+Antes de criar ou alterar qualquer coisa:
 
-- Sistema de notícias (conteúdo vem do Blogger via API)
-- Sistema de usuários (Firebase Auth)
-- Sistema de XP e níveis
-- Sistema de emblemas
-- Sistema de favoritos
-- Sistema de comentários
-- Painel administrativo
-- Integração com Firebase (Auth, Firestore, Analytics)
-- Notificações (OneSignal)
-- Anúncios (AdMob + parceiros próprios)
-
-NÃO EXISTE no projeto (não recriar nem tentar "corrigir"):
-
-- Sistema de amigos
-- Sistema de chat
-- Tela de vídeos
-- Editor de posts dentro do app
+1. Procure primeiro o arquivo e o serviço que já executam a função.
+2. Prefira editar/reutilizar código existente.
+3. Não crie sistemas paralelos para resolver algo que já existe.
+4. Verifique dependências entre tela, provider, service, widget e Firestore.
+5. Consulte `ESTRUTURA_PROJETO.md` antes de assumir que um arquivo existe.
+6. Se a alteração envolver Firebase, consulte `firestore.rules`.
+7. Se a alteração envolver notificações, verifique `notification_service.dart`, `app_notification_service.dart` e os serviços administrativos de push.
+8. Se a alteração envolver notícias, verifique `NewsService`, `AdminNewsService` e `PostModel` antes de mexer no Blogger.
+9. Preserve as funcionalidades existentes, salvo pedido explícito para removê-las.
 
 ---
 
-Estrutura Principal
+# 2. Visão geral atual
 
-Arquivo Inicial
+O Horizonte News é um aplicativo Flutter focado em notícias de Horizonte e região, com:
 
-lib/main.dart
-
-Responsável por:
-
-- Inicializar Firebase
-- Inicializar AdMob
-- Aplicar preferência de "Lembrar login"
-- Carregar Providers
-- Definir tema
-- Iniciar aplicativo
-
----
-
-CONFIGURAÇÕES
-
-Pasta:
-
-lib/config/
-
-Arquivos:
-
-app_colors.dart
-app_routes.dart
-app_theme.dart
-badge_config.dart
-blogger_config.dart
-
-Funções:
-
-- Cores globais
-- Rotas
-- Tema
-- Configuração de badges
-- Configuração do Blogger
+- feed de notícias em Firestore;
+- categorias e busca;
+- matérias relacionadas;
+- vídeos dentro das matérias;
+- usuários via Firebase Auth;
+- XP e níveis;
+- badges/emblemas;
+- ranking;
+- check-in diário;
+- favoritos;
+- comentários e respostas;
+- notificações internas e push;
+- perfil e avatares;
+- avatares animados Premium;
+- planos PRO/ULTRA;
+- anúncios AdMob/parceiros;
+- painel administrativo;
+- gerenciamento de notícias dentro do painel ADM;
+- moderação de usuários e avatares;
+- solicitações de assinatura;
+- configurações globais e modo manutenção.
 
 ---
 
-MODELS
+# 3. Inicialização — `lib/main.dart`
 
-Pasta:
+O `main.dart` é o ponto de entrada.
 
-lib/models/
+A sequência atual é:
 
-category_model.dart
+```text
+WidgetsFlutterBinding.ensureInitialized()
+        ↓
+Firebase.initializeApp()
+        ↓
+AuthService.enforceRememberPreference()
+        ↓
+MobileAds.initialize()
+NotificationService.init()
+SoundService.init()
+        ↓
+MultiProvider
+        ↓
+HorizonteNewsApp
+        ↓
+DeepLinkService.init() após primeiro frame
+        ↓
+AuthGate
+```
 
-Modelo de categoria de notícias.
+### Providers globais
 
-post_model.dart
+```text
+ThemeProvider
+PostsProvider
+FavoritesProvider
+UserXpProvider
+AdminProvider
+```
 
-Modelo de postagem.
+Não duplicar esses providers em telas individuais sem necessidade.
+
+### Autenticação
+
+`_AuthGate` verifica `AppConfigService`.
+
+Se o modo manutenção estiver ativo:
+
+- usuário não autenticado → tela de manutenção;
+- usuário autenticado que é admin → continua para o app/painel;
+- usuário autenticado comum → tela de manutenção.
+
+No fluxo normal:
+
+- autenticado → Home;
+- não autenticado → Login.
+
+Ao detectar usuário autenticado, o app também chama:
+
+```text
+NotificationService.loginExternalUser(uid)
+```
+
+Ao sair da conta:
+
+```text
+NotificationService.logoutExternalUser()
+```
+
+Não remover esse comportamento ao alterar o fluxo de autenticação.
 
 ---
 
-PROVIDERS
+# 4. Notícias — regra importante
 
-Pasta:
+## Fonte atual
 
-lib/providers/
+A fonte principal atual é:
 
-posts_provider.dart
+```text
+Firestore → noticias
+```
 
-Gerencia carregamento das notícias.
+O serviço principal é:
 
-favorites_provider.dart
+```text
+lib/services/news_service.dart
+```
 
-Gerencia favoritos.
+Ele trabalha com notícias `publicado` e suporta:
 
-theme_provider.dart
+- feed ao vivo;
+- paginação por cursor;
+- categorias;
+- busca normalizada;
+- busca por palavras;
+- matéria por ID;
+- matérias relacionadas.
 
-Gerencia tema do aplicativo.
+### Admin
 
-user_xp_provider.dart
+O painel possui:
 
-Gerencia:
+```text
+lib/features/admin/services/admin_news_service.dart
+lib/features/admin/screens/tabs/news_tab.dart
+lib/features/admin/screens/news_editor_screen.dart
+```
 
-- XP
-- Níveis
-- Progressão do usuário
+O administrador pode:
 
-lib/features/admin/providers/admin_provider.dart
+- listar notícias;
+- criar;
+- editar;
+- publicar;
+- despublicar;
+- excluir;
+- reindexar campos de busca.
 
-Gerencia autenticação e permissões do painel administrativo.
+Ao publicar uma notícia pelo painel, o sistema pode disparar push via `PushNotificationService`.
+
+### Blogger
+
+Existe:
+
+```text
+lib/services/blogger_service.dart
+lib/config/blogger_config.dart
+```
+
+Mas `BloggerService` é legado/compatibilidade/importação. **Não assumir que o feed atual usa Blogger.**
+
+Se alguém pedir uma alteração no sistema de notícias, verificar primeiro `NewsService` e `AdminNewsService`.
 
 ---
 
-AUTENTICAÇÃO
+# 5. Modelo de notícia
 
 Arquivo:
 
+```text
+lib/models/post_model.dart
+```
+
+O modelo suporta, entre outros dados:
+
+- título;
+- resumo;
+- conteúdo;
+- URL;
+- publicação/atualização;
+- thumbnail;
+- galeria;
+- vídeo;
+- enquadramento do vídeo;
+- categorias;
+- status;
+- autor.
+
+Status Firestore:
+
+```text
+publicado
+rascunho
+despublicado
+```
+
+---
+
+# 6. Busca de notícias
+
+A busca atual usa campos normalizados:
+
+```text
+tituloBusca
+palavrasBusca
+```
+
+O utilitário é:
+
+```text
+lib/utils/search_normalizer.dart
+```
+
+Existe uma ação administrativa de reindexação para notícias antigas.
+
+Não criar outro mecanismo de busca sem antes verificar esse sistema.
+
+---
+
+# 7. Usuários
+
+O núcleo de progresso fica em:
+
+```text
+users_xp/{uid}
+```
+
+Também existem:
+
+```text
+users/{uid}
+usernames/{uid}
+admins/{uid}
+suspensions/{uid}
+banned_users/{uid}
+```
+
+Para alterações relacionadas ao usuário, verificar:
+
+```text
 lib/services/auth_service.dart
-
-Responsável por:
-
-- Login e logout (Firebase Auth)
-- Preferência "Lembrar login" (salva apenas o e-mail — a senha nunca é salva no dispositivo; quem mantém a sessão logada é a persistência nativa do Firebase Auth)
-
----
-
-SISTEMA DE XP
-
-Arquivos principais:
-
-user_xp_provider.dart
-xp_service.dart
-badge_config.dart
-badge_widgets.dart
-level_up_overlay.dart
-
-Funções:
-
-- Ganho de XP
-- Níveis
-- Emblemas
-- Recompensas
-
-Qualquer alteração de nível deve verificar estes arquivos.
+lib/providers/user_xp_provider.dart
+lib/services/xp_service.dart
+lib/screens/profile_screen.dart
+lib/features/admin/services/admin_user_service.dart
+```
 
 ---
 
-SISTEMA DE NOTÍCIAS
-
-Arquivos:
-
-home_screen.dart
-post_detail_screen.dart
-category_screen.dart
-most_read_screen.dart
-search_screen.dart
-horizon_now_screen.dart
-events_screen.dart
-
-Widgets relacionados:
-
-news_card.dart
-featured_carousel.dart
-breaking_news_banner.dart
-category_bar.dart
-
-Conteúdo vem do Blogger via lib/services/blogger_service.dart e lib/config/blogger_config.dart. Não existe editor de posts dentro do app — publicação é feita direto no Blogger.
-
----
-
-SISTEMA DE COMENTÁRIOS
+# 8. Painel administrativo
 
 Arquivo principal:
 
-comments_section.dart
-
-Antes de alterar comentários verificar:
-
-- Perfil do usuário
-- Sistema de XP
-- Sistema de emblemas
-- Sistema de banimento (coleção suspensions no Firestore)
-
----
-
-PERFIL DO USUÁRIO
-
-Arquivo:
-
-profile_screen.dart
-
-Relacionado com:
-
-- XP
-- Emblemas
-- Favoritos
-
-Qualquer alteração deve preservar as integrações existentes.
-
----
-
-RANKING
-
-Arquivo:
-
-ranking_screen.dart
-
-Mostra o ranking de usuários por XP.
-
----
-
-FAVORITOS
-
-Arquivos:
-
-favorites_screen.dart
-favorites_provider.dart
-favorites_service.dart
-
----
-
-ADMINISTRAÇÃO
-
-Arquivo:
-
+```text
 lib/features/admin/screens/admin_panel_screen.dart
+```
 
-Abas (lib/features/admin/screens/tabs/):
+Abas atuais:
 
-overview_tab.dart
-users_tab.dart
-comments_tab.dart
-banned_tab.dart
-views_tab.dart
-poderes_tab.dart
+```text
+0  Overview
+1  Comments
+2  Banned
+3  Users
+4  Views
+5  Poderes
+6  News
+7  Avatar approvals
+8  Subscription requests
+9  Config
+10 Ads bar
+```
 
-Serviços (lib/features/admin/services/):
-
-admin_comment_service.dart
-admin_dashboard_service.dart
-admin_user_service.dart
-admin_views_service.dart
-
-Funções:
-
-- Gerenciar usuários e comentários
-- Banir/desbanir usuários (coleção suspensions)
-- Ver estatísticas e visualizações
-- Ferramentas administrativas ("poderes")
-
-Não existe post_editor_screen.dart nem admin_service.dart — a publicação de notícias é feita pelo Blogger, fora do app.
+Não assumir que o painel possui apenas as abas antigas de `overview/users/comments/banned/views/poderes`.
 
 ---
 
-FIREBASE
+# 9. Aba Usuários
 
-Serviços:
+Arquivos principais:
 
-lib/services/notification_service.dart (integração com OneSignal)
+```text
+lib/features/admin/screens/tabs/users_tab.dart
+lib/features/admin/widgets/admin_user_tile.dart
+lib/features/admin/services/admin_user_service.dart
+```
 
-Cloud Functions:
+O serviço já possui:
 
-functions/index.js — envia notificação push quando um novo post é criado na coleção noticias.
+- listagem em tempo real;
+- ordenação por `lastSeenAt`;
+- suspensão/desbloqueio;
+- dados brutos do usuário;
+- alteração administrativa de nível;
+- restauração do nível real;
+- alteração administrativa de título/tag;
+- restauração do título;
+- concessão PRO/ULTRA;
+- revogação Premium;
+- sincronização de níveis;
+- logs administrativos.
 
-Segurança:
+A `UsersTab` atualmente oferece pesquisa básica e cards de usuários.
 
-firestore.rules — define quem pode ler/escrever cada coleção. Sempre consultar este arquivo antes de adicionar uma nova coleção no Firestore, e atualizar as regras junto com qualquer mudança de schema.
-
-IMPORTANTE:
-
-Antes de modificar Firebase verificar compatibilidade com:
-
-- Android
-- Cloud Functions
-- Notificações
-- firestore.rules
-
----
-
-ANÚNCIOS
-
-Pasta:
-
-lib/ads/
-
-ad_config.dart — configuração de parceiros e do AdMob.
-hybrid_banner_ad.dart — exibe banner do parceiro ativo ou do AdMob.
+Se a aba for ampliada, reutilizar `AdminUserService` e `AdminUserTile`. Não criar um segundo serviço de usuários.
 
 ---
 
-WIDGETS REUTILIZÁVEIS
+# 10. Premium
 
-Pasta:
+Configuração central:
 
-lib/widgets/
+```text
+lib/config/premium_config.dart
+```
 
-app_avatar.dart
-app_drawer.dart
-avatar_frame.dart
-badge_widgets.dart
-breaking_news_banner.dart
-category_bar.dart
-comments_section.dart
-featured_carousel.dart
-level_up_overlay.dart
-news_card.dart
-relative_time_text.dart
+Tiers:
 
-Antes de criar um novo widget verificar se algum destes já resolve o problema.
+```text
+none
+pro
+ultra
+```
 
----
+Os multiplicadores atuais são:
 
-ASSETS
+```text
+none = 1x
+pro  = 2x
+ultra = 8x
+```
 
-assets/images/
+A validade considera `premiumExpiresAt`.
 
-icon_app.png
+O admin pode conceder/revogar Premium por:
 
-assets/sounds/
+```text
+lib/features/admin/services/admin_user_service.dart
+```
 
-ambient.mp3
-click.mp3
-ranking.mp3
-
-assets/icons/
-
-Ícones do aplicativo.
-
-assets/ads/parceiros/
-
-Imagens dos parceiros de anúncio.
+Não alterar os campos Premium diretamente de uma tela sem respeitar as regras do Firestore.
 
 ---
 
-REGRA PARA ALTERAÇÕES
+# 11. Avatares
 
-Ao implementar qualquer funcionalidade:
+Fotos do usuário:
 
-1. Identifique os arquivos já existentes.
-2. Reutilize componentes existentes.
-3. Evite duplicação de código.
-4. Não criar versões paralelas do mesmo sistema.
-5. Manter compatibilidade com Firebase e com firestore.rules.
-6. Preservar sistema de XP.
-7. Preservar sistema de comentários.
-8. Preservar sistema de notificações.
-9. Não assumir que sistemas de amigos, chat, vídeos ou editor de posts existem — eles não existem.
+```text
+avatar_upload_service.dart
+avatar_approval_service.dart
+admin_avatar_approval_service.dart
+```
+
+O fluxo de foto envolve aprovação administrativa.
+
+Avatares animados Premium:
+
+```text
+config/premium_avatars_config.dart
+widgets/premium_avatars.dart
+screens/premium_avatar_gallery_screen.dart
+```
+
+Catálogo atual:
+
+- Nova Aurora
+- Fênix Elétrica
+- Lobo Espectral
+- Cristal Quântico
+- Águia Solar
+- Serpente Aurora
 
 ---
 
-REGRA PARA RESPOSTAS DA IA
+# 12. XP, níveis e check-in
 
-Sempre informar:
+Arquivos principais:
 
-- Quais arquivos serão alterados.
-- Por que serão alterados.
-- Impacto da alteração.
-- Dependências afetadas.
+```text
+lib/services/xp_service.dart
+lib/providers/user_xp_provider.dart
+lib/config/badge_config.dart
+lib/widgets/badge_widgets.dart
+lib/widgets/level_up_overlay.dart
+lib/services/checkin_service.dart
+lib/screens/checkin_screen.dart
+lib/widgets/checkin_calendar.dart
+```
 
-Antes de criar um novo arquivo, justificar por que um arquivo existente não pode ser reutilizado.
+Antes de alterar nível/XP:
+
+1. verificar `XpService`;
+2. verificar `UserXpProvider`;
+3. verificar `firestore.rules`;
+4. verificar testes de XP;
+5. verificar overrides administrativos.
+
+O painel administrativo possui sincronização de níveis.
 
 ---
 
-OBSERVAÇÃO
+# 13. Comentários
 
-O projeto possui:
+Arquivo visual principal:
 
-✓ Sistema de notícias (via Blogger)
-✓ Sistema de XP e níveis
-✓ Sistema de emblemas
-✓ Sistema de favoritos
-✓ Sistema de comentários
-✓ Sistema de ranking
-✓ Sistema administrativo
-✓ Firebase (Auth, Firestore, Analytics)
-✓ Notificações (OneSignal)
-✓ Anúncios (AdMob + parceiros)
+```text
+lib/widgets/comments_section.dart
+```
 
-O projeto NÃO possui (não recriar):
+Admin:
 
-✗ Sistema de amigos
-✗ Sistema de chat
-✗ Tela de vídeos
-✗ Editor de posts dentro do app
+```text
+lib/features/admin/services/admin_comment_service.dart
+lib/features/admin/screens/tabs/comments_tab.dart
+```
+
+Estrutura:
+
+```text
+comments/{postId}/postComments/{commentId}
+  ├── replies/{replyId}
+  └── likes/{likerId}
+```
+
+Respostas possuem suas próprias curtidas.
+
+O sistema atual suporta:
+
+- comentários;
+- respostas;
+- edição do próprio comentário;
+- curtidas;
+- contadores;
+- notificações;
+- exclusão pelo autor/admin;
+- XP por interações.
+
+Ao alterar comentários, conferir também as regras do Firestore.
+
+---
+
+# 14. Notificações
+
+Existem dois níveis:
+
+### OneSignal
+
+```text
+lib/services/notification_service.dart
+lib/features/admin/services/push_notification_service.dart
+```
+
+Usado para push.
+
+### Notificações internas
+
+```text
+lib/services/app_notification_service.dart
+lib/models/notification_model.dart
+lib/screens/notifications_screen.dart
+```
+
+A coleção é:
+
+```text
+notifications
+```
+
+O sistema também usa External ID do OneSignal baseado no UID do Firebase para direcionamento individual.
+
+Não remover o login/logout do OneSignal do `_AuthenticatedGate`.
+
+---
+
+# 15. Configuração global
+
+Arquivo:
+
+```text
+lib/services/app_config_service.dart
+```
+
+Documento:
+
+```text
+app_config/global
+```
+
+Configurações atuais:
+
+- `maintenanceMode`;
+- `maintenanceMessage`;
+- `commentsEnabled`;
+- `adsBarMode`;
+- `adsPartnerName`;
+- `adsPartnerImageUrl`;
+- `adsPartnerLinkUrl`.
+
+Modos de anúncio:
+
+```text
+admob
+partner
+off
+```
+
+---
+
+# 16. Firestore
+
+Antes de criar/alterar uma coleção:
+
+1. procure a coleção no código;
+2. procure a coleção em `firestore.rules`;
+3. confira quem pode ler/escrever;
+4. confira se existem subcoleções;
+5. atualize as regras junto com o schema, se necessário.
+
+Coleções principais atuais:
+
+```text
+admins
+app_config
+users_xp
+users
+suspensions
+banned_users
+usernames
+avatarApprovals
+post_views
+post_shares
+admin_logs
+comments
+notifications
+presence
+subscriptionRequests
+noticias
+```
+
+Subcoleções importantes:
+
+```text
+users_xp/{uid}/checkins
+post_views/{postId}/viewers
+comments/{postId}/postComments/{commentId}/replies
+comments/{postId}/postComments/{commentId}/likes
+comments/{postId}/postComments/{commentId}/replies/{replyId}/likes
+```
+
+---
+
+# 17. Cloud Functions
+
+**Não existe `functions/` neste pacote atual.**
+
+Não criar ou documentar Cloud Functions como se já existissem.
+
+Pushes administrativos e individuais atualmente são tratados pelos serviços Flutter/OneSignal existentes.
+
+---
+
+# 18. Uploads e mídia
+
+Cloudinary:
+
+```text
+avatar_upload_service.dart
+cloudinary_upload_service.dart
+cloudinary_url_utils.dart
+```
+
+Vídeos:
+
+```text
+widgets/post_video_player.dart
+features/admin/widgets/video_frame_editor.dart
+```
+
+Existe suporte a vídeo dentro das matérias, mas **não existe uma tela pública independente de vídeos**.
+
+---
+
+# 19. Rotas atuais
+
+Definidas em:
+
+```text
+lib/config/app_routes.dart
+```
+
+Rotas principais:
+
+```text
+/
+/category
+/post-detail
+/search
+/favorites
+/contact
+/settings
+/login
+/register
+/forgot-password
+/profile
+/admin-panel
+/most-read
+/horizon-now
+/events
+/ranking
+/checkin
+/premium
+/premium-avatars
+/notifications
+```
+
+Ao criar uma tela nova, verificar primeiro se a navegação existente pode ser reutilizada.
+
+---
+
+# 20. Sistemas que NÃO existem
+
+Não assumir que existam:
+
+- sistema de amigos;
+- sistema de chat;
+- `chat_screen.dart`;
+- sistema social de amizade;
+- `videos_screen.dart` como tela independente.
+
+Existe suporte a vídeo em notícias, então não confundir as duas coisas.
+
+Também existe editor de notícias no painel administrativo:
+
+```text
+news_editor_screen.dart
+```
+
+Portanto, não afirmar que o projeto não possui editor administrativo.
+
+---
+
+# 21. Regra para alterações
+
+Ao implementar uma funcionalidade:
+
+1. Identifique os arquivos existentes.
+2. Reutilize services/providers/widgets existentes.
+3. Evite duplicação.
+4. Não crie uma segunda fonte de verdade para o mesmo dado.
+5. Preserve Firebase/Auth/Firestore.
+6. Preserve XP e níveis.
+7. Preserve comentários e respostas.
+8. Preserve notificações.
+9. Preserve Premium/assinaturas.
+10. Preserve aprovação de avatares.
+11. Não altere regras de segurança sem verificar o impacto.
+12. Se houver alteração de schema Firestore, atualize `firestore.rules`.
+13. Se houver alteração no fluxo de notícias, verifique `NewsService` e `AdminNewsService`.
+14. Se houver alteração na autenticação, verifique `main.dart`, `AuthService` e OneSignal.
+
+---
+
+# 22. Regra para resposta da IA
+
+Antes de executar uma alteração relevante, informar de forma objetiva:
+
+- arquivos que serão alterados;
+- motivo de cada alteração;
+- impacto esperado;
+- dependências afetadas;
+- se há mudança no Firestore;
+- se há mudança nas regras.
+
+Depois da alteração, informar:
+
+- arquivos efetivamente alterados;
+- funcionalidades implementadas;
+- limitações/dados que não existem atualmente;
+- necessidade ou não de alteração no Firebase.
+
+Não afirmar que uma função foi implementada se ela apenas foi planejada.
+
+---
+
+# 23. Princípio final
+
+**O código atual é a fonte de verdade.**
+
+Se este guia, `ESTRUTURA_PROJETO.md` e o código entrarem em conflito, primeiro verificar o código e depois atualizar a documentação.
