@@ -86,59 +86,25 @@ class _AppDrawerState extends State<AppDrawer>
   void _navigate(BuildContext context, String route) async {
     HapticFeedback.lightImpact();
 
-    // O destaque do item no Drawer é atualizado aqui, no momento do
-    // toque — e não com base na rota real da tela. Ele representa o
-    // ÚLTIMO ITEM ESCOLHIDO pelo usuário no Drawer, então permanece
-    // aceso mesmo depois de o usuário apertar voltar; só muda quando
-    // outro item do Drawer é escolhido.
     selectedDrawerRouteNotifier.value = route;
 
-    // Usamos o Navigator GLOBAL (navigatorKey), não o `context` local
-    // do tile do Drawer. Isso é essencial: assim que o drawer começa
-    // a fechar, o `_AppDrawerState` (com seus AnimationControllers)
-    // pode ser destruído a qualquer momento, o que invalidaria um
-    // `context` local usado depois de um `await`. O Navigator global
-    // não depende do Drawer estar vivo.
     final navigator = navigatorKey.currentState;
 
     if (route == AppRoutes.home) {
-      // Ir para o Início: fecha o drawer e reseta a pilha até a Home,
-      // sem empilhar mais uma rota por cima (evita pilha crescente
-      // tipo Home → Ranking → Home → Ranking...).
       Navigator.pop(context);
       navigator?.pushNamedAndRemoveUntil(AppRoutes.home, (r) => false);
       return;
     }
 
-    // NÃO fechamos o drawer aqui. Empilhamos a nova rota por CIMA do
-    // drawer ainda aberto — como o Drawer é conteúdo do Scaffold da
-    // tela de baixo (Home), ele simplesmente fica coberto pela rota
-    // nova, sem precisar fechar/reabrir.
-    //
-    // Isso evita o antigo efeito de "fecha, mostra a Home pelada por
-    // um frame, e só depois reabre": fechar e reabrir o Drawer nunca
-    // acontece de fato — ele estava aberto o tempo todo, só escondido
-    // atrás da rota empilhada.
     await navigator?.pushNamed(route);
-
-    // Ao voltar, a Home reaparece com o drawer já aberto, exatamente
-    // como estava antes de navegar — sem flash e sem reabrir. O
-    // destaque NÃO muda aqui: continua no último item escolhido
-    // (setado no início desta função), mesmo com a Home visível.
   }
 
   @override
   Widget build(BuildContext context) {
-    // O item destacado vem do selectedDrawerRouteNotifier — o último
-    // item que o próprio usuário escolheu no Drawer — e não da rota
-    // real da tela (ModalRoute.of(context)). Isso é intencional: ao
-    // apertar voltar, a tela muda mas o destaque deve permanecer no
-    // item escolhido anteriormente, só trocando quando outro item do
-    // Drawer for tocado. O ValueListenableBuilder reconstrói apenas
-    // o conteúdo do Drawer quando essa seleção muda.
     return ValueListenableBuilder<String>(
       valueListenable: selectedDrawerRouteNotifier,
-      builder: (context, selectedRoute, _) => _buildDrawerContent(context, selectedRoute),
+      builder: (context, selectedRoute, _) =>
+          _buildDrawerContent(context, selectedRoute),
     );
   }
 
@@ -177,9 +143,12 @@ class _AppDrawerState extends State<AppDrawer>
                     gradient: LinearGradient(
                       colors: [
                         Colors.transparent,
-                        AppColors.primaryOrange.withOpacity(0.3 * _glowAnim.value),
-                        AppColors.primaryOrange.withOpacity(0.6 * _glowAnim.value),
-                        AppColors.primaryOrange.withOpacity(0.3 * _glowAnim.value),
+                        AppColors.primaryOrange.withOpacity(
+                            0.3 * _glowAnim.value),
+                        AppColors.primaryOrange.withOpacity(
+                            0.6 * _glowAnim.value),
+                        AppColors.primaryOrange.withOpacity(
+                            0.3 * _glowAnim.value),
                         Colors.transparent,
                       ],
                       stops: const [0.0, 0.2, 0.5, 0.8, 1.0],
@@ -202,8 +171,10 @@ class _AppDrawerState extends State<AppDrawer>
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        AppColors.primaryOrange.withOpacity(0.18 * _glowAnim.value),
-                        AppColors.primaryOrange.withOpacity(0.06 * _glowAnim.value),
+                        AppColors.primaryOrange
+                            .withOpacity(0.18 * _glowAnim.value),
+                        AppColors.primaryOrange
+                            .withOpacity(0.06 * _glowAnim.value),
                         Colors.transparent,
                       ],
                     ),
@@ -233,7 +204,8 @@ class _AppDrawerState extends State<AppDrawer>
                               item: e.value,
                               isActive: currentRoute == e.value.route,
                               delay: e.key * 60,
-                              onTap: () => _navigate(context, e.value.route),
+                              onTap: () =>
+                                  _navigate(context, e.value.route),
                               fireCtrl: _fireCtrl,
                               glowCtrl: _glowCtrl,
                               badge: e.value.route == AppRoutes.profile
@@ -250,17 +222,23 @@ class _AppDrawerState extends State<AppDrawer>
                             (e) => _DrawerTile(
                               item: e.value,
                               isActive: currentRoute == e.value.route,
-                              delay: (_mainItems.length + e.key) * 60,
-                              onTap: () => _navigate(context, e.value.route),
+                              delay:
+                                  (_mainItems.length + e.key) * 60,
+                              onTap: () =>
+                                  _navigate(context, e.value.route),
                               fireCtrl: _fireCtrl,
                               glowCtrl: _glowCtrl,
                             ),
                           ),
                           Consumer<AdminProvider>(
                             builder: (context, admin, _) {
-                              if (!admin.isAdmin) return const SizedBox.shrink();
+                              if (!admin.isAdmin) {
+                                return const SizedBox.shrink();
+                              }
+
                               return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                 children: [
                                   const SizedBox(height: 10),
                                   _buildDivider(),
@@ -271,9 +249,14 @@ class _AppDrawerState extends State<AppDrawer>
                                       label: 'Painel Administrativo',
                                       route: AppRoutes.adminPanel,
                                     ),
-                                    isActive: currentRoute == AppRoutes.adminPanel,
+                                    isActive:
+                                        currentRoute ==
+                                            AppRoutes.adminPanel,
                                     delay: 0,
-                                    onTap: () => _navigate(context, AppRoutes.adminPanel),
+                                    onTap: () => _navigate(
+                                      context,
+                                      AppRoutes.adminPanel,
+                                    ),
                                     fireCtrl: _fireCtrl,
                                     glowCtrl: _glowCtrl,
                                     badge: _AdminBadge(),
@@ -336,8 +319,10 @@ class _AppDrawerState extends State<AppDrawer>
                     gradient: SweepGradient(
                       colors: [
                         AppColors.primaryOrange.withOpacity(0.0),
-                        AppColors.primaryOrange.withOpacity(0.9 * _glowAnim.value),
-                        const Color(0xFFFF3300).withOpacity(0.7 * _fireCtrl.value),
+                        AppColors.primaryOrange
+                            .withOpacity(0.9 * _glowAnim.value),
+                        const Color(0xFFFF3300)
+                            .withOpacity(0.7 * _fireCtrl.value),
                         AppColors.primaryOrange.withOpacity(0.0),
                       ],
                       stops: const [0.0, 0.3, 0.6, 1.0],
@@ -353,25 +338,23 @@ class _AppDrawerState extends State<AppDrawer>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: const LinearGradient(
-                      colors: [Color(0xFFFF6D00), Color(0xFFCC3300)],
+                      colors: [
+                        Color(0xFFFF6D00),
+                        Color(0xFFCC3300),
+                      ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     border: Border.all(
-                      color: AppColors.primaryOrange.withOpacity(0.6),
+                      color:
+                          AppColors.primaryOrange.withOpacity(0.6),
                       width: 1.5,
                     ),
                   ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      'assets/images/logo.png',
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.newspaper_rounded,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                    ),
+                  child: const Icon(
+                    Icons.newspaper_rounded,
+                    color: Colors.white,
+                    size: 26,
                   ),
                 ),
               ],
@@ -383,7 +366,11 @@ class _AppDrawerState extends State<AppDrawer>
             children: [
               ShaderMask(
                 shaderCallback: (b) => const LinearGradient(
-                  colors: [Color(0xFFFF6D00), Color(0xFFFFB74D), Color(0xFFFF6D00)],
+                  colors: [
+                    Color(0xFFFF6D00),
+                    Color(0xFFFFB74D),
+                    Color(0xFFFF6D00),
+                  ],
                 ).createShader(b),
                 child: const Text(
                   'HORIZONTE',
@@ -408,19 +395,23 @@ class _AppDrawerState extends State<AppDrawer>
               AnimatedBuilder(
                 animation: _glowAnim,
                 builder: (_, __) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(4),
-                    color: AppColors.primaryOrange.withOpacity(0.12),
+                    color: AppColors.primaryOrange
+                        .withOpacity(0.12),
                     border: Border.all(
-                      color: AppColors.primaryOrange
-                          .withOpacity(0.25 + 0.25 * _glowAnim.value),
+                      color: AppColors.primaryOrange.withOpacity(
+                          0.25 + 0.25 * _glowAnim.value),
                       width: 1,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primaryOrange
-                            .withOpacity(0.1 * _glowAnim.value),
+                        color: AppColors.primaryOrange.withOpacity(
+                            0.1 * _glowAnim.value),
                         blurRadius: 8,
                       ),
                     ],
@@ -434,11 +425,13 @@ class _AppDrawerState extends State<AppDrawer>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: AppColors.primaryOrange
-                              .withOpacity(0.6 + 0.4 * _glowAnim.value),
+                              .withOpacity(
+                                  0.6 + 0.4 * _glowAnim.value),
                           boxShadow: [
                             BoxShadow(
                               color: AppColors.primaryOrange
-                                  .withOpacity(0.8 * _glowAnim.value),
+                                  .withOpacity(
+                                      0.8 * _glowAnim.value),
                               blurRadius: 4,
                             ),
                           ],
@@ -495,15 +488,21 @@ class _AppDrawerState extends State<AppDrawer>
       animation: _glowAnim,
       builder: (_, __) => Container(
         height: 1,
-        margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+        margin:
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [
-            Colors.transparent,
-            AppColors.primaryOrange.withOpacity(0.15 + 0.15 * _glowAnim.value),
-            AppColors.primaryOrange.withOpacity(0.3 + 0.2 * _glowAnim.value),
-            AppColors.primaryOrange.withOpacity(0.15 + 0.15 * _glowAnim.value),
-            Colors.transparent,
-          ]),
+          gradient: LinearGradient(
+            colors: [
+              Colors.transparent,
+              AppColors.primaryOrange.withOpacity(
+                  0.15 + 0.15 * _glowAnim.value),
+              AppColors.primaryOrange.withOpacity(
+                  0.3 + 0.2 * _glowAnim.value),
+              AppColors.primaryOrange.withOpacity(
+                  0.15 + 0.15 * _glowAnim.value),
+              Colors.transparent,
+            ],
+          ),
         ),
       ),
     );
@@ -554,19 +553,42 @@ class _DrawerParticlePainter extends CustomPainter {
       ..strokeWidth = 0.5;
 
     for (double x = 0; x < size.width; x += 36) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, size.height),
+        gridPaint,
+      );
     }
+
     for (double y = 0; y < size.height; y += 36) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width, y),
+        gridPaint,
+      );
     }
 
     for (final p in _particles) {
-      final dy = 1.0 - ((p.y + t * p.speed + p.phase) % 1.0);
-      final dx = p.x + 0.02 * math.sin((t * 2 * math.pi * 0.5) + p.phase * 6.28);
+      final dy =
+          1.0 - ((p.y + t * p.speed + p.phase) % 1.0);
+
+      final dx = p.x +
+          0.02 *
+              math.sin(
+                (t * 2 * math.pi * 0.5) +
+                    p.phase * 6.28,
+              );
+
       final opacity = p.opacity *
-          (0.5 + 0.5 * math.sin(t * 2 * math.pi * p.speed * 12 + p.phase));
+          (0.5 +
+              0.5 *
+                  math.sin(
+                    t * 2 * math.pi * p.speed * 12 +
+                        p.phase,
+                  ));
 
       final fireRatio = 1.0 - dy;
+
       final color = Color.lerp(
         const Color(0xFFFF6B00),
         const Color(0xFFFF2200),
@@ -576,7 +598,9 @@ class _DrawerParticlePainter extends CustomPainter {
       canvas.drawCircle(
         Offset(dx * size.width, dy * size.height),
         p.size,
-        Paint()..color = color.withOpacity(opacity.clamp(0.0, 0.3)),
+        Paint()
+          ..color =
+              color.withOpacity(opacity.clamp(0.0, 0.3)),
       );
     }
 
@@ -587,8 +611,11 @@ class _DrawerParticlePainter extends CustomPainter {
     for (int i = 0; i < 2; i++) {
       final progress = (t * 0.4 + i * 0.5) % 1.0;
       final x = size.width * progress;
+
       linePaint.color =
-          const Color(0xFFFF6B00).withOpacity(0.04 * (1 - progress));
+          const Color(0xFFFF6B00)
+              .withOpacity(0.04 * (1 - progress));
+
       canvas.drawLine(
         Offset(x - 60, 0),
         Offset(x + 60, size.height),
@@ -598,11 +625,13 @@ class _DrawerParticlePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_DrawerParticlePainter old) => old.t != t;
+  bool shouldRepaint(_DrawerParticlePainter old) =>
+      old.t != t;
 }
 
 class _PData {
   final double x, y, size, speed, opacity, phase;
+
   const _PData({
     required this.x,
     required this.y,
@@ -648,25 +677,48 @@ class _DrawerTileState extends State<_DrawerTile>
   @override
   void initState() {
     super.initState();
+
     _entryCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 450),
     );
-    _opacity = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut),
+
+    _opacity = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(
+      CurvedAnimation(
+        parent: _entryCtrl,
+        curve: Curves.easeOut,
+      ),
     );
+
     _slide = Tween<Offset>(
       begin: const Offset(-0.18, 0),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOutCubic));
-
-    _scale = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _entryCtrl, curve: Curves.elasticOut),
+    ).animate(
+      CurvedAnimation(
+        parent: _entryCtrl,
+        curve: Curves.easeOutCubic,
+      ),
     );
 
-    Future.delayed(Duration(milliseconds: widget.delay), () {
-      if (mounted) _entryCtrl.forward();
-    });
+    _scale = Tween<double>(
+      begin: 0.85,
+      end: 1.0,
+    ).animate(
+      CurvedAnimation(
+        parent: _entryCtrl,
+        curve: Curves.elasticOut,
+      ),
+    );
+
+    Future.delayed(
+      Duration(milliseconds: widget.delay),
+      () {
+        if (mounted) _entryCtrl.forward();
+      },
+    );
   }
 
   @override
@@ -684,53 +736,73 @@ class _DrawerTileState extends State<_DrawerTile>
         child: ScaleTransition(
           scale: _scale,
           child: GestureDetector(
-            onTapDown: (_) => setState(() => _pressed = true),
+            onTapDown: (_) =>
+                setState(() => _pressed = true),
             onTapUp: (_) {
               setState(() => _pressed = false);
               widget.onTap();
             },
-            onTapCancel: () => setState(() => _pressed = false),
+            onTapCancel: () =>
+                setState(() => _pressed = false),
             child: AnimatedBuilder(
-              animation: Listenable.merge([widget.fireCtrl, widget.glowCtrl]),
+              animation: Listenable.merge([
+                widget.fireCtrl,
+                widget.glowCtrl,
+              ]),
               builder: (_, __) {
                 final isActive = widget.isActive;
                 final glowVal = widget.glowCtrl.value;
                 final fireVal = widget.fireCtrl.value;
 
                 return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+                  duration:
+                      const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 13,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     color: isActive
-                        ? AppColors.primaryOrange.withOpacity(0.10)
+                        ? AppColors.primaryOrange
+                            .withOpacity(0.10)
                         : _pressed
                             ? Colors.white.withOpacity(0.04)
                             : Colors.transparent,
                     border: isActive
                         ? Border.all(
                             color: AppColors.primaryOrange
-                                .withOpacity(0.25 + 0.25 * glowVal),
+                                .withOpacity(
+                                    0.25 +
+                                        0.25 * glowVal),
                             width: 1,
                           )
                         : _pressed
                             ? Border.all(
-                                color: AppColors.primaryOrange.withOpacity(0.15),
+                                color: AppColors
+                                    .primaryOrange
+                                    .withOpacity(0.15),
                                 width: 1,
                               )
                             : null,
                     boxShadow: isActive
                         ? [
                             BoxShadow(
-                              color: AppColors.primaryOrange
-                                  .withOpacity(0.12 * glowVal),
+                              color: AppColors
+                                  .primaryOrange
+                                  .withOpacity(
+                                      0.12 * glowVal),
                               blurRadius: 16,
                               spreadRadius: 0,
                             ),
                             BoxShadow(
                               color: const Color(0xFFFF3300)
-                                  .withOpacity(0.06 * fireVal),
+                                  .withOpacity(
+                                      0.06 * fireVal),
                               blurRadius: 24,
                               spreadRadius: 2,
                             ),
@@ -744,25 +816,37 @@ class _DrawerTileState extends State<_DrawerTile>
                         children: [
                           if (isActive)
                             AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
+                              duration: const Duration(
+                                  milliseconds: 200),
                               width: 38,
                               height: 38,
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius:
+                                    BorderRadius.circular(10),
                                 gradient: LinearGradient(
                                   colors: [
-                                    AppColors.primaryOrange.withOpacity(
-                                        0.25 + 0.15 * glowVal),
+                                    AppColors
+                                        .primaryOrange
+                                        .withOpacity(
+                                            0.25 +
+                                                0.15 *
+                                                    glowVal),
                                     const Color(0xFFCC3300)
-                                        .withOpacity(0.15 + 0.1 * fireVal),
+                                        .withOpacity(
+                                            0.15 +
+                                                0.1 *
+                                                    fireVal),
                                   ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: AppColors.primaryOrange
-                                        .withOpacity(0.3 * glowVal),
+                                    color: AppColors
+                                        .primaryOrange
+                                        .withOpacity(
+                                            0.3 *
+                                                glowVal),
                                     blurRadius: 12,
                                     spreadRadius: 1,
                                   ),
@@ -771,14 +855,18 @@ class _DrawerTileState extends State<_DrawerTile>
                             )
                           else
                             AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
+                              duration: const Duration(
+                                  milliseconds: 200),
                               width: 38,
                               height: 38,
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius:
+                                    BorderRadius.circular(10),
                                 color: _pressed
-                                    ? Colors.white.withOpacity(0.08)
-                                    : Colors.white.withOpacity(0.04),
+                                    ? Colors.white
+                                        .withOpacity(0.08)
+                                    : Colors.white
+                                        .withOpacity(0.04),
                               ),
                             ),
                           Icon(
@@ -786,7 +874,8 @@ class _DrawerTileState extends State<_DrawerTile>
                             size: 19,
                             color: isActive
                                 ? AppColors.primaryOrange
-                                : Colors.white.withOpacity(0.5),
+                                : Colors.white
+                                    .withOpacity(0.5),
                           ),
                         ],
                       ),
@@ -797,7 +886,8 @@ class _DrawerTileState extends State<_DrawerTile>
                           style: TextStyle(
                             color: isActive
                                 ? Colors.white
-                                : Colors.white.withOpacity(0.6),
+                                : Colors.white
+                                    .withOpacity(0.6),
                             fontSize: 13,
                             fontWeight: isActive
                                 ? FontWeight.w700
@@ -812,7 +902,9 @@ class _DrawerTileState extends State<_DrawerTile>
                       ],
                       if (isActive) ...[
                         const SizedBox(width: 6),
-                        _FireDot(fireCtrl: widget.fireCtrl),
+                        _FireDot(
+                          fireCtrl: widget.fireCtrl,
+                        ),
                       ],
                     ],
                   ),
@@ -828,7 +920,10 @@ class _DrawerTileState extends State<_DrawerTile>
 
 class _FireDot extends StatelessWidget {
   final AnimationController fireCtrl;
-  const _FireDot({required this.fireCtrl});
+
+  const _FireDot({
+    required this.fireCtrl,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -836,6 +931,7 @@ class _FireDot extends StatelessWidget {
       animation: fireCtrl,
       builder: (_, __) {
         final v = fireCtrl.value;
+
         return Container(
           width: 6,
           height: 6,
@@ -845,17 +941,20 @@ class _FireDot extends StatelessWidget {
               colors: [
                 Colors.white.withOpacity(0.9),
                 AppColors.primaryOrange,
-                const Color(0xFFFF2200).withOpacity(0.5 + 0.5 * v),
+                const Color(0xFFFF2200)
+                    .withOpacity(0.5 + 0.5 * v),
               ],
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primaryOrange.withOpacity(0.8 + 0.2 * v),
+                color: AppColors.primaryOrange
+                    .withOpacity(0.8 + 0.2 * v),
                 blurRadius: 6 + 4 * v,
                 spreadRadius: 1,
               ),
               BoxShadow(
-                color: const Color(0xFFFF2200).withOpacity(0.4 * v),
+                color: const Color(0xFFFF2200)
+                    .withOpacity(0.4 * v),
                 blurRadius: 12,
                 spreadRadius: 2,
               ),
@@ -873,23 +972,31 @@ class _XpBadge extends StatelessWidget {
     return Consumer<UserXpProvider>(
       builder: (context, xpProvider, _) {
         final level = xpProvider.data.level;
+
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 3,
+          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             gradient: LinearGradient(
               colors: [
-                AppColors.primaryOrange.withOpacity(0.2),
-                AppColors.primaryOrange.withOpacity(0.1),
+                AppColors.primaryOrange
+                    .withOpacity(0.2),
+                AppColors.primaryOrange
+                    .withOpacity(0.1),
               ],
             ),
             border: Border.all(
-              color: AppColors.primaryOrange.withOpacity(0.5),
+              color: AppColors.primaryOrange
+                  .withOpacity(0.5),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primaryOrange.withOpacity(0.2),
+                color: AppColors.primaryOrange
+                    .withOpacity(0.2),
                 blurRadius: 8,
               ),
             ],
@@ -911,7 +1018,8 @@ class _XpBadge extends StatelessWidget {
 
 class _StreakBadge extends StatefulWidget {
   @override
-  State<_StreakBadge> createState() => _StreakBadgeState();
+  State<_StreakBadge> createState() =>
+      _StreakBadgeState();
 }
 
 class _StreakBadgeState extends State<_StreakBadge>
@@ -922,12 +1030,21 @@ class _StreakBadgeState extends State<_StreakBadge>
   @override
   void initState() {
     super.initState();
+
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration:
+          const Duration(milliseconds: 900),
     )..repeat(reverse: true);
-    _pulse = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+
+    _pulse = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: Curves.easeInOut,
+      ),
     );
   }
 
@@ -943,32 +1060,50 @@ class _StreakBadgeState extends State<_StreakBadge>
       stream: CheckinService().watchSummary(),
       builder: (context, snapshot) {
         final streak =
-            (snapshot.data?['checkinStreak'] as num?)?.toInt() ?? 0;
-        if (streak <= 0) return const SizedBox.shrink();
+            (snapshot.data?['checkinStreak'] as num?)
+                    ?.toInt() ??
+                0;
+
+        if (streak <= 0) {
+          return const SizedBox.shrink();
+        }
 
         return AnimatedBuilder(
           animation: _pulse,
           builder: (_, __) {
-            final t = _pulse.value; // 0 → 1 → 0, respirando
+            final t = _pulse.value;
+
             return Transform.scale(
               scale: 1.0 + 0.08 * t,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding:
+                    const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 3,
+                ),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFF6D00), Color(0xFFCC2200)],
+                  borderRadius:
+                      BorderRadius.circular(20),
+                  gradient:
+                      const LinearGradient(
+                    colors: [
+                      Color(0xFFFF6D00),
+                      Color(0xFFCC2200),
+                    ],
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primaryOrange.withOpacity(0.35 + 0.35 * t),
+                      color: AppColors.primaryOrange
+                          .withOpacity(
+                              0.35 + 0.35 * t),
                       blurRadius: 6 + 8 * t,
                       spreadRadius: 0.5 * t,
                     ),
                   ],
                 ),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize:
+                      MainAxisSize.min,
                   children: [
                     FaIcon(
                       FontAwesomeIcons.fire,
@@ -985,7 +1120,8 @@ class _StreakBadgeState extends State<_StreakBadge>
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 9,
-                        fontWeight: FontWeight.w900,
+                        fontWeight:
+                            FontWeight.w900,
                         letterSpacing: 0.3,
                       ),
                     ),
@@ -1004,15 +1140,22 @@ class _AdminBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 3,
+      ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(
-          colors: [Color(0xFFFF6D00), Color(0xFFCC2200)],
+          colors: [
+            Color(0xFFFF6D00),
+            Color(0xFFCC2200),
+          ],
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryOrange.withOpacity(0.5),
+            color: AppColors.primaryOrange
+                .withOpacity(0.5),
             blurRadius: 10,
             spreadRadius: 1,
           ),
@@ -1035,6 +1178,10 @@ class _NavItem {
   final IconData icon;
   final String label;
   final String route;
-  const _NavItem(
-      {required this.icon, required this.label, required this.route});
+
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.route,
+  });
 }
