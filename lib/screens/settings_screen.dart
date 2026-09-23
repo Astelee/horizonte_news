@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -6,11 +7,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../config/badge_config.dart';
+import '../config/premium_config.dart';
 import '../services/notification_service.dart';
 import '../services/auth_service.dart';
+import '../services/xp_service.dart';
+import '../providers/user_xp_provider.dart';
+import '../widgets/app_avatar.dart';
+import '../widgets/avatar_frame.dart';
+import '../widgets/badge_widgets.dart';
+import '../widgets/subscriber_badge.dart';
 import '../widgets/profile_edit_sheets.dart' show showEditDisplayNameSheet, showEditUsernameSheet, showAvatarOptionsSheet;
 
 class SettingsScreen extends StatefulWidget {
@@ -134,12 +145,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // O CachedNetworkImage (usado nas fotos de perfil, capas de notícia
+  // etc.) guarda os arquivos baixados dentro do diretório temporário
+  // do app, na subpasta padrão do flutter_cache_manager. Somamos o
+  // tamanho real dos arquivos ali — nada de número fixo/fake.
+  static const String _imageCacheFolderName = 'libCachedImageData';
+
+  Future<Directory?> _imageCacheDir() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final dir = Directory('${tempDir.path}/$_imageCacheFolderName');
+      return await dir.exists() ? dir : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _calcCache() async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    double sizeMb = 0;
+    try {
+      final dir = await _imageCacheDir();
+      if (dir != null) {
+        int bytes = 0;
+        await for (final entity in dir.list(recursive: true)) {
+          if (entity is File) {
+            try {
+              bytes += await entity.length();
+            } catch (_) {
+              // Arquivo apagado entre o list() e o length() — ignora
+              // e segue somando o resto.
+            }
+          }
+        }
+        sizeMb = bytes / (1024 * 1024);
+      }
+    } catch (_) {
+      // Mantém sizeMb em 0 — melhor mostrar "0 MB" do que travar a
+      // tela de Configurações por causa do cálculo de cache.
+    }
 
     if (mounted) {
       setState(() {
-        _cacheSize = 6.9;
+        _cacheSize = sizeMb;
         _loadingCache = false;
       });
     }
@@ -150,6 +197,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('cached_posts');
+
+    // Apaga de verdade os arquivos de imagem em cache — antes este
+    // botão só limpava uma chave do SharedPreferences que não tinha
+    // nenhuma relação com o número mostrado (que era fixo).
+    try {
+      final dir = await _imageCacheDir();
+      if (dir != null) {
+        await dir.delete(recursive: true);
+      }
+    } catch (_) {
+      // Sem permissão momentânea ou arquivo em uso — o usuário pode
+      // tentar de novo; não é motivo para travar a tela.
+    }
 
     if (mounted) {
       setState(() => _cacheSize = 0);
@@ -976,84 +1036,203 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildProfileHeader() {
+    // UserXpProvider já fica escutando users_xp/{uid} em tempo real
+    // desde o login (ver main.dart) — reaproveitado aqui em vez de
+    // abrir outra leitura do Firestore só para esta tela.
+    final xp = context.watch<UserXpProvider>();
+    final data = xp.data;
+    final user = FirebaseAuth.instance.currentUser;
+
+    final levelColor = BadgeConfig.levelColor(data.level);
+    final levelGradient = BadgeConfig.levelGradient(data.level);
+    final title = data.customTitle ?? BadgeConfig.levelTitle(data.level);
+    final isSubscriber = data.premiumTier != PremiumTier.none;
+
+    final displayName = user?.displayName ??
+        user?.email?.split('@').first ??
+        'Usuário';
+
+    final achievements = XpService().getAllAchievements(data.achievements);
+    final unlockedCount = achievements.where((a) => a.unlocked).length;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
       child: Center(
-        child: GestureDetector(
-          onTap: _uploadingPhoto ? null : _handleAvatarTap,
-          child: Stack(
-            children: [
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(0xFF212121),
-                    width: 1.5,
-                  ),
-                  color: const Color(0xFF141414),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: _uploadingPhoto
-                    ? const Center(
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.primaryOrange,
-                          ),
+        child: Column(
+          children: [
+            Stack(
+              children: [
+                GestureDetector(
+                  onTap: _uploadingPhoto ? null : _handleAvatarTap,
+                  child: AvatarFrame(
+                    level: data.level,
+                    size: 88,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        UserAvatarDisplay(
+                          // data.photoUrl vem do stream ao vivo do
+                          // UserXpProvider — reflete na hora quando um
+                          // admin aprova/rejeita a foto pendente.
+                          // _photoUrl (variável local) só é usado no
+                          // hasPhoto: do bottom sheet mais abaixo.
+                          name: displayName,
+                          seed: user?.uid,
+                          photoUrl: data.photoUrl,
+                          equippedPremiumAvatarId:
+                              data.equippedPremiumAvatarId,
+                          size: 88,
                         ),
-                      )
-                    : (_photoUrl != null
-                        ? CachedNetworkImage(
-                            imageUrl: _photoUrl!,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) => const Icon(
-                              Icons.person_rounded,
-                              color: Color(0xFF757575),
-                              size: 40,
+                        if (_uploadingPhoto)
+                          Container(
+                            width: 88,
+                            height: 88,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.black54,
                             ),
-                          )
-                        : const Icon(
-                            Icons.person_rounded,
-                            color: Color(0xFF757575),
-                            size: 40,
-                          )),
-              ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [
-                        Color(0xFFBF360C),
-                        Color(0xFFE65100),
-                        Color(0xFFF57C00),
+                            child: const Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.primaryOrange,
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
-                    border: Border.fromBorderSide(
-                      BorderSide(color: Colors.black, width: 2),
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.camera_alt_rounded,
-                    color: Colors.white,
-                    size: 14,
                   ),
                 ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: GestureDetector(
+                    onTap: _uploadingPhoto ? null : _handleAvatarTap,
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [
+                            Color(0xFFBF360C),
+                            Color(0xFFE65100),
+                            Color(0xFFF57C00),
+                          ],
+                        ),
+                        border: Border.fromBorderSide(
+                          BorderSide(color: Colors.black, width: 2),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt_rounded,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (isSubscriber) ...[
+                  const SizedBox(width: 6),
+                  const SubscriberBadge(size: 16),
+                ],
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // Toca para abrir a tela de Perfil, que é onde nível,
+            // título e emblemas realmente vivem — aqui é só um
+            // resumo, para não duplicar toda aquela tela.
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(colors: levelGradient),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FaIcon(
+                      BadgeConfig.levelIcon(data.level),
+                      size: 12,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Nível ${data.level} · $title',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
+            ),
+
+            const SizedBox(height: 10),
+
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FrameRarityTag(level: data.level),
+                  const SizedBox(width: 10),
+                  Icon(Icons.military_tech_rounded,
+                      size: 14, color: levelColor),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$unlockedCount/${achievements.length} emblemas',
+                    style: TextStyle(
+                      color: levelColor,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(Icons.chevron_right_rounded,
+                      size: 16, color: levelColor.withOpacity(0.7)),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+
+  // ================================================================
+  // NOME
+  // ================================================================
 
   // ================================================================
   // NOME
