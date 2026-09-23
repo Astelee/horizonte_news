@@ -120,9 +120,22 @@ class _AppDrawerState extends State<AppDrawer>
 
   @override
   Widget build(BuildContext context) {
-    final currentRoute =
-        ModalRoute.of(context)?.settings.name ?? AppRoutes.home;
+    // A rota ativa vem do currentRouteNotifier (atualizado pelo
+    // RouteTrackerObserver a cada navegação), e não de
+    // ModalRoute.of(context): este AppDrawer é filho do Scaffold da
+    // tela em que foi instanciado (ex.: HomeScreen) e continua vivo
+    // por baixo quando outra rota é empilhada por cima dele — então
+    // ModalRoute.of(context) sempre apontaria para a rota daquela
+    // tela original, nunca para a tela realmente visível no topo da
+    // pilha. O ValueListenableBuilder garante que o destaque some
+    // reconstruindo o Drawer sempre que a rota ativa muda.
+    return ValueListenableBuilder<String>(
+      valueListenable: currentRouteNotifier,
+      builder: (context, currentRoute, _) => _buildDrawerContent(context, currentRoute),
+    );
+  }
 
+  Widget _buildDrawerContent(BuildContext context, String currentRoute) {
     return Drawer(
       width: 300,
       backgroundColor: Colors.transparent,
