@@ -15,7 +15,7 @@ class AppTheme {
         elevation: 0,
         centerTitle: true,
       ),
-      cardTheme: const CardTheme(
+      cardTheme: const CardThemeData(
         color: AppColors.surfaceLight,
         elevation: 2,
         margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -49,7 +49,9 @@ class AppTheme {
           fontWeight: FontWeight.w600,
         ),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
         actionTextColor: AppColors.primaryOrange,
       ),
     );
@@ -68,10 +70,13 @@ class AppTheme {
         elevation: 0,
         centerTitle: true,
         shape: Border(
-          bottom: BorderSide(color: AppColors.surfaceDark, width: 1),
+          bottom: BorderSide(
+            color: AppColors.surfaceDark,
+            width: 1,
+          ),
         ),
       ),
-      cardTheme: const CardTheme(
+      cardTheme: const CardThemeData(
         color: AppColors.surfaceDark,
         elevation: 1,
         margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -105,7 +110,9 @@ class AppTheme {
           fontWeight: FontWeight.w600,
         ),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
         actionTextColor: AppColors.primaryOrange,
       ),
     );
