@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -503,7 +504,21 @@ class CommentsSectionState extends State<CommentsSection>
     with TickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
-  bool _isSending = false;
+  // ValueNotifier em vez de um bool simples: a barra fixa desenhada
+  // por buildFixedInputBar vive numa subtree IRMÃ desta (ver
+  // inputFocusNode acima) e é reconstruída pelo PostDetailScreen só
+  // quando inputFocusNode notifica — um setState(_isSending = ...)
+  // aqui dentro não alcança aquela barra. Antes disso, o botão de
+  // enviar ficava preso girando: o _focusNode.unfocus() no fim de
+  // _sendComment ainda disparava um rebuild a tempo de mostrar o
+  // spinner (_isSending == true), mas o setState(false) do finally,
+  // alguns instantes depois, não tinha mais nenhum listener que
+  // alcançasse a barra fixa para escondê-lo. Notificando um
+  // Listenable próprio aqui, e escutando-o junto do FocusNode em
+  // PostDetailScreen, a barra fixa reconstrói em ambos os momentos.
+  final ValueNotifier<bool> _isSendingNotifier = ValueNotifier(false);
+  bool get _isSending => _isSendingNotifier.value;
+  set _isSending(bool value) => _isSendingNotifier.value = value;
   bool _xpAwarded = false;
   bool _expanded = false;
   late AnimationController _sendAnim;
@@ -523,6 +538,12 @@ class CommentsSectionState extends State<CommentsSection>
   /// subtree irmã em PostDetailScreen, então quem precisa reagir a
   /// esse FocusNode escuta-o diretamente com um ListenableBuilder.
   FocusNode get inputFocusNode => _focusNode;
+
+  /// Mesmo motivo do inputFocusNode acima, mas para o estado de
+  /// envio (_isSending): exposto para PostDetailScreen poder
+  /// reconstruir a barra fixa também quando o envio começa/termina,
+  /// e não só quando o foco muda.
+  ValueListenable<bool> get isSendingListenable => _isSendingNotifier;
 
   // ── Estado de "respondendo a" ──────────────────────────────────────
   // Quando != null, o próximo envio vira uma resposta (subcoleção
@@ -652,6 +673,7 @@ class CommentsSectionState extends State<CommentsSection>
   void dispose() {
     _controller.dispose();
     _focusNode.dispose();
+    _isSendingNotifier.dispose();
     _sendAnim.dispose();
     _expandCtrl.dispose();
     super.dispose();
@@ -851,7 +873,7 @@ class CommentsSectionState extends State<CommentsSection>
       if (!_xpAwarded && mounted) {
         await xpProvider.addXpForComment();
         _xpAwarded = true;
-        _showXpSnack();
+        if (mounted) _showXpSnack();
       }
     } catch (e) {
       _showSnack('Erro ao enviar comentário. Tente novamente.');
@@ -1487,6 +1509,7 @@ class CommentsSectionState extends State<CommentsSection>
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
           itemCount: comments.length,
           itemBuilder: (context, index) => _CommentTile(
+            key: ValueKey(comments[index].id),
             postId: widget.postId,
             comment: comments[index],
             authorStream: _liveAuthorStream(comments[index].userId),
@@ -2512,6 +2535,7 @@ class _RepliesList extends StatelessWidget {
           child: Column(
             children: replies
                 .map((reply) => Padding(
+                      key: ValueKey(reply.id),
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _ReplyTile(
                         postId: postId,
