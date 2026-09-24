@@ -27,6 +27,10 @@ class UserXpData {
   // Avatar animado premium equipado (chave de PremiumAvatarId.storageKey).
   // Null = nenhum avatar premium equipado (usa foto/iniciais normais).
   final String? equippedPremiumAvatarId;
+  // Recompensa visual do Check-in equipada (chave de
+  // CheckinRewardId.storageKey). Independente do avatar VIP acima:
+  // o usuário pode ter os dois equipados ao mesmo tempo.
+  final String? equippedCheckinRewardId;
 
   const UserXpData({
     required this.totalXp,
@@ -47,6 +51,7 @@ class UserXpData {
     this.premiumTier = PremiumTier.none,
     this.premiumExpiresAt,
     this.equippedPremiumAvatarId,
+    this.equippedCheckinRewardId,
   });
 
   factory UserXpData.empty() => const UserXpData(
@@ -74,6 +79,8 @@ class UserXpData {
     DateTime? premiumExpiresAt,
     String? equippedPremiumAvatarId,
     bool clearEquippedPremiumAvatar = false,
+    String? equippedCheckinRewardId,
+    bool clearEquippedCheckinReward = false,
   }) {
     return UserXpData(
       totalXp: totalXp,
@@ -96,6 +103,9 @@ class UserXpData {
       equippedPremiumAvatarId: clearEquippedPremiumAvatar
           ? null
           : (equippedPremiumAvatarId ?? this.equippedPremiumAvatarId),
+      equippedCheckinRewardId: clearEquippedCheckinReward
+          ? null
+          : (equippedCheckinRewardId ?? this.equippedCheckinRewardId),
     );
   }
 
@@ -200,6 +210,7 @@ class XpService {
     PremiumTier premiumTier = PremiumTier.none,
     DateTime? premiumExpiresAt,
     String? equippedPremiumAvatarId,
+    String? equippedCheckinRewardId,
   }) {
     final calculatedLevel = levelFromXp(totalXp);
     final level = (overrideLevel ?? calculatedLevel).clamp(1, maxLevel).toInt();
@@ -231,6 +242,7 @@ class XpService {
       premiumTier: premiumTier,
       premiumExpiresAt: premiumExpiresAt,
       equippedPremiumAvatarId: equippedPremiumAvatarId,
+      equippedCheckinRewardId: equippedCheckinRewardId,
     );
   }
 
@@ -302,6 +314,8 @@ class XpService {
           (dataUpdated['premiumExpiresAt'] as Timestamp?)?.toDate();
       final equippedPremiumAvatarId =
           dataUpdated['equippedPremiumAvatarId'] as String?;
+      final equippedCheckinRewardId =
+          dataUpdated['equippedCheckinRewardId'] as String?;
 
       final xpData = buildXpData(
         totalXp: totalXp,
@@ -319,6 +333,7 @@ class XpService {
         premiumTier: premiumTier,
         premiumExpiresAt: premiumExpiresAt,
         equippedPremiumAvatarId: equippedPremiumAvatarId,
+        equippedCheckinRewardId: equippedCheckinRewardId,
       );
 
       // Só sincroniza level no Firestore se NÃO houver override ativo
@@ -368,6 +383,8 @@ class XpService {
         (data['premiumExpiresAt'] as Timestamp?)?.toDate();
     final equippedPremiumAvatarId =
         data['equippedPremiumAvatarId'] as String?;
+    final equippedCheckinRewardId =
+        data['equippedCheckinRewardId'] as String?;
 
     return buildXpData(
       totalXp: totalXp,
@@ -385,6 +402,7 @@ class XpService {
       premiumTier: premiumTier,
       premiumExpiresAt: premiumExpiresAt,
       equippedPremiumAvatarId: equippedPremiumAvatarId,
+      equippedCheckinRewardId: equippedCheckinRewardId,
     );
   }
 
