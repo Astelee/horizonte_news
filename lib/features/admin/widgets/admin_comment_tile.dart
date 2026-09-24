@@ -7,7 +7,7 @@ import '../../../widgets/badge_widgets.dart';
 import '../services/admin_comment_service.dart';
 import '../services/admin_user_service.dart';
 import 'admin_shared_widgets.dart';
-import 'ban_user_dialog.dart';
+import 'user_profile_sheet.dart';
 
 /// Tile de moderação de UM comentário-raiz ou de UMA resposta.
 ///
@@ -567,10 +567,14 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               AdminActionButton(
-                icon: Icons.person_off_rounded,
-                label: 'Banir usuário',
+                icon: Icons.badge_rounded,
+                label: 'Ver perfil / Banir',
                 color: _amber,
-                onTap: () => _ban(context, displayName, authorId),
+                onTap: () => showUserProfileSheet(
+                  context,
+                  userId: authorId,
+                  userService: widget.userService,
+                ),
               ),
             ],
           ),
@@ -644,27 +648,4 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
     );
   }
 
-  Future<void> _ban(
-    BuildContext context,
-    String displayName,
-    String authorId,
-  ) async {
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (_) => BanUserDialog(authorName: displayName),
-    );
-    if (result == null || !context.mounted) return;
-
-    final days = result['days'] as int;
-    final tempo = days == 0 ? 'tempo indeterminado' : '$days dias';
-    await _run(
-      context,
-      () => widget.userService.suspendUser(
-        authorId,
-        days,
-        result['reason'] as String,
-      ),
-      okMessage: '$displayName foi banido por $tempo.',
-    );
-  }
 }
