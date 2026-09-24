@@ -473,14 +473,6 @@ void showEditUsernameSheet(
 // TROCAR FOTO DE PERFIL
 // ═══════════════════════════════════════════════════════════════════
 /// Escolhe uma imagem da galeria e a envia para aprovação manual.
-///
-/// A foto sobe para o Cloudinary normalmente, mas NÃO se torna a foto
-/// pública na hora — fica pendente em `avatarApprovals/{uid}` até um
-/// admin aprovar pelo painel. Isso evita que conteúdo indevido (nudez,
-/// violência etc.) apareça no ranking ou nos comentários antes de ser
-/// revisado. [onSaved] só é chamado após o envio para a fila, não após
-/// a foto realmente aparecer publicamente — a UI deve tratar isso como
-/// "enviado, aguardando aprovação", não como "foto atualizada".
 Future<void> pickAndUploadAvatar(
   BuildContext context, {
   required void Function(String newPhotoUrl) onUploading,
@@ -500,13 +492,6 @@ Future<void> pickAndUploadAvatar(
   if (picked == null) return;
   if (!context.mounted) return;
 
-  // Etapa de recorte: deixa o usuário ajustar enquadramento/zoom antes
-  // do upload, com máscara circular igual ao avatar final. Usa uma
-  // tela própria (Crop widget, 100% Flutter) em vez de um plugin que
-  // abre uma Activity nativa separada — o antigo image_cropper
-  // causava crash ("Reply already submitted") por colidir com o
-  // image_picker no retorno de resultado da Activity no Android. Se
-  // o usuário cancelar o recorte, aborta sem subir nada.
   final imageBytes = await File(picked.path).readAsBytes();
   if (!context.mounted) return;
 
@@ -521,8 +506,6 @@ Future<void> pickAndUploadAvatar(
   if (croppedBytes == null) return;
   if (!context.mounted) return;
 
-  // Salva os bytes recortados em um arquivo temporário: o serviço de
-  // upload (Cloudinary) espera um File, não bytes crus.
   final tempDir = Directory.systemTemp;
   final tempFile = File(
     '${tempDir.path}/avatar_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.png',
@@ -542,8 +525,6 @@ Future<void> pickAndUploadAvatar(
 
     debugPrint('AVATAR: upload concluído: $url');
 
-    // Foto atual (aprovada), se houver — usada para poder mostrar
-    // "voltou para a foto anterior" caso a nova seja rejeitada.
     final currentDoc = await FirebaseFirestore.instance
         .collection('users_xp')
         .doc(user.uid)
@@ -591,14 +572,13 @@ Future<void> pickAndUploadAvatar(
     if (context.mounted) {
       _showSnack(
         context,
-        'Erro ao enviar a foto. Verifique sua conexão e tente novamente.',
+        'Erro ao enviar a foto:\n$e',
         icon: Icons.error_rounded,
         success: false,
-        duration: const Duration(seconds: 6),
+        duration: const Duration(seconds: 10),
       );
     }
   } finally {
-    // Remove o arquivo temporário criado após o recorte.
     try {
       if (await tempFile.exists()) {
         await tempFile.delete();
@@ -660,9 +640,6 @@ Future<void> removeAvatar(
 // ═══════════════════════════════════════════════════════════════════
 // MENU: TROCAR OU REMOVER FOTO
 // ═══════════════════════════════════════════════════════════════════
-/// Mostra um menu com as opções "Trocar foto" e "Remover foto" quando
-/// já existe uma foto de perfil. Se [hasPhoto] for falso, pula direto
-/// para a galeria (não faz sentido oferecer "remover" sem foto).
 Future<void> showAvatarOptionsSheet(
   BuildContext context, {
   required bool hasPhoto,
@@ -708,12 +685,6 @@ Future<void> showAvatarOptionsSheet(
               ),
               onTap: () async {
                 Navigator.pop(sheetContext);
-                // Espera o bottom sheet terminar de fechar antes de
-                // abrir o picker/cropper (duas Activities nativas em
-                // sequência). Sem essa pausa, no Android o resultado
-                // do picker pode chegar enquanto a transação de fechar
-                // o sheet ainda está em andamento, causando o crash
-                // "Reply already submitted".
                 await Future.delayed(const Duration(milliseconds: 300));
                 if (!context.mounted) return;
                 await pickAndUploadAvatar(
