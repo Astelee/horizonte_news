@@ -448,9 +448,19 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                   child: KeyedSubtree(
                     key: _fixedBarKey,
                     child: ListenableBuilder(
-                      listenable:
-                          _commentsKey.currentState?.inputFocusNode ??
-                              ValueNotifier(null),
+                      // Escuta tanto o foco do campo (para recalcular
+                      // padding/banner "Respondendo a") quanto o
+                      // estado de envio (isSendingListenable) — sem
+                      // este segundo listener, o botão "Enviar" podia
+                      // ficar preso girando: um setState(_isSending)
+                      // dentro de CommentsSectionState não alcança
+                      // esta barra, que vive numa subtree irmã e só
+                      // reconstrói quando o Listenable ouvido aqui
+                      // dispara.
+                      listenable: Listenable.merge([
+                        _commentsKey.currentState?.inputFocusNode,
+                        _commentsKey.currentState?.isSendingListenable,
+                      ]),
                       builder: (context, _) {
                         // Remedida a cada rebuild da barra (foco muda,
                         // banner "Respondendo a" aparece/some — a
