@@ -388,7 +388,7 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
     final articlesShared = (stats['articlesShared'] as num?)?.toInt() ?? 0;
 
     final checkinStreak = (d['checkinStreak'] as num?)?.toInt() ?? 0;
-    final longestStreak = (d['longestStreak'] as num?)?.toInt() ?? 0;
+    final longestStreak = (d['longestCheckinStreak'] as num?)?.toInt() ?? 0;
     final lastCheckinDate = d['lastCheckinDate'] as String?;
 
     final premiumTier = premiumTierFromData(d);
@@ -400,7 +400,7 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildHeader(context, name, photoUrl, level, isOnline, lastSeenAt),
+          _buildHeader(context, d, name, photoUrl, level, isOnline, lastSeenAt),
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
             child: Column(
@@ -446,8 +446,9 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
 
   // ── Cabeçalho ───────────────────────────────────────────────────
 
-  Widget _buildHeader(BuildContext context, String name, String? photoUrl,
-      int level, bool isOnline, DateTime? lastSeenAt) {
+  Widget _buildHeader(BuildContext context, Map<String, dynamic> d,
+      String name, String? photoUrl, int level, bool isOnline,
+      DateTime? lastSeenAt) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 12, 20),
       decoration: BoxDecoration(
@@ -476,35 +477,20 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Stack(
-                children: [
-                  AvatarFrame(
-                    level: level,
-                    size: 72,
-                    enableEntryAnimation: false,
-                    child: AppAvatar(
-                      name: name,
-                      seed: widget.userId,
-                      photoUrl: photoUrl,
-                      size: 72,
-                    ),
-                  ),
-                  if (isOnline)
-                    Positioned(
-                      bottom: 2,
-                      right: 2,
-                      child: Container(
-                        width: 16,
-                        height: 16,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFF43B581),
-                          border: Border.all(
-                              color: AppColors.backgroundDark, width: 3),
-                        ),
-                      ),
-                    ),
-                ],
+              AvatarFrame(
+                level: level,
+                size: 72,
+                enableEntryAnimation: false,
+                child: UserAvatarDisplay(
+                  name: name,
+                  seed: widget.userId,
+                  photoUrl: photoUrl,
+                  equippedPremiumAvatarId:
+                      d['equippedPremiumAvatarId'] as String?,
+                  equippedCheckinRewardId:
+                      d['equippedCheckinRewardId'] as String?,
+                  size: 72,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1104,6 +1090,21 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: widget.userService.userLogsStream(widget.userId),
       builder: (context, snap) {
+        if (snap.hasError) {
+          // Causa mais comum: falta o índice composto do Firestore
+          // para admin_logs (targetId ASC + timestamp DESC) — a
+          // consulta nunca retorna e, sem este tratamento, o
+          // StreamBuilder ficava girando o loading para sempre em vez
+          // de mostrar o erro.
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Não foi possível carregar o histórico.\n${snap.error}',
+              style: const TextStyle(
+                  color: AppColors.textMuted, fontSize: 11, height: 1.4),
+            ),
+          );
+        }
         if (!snap.hasData) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
