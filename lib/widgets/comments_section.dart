@@ -767,10 +767,6 @@ class CommentsSectionState extends State<CommentsSection>
     }
 
     if (text.isEmpty) return;
-    if (text.length < 3) {
-      _showSnack('Comentário muito curto.');
-      return;
-    }
 
     setState(() => _isSending = true);
     _sendAnim.reverse().then((_) => _sendAnim.forward());
@@ -885,10 +881,7 @@ class CommentsSectionState extends State<CommentsSection>
     String? parentCommentId,
   }) async {
     final text = newText.trim();
-    if (text.isEmpty || text.length < 3) {
-      _showSnack('Comentário muito curto.');
-      return;
-    }
+    if (text.isEmpty) return;
     try {
       final ref = parentCommentId != null
           ? _repliesRef(parentCommentId).doc(commentId)
@@ -1312,19 +1305,19 @@ class CommentsSectionState extends State<CommentsSection>
                     focusNode: _focusNode,
                     maxLines: 3,
                     minLines: 1,
-                    maxLength: 500,
+                    // Sem maxLength: não há limite de caracteres no app
+                    // e o contador "x/500" some junto. Textos grandes
+                    // rolam dentro do campo (maxLines: 3).
                     style: const TextStyle(
                         color: Colors.white, fontSize: 14, height: 1.5),
                     decoration: InputDecoration(
                       hintText: user != null
-                          ? '💭 O que você achou desta notícia?'
+                          ? 'O que achou desta notícia?'
                           : 'Faça login para comentar',
                       hintStyle: TextStyle(
                           color: Colors.white.withOpacity(0.25),
-                          fontSize: 14),
+                          fontSize: 12),
                       border: InputBorder.none,
-                      counterStyle: const TextStyle(
-                          color: AppColors.textMuted, fontSize: 10),
                       contentPadding: EdgeInsets.zero,
                     ),
                     enabled: user != null,
@@ -2159,15 +2152,12 @@ class _CommentEditFieldState extends State<_CommentEditField> {
             focusNode: _focusNode,
             maxLines: 4,
             minLines: 1,
-            maxLength: 500,
             style: const TextStyle(
                 color: Colors.white, fontSize: 13, height: 1.4),
             decoration: const InputDecoration(
               border: InputBorder.none,
               isDense: true,
               contentPadding: EdgeInsets.zero,
-              counterStyle:
-                  TextStyle(color: AppColors.textMuted, fontSize: 10),
             ),
           ),
           Row(
@@ -2219,42 +2209,84 @@ class _CommentEditFieldState extends State<_CommentEditField> {
 }
 
 // ── Texto do comentário, destacando "@fulano" no início se houver ──
-class _CommentText extends StatelessWidget {
+// Compartilhado entre comentário-raiz e resposta. Textos acima de
+// [_kCommentPreviewLimit] caracteres aparecem cortados com "ver mais"
+// (e "ver menos" depois de expandido) — o texto completo continua
+// salvo inteiro no Firestore, o corte é só visual.
+const int _kCommentPreviewLimit = 1500;
+
+class _CommentText extends StatefulWidget {
   final CommentModel comment;
 
   const _CommentText({required this.comment});
 
   @override
+  State<_CommentText> createState() => _CommentTextState();
+}
+
+class _CommentTextState extends State<_CommentText> {
+  bool _showFull = false;
+
+  @override
   Widget build(BuildContext context) {
+    final comment = widget.comment;
     final mention = comment.replyToUsername;
-    if (mention == null || mention.trim().isEmpty) {
-      return Text(
-        comment.text,
-        style: const TextStyle(
-          color: AppColors.textSecondaryDark,
-          fontSize: 14,
-          height: 1.5,
-        ),
-      );
-    }
-    return RichText(
-      text: TextSpan(
-        style: const TextStyle(
-          color: AppColors.textSecondaryDark,
-          fontSize: 14,
-          height: 1.5,
-        ),
-        children: [
-          TextSpan(
-            text: '@$mention ',
-            style: TextStyle(
-              color: AppColors.primaryOrange.withOpacity(0.9),
-              fontWeight: FontWeight.w700,
+    final hasMention = mention != null && mention.trim().isNotEmpty;
+
+    const baseStyle = TextStyle(
+      color: AppColors.textSecondaryDark,
+      fontSize: 14,
+      height: 1.5,
+    );
+
+    final isLong = comment.text.length > _kCommentPreviewLimit;
+    final visibleText = (isLong && !_showFull)
+        ? '${comment.text.substring(0, _kCommentPreviewLimit).trimRight()}...'
+        : comment.text;
+
+    final toggle = isLong
+        ? GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _showFull = !_showFull);
+            },
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                _showFull ? 'ver menos' : 'ver mais',
+                style: TextStyle(
+                  color: AppColors.primaryOrange.withOpacity(0.9),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
-          ),
-          TextSpan(text: comment.text),
-        ],
-      ),
+          )
+        : null;
+
+    final Widget body = hasMention
+        ? RichText(
+            text: TextSpan(
+              style: baseStyle,
+              children: [
+                TextSpan(
+                  text: '@$mention ',
+                  style: TextStyle(
+                    color: AppColors.primaryOrange.withOpacity(0.9),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                TextSpan(text: visibleText),
+              ],
+            ),
+          )
+        : Text(visibleText, style: baseStyle);
+
+    if (toggle == null) return body;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [body, toggle],
     );
   }
 }
