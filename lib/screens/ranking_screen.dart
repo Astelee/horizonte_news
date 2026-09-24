@@ -20,6 +20,7 @@ class _RankUser {
   final String avatarId;
   final String? photoUrl;
   final String? equippedPremiumAvatarId;
+  final String? equippedCheckinRewardId;
 
   _RankUser({
     required this.uid,
@@ -29,6 +30,7 @@ class _RankUser {
     required this.avatarId,
     this.photoUrl,
     this.equippedPremiumAvatarId,
+    this.equippedCheckinRewardId,
   });
 
   factory _RankUser.fromDoc(QueryDocumentSnapshot doc) {
@@ -54,6 +56,7 @@ class _RankUser {
       avatarId: (data['avatarId'] as String?) ?? 'animais_01',
       photoUrl: (data['photoUrl'] as String?),
       equippedPremiumAvatarId: data['equippedPremiumAvatarId'] as String?,
+      equippedCheckinRewardId: data['equippedCheckinRewardId'] as String?,
     );
   }
 }
@@ -667,6 +670,8 @@ class _PodiumSpotState extends State<_PodiumSpot>
                     photoUrl: widget.user.photoUrl,
                     equippedPremiumAvatarId:
                         widget.user.equippedPremiumAvatarId,
+                    equippedCheckinRewardId:
+                        widget.user.equippedCheckinRewardId,
                     size: widget.avatarSize,
                   ),
                 ),
@@ -854,6 +859,7 @@ class _RankTileState extends State<_RankTile>
                   seed: widget.user.uid,
                   photoUrl: widget.user.photoUrl,
                   equippedPremiumAvatarId: widget.user.equippedPremiumAvatarId,
+                  equippedCheckinRewardId: widget.user.equippedCheckinRewardId,
                   size: 40,
                 ),
               ),
@@ -989,6 +995,7 @@ class _MyPositionBar extends StatelessWidget {
                 seed: user.uid,
                 photoUrl: user.photoUrl,
                 equippedPremiumAvatarId: user.equippedPremiumAvatarId,
+                equippedCheckinRewardId: user.equippedCheckinRewardId,
                 size: 36,
               ),
             ),
