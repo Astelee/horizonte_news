@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../config/app_colors.dart';
@@ -497,12 +498,44 @@ Future<void> pickAndUploadAvatar(
 
   if (picked == null) return;
 
-  onUploading(picked.path);
+  // Etapa de recorte: deixa o usuário ajustar enquadramento/zoom antes
+  // do upload, com máscara circular igual ao avatar final. Se ele
+  // cancelar o recorte, aborta sem subir nada (mesmo comportamento de
+  // quando cancela a escolha da imagem).
+  final cropped = await ImageCropper().cropImage(
+    sourcePath: picked.path,
+    compressFormat: ImageCompressFormat.jpg,
+    compressQuality: 85,
+    uiSettings: [
+      AndroidUiSettings(
+        toolbarTitle: 'Ajustar foto',
+        toolbarColor: AppColors.backgroundDark,
+        toolbarWidgetColor: Colors.white,
+        backgroundColor: AppColors.backgroundDark,
+        activeControlsWidgetColor: AppColors.primaryOrange,
+        cropFrameColor: AppColors.primaryOrange,
+        cropGridColor: Colors.white24,
+        lockAspectRatio: true,
+        cropStyle: CropStyle.circle,
+        hideBottomControls: false,
+      ),
+      IOSUiSettings(
+        title: 'Ajustar foto',
+        aspectRatioLockEnabled: true,
+        cropStyle: CropStyle.circle,
+        resetAspectRatioEnabled: false,
+      ),
+    ],
+  );
+
+  if (cropped == null) return;
+
+  onUploading(cropped.path);
 
   try {
     final avatarService = AvatarUploadService();
     final url = await avatarService.uploadAvatar(
-      file: File(picked.path),
+      file: File(cropped.path),
       uid: user.uid,
     );
 
