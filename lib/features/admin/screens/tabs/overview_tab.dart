@@ -11,6 +11,7 @@ import '../../services/admin_news_service.dart';
 import '../../services/admin_comment_service.dart';
 import '../../models/admin_log_model.dart';
 import '../../widgets/dashboard_widgets.dart';
+import '../../widgets/user_profile_sheet.dart';
 
 class OverviewTab extends StatefulWidget {
   final AdminDashboardService dashboardService;
@@ -639,7 +640,14 @@ class _OverviewTabState extends State<OverviewTab> {
             icon: Icons.person_pin_circle_rounded,
           ),
           for (final u in data.mostRecentlyActive)
-            Padding(
+            InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => showUserProfileSheet(
+                context,
+                userId: u.uid,
+                userService: widget.userService,
+              ),
+              child: Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Row(
                 children: [
@@ -696,7 +704,10 @@ class _OverviewTabState extends State<OverviewTab> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const Icon(Icons.chevron_right_rounded,
+                      color: AppColors.textMuted, size: 16),
                 ],
+              ),
               ),
             ),
         ],
