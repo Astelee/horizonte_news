@@ -84,10 +84,10 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
         onCropped: (result) {
           if (!mounted) return;
           switch (result) {
-            case CropResult.success(:final croppedImage):
+            case CropSuccess(:final croppedImage):
               Navigator.pop(context, croppedImage);
               break;
-            case CropResult.error(:final error):
+            case CropFailure(:final error):
               setState(() => _cropping = false);
               debugPrint('Erro ao recortar imagem: $error');
               ScaffoldMessenger.of(context).showSnackBar(
