@@ -82,6 +82,7 @@ class LiveAuthorInfo {
   final List<String> achievements;
   final String? photoUrl;
   final String? equippedPremiumAvatarId;
+  final String? equippedCheckinRewardId;
   final bool isPremium;
 
   const LiveAuthorInfo({
@@ -89,6 +90,7 @@ class LiveAuthorInfo {
     required this.achievements,
     required this.photoUrl,
     required this.equippedPremiumAvatarId,
+    this.equippedCheckinRewardId,
     this.isPremium = false,
   });
 }
@@ -133,6 +135,12 @@ class _LiveAuthorData extends StatelessWidget {
                 photoUrl: fallback.userPhotoUrl,
                 equippedPremiumAvatarId:
                     fallback.userEquippedPremiumAvatarId,
+                // Sem doc carregado ainda: recompensa de check-in não
+                // é congelada no comentário, então fica ausente até o
+                // stream trazer o dado real (melhor não mostrar por
+                // um instante do que mostrar errado — mesmo critério
+                // já usado para isPremium abaixo).
+                equippedCheckinRewardId: null,
                 // Sem doc carregado ainda: não há como saber se é
                 // assinante a partir do comentário (esse dado nunca
                 // foi congelado nele), então não exibe o selo até o
@@ -152,6 +160,8 @@ class _LiveAuthorData extends StatelessWidget {
                 equippedPremiumAvatarId:
                     (data['equippedPremiumAvatarId'] as String?) ??
                         fallback.userEquippedPremiumAvatarId,
+                equippedCheckinRewardId:
+                    data['equippedCheckinRewardId'] as String?,
                 isPremium: PremiumTierX.fromId(
                         data['premiumTier'] as String?)
                     .isPremium,
@@ -227,6 +237,8 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
     final photoUrl = _userData?['photoUrl'] as String?;
     final equippedPremiumAvatarId =
         _userData?['equippedPremiumAvatarId'] as String?;
+    final equippedCheckinRewardId =
+        _userData?['equippedCheckinRewardId'] as String?;
     final showAge = _userData?['showAge'] as bool? ?? false;
     final birthDate = (_userData?['birthDate'] as Timestamp?)?.toDate();
     final age = (showAge && birthDate != null) ? _calculateAge(birthDate) : null;
@@ -287,6 +299,7 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                   seed: widget.userId,
                   photoUrl: photoUrl,
                   equippedPremiumAvatarId: equippedPremiumAvatarId,
+                  equippedCheckinRewardId: equippedCheckinRewardId,
                   size: 60,
                 ),
               ),
@@ -1412,6 +1425,7 @@ class CommentsSectionState extends State<CommentsSection>
             seed: currentUser?.uid,
             photoUrl: xpProvider.data.photoUrl,
             equippedPremiumAvatarId: xpProvider.data.equippedPremiumAvatarId,
+            equippedCheckinRewardId: xpProvider.data.equippedCheckinRewardId,
             size: 36,
           ),
         );
@@ -1772,6 +1786,7 @@ class _CommentTileState extends State<_CommentTile>
           seed: widget.comment.userId,
           photoUrl: info.photoUrl,
           equippedPremiumAvatarId: info.equippedPremiumAvatarId,
+          equippedCheckinRewardId: info.equippedCheckinRewardId,
           size: 36,
         ),
       ),
@@ -2692,6 +2707,7 @@ class _ReplyTileState extends State<_ReplyTile> {
                 seed: reply.userId,
                 photoUrl: info.photoUrl,
                 equippedPremiumAvatarId: info.equippedPremiumAvatarId,
+                equippedCheckinRewardId: info.equippedCheckinRewardId,
                 size: 28,
               ),
             ),
