@@ -122,12 +122,15 @@ service cloud.firestore {
       // sequência em regras — fica só a trava de valor de XP, que é
       // o que evita ganho arbitrário de pontos.
       function isValidCheckinXp(xp) {
-        return xp == 10  // baseXp
-            || xp == 40  // baseXp + bônus de 7 dias (10+30)
-            || xp == 70  // baseXp + bônus de 14 dias (10+60)
-            || xp == 160 // baseXp + bônus de 30 dias (10+150)
-            || xp == 310 // baseXp + bônus de 60 dias (10+300)
-            || xp == 510; // baseXp + bônus de 100 dias (10+500)
+        return xp == 10   // baseXp
+            || xp == 40   // baseXp + bônus de 7 dias   (10+30)
+            || xp == 70   // baseXp + bônus de 14 dias  (10+60)
+            || xp == 160  // baseXp + bônus de 30 dias  (10+150)
+            || xp == 310  // baseXp + bônus de 60 dias  (10+300)
+            || xp == 510  // baseXp + bônus de 100 dias (10+500)
+            || xp == 260  // baseXp + bônus de 150 dias (10+250)
+            || xp == 410  // baseXp + bônus de 200 dias (10+400)
+            || xp == 1010; // baseXp + bônus de 365 dias (10+1000)
       }
 
       match /checkins/{dateKey} {
