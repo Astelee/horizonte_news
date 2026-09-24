@@ -1081,6 +1081,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           photoUrl: data.photoUrl,
                           equippedPremiumAvatarId:
                               data.equippedPremiumAvatarId,
+                          equippedCheckinRewardId:
+                              data.equippedCheckinRewardId,
                           size: 88,
                         ),
                         if (_uploadingPhoto)
