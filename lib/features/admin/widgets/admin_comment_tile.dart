@@ -115,6 +115,9 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
         _str(_data, 'authorPhotoUrl');
     final premiumAvatar = _str(profile, 'equippedPremiumAvatarId') ??
         _str(_data, 'userEquippedPremiumAvatarId');
+    // Recompensa de check-in não é congelada no snapshot do
+    // comentário: só existe no perfil ao vivo (users_xp/{uid}).
+    final checkinReward = _str(profile, 'equippedCheckinRewardId');
 
     // ── Nível: perfil ao vivo → snapshot do comentário ──────────────
     final rawLevel = _int(profile, 'level', _int(_data, 'userLevel', 1));
@@ -158,6 +161,7 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
                 username: username,
                 photoUrl: photoUrl,
                 premiumAvatar: premiumAvatar,
+                checkinReward: checkinReward,
                 level: level,
                 authorId: authorId,
                 isPremium: isPremium,
@@ -317,6 +321,7 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
     required String? username,
     required String? photoUrl,
     required String? premiumAvatar,
+    required String? checkinReward,
     required int level,
     required String? authorId,
     required bool isPremium,
@@ -334,6 +339,7 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
             seed: authorId,
             photoUrl: photoUrl,
             equippedPremiumAvatarId: premiumAvatar,
+            equippedCheckinRewardId: checkinReward,
             size: 40,
           ),
         ),
