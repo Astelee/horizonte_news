@@ -18,8 +18,10 @@ import '../config/app_colors.dart';
 class AvatarCropScreen extends StatefulWidget {
   final Uint8List imageBytes;
 
-  const AvatarCropScreen({Key? key, required this.imageBytes})
-      : super(key: key);
+  const AvatarCropScreen({
+    Key? key,
+    required this.imageBytes,
+  }) : super(key: key);
 
   @override
   State<AvatarCropScreen> createState() => _AvatarCropScreenState();
@@ -83,16 +85,24 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
         ),
         onCropped: (result) {
           if (!mounted) return;
+
           switch (result) {
             case CropSuccess(:final croppedImage):
               Navigator.pop(context, croppedImage);
               break;
-            case CropFailure(:final error):
+
+            case CropFailure():
               setState(() => _cropping = false);
-              debugPrint('Erro ao recortar imagem: $error');
+
+              debugPrint(
+                'Erro ao recortar imagem: CropFailure',
+              );
+
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Não foi possível recortar a foto.'),
+                  content: Text(
+                    'Não foi possível recortar a foto.',
+                  ),
                 ),
               );
               break;
