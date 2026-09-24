@@ -169,6 +169,86 @@ class StatCard extends StatelessWidget {
   }
 }
 
+/// Versão compacta do [StatCard], para grids de 3 colunas — usada
+/// para KPIs gerais do sistema (não ligados a um usuário específico),
+/// que não precisam do destaque visual do card grande.
+class StatCardCompact extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final int value;
+  final String? suffix;
+  final VoidCallback? onTap;
+
+  const StatCardCompact({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.value,
+    this.suffix,
+    this.onTap,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutBack,
+      builder: (context, t, child) => Transform.scale(
+        scale: 0.92 + 0.08 * t,
+        child: Opacity(opacity: t.clamp(0.0, 1.0), child: child),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: const Color(0xFF0A0A0A),
+              border: Border.all(color: color.withOpacity(0.22)),
+            ),
+            child: Column(
+              children: [
+                Icon(icon, color: color, size: 15),
+                const SizedBox(height: 6),
+                AnimatedCounter(
+                  value: value,
+                  suffix: suffix ?? '',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
+                    height: 1.15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _LivePulseDot extends StatefulWidget {
   const _LivePulseDot();
   @override
