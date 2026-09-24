@@ -190,14 +190,11 @@ service cloud.firestore {
     match /avatarApprovals/{uid} {
       allow read: if isOwner(uid) || isAdmin();
       allow create: if validAvatarApprovalSubmit(uid);
-      // Reenvio: o próprio dono pode sobrescrever sua pendência
-      // enquanto ela ainda não foi revisada (status era e continua
-      // 'pending'). Depois de aprovada/rejeitada, só admin decide o
-      // que acontece com o registro (ex.: uma nova submissão do
-      // usuário deve criar um novo ciclo de revisão, não apagar
-      // silenciosamente a decisão anterior).
+      // Reenvio: o próprio dono pode sobrescrever sua solicitação enviando uma nova foto.
+      // Permite reenviar mesmo que o status anterior fosse 'approved' ou 'rejected',
+      // desde que a nova submissão seja válida (status 'pending', mesmo UID e photoUrl válida).
       allow update: if isAdmin()
-          || (validAvatarApprovalSubmit(uid) && resource.data.status == 'pending');
+          || validAvatarApprovalSubmit(uid);
       allow delete: if isAdmin();
     }
 
