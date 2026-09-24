@@ -59,8 +59,15 @@ class PremiumFeature {
   final IconData icon;
   final String label;
   final String? tag;
+  // Ícone com brilho pulsante — reservado para destaques do ULTRA.
+  final bool animated;
 
-  const PremiumFeature({required this.icon, required this.label, this.tag});
+  const PremiumFeature({
+    required this.icon,
+    required this.label,
+    this.tag,
+    this.animated = false,
+  });
 }
 
 class PremiumScreen extends StatefulWidget {
@@ -145,6 +152,42 @@ class _PremiumScreenState extends State<PremiumScreen> {
         PremiumFeature(
           icon: FontAwesomeIcons.gem,
           label: 'Distintivo exclusivo de assinante',
+        ),
+        PremiumFeature(
+          icon: FontAwesomeIcons.medal,
+          label: 'Moldura de perfil dourada exclusiva',
+          tag: 'Novo',
+          animated: true,
+        ),
+        PremiumFeature(
+          icon: FontAwesomeIcons.meteor,
+          label: 'Efeito de entrada exclusivo no perfil',
+          tag: 'Novo',
+          animated: true,
+        ),
+        PremiumFeature(
+          icon: FontAwesomeIcons.certificate,
+          label: 'Selo animado de destaque nos comentários',
+          tag: 'Novo',
+          animated: true,
+        ),
+        PremiumFeature(
+          icon: FontAwesomeIcons.bookOpen,
+          label: 'Acesso antecipado às matérias',
+          tag: 'Novo',
+          animated: true,
+        ),
+        PremiumFeature(
+          icon: FontAwesomeIcons.masksTheater,
+          label: 'Reações exclusivas premium',
+          tag: 'Novo',
+          animated: true,
+        ),
+        PremiumFeature(
+          icon: FontAwesomeIcons.infinity,
+          label: 'Prioridade máxima no suporte',
+          tag: 'Novo',
+          animated: true,
         ),
       ],
     ),
@@ -847,27 +890,90 @@ class _PlanCard extends StatelessWidget {
   }
 }
 
-class _FeatureRow extends StatelessWidget {
+class _FeatureRow extends StatefulWidget {
   final PremiumFeature feature;
   final Color accentColor;
   const _FeatureRow({required this.feature, required this.accentColor});
 
   @override
+  State<_FeatureRow> createState() => _FeatureRowState();
+}
+
+class _FeatureRowState extends State<_FeatureRow>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _glowController;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.feature.animated) {
+      _glowController = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 1400),
+      )..repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _glowController?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final feature = widget.feature;
+    final accentColor = widget.accentColor;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: accentColor.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(9),
-              border: Border.all(color: accentColor.withOpacity(0.3)),
+          if (_glowController != null)
+            AnimatedBuilder(
+              animation: _glowController!,
+              builder: (context, child) {
+                final t = _glowController!.value;
+                return Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        accentColor.withOpacity(0.35 + 0.25 * t),
+                        accentColor.withOpacity(0.12),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(
+                      color: accentColor.withOpacity(0.5 + 0.4 * t),
+                      width: 1.1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accentColor.withOpacity(0.35 * t),
+                        blurRadius: 10 * t,
+                        spreadRadius: 0.5 * t,
+                      ),
+                    ],
+                  ),
+                  child: Icon(feature.icon, color: accentColor, size: 14),
+                );
+              },
+            )
+          else
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: accentColor.withOpacity(0.3)),
+              ),
+              child: Icon(feature.icon, color: accentColor, size: 14),
             ),
-            child: Icon(feature.icon, color: accentColor, size: 14),
-          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
