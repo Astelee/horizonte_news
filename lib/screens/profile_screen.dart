@@ -384,6 +384,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 photoUrl: data.photoUrl,
                                 equippedPremiumAvatarId:
                                     data.equippedPremiumAvatarId,
+                                equippedCheckinRewardId:
+                                    data.equippedCheckinRewardId,
                                 size: 84,
                               ),
                               if (_uploadingAvatar)
