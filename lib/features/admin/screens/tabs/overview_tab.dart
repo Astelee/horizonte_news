@@ -254,6 +254,13 @@ class _OverviewTabState extends State<OverviewTab> {
           builder: (context, constraints) {
             final twoCols = constraints.maxWidth >= 300;
             final tiles = <Widget>[
+              _ManagementTile(
+                icon: Icons.people_alt_rounded,
+                color: AppColors.primaryOrange,
+                title: 'USUÁRIOS',
+                subtitle: 'Gerenciar contas, XP, Premium e moderação',
+                onTap: widget.onGoToUsers,
+              ),
               _AvatarApprovalsManagementTile(
                 approvalService: widget.avatarApprovalService,
                 onTap: widget.onGoToAvatarApprovals,
@@ -261,6 +268,13 @@ class _OverviewTabState extends State<OverviewTab> {
               _SubscriptionRequestsManagementTile(
                 requestService: widget.subscriptionRequestService,
                 onTap: widget.onGoToSubscriptionRequests,
+              ),
+              _ManagementTile(
+                icon: Icons.block_rounded,
+                color: const Color(0xFFEF5350),
+                title: 'SUSPENSOS',
+                subtitle: 'Ver e gerenciar usuários banidos',
+                onTap: widget.onGoToBanned,
               ),
               _ManagementTile(
                 icon: Icons.bar_chart_rounded,
