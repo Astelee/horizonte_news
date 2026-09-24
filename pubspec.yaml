@@ -49,7 +49,10 @@ dependencies:
 
   # Seleção de imagem/vídeo
   image_picker: ^1.1.2
-  image_cropper: ^12.2.1
+  # Recorte de imagem: widget 100% Flutter (sem Activity nativa
+  # separada no Android), evita conflito com image_picker no
+  # onActivityResult (crash "Reply already submitted").
+  crop_your_image: ^2.0.0
 
   # OneSignal
   onesignal_flutter: ^5.2.4
