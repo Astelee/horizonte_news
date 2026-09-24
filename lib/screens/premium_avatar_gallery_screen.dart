@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../config/premium_avatars_config.dart';
+import '../config/premium_config.dart';
 import '../providers/user_xp_provider.dart';
 import '../widgets/premium_avatars.dart';
 import '../widgets/subscriber_badge.dart';
@@ -12,17 +13,31 @@ import '../widgets/subscriber_badge.dart';
 // ═══════════════════════════════════════════════════════════════════
 // GALERIA DE AVATARES ANIMADOS PREMIUM
 // ═══════════════════════════════════════════════════════════════════
-// Qualquer usuário pode ABRIR esta tela e visualizar os 6 avatares
-// animados em movimento. Só assinantes (premiumTier != none, lido do
-// UserXpProvider já existente) podem EQUIPAR um avatar — a gravação
-// acontece via UserXpProvider.setEquippedPremiumAvatar, que persiste
-// em users_xp/{uid}.equippedPremiumAvatarId (Firestore), então o
-// avatar equipado continua salvo após fechar e abrir o app.
+// Qualquer usuário pode ABRIR esta tela e visualizar todos os avatares
+// animados em movimento. Para EQUIPAR, cada avatar exige o tier mínimo
+// definido em PremiumAvatarDef.minTier:
+//   • Coleção PRO  (6 avatares originais) — PRO e ULTRA equipam.
+//   • Coleção ULTRA (10 avatares exclusivos) — só ULTRA equipa.
+// A gravação acontece via UserXpProvider.setEquippedPremiumAvatar, que
+// persiste em users_xp/{uid}.equippedPremiumAvatarId (Firestore), então
+// o avatar equipado continua salvo após fechar e abrir o app.
 //
-// A grade é gerada a partir de PremiumAvatarsConfig.all — adicionar
-// um 7º avatar no config já faz ele aparecer aqui automaticamente,
-// sem tocar nesta tela.
+// A grade é gerada a partir de PremiumAvatarsConfig.all — adicionar um
+// novo avatar no config já faz ele aparecer aqui automaticamente, sem
+// tocar nesta tela.
 // ═══════════════════════════════════════════════════════════════════
+
+/// Compara se [userTier] atende ou supera o [required]. Ordem de
+/// poder: none < pro < ultra. PremiumTier.none nunca equipa nada.
+bool _tierMeets(PremiumTier userTier, PremiumTier required) {
+  const order = {
+    PremiumTier.none: 0,
+    PremiumTier.pro: 1,
+    PremiumTier.ultra: 2,
+  };
+  if (userTier == PremiumTier.none) return false;
+  return order[userTier]! >= order[required]!;
+}
 
 class PremiumAvatarGalleryScreen extends StatelessWidget {
   const PremiumAvatarGalleryScreen({super.key});
@@ -33,6 +48,7 @@ class PremiumAvatarGalleryScreen extends StatelessWidget {
       builder: (context, xpProvider, _) {
         final data = xpProvider.data;
         final isSubscriber = data.isPremium;
+        final userTier = data.premiumTier;
         final equippedId =
             PremiumAvatarIdX.fromStorageKey(data.equippedPremiumAvatarId);
 
@@ -58,7 +74,7 @@ class PremiumAvatarGalleryScreen extends StatelessWidget {
             physics: const BouncingScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
-                child: _buildIntroBanner(context, isSubscriber),
+                child: _buildIntroBanner(context, userTier),
               ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -74,9 +90,10 @@ class PremiumAvatarGalleryScreen extends StatelessWidget {
                     (context, index) {
                       final def = PremiumAvatarsConfig.all[index];
                       final isEquipped = equippedId == def.id;
+                      final canEquip = _tierMeets(userTier, def.minTier);
                       return _AvatarCard(
                         def: def,
-                        isSubscriber: isSubscriber,
+                        canEquip: canEquip,
                         isEquipped: isEquipped,
                         onEquip: () async {
                           if (isEquipped) {
@@ -99,7 +116,26 @@ class PremiumAvatarGalleryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildIntroBanner(BuildContext context, bool isSubscriber) {
+  Widget _buildIntroBanner(BuildContext context, PremiumTier userTier) {
+    final isSubscriber = userTier.isPremium;
+    final isUltra = userTier == PremiumTier.ultra;
+
+    final String title;
+    final String subtitle;
+    if (isUltra) {
+      title = 'Você é ULTRA! 👑';
+      subtitle = 'Toque em um avatar para equipá-lo — inclusive os 10 '
+          'exclusivos ULTRA.';
+    } else if (isSubscriber) {
+      title = 'Você é assinante! ✨';
+      subtitle = 'Toque em um avatar para equipá-lo. Os avatares com selo '
+          'ULTRA pedem upgrade para o plano ULTRA.';
+    } else {
+      title = 'Exclusivo para assinantes';
+      subtitle = 'Visualize à vontade. Assine o Premium para equipar os '
+          'avatares animados — e o ULTRA libera 10 avatares exclusivos.';
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Container(
@@ -144,9 +180,7 @@ class PremiumAvatarGalleryScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isSubscriber
-                        ? 'Você é assinante! ✨'
-                        : 'Exclusivo para assinantes',
+                    title,
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
@@ -155,10 +189,7 @@ class PremiumAvatarGalleryScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    isSubscriber
-                        ? 'Toque em um avatar para equipá-lo no seu perfil.'
-                        : 'Visualize à vontade. Assine o Premium para equipar '
-                            'qualquer um destes avatares animados.',
+                    subtitle,
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.85),
                       fontSize: 12.5,
@@ -178,36 +209,39 @@ class PremiumAvatarGalleryScreen extends StatelessWidget {
 
 class _AvatarCard extends StatelessWidget {
   final PremiumAvatarDef def;
-  final bool isSubscriber;
+  final bool canEquip;
   final bool isEquipped;
   final VoidCallback onEquip;
 
   const _AvatarCard({
     required this.def,
-    required this.isSubscriber,
+    required this.canEquip,
     required this.isEquipped,
     required this.onEquip,
   });
 
   void _handleTap(BuildContext context) {
-    if (isSubscriber) {
+    if (canEquip) {
       onEquip();
       return;
     }
-    // Não assinante: mostra aviso e oferece ir para a tela Premium,
-    // sem nunca equipar o avatar.
+    // Sem tier suficiente: mostra aviso e oferece ir para a tela
+    // Premium, sem nunca equipar o avatar.
+    final message = def.isUltraExclusive
+        ? 'Este avatar é exclusivo de quem assina o ULTRA.'
+        : 'Assine o Premium para equipar este avatar.';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: const Color(0xFF141414),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
-        content: const Text(
-          'Assine o Premium para equipar este avatar.',
-          style: TextStyle(color: Colors.white, fontSize: 13),
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white, fontSize: 13),
         ),
         action: SnackBarAction(
-          label: 'ASSINAR',
+          label: def.isUltraExclusive ? 'VER ULTRA' : 'ASSINAR',
           textColor: AppColors.primaryOrange,
           onPressed: () =>
               Navigator.of(context).pushNamed(AppRoutes.premium),
@@ -255,7 +289,7 @@ class _AvatarCard extends StatelessWidget {
                   // círculo, sem moldura de nível competindo
                   // visualmente com o próprio avatar premium).
                   Opacity(
-                    opacity: isSubscriber ? 1.0 : 0.55,
+                    opacity: canEquip ? 1.0 : 0.55,
                     child: SizedBox(
                       width: 78,
                       height: 78,
@@ -265,7 +299,13 @@ class _AvatarCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (!isSubscriber)
+                  if (def.isUltraExclusive)
+                    const Positioned(
+                      top: -4,
+                      left: -4,
+                      child: _UltraTag(),
+                    ),
+                  if (!canEquip)
                     Positioned(
                       bottom: -2,
                       right: -2,
@@ -344,7 +384,9 @@ class _AvatarCard extends StatelessWidget {
                 child: Text(
                   isEquipped
                       ? 'EQUIPADO'
-                      : (isSubscriber ? 'EQUIPAR' : 'PREMIUM'),
+                      : (canEquip
+                          ? 'EQUIPAR'
+                          : (def.isUltraExclusive ? 'ULTRA' : 'PREMIUM')),
                   style: TextStyle(
                     color: isEquipped ? def.accentColor : Colors.white70,
                     fontSize: 9.5,
@@ -356,6 +398,47 @@ class _AvatarCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+/// Selo compacto "ULTRA" exibido no canto dos avatares exclusivos do
+/// tier ULTRA, para diferenciá-los visualmente dos avatares PRO.
+class _UltraTag extends StatelessWidget {
+  const _UltraTag();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF2B705), Color(0xFFE08E00)],
+        ),
+        border: Border.all(color: Colors.black, width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFF2B705).withOpacity(0.5),
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(FontAwesomeIcons.crown, size: 8, color: Colors.black),
+          SizedBox(width: 3),
+          Text(
+            'ULTRA',
+            style: TextStyle(
+              color: Colors.black,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
       ),
     );
   }
