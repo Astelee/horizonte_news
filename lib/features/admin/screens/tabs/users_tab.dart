@@ -5,7 +5,8 @@ import '../../services/admin_user_service.dart';
 import '../../widgets/admin_shared_widgets.dart';
 import '../../widgets/admin_user_tile.dart';
 
-enum _UserFilter { all, online, premium, active, newUsers, suspended }
+// A aba mostra sempre todos os usuários (sem chips de filtro), com
+// busca livre por nome, username, e-mail ou UID.
 
 class UsersTab extends StatefulWidget {
   final AdminUserService userService;
@@ -17,7 +18,21 @@ class UsersTab extends StatefulWidget {
 
 class _UsersTabState extends State<UsersTab> {
   String _search = '';
-  _UserFilter _filter = _UserFilter.all;
+  final TextEditingController _searchController = TextEditingController();
+
+  // Criadas UMA vez (não a cada build) — chamar .snapshots() de novo
+  // dentro de build() gera uma nova Stream a cada setState (ex: digitar
+  // na busca), o que reinicia o StreamBuilder (volta a "waiting" por um
+  // instante) e causa a piscada/perda de foco do teclado na busca.
+  late final Stream<QuerySnapshot> _usersStream = widget.userService.usersStream();
+  late final Stream<QuerySnapshot> _suspensionsStream =
+      widget.userService.suspensionsStream();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   // ── Helpers de leitura (mesmo critério usado no resto do painel) ──
 
@@ -37,28 +52,12 @@ class _UsersTabState extends State<UsersTab> {
         DateTime.now().difference(lastSeenAt).inMinutes < 5;
   }
 
-  bool _isPremium(Map<String, dynamic> d) {
-    final tier = d['premiumTier'] as String?;
-    if (tier == null || tier == 'none') return false;
-    final expiresAt = d['premiumExpiresAt'];
-    if (expiresAt is Timestamp && DateTime.now().isAfter(expiresAt.toDate())) {
-      return false;
-    }
-    return true;
-  }
-
-  bool _isNew(Map<String, dynamic> d) {
-    final createdAt = (d['createdAt'] as Timestamp?)?.toDate();
-    if (createdAt == null) return false;
-    return DateTime.now().difference(createdAt).inDays <= 7;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.backgroundDark,
       child: StreamBuilder<QuerySnapshot>(
-        stream: widget.userService.usersStream(),
+        stream: _usersStream,
         builder: (context, usersSnap) {
           if (usersSnap.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -81,7 +80,7 @@ class _UsersTabState extends State<UsersTab> {
           // documentos pequenos (id + poucos campos), coleção separada
           // de users_xp, então não pesa na lista principal.
           return StreamBuilder<QuerySnapshot>(
-            stream: widget.userService.suspensionsStream(),
+            stream: _suspensionsStream,
             builder: (context, suspSnap) {
               final suspendedIds = <String>{
                 if (suspSnap.hasData)
@@ -101,47 +100,15 @@ class _UsersTabState extends State<UsersTab> {
     List<QueryDocumentSnapshot> allDocs,
     Set<String> suspendedIds,
   ) {
-    // ── KPIs (sobre a base completa, antes de filtrar/pesquisar) ────
+    // ── KPIs (sobre a base completa, antes de pesquisar) ────────────
     final total = allDocs.length;
     int onlineCount = 0;
-    int premiumCount = 0;
-    int newCount = 0;
     for (final doc in allDocs) {
       final d = doc.data() as Map<String, dynamic>;
       if (_isOnline(d)) onlineCount++;
-      if (_isPremium(d)) premiumCount++;
-      if (_isNew(d)) newCount++;
     }
-    final suspendedCount = suspendedIds.length;
 
-    // ── Filtro por chip ──────────────────────────────────────────
-    var docs = allDocs.where((doc) {
-      final d = doc.data() as Map<String, dynamic>;
-      switch (_filter) {
-        case _UserFilter.all:
-          return true;
-        case _UserFilter.online:
-          return _isOnline(d);
-        case _UserFilter.premium:
-          return _isPremium(d);
-        case _UserFilter.active:
-          return true; // ordenação cuida disso, ver sort abaixo
-        case _UserFilter.newUsers:
-          return _isNew(d);
-        case _UserFilter.suspended:
-          return suspendedIds.contains(doc.id);
-      }
-    }).toList();
-
-    if (_filter == _UserFilter.active) {
-      docs.sort((a, b) {
-        final da = a.data() as Map<String, dynamic>;
-        final db = b.data() as Map<String, dynamic>;
-        final xpA = (da['totalXp'] as num?)?.toInt() ?? 0;
-        final xpB = (db['totalXp'] as num?)?.toInt() ?? 0;
-        return xpB.compareTo(xpA);
-      });
-    }
+    var docs = allDocs;
 
     // ── Pesquisa: nome, username, e-mail, UID ───────────────────────
     if (_search.trim().isNotEmpty) {
@@ -169,11 +136,10 @@ class _UsersTabState extends State<UsersTab> {
               _KpiRow(
                 total: total,
                 online: onlineCount,
-                premium: premiumCount,
-                newUsers: newCount,
               ),
               const SizedBox(height: 10),
               TextField(
+                controller: _searchController,
                 onChanged: (v) => setState(() => _search = v),
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 decoration: InputDecoration(
@@ -188,7 +154,10 @@ class _UsersTabState extends State<UsersTab> {
                       ? IconButton(
                           icon: const Icon(Icons.close_rounded,
                               color: AppColors.textSecondary, size: 18),
-                          onPressed: () => setState(() => _search = ''),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _search = '');
+                          },
                         )
                       : null,
                   filled: true,
@@ -200,19 +169,7 @@ class _UsersTabState extends State<UsersTab> {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-              _FilterChips(
-                selected: _filter,
-                counts: {
-                  _UserFilter.all: total,
-                  _UserFilter.online: onlineCount,
-                  _UserFilter.premium: premiumCount,
-                  _UserFilter.active: total,
-                  _UserFilter.newUsers: newCount,
-                  _UserFilter.suspended: suspendedCount,
-                },
-                onSelect: (f) => setState(() => _filter = f),
-              ),
+              const SizedBox(height: 6),
             ],
           ),
         ),
@@ -220,7 +177,7 @@ class _UsersTabState extends State<UsersTab> {
           icon: Icons.people_rounded,
           iconColor: AppColors.primaryOrange,
           text:
-              '${docs.length} resultado${docs.length != 1 ? 's' : ''}${_search.isNotEmpty || _filter != _UserFilter.all ? ' (de $total)' : ''}',
+              '${docs.length} resultado${docs.length != 1 ? 's' : ''}${_search.isNotEmpty ? ' (de $total)' : ''}',
         ),
         Expanded(
           child: docs.isEmpty
@@ -260,14 +217,10 @@ class _UsersTabState extends State<UsersTab> {
 class _KpiRow extends StatelessWidget {
   final int total;
   final int online;
-  final int premium;
-  final int newUsers;
 
   const _KpiRow({
     required this.total,
     required this.online,
-    required this.premium,
-    required this.newUsers,
   });
 
   @override
@@ -275,10 +228,6 @@ class _KpiRow extends StatelessWidget {
     final items = [
       (Icons.people_alt_rounded, 'Total', '$total', AppColors.primaryOrange),
       (Icons.circle, 'Online', '$online', const Color(0xFF43B581)),
-      (Icons.workspace_premium_rounded, 'Premium', '$premium',
-          const Color(0xFFF2B705)),
-      (Icons.fiber_new_rounded, 'Novos (7d)', '$newUsers',
-          const Color(0xFF4FC3F7)),
     ];
     return Row(
       children: [
@@ -333,95 +282,5 @@ class _KpiCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// FILTROS
+// (chips de filtro removidos — a aba mostra sempre todos os usuários)
 // ═══════════════════════════════════════════════════════════════════
-class _FilterChips extends StatelessWidget {
-  final _UserFilter selected;
-  final Map<_UserFilter, int> counts;
-  final ValueChanged<_UserFilter> onSelect;
-
-  const _FilterChips({
-    required this.selected,
-    required this.counts,
-    required this.onSelect,
-  });
-
-  static const _labels = {
-    _UserFilter.all: 'Todos',
-    _UserFilter.online: 'Online',
-    _UserFilter.premium: 'Premium/Ultra',
-    _UserFilter.active: 'Mais ativos',
-    _UserFilter.newUsers: 'Novos',
-    _UserFilter.suspended: 'Suspensos',
-  };
-
-  static const _icons = {
-    _UserFilter.all: Icons.apps_rounded,
-    _UserFilter.online: Icons.circle,
-    _UserFilter.premium: Icons.workspace_premium_rounded,
-    _UserFilter.active: Icons.trending_up_rounded,
-    _UserFilter.newUsers: Icons.fiber_new_rounded,
-    _UserFilter.suspended: Icons.block_rounded,
-  };
-
-  static const _colors = {
-    _UserFilter.all: AppColors.primaryOrange,
-    _UserFilter.online: Color(0xFF43B581),
-    _UserFilter.premium: Color(0xFFF2B705),
-    _UserFilter.active: Color(0xFFFFD54F),
-    _UserFilter.newUsers: Color(0xFF4FC3F7),
-    _UserFilter.suspended: Color(0xFFEF5350),
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final f in _UserFilter.values) ...[
-            _chip(f),
-            const SizedBox(width: 8),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _chip(_UserFilter f) {
-    final isSelected = selected == f;
-    final color = _colors[f]!;
-    final count = counts[f] ?? 0;
-    return GestureDetector(
-      onTap: () => onSelect(f),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? color : AppColors.borderDark,
-            width: isSelected ? 1.4 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(_icons[f], size: 12,
-                color: isSelected ? color : AppColors.textSecondary),
-            const SizedBox(width: 5),
-            Text(
-              '${_labels[f]} ($count)',
-              style: TextStyle(
-                color: isSelected ? color : AppColors.textSecondary,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
