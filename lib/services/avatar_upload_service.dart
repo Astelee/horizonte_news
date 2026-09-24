@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 /// Upload de fotos de perfil para o Cloudinary.
@@ -37,7 +38,7 @@ class AvatarUploadService {
 
     debugPrint(
       'AvatarUploadService: iniciando upload '
-      '(${fileLength} bytes)',
+      '($fileLength bytes)',
     );
 
     final request = http.MultipartRequest(
@@ -47,7 +48,6 @@ class AvatarUploadService {
 
     request.fields['upload_preset'] = uploadPreset;
 
-    // Mantém o arquivo original como PNG gerado pelo crop_your_image.
     request.files.add(
       await http.MultipartFile.fromPath(
         'file',
