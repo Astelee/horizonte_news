@@ -135,9 +135,9 @@ class _OverviewTabState extends State<OverviewTab> {
                   onTap: widget.onGoToNews,
                 ),
                 const SizedBox(height: 22),
-                _buildKpiGrid(data),
-                const SizedBox(height: 26),
                 _buildManagementCenter(),
+                const SizedBox(height: 26),
+                _buildKpiGrid(data),
                 const SizedBox(height: 22),
                 _buildLevelDistribution(data),
                 const SizedBox(height: 22),
@@ -154,64 +154,18 @@ class _OverviewTabState extends State<OverviewTab> {
   // por usuário individual como total/online/suspensos agora vivem
   // só na aba Usuários e no perfil de cada um, para não duplicar) ──
   Widget _buildKpiGrid(DashboardSnapshot data) {
-    final items = <(IconData, Color, String, int, VoidCallback?)>[
-      (
-        Icons.bolt_rounded,
-        const Color(0xFFFFD54F),
-        'XP total da comunidade',
-        data.totalXp,
-        null,
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SizedBox(
+        width: 150,
+        child: StatCardCompact(
+          icon: Icons.chat_bubble_rounded,
+          color: const Color(0xFF9575CD),
+          label: 'Comentários',
+          value: data.totalComments,
+          onTap: widget.onGoToComments,
+        ),
       ),
-      (
-        Icons.access_time_filled_rounded,
-        const Color(0xFF4FC3F7),
-        'Ativos nas últimas 24h',
-        data.activeToday,
-        null,
-      ),
-      (
-        Icons.chat_bubble_rounded,
-        const Color(0xFF9575CD),
-        'Comentários',
-        data.totalComments,
-        widget.onGoToComments,
-      ),
-      (
-        Icons.visibility_rounded,
-        const Color(0xFFEF5350),
-        'Visualizações\n(top matérias)',
-        data.totalViews,
-        null,
-      ),
-      (
-        Icons.share_rounded,
-        const Color(0xFF66BB6A),
-        'Compartilhamentos',
-        data.totalShares,
-        null,
-      ),
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: items.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 0.92,
-      ),
-      itemBuilder: (context, i) {
-        final item = items[i];
-        return StatCardCompact(
-          icon: item.$1,
-          color: item.$2,
-          label: item.$3,
-          value: item.$4,
-          onTap: item.$5,
-        );
-      },
     );
   }
 
