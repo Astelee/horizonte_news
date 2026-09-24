@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../config/app_colors.dart';
 import '../../../models/category_model.dart';
@@ -413,7 +414,8 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
                                     hint:
                                         'Texto da notícia. Pode conter HTML simples (<p>, <b>, <h2>...).',
                                     maxLines: 10,
-                                    focusNode: _contentFocusNode),
+                                    focusNode: _contentFocusNode,
+                                    quietSelectionHaptics: true),
                               ],
                             ),
                             const SizedBox(height: 16),
@@ -687,13 +689,26 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
   }
 
   Widget _textField(TextEditingController controller,
-      {String? hint, int maxLines = 1, FocusNode? focusNode}) {
+      {String? hint,
+      int maxLines = 1,
+      FocusNode? focusNode,
+      bool quietSelectionHaptics = false}) {
     return TextField(
       controller: controller,
       focusNode: focusNode,
       maxLines: maxLines,
       style: const TextStyle(color: Colors.white, fontSize: 14),
       cursorColor: AppColors.primaryOrange,
+      // Some Android keyboards fire a strong haptic pulse on every
+      // character the selection handle passes over while dragging.
+      // That's controlled by the system keyboard, not this widget —
+      // but Flutter's own selection-handle-drag haptic (a separate,
+      // smaller pulse) can be turned off here for fields where quick,
+      // repeated re-selecting is common (ex.: the long content field,
+      // used to select snippets to wrap with formatting tags).
+      selectionControls: quietSelectionHaptics
+          ? _QuietSelectionControls(materialTextSelectionControls)
+          : null,
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Color(0xFF666666), fontSize: 13),
@@ -1051,6 +1066,96 @@ class _EditorStaticBackgroundPainter extends CustomPainter {
 
 // ═══════════════════════════════════════════════════════════════════
 // CONTROLLER COM PRÉVIA VISUAL DE FORMATAÇÃO
+// Envolve os TextSelectionControls padrão do Material só para remover
+// o retorno háptico que o Flutter dispara ao arrastar as alças de
+// seleção (início/fim do trecho selecionado). Em campos longos, onde
+// o ADM fica selecionando e reselecionando trechos várias vezes para
+// aplicar negrito/destaque, esse pulso constante incomoda. O resto do
+// comportamento (alças, menu de copiar/colar, toque duplo) continua
+// idêntico ao padrão — só o handleHaptic vira um no-op.
+class _QuietSelectionControls extends TextSelectionControls {
+  _QuietSelectionControls(this._base);
+
+  final TextSelectionControls _base;
+
+  @override
+  void handleHaptic() {
+    // Sem feedback tátil próprio do Flutter aqui. A vibração mais forte
+    // que pode aparecer ao arrastar a seleção normalmente vem do
+    // teclado do Android (Gboard), não deste widget, e não tem como
+    // ser controlada pelo app.
+  }
+
+  @override
+  Widget buildHandle(
+    BuildContext context,
+    TextSelectionHandleType type,
+    double textLineHeight, [
+    VoidCallback? onTap,
+  ]) =>
+      _base.buildHandle(context, type, textLineHeight, onTap);
+
+  @override
+  Widget buildToolbar(
+    BuildContext context,
+    Rect globalEditableRegion,
+    double textLineHeight,
+    Offset selectionMidpoint,
+    List<TextSelectionPoint> endpoints,
+    TextSelectionDelegate delegate,
+    ClipboardStatusNotifier? clipboardStatus,
+    Offset? lastSecondaryTapDownPosition,
+  ) =>
+      _base.buildToolbar(
+        context,
+        globalEditableRegion,
+        textLineHeight,
+        selectionMidpoint,
+        endpoints,
+        delegate,
+        clipboardStatus,
+        lastSecondaryTapDownPosition,
+      );
+
+  @override
+  Size getHandleSize(double textLineHeight) =>
+      _base.getHandleSize(textLineHeight);
+
+  @override
+  Offset getHandleAnchor(
+          TextSelectionHandleType type, double textLineHeight) =>
+      _base.getHandleAnchor(type, textLineHeight);
+
+  @override
+  bool canCut(TextSelectionDelegate delegate) => _base.canCut(delegate);
+
+  @override
+  bool canCopy(TextSelectionDelegate delegate) => _base.canCopy(delegate);
+
+  @override
+  bool canPaste(TextSelectionDelegate delegate) => _base.canPaste(delegate);
+
+  @override
+  bool canSelectAll(TextSelectionDelegate delegate) =>
+      _base.canSelectAll(delegate);
+
+  @override
+  void handleCut(TextSelectionDelegate delegate, [ClipboardStatusNotifier? c]) =>
+      _base.handleCut(delegate, c);
+
+  @override
+  void handleCopy(TextSelectionDelegate delegate, [ClipboardStatusNotifier? c]) =>
+      _base.handleCopy(delegate, c);
+
+  @override
+  Future<void> handlePaste(TextSelectionDelegate delegate) =>
+      _base.handlePaste(delegate);
+
+  @override
+  void handleSelectAll(TextSelectionDelegate delegate) =>
+      _base.handleSelectAll(delegate);
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Faz o campo "Conteúdo completo" mostrar, em tempo real, o efeito da
 // formatação inserida pela toolbar: o trecho entre <mark>...</mark>
