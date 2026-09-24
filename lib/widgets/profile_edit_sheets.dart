@@ -1,14 +1,15 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../config/app_colors.dart';
 import '../services/avatar_upload_service.dart';
 import '../services/avatar_approval_service.dart';
+import 'avatar_crop_screen.dart';
 
 /// Bottom sheets reutilizáveis para edição de perfil (nome, ID de
 /// usuário e foto). Usados tanto em Configurações quanto na aba
@@ -497,53 +498,43 @@ Future<void> pickAndUploadAvatar(
   );
 
   if (picked == null) return;
-
-  // Pequena pausa antes de abrir o cropper: no Android, disparar uma
-  // segunda Activity (o cropper) imediatamente após receber o
-  // resultado da primeira (o picker) pode colidir com a transação de
-  // retorno ainda em andamento e crashar com "Reply already
-  // submitted". Esperar um frame evita a corrida.
-  await Future.delayed(const Duration(milliseconds: 300));
   if (!context.mounted) return;
 
   // Etapa de recorte: deixa o usuário ajustar enquadramento/zoom antes
-  // do upload, com máscara circular igual ao avatar final. Se ele
-  // cancelar o recorte, aborta sem subir nada (mesmo comportamento de
-  // quando cancela a escolha da imagem).
-  final cropped = await ImageCropper().cropImage(
-    sourcePath: picked.path,
-    compressFormat: ImageCompressFormat.jpg,
-    compressQuality: 85,
-    uiSettings: [
-      AndroidUiSettings(
-        toolbarTitle: 'Ajustar foto',
-        toolbarColor: AppColors.backgroundDark,
-        toolbarWidgetColor: Colors.white,
-        backgroundColor: AppColors.backgroundDark,
-        activeControlsWidgetColor: AppColors.primaryOrange,
-        cropFrameColor: AppColors.primaryOrange,
-        cropGridColor: Colors.white24,
-        lockAspectRatio: true,
-        cropStyle: CropStyle.circle,
-        hideBottomControls: false,
-      ),
-      IOSUiSettings(
-        title: 'Ajustar foto',
-        aspectRatioLockEnabled: true,
-        cropStyle: CropStyle.circle,
-        resetAspectRatioEnabled: false,
-      ),
-    ],
+  // do upload, com máscara circular igual ao avatar final. Usa uma
+  // tela própria (Crop widget, 100% Flutter) em vez de um plugin que
+  // abre uma Activity nativa separada — o antigo image_cropper
+  // causava crash ("Reply already submitted") por colidir com o
+  // image_picker no retorno de resultado da Activity no Android. Se
+  // o usuário cancelar o recorte, aborta sem subir nada.
+  final imageBytes = await File(picked.path).readAsBytes();
+  if (!context.mounted) return;
+
+  final Uint8List? croppedBytes = await Navigator.push<Uint8List>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => AvatarCropScreen(imageBytes: imageBytes),
+      fullscreenDialog: true,
+    ),
   );
 
-  if (cropped == null) return;
+  if (croppedBytes == null) return;
+  if (!context.mounted) return;
 
-  onUploading(cropped.path);
+  // Salva os bytes recortados em um arquivo temporário: o serviço de
+  // upload (Cloudinary) espera um File, não bytes crus.
+  final tempDir = Directory.systemTemp;
+  final tempFile = File(
+    '${tempDir.path}/avatar_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.png',
+  );
+  await tempFile.writeAsBytes(croppedBytes);
+
+  onUploading(tempFile.path);
 
   try {
     final avatarService = AvatarUploadService();
     final url = await avatarService.uploadAvatar(
-      file: File(cropped.path),
+      file: tempFile,
       uid: user.uid,
     );
 
