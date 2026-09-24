@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // ✅ AdMob adicionado
@@ -31,6 +32,15 @@ void main() async {
       projectId: 'horizontenews-6b48f',
       storageBucket: 'horizontenews-6b48f.firebasestorage.app',
     ),
+  );
+
+  // ✅ App Check: garante que só o app real (assinado com nossas
+  // chaves, verificado via Play Integrity) consegue chamar as APIs
+  // do Firebase (Auth, Firestore etc). Precisa rodar logo após o
+  // initializeApp e ANTES de qualquer outra chamada Firebase, senão
+  // essas primeiras chamadas saem sem o token de proteção.
+  await FirebaseAppCheck.instance.activate(
+    androidProvider: AndroidProvider.playIntegrity,
   );
 
   // ✅ Verifica a preferência de "Lembrar login" ANTES de exibir
