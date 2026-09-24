@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
 import '../services/admin_user_service.dart';
 import 'admin_shared_widgets.dart';
+import 'user_profile_sheet.dart';
 
 class AdminBannedTile extends StatelessWidget {
   final String userId;
@@ -88,8 +89,19 @@ class AdminBannedTile extends StatelessWidget {
           email = (ud['email'] as String?) ?? '';
         }
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => showUserProfileSheet(
+            context,
+            userId: userId,
+            userService: userService,
+          ),
+          child: Ink(
+          padding: EdgeInsets.zero,
           decoration: BoxDecoration(
             color: const Color(0xFF0A0A0A),
             borderRadius: BorderRadius.circular(14),
@@ -199,40 +211,56 @@ class AdminBannedTile extends StatelessWidget {
                           : const Color(0xFFFF9800),
                 ),
                 const SizedBox(height: 14),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: AdminActionButton(
-                    icon: Icons.lock_open_rounded,
-                    label: 'Remover banimento',
-                    color: const Color(0xFF66BB6A),
-                    onTap: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (_) => AdminConfirmDialog(
-                          title: 'Remover banimento?',
-                          message: '$name poderá comentar novamente.',
-                          confirmLabel: 'Remover',
-                          confirmColor: const Color(0xFF66BB6A),
-                        ),
-                      );
-                      if (confirm == true) {
-                        await userService.unsuspendUser(userId);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                  'Banimento de $name removido.'),
-                              backgroundColor:
-                                  const Color(0xFF66BB6A),
-                            ),
-                          );
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    AdminActionButton(
+                      icon: Icons.badge_rounded,
+                      label: 'Ver perfil',
+                      color: AppColors.primaryOrange,
+                      onTap: () => showUserProfileSheet(
+                        context,
+                        userId: userId,
+                        userService: userService,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    AdminActionButton(
+                      icon: Icons.lock_open_rounded,
+                      label: 'Remover banimento',
+                      color: const Color(0xFF66BB6A),
+                      onTap: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (_) => AdminConfirmDialog(
+                            title: 'Remover banimento?',
+                            message: '$name poderá comentar novamente.',
+                            confirmLabel: 'Remover',
+                            confirmColor: const Color(0xFF66BB6A),
+                          ),
+                        );
+                        if (confirm == true) {
+                          await userService.unsuspendUser(userId);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Banimento de $name removido.'),
+                                backgroundColor:
+                                    const Color(0xFF66BB6A),
+                              ),
+                            );
+                          }
                         }
-                      }
-                    },
-                  ),
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
+          ),
+          ),
+          ),
           ),
         );
       },
