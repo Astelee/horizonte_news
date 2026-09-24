@@ -74,6 +74,36 @@ class AdminUserService {
     return doc.data();
   }
 
+  /// Stream ao vivo do documento de UM usuário — usado pelo perfil
+  /// administrativo individual (aberto sob demanda, não pela lista).
+  Stream<DocumentSnapshot<Map<String, dynamic>>> userDocStream(String uid) {
+    return _db.collection('users_xp').doc(uid).snapshots();
+  }
+
+  /// Histórico de ações administrativas sobre UM usuário específico
+  /// (admin_logs.targetId == uid), carregado só quando o perfil é
+  /// aberto — evita puxar o log inteiro do sistema para a lista.
+  Stream<List<Map<String, dynamic>>> userLogsStream(
+    String uid, {
+    int limit = 30,
+  }) {
+    return _db
+        .collection('admin_logs')
+        .where('targetId', isEqualTo: uid)
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
+  }
+
+  /// Status de suspensão de UM usuário, em tempo real — usado pelo
+  /// perfil individual para refletir instantaneamente uma ação de
+  /// suspender/remover suspensão feita ali mesmo.
+  Stream<DocumentSnapshot<Map<String, dynamic>>> suspensionDocStream(
+      String uid) {
+    return _db.collection('suspensions').doc(uid).snapshots();
+  }
+
   // ── Override de NÍVEL (moldura, XP, cor) ─────────────────────────
 
   Future<void> applyLevelOverride(String uid, int level) async {
