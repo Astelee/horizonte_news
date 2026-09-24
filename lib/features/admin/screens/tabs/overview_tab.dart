@@ -9,9 +9,7 @@ import '../../services/admin_dashboard_service.dart';
 import '../../services/admin_user_service.dart';
 import '../../services/admin_news_service.dart';
 import '../../services/admin_comment_service.dart';
-import '../../models/admin_log_model.dart';
 import '../../widgets/dashboard_widgets.dart';
-import '../../widgets/user_profile_sheet.dart';
 
 class OverviewTab extends StatefulWidget {
   final AdminDashboardService dashboardService;
@@ -95,16 +93,6 @@ class _OverviewTabState extends State<OverviewTab> {
     }
   }
 
-  String _timeAgo(DateTime? d) {
-    if (d == null) return '—';
-    final diff = DateTime.now().difference(d);
-    if (diff.inSeconds < 60) return 'agora mesmo';
-    if (diff.inMinutes < 60) return 'há ${diff.inMinutes} min';
-    if (diff.inHours < 24) return 'há ${diff.inHours}h';
-    if (diff.inDays < 30) return 'há ${diff.inDays}d';
-    return 'há ${(diff.inDays / 30).floor()} meses';
-  }
-
   @override
   Widget build(BuildContext context) {
     final data = _data;
@@ -154,14 +142,6 @@ class _OverviewTabState extends State<OverviewTab> {
                 _buildLevelDistribution(data),
                 const SizedBox(height: 22),
                 _buildTopRanking(data),
-                const SizedBox(height: 22),
-                _buildTopPosts(data),
-                const SizedBox(height: 22),
-                _buildTopShared(data),
-                const SizedBox(height: 22),
-                _buildRecentActivity(),
-                const SizedBox(height: 22),
-                _buildRecentlyActiveUsers(data),
               ],
             ),
           );
@@ -170,108 +150,68 @@ class _OverviewTabState extends State<OverviewTab> {
     );
   }
 
-  // ── KPIs principais ────────────────────────────────────────────
+  // ── KPIs gerais do sistema (não específicos de um usuário — dados
+  // por usuário individual como total/online/suspensos agora vivem
+  // só na aba Usuários e no perfil de cada um, para não duplicar) ──
   Widget _buildKpiGrid(DashboardSnapshot data) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: StatCard(
-                icon: Icons.people_alt_rounded,
-                color: AppColors.primaryOrange,
-                label: 'Usuários totais',
-                value: data.totalUsers,
-                onTap: widget.onGoToUsers,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: StreamBuilder<int>(
-                stream: widget.dashboardService.onlineNowStream(),
-                initialData: data.onlineNow,
-                builder: (context, snapshot) {
-                  return StatCard(
-                    icon: Icons.circle,
-                    color: const Color(0xFF43B581),
-                    label: 'Online agora',
-                    value: snapshot.data ?? data.onlineNow,
-                    live: true,
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: StatCard(
-                icon: Icons.bolt_rounded,
-                color: const Color(0xFFFFD54F),
-                label: 'XP total da comunidade',
-                value: data.totalXp,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: StatCard(
-                icon: Icons.access_time_filled_rounded,
-                color: const Color(0xFF4FC3F7),
-                label: 'Ativos nas últimas 24h',
-                value: data.activeToday,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: StatCard(
-                icon: Icons.chat_bubble_rounded,
-                color: const Color(0xFF9575CD),
-                label: 'Comentários',
-                value: data.totalComments,
-                onTap: widget.onGoToComments,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: StatCard(
-                icon: Icons.visibility_rounded,
-                color: const Color(0xFFEF5350),
-                label: 'Visualizações (top matérias)',
-                value: data.totalViews,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: StatCard(
-                icon: Icons.block_rounded,
-                color: const Color(0xFFE53935),
-                label: 'Usuários suspensos',
-                value: data.totalSuspended,
-                onTap: widget.onGoToBanned,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: StatCard(
-                icon: Icons.share_rounded,
-                color: const Color(0xFF66BB6A),
-                label: 'Compartilhamentos',
-                value: data.totalShares,
-              ),
-            ),
-          ],
-        ),
-      ],
+    final items = <(IconData, Color, String, int, VoidCallback?)>[
+      (
+        Icons.bolt_rounded,
+        const Color(0xFFFFD54F),
+        'XP total da comunidade',
+        data.totalXp,
+        null,
+      ),
+      (
+        Icons.access_time_filled_rounded,
+        const Color(0xFF4FC3F7),
+        'Ativos nas últimas 24h',
+        data.activeToday,
+        null,
+      ),
+      (
+        Icons.chat_bubble_rounded,
+        const Color(0xFF9575CD),
+        'Comentários',
+        data.totalComments,
+        widget.onGoToComments,
+      ),
+      (
+        Icons.visibility_rounded,
+        const Color(0xFFEF5350),
+        'Visualizações\n(top matérias)',
+        data.totalViews,
+        null,
+      ),
+      (
+        Icons.share_rounded,
+        const Color(0xFF66BB6A),
+        'Compartilhamentos',
+        data.totalShares,
+        null,
+      ),
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: items.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 0.92,
+      ),
+      itemBuilder: (context, i) {
+        final item = items[i];
+        return StatCardCompact(
+          icon: item.$1,
+          color: item.$2,
+          label: item.$3,
+          value: item.$4,
+          onTap: item.$5,
+        );
+      },
     );
   }
 
@@ -524,196 +464,6 @@ class _OverviewTabState extends State<OverviewTab> {
     );
   }
 
-  // ── Top posts mais vistos ───────────────────────────────────────
-  Widget _buildTopPosts(DashboardSnapshot data) {
-    if (data.topPosts.isEmpty) return const SizedBox.shrink();
-    final bars = data.topPosts
-        .map((p) => BarChartData(
-              p.title.length > 10 ? '${p.title.substring(0, 10)}…' : p.title,
-              p.totalViews.toDouble(),
-              AppColors.primaryOrange,
-            ))
-        .toList();
-
-    return DashCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          DashSectionTitle(
-            title: 'MATÉRIAS MAIS VISTAS',
-            icon: Icons.trending_up_rounded,
-            trailing: GestureDetector(
-              onTap: widget.onGoToViews,
-              child: const Text(
-                'ver todas',
-                style: TextStyle(
-                  color: AppColors.primaryOrange,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ),
-          AnimatedBarChart(data: bars),
-        ],
-      ),
-    );
-  }
-
-  // ── Top posts mais compartilhados ───────────────────────────────
-  Widget _buildTopShared(DashboardSnapshot data) {
-    if (data.topShared.isEmpty) return const SizedBox.shrink();
-    final bars = data.topShared
-        .map((p) => BarChartData(
-              p.title.length > 10 ? '${p.title.substring(0, 10)}…' : p.title,
-              p.totalViews.toDouble(),
-              const Color(0xFF66BB6A),
-            ))
-        .toList();
-
-    return DashCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const DashSectionTitle(
-            title: 'MATÉRIAS MAIS COMPARTILHADAS',
-            icon: Icons.share_rounded,
-          ),
-          AnimatedBarChart(data: bars),
-        ],
-      ),
-    );
-  }
-
-  // ── Atividade recente (admin_logs) ──────────────────────────────
-  Widget _buildRecentActivity() {
-    return DashCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const DashSectionTitle(
-            title: 'ATIVIDADE RECENTE',
-            icon: Icons.history_rounded,
-          ),
-          StreamBuilder<List<Map<String, dynamic>>>(
-            stream: widget.dashboardService.recentLogsStream(),
-            builder: (context, snap) {
-              if (!snap.hasData) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: ShimmerBox(height: 60),
-                );
-              }
-              final logs = snap.data!;
-              if (logs.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Text(
-                    'Nenhuma ação administrativa registrada ainda.',
-                    style: TextStyle(
-                        color: AppColors.textMuted, fontSize: 12),
-                  ),
-                );
-              }
-              return Column(
-                children: logs.map((l) {
-                  final log = _logFromMap(l);
-                  return _ActivityRow(log: log, timeAgo: _timeAgo);
-                }).toList(),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Usuários mais recentemente ativos ───────────────────────────
-  Widget _buildRecentlyActiveUsers(DashboardSnapshot data) {
-    if (data.mostRecentlyActive.isEmpty) return const SizedBox.shrink();
-    return DashCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const DashSectionTitle(
-            title: 'ATIVIDADE DE USUÁRIOS RECENTE',
-            icon: Icons.person_pin_circle_rounded,
-          ),
-          for (final u in data.mostRecentlyActive)
-            InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () => showUserProfileSheet(
-                context,
-                userId: u.uid,
-                userService: widget.userService,
-              ),
-              child: Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                children: [
-                  Stack(
-                    children: [
-                      AppAvatar(name: u.name, seed: u.uid, size: 34),
-                      if (u.isOnline)
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0xFF43B581),
-                              border: Border.all(
-                                  color: const Color(0xFF0A0A0A), width: 2),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          u.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(
-                          'Nv ${u.level} · ${BadgeConfig.levelTitle(u.level)}',
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    _timeAgo(u.lastActivity),
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right_rounded,
-                      color: AppColors.textMuted, size: 16),
-                ],
-              ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1201,125 +951,4 @@ class _RankRow extends StatelessWidget {
       ],
     );
   }
-}
-
-class _ActivityRow extends StatelessWidget {
-  final AdminLogModel log;
-  final String Function(DateTime?) timeAgo;
-  const _ActivityRow({required this.log, required this.timeAgo});
-
-  IconData get _icon {
-    switch (log.action) {
-      case 'hide_comment':
-        return Icons.visibility_off_rounded;
-      case 'restore_comment':
-        return Icons.visibility_rounded;
-      case 'delete_comment':
-        return Icons.delete_rounded;
-      case 'suspend_user':
-        return Icons.block_rounded;
-      case 'unsuspend_user':
-        return Icons.check_circle_rounded;
-      case 'level_override':
-      case 'title_override':
-        return Icons.auto_awesome_rounded;
-      case 'level_reset':
-      case 'title_reset':
-        return Icons.restart_alt_rounded;
-      default:
-        return Icons.bolt_rounded;
-    }
-  }
-
-  Color get _color {
-    switch (log.action) {
-      case 'suspend_user':
-      case 'delete_comment':
-        return const Color(0xFFE53935);
-      case 'unsuspend_user':
-      case 'restore_comment':
-        return const Color(0xFF43B581);
-      case 'level_override':
-      case 'title_override':
-        return const Color(0xFFFFD700);
-      default:
-        return AppColors.primaryOrange;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: _color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(_icon, size: 13, color: _color),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  log.actionLabel,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  'por ${log.adminName}',
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            timeAgo(log.timestamp),
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Constrói um [AdminLogModel] diretamente a partir do Map retornado pelo
-/// stream de logs (evita depender de um DocumentSnapshot real).
-AdminLogModel _logFromMap(Map<String, dynamic> d) {
-  final extra = Map<String, dynamic>.from(d)
-    ..remove('id')
-    ..remove('adminUid')
-    ..remove('adminName')
-    ..remove('action')
-    ..remove('targetId')
-    ..remove('targetType')
-    ..remove('postId')
-    ..remove('timestamp');
-  return AdminLogModel(
-    id: d['id'] as String? ?? '',
-    adminUid: d['adminUid'] as String? ?? '',
-    adminName: d['adminName'] as String? ?? 'Admin',
-    action: d['action'] as String? ?? '',
-    targetId: d['targetId'] as String? ?? '',
-    targetType: d['targetType'] as String? ?? 'unknown',
-    postId: d['postId'] as String?,
-    timestamp: (d['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    extra: extra,
-  );
 }
