@@ -377,10 +377,10 @@ class _CheckinScreenState extends State<CheckinScreen>
               children: [
                 _buildStreakHero(),
                 const SizedBox(height: 16),
-                _buildProgressTrack(),
-                const SizedBox(height: 16),
                 if (_recoverableDays > 0) _buildRecoverableBanner(),
                 if (_recoverableDays > 0) const SizedBox(height: 16),
+                _buildCheckInButton(),
+                const SizedBox(height: 16),
                 _loadingMonth
                     ? const Padding(
                         padding: EdgeInsets.symmetric(vertical: 60),
@@ -400,10 +400,10 @@ class _CheckinScreenState extends State<CheckinScreen>
                         onNextMonth: () => _goToMonth(1),
                         onDayTap: _handleDayTap,
                       ),
+                const SizedBox(height: 16),
+                _buildProgressTrack(),
                 const SizedBox(height: 20),
                 _buildRewardVault(),
-                const SizedBox(height: 24),
-                _buildCheckInButton(),
               ],
             ),
           ),
@@ -425,7 +425,7 @@ class _CheckinScreenState extends State<CheckinScreen>
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
             child: Container(
-              padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
+              padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(28),
                 gradient: LinearGradient(
@@ -452,22 +452,22 @@ class _CheckinScreenState extends State<CheckinScreen>
                 children: [
                   // Núcleo: chama grande (ou recompensa equipada).
                   SizedBox(
-                    width: 132,
-                    height: 132,
+                    width: 92,
+                    height: 92,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
                         Container(
-                          width: 118,
-                          height: 118,
+                          width: 82,
+                          height: 82,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
                                 color: AppColors.primaryOrange
                                     .withOpacity(0.35 * g),
-                                blurRadius: 44,
-                                spreadRadius: 6,
+                                blurRadius: 34,
+                                spreadRadius: 4,
                               ),
                             ],
                           ),
@@ -477,11 +477,11 @@ class _CheckinScreenState extends State<CheckinScreen>
                                     _equippedRewardKey) !=
                                 null)
                           CheckinRewardBadge(
-                              storageKey: _equippedRewardKey, size: 132)
+                              storageKey: _equippedRewardKey, size: 92)
                         else
                           Container(
-                            width: 92,
-                            height: 92,
+                            width: 64,
+                            height: 64,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               gradient: const LinearGradient(
@@ -497,7 +497,7 @@ class _CheckinScreenState extends State<CheckinScreen>
                             ),
                             child: const Center(
                               child: FaIcon(FontAwesomeIcons.fire,
-                                  color: Colors.white, size: 40),
+                                  color: Colors.white, size: 28),
                             ),
                           ),
                       ],
@@ -515,7 +515,7 @@ class _CheckinScreenState extends State<CheckinScreen>
                       '$_streak',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 64,
+                        fontSize: 52,
                         height: 1.0,
                         fontWeight: FontWeight.w900,
                         letterSpacing: -1,
@@ -583,7 +583,7 @@ class _CheckinScreenState extends State<CheckinScreen>
             children: [
               if (next != null) ...[
                 CheckinRewardArt(
-                    id: next.id, size: 44, locked: true, animate: false),
+                    id: next.id, size: 36, locked: true, animate: false),
                 const SizedBox(width: 12),
               ],
               Expanded(
@@ -975,7 +975,7 @@ class _RewardTile extends StatelessWidget {
               child: Center(
                 child: CheckinRewardArt(
                   id: reward.id,
-                  size: 84,
+                  size: 64,
                   locked: !unlocked,
                   // Só anima o que está desbloqueado (poupa bateria).
                   animate: unlocked,
@@ -1043,32 +1043,37 @@ class _RewardDetailSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            height: 150,
+            height: 108,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 Container(
-                  width: 120,
-                  height: 120,
+                  width: 86,
+                  height: 86,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: accent.withOpacity(unlocked ? 0.35 : 0.08),
-                        blurRadius: 46,
-                        spreadRadius: 4,
+                        color: accent.withOpacity(unlocked ? 0.35 : 0.22),
+                        blurRadius: 40,
+                        spreadRadius: 3,
                       ),
                     ],
                   ),
                 ),
-                CheckinRewardArt(
-                    id: reward.id, size: 150, locked: !unlocked),
+                // Prévia sempre "acesa" (arte real, cores completas):
+                // mesmo bloqueada, é uma prévia para o usuário ver
+                // como a recompensa é — só a tag "Bloqueado" e a
+                // condição abaixo deixam claro que ainda não foi
+                // conquistada. O efeito dessaturado (locked: true)
+                // fica reservado para os cards pequenos do cofre.
+                CheckinRewardArt(id: reward.id, size: 108, locked: false),
               ],
             ),
           ),
           const SizedBox(height: 10),
           Text(
-            unlocked ? reward.name : '???',
+            reward.name,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 20,
@@ -1077,7 +1082,7 @@ class _RewardDetailSheet extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${reward.kind.label} · ${reward.rarityLabel.toUpperCase()}',
+            '${reward.kind.label} · ${reward.rarityLabel.toUpperCase()} · ${reward.requiredStreak} DIAS',
             style: TextStyle(
               color: accent,
               fontSize: 10.5,
@@ -1098,7 +1103,9 @@ class _RewardDetailSheet extends StatelessWidget {
           if (reward.bonusXp > 0) ...[
             const SizedBox(height: 10),
             Text(
-              'Bônus do marco: +${reward.bonusXp} XP',
+              unlocked
+                  ? 'Conquistada aos ${reward.requiredStreak} dias · +${reward.bonusXp} XP'
+                  : 'Bônus do marco: +${reward.bonusXp} XP',
               style: const TextStyle(
                 color: Color(0xFFFFCA28),
                 fontSize: 12,
@@ -1171,25 +1178,25 @@ class _RewardUnlockedSheet extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           SizedBox(
-            height: 170,
+            height: 120,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 Container(
-                  width: 130,
-                  height: 130,
+                  width: 96,
+                  height: 96,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
                         color: accent.withOpacity(0.45),
-                        blurRadius: 56,
-                        spreadRadius: 8,
+                        blurRadius: 46,
+                        spreadRadius: 6,
                       ),
                     ],
                   ),
                 ),
-                CheckinRewardArt(id: reward.id, size: 170),
+                CheckinRewardArt(id: reward.id, size: 120),
               ],
             ),
           ),
