@@ -532,11 +532,15 @@ Future<void> pickAndUploadAvatar(
   onUploading(tempFile.path);
 
   try {
+    debugPrint('AVATAR: iniciando upload...');
+
     final avatarService = AvatarUploadService();
     final url = await avatarService.uploadAvatar(
       file: tempFile,
       uid: user.uid,
     );
+
+    debugPrint('AVATAR: upload concluído: $url');
 
     // Foto atual (aprovada), se houver — usada para poder mostrar
     // "voltou para a foto anterior" caso a nova seja rejeitada.
@@ -544,13 +548,15 @@ Future<void> pickAndUploadAvatar(
         .collection('users_xp')
         .doc(user.uid)
         .get();
-    final previousPhotoUrl =
-        (currentDoc.data() as Map<String, dynamic>?)?['photoUrl']
-            as String?;
+
+    final data = currentDoc.data();
+    final previousPhotoUrl = data?['photoUrl']?.toString();
 
     final userName = user.displayName ??
         user.email?.split('@').first ??
         'Leitor';
+
+    debugPrint('AVATAR: registrando aprovação...');
 
     await AvatarApprovalService().submitForApproval(
       uid: user.uid,
@@ -558,6 +564,8 @@ Future<void> pickAndUploadAvatar(
       newPhotoUrl: url,
       previousPhotoUrl: previousPhotoUrl,
     );
+
+    debugPrint('AVATAR: enviado para aprovação com sucesso.');
 
     onSaved(url);
 
@@ -571,15 +579,33 @@ Future<void> pickAndUploadAvatar(
         duration: const Duration(seconds: 5),
       );
     }
-  } catch (e) {
-    debugPrint('Erro no upload de avatar (Cloudinary): $e');
+  } catch (e, stackTrace) {
+    debugPrint('════════════════════════════════════════');
+    debugPrint('ERRO AO ENVIAR FOTO DE PERFIL');
+    debugPrint('Erro: $e');
+    debugPrint('StackTrace: $stackTrace');
+    debugPrint('════════════════════════════════════════');
+
     onError();
+
     if (context.mounted) {
       _showSnack(
         context,
-        'Erro ao enviar a foto.',
+        'Erro ao enviar a foto. Verifique sua conexão e tente novamente.',
         icon: Icons.error_rounded,
         success: false,
+        duration: const Duration(seconds: 6),
+      );
+    }
+  } finally {
+    // Remove o arquivo temporário criado após o recorte.
+    try {
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+    } catch (e) {
+      debugPrint(
+        'AVATAR: não foi possível apagar arquivo temporário: $e',
       );
     }
   }
