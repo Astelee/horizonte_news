@@ -498,6 +498,14 @@ Future<void> pickAndUploadAvatar(
 
   if (picked == null) return;
 
+  // Pequena pausa antes de abrir o cropper: no Android, disparar uma
+  // segunda Activity (o cropper) imediatamente após receber o
+  // resultado da primeira (o picker) pode colidir com a transação de
+  // retorno ainda em andamento e crashar com "Reply already
+  // submitted". Esperar um frame evita a corrida.
+  await Future.delayed(const Duration(milliseconds: 300));
+  if (!context.mounted) return;
+
   // Etapa de recorte: deixa o usuário ajustar enquadramento/zoom antes
   // do upload, com máscara circular igual ao avatar final. Se ele
   // cancelar o recorte, aborta sem subir nada (mesmo comportamento de
@@ -681,9 +689,17 @@ Future<void> showAvatarOptionsSheet(
                 'Trocar foto',
                 style: TextStyle(color: Colors.white),
               ),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(sheetContext);
-                pickAndUploadAvatar(
+                // Espera o bottom sheet terminar de fechar antes de
+                // abrir o picker/cropper (duas Activities nativas em
+                // sequência). Sem essa pausa, no Android o resultado
+                // do picker pode chegar enquanto a transação de fechar
+                // o sheet ainda está em andamento, causando o crash
+                // "Reply already submitted".
+                await Future.delayed(const Duration(milliseconds: 300));
+                if (!context.mounted) return;
+                await pickAndUploadAvatar(
                   context,
                   onUploading: onUploading,
                   onSaved: onSaved,
@@ -700,9 +716,11 @@ Future<void> showAvatarOptionsSheet(
                 'Remover foto',
                 style: TextStyle(color: Colors.redAccent),
               ),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(sheetContext);
-                removeAvatar(
+                await Future.delayed(const Duration(milliseconds: 300));
+                if (!context.mounted) return;
+                await removeAvatar(
                   context,
                   onRemoving: onRemoving,
                   onRemoved: onRemoved,
