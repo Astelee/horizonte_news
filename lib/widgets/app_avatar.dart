@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/initials_helper.dart';
 import '../config/premium_avatars_config.dart';
+import '../config/checkin_rewards_config.dart';
 import 'premium_avatars.dart';
+import 'checkin_reward_painters.dart';
 
 /// Avatar circular do app. Quando [photoUrl] é informado, exibe a foto
 /// de perfil do usuário; caso contrário, gera as iniciais do nome em
@@ -150,6 +152,11 @@ class AppAvatar extends StatelessWidget {
 /// um avatar animado premium equipado (equippedPremiumAvatarId), ele
 /// tem prioridade máxima sobre foto e iniciais; caso contrário, cai
 /// para o comportamento normal de [AppAvatar] (foto ou iniciais).
+/// Independente disso, se houver uma recompensa de Check-in equipada
+/// (equippedCheckinRewardId), ela é sobreposta como um selo no canto
+/// inferior direito — é o mesmo campo lido em `checkin_screen.dart`,
+/// aqui replicado para todo lugar que exibe o avatar do usuário
+/// (perfil, ranking, comentários, respostas, configurações...).
 ///
 /// Este é o único ponto de decisão dessa prioridade — usado como
 /// substituto direto de AppAvatar em todo lugar que já compõe
@@ -165,6 +172,10 @@ class UserAvatarDisplay extends StatelessWidget {
   /// comporta como um AppAvatar comum.
   final String? equippedPremiumAvatarId;
 
+  /// Chave salva em equippedCheckinRewardId (UserXpData). Quando nula
+  /// ou desconhecida, nenhum selo é desenhado.
+  final String? equippedCheckinRewardId;
+
   final double size;
   final bool showBorder;
   final Color? borderColor;
@@ -176,6 +187,7 @@ class UserAvatarDisplay extends StatelessWidget {
     this.seed,
     this.photoUrl,
     this.equippedPremiumAvatarId,
+    this.equippedCheckinRewardId,
     this.size = 44,
     this.showBorder = false,
     this.borderColor,
@@ -188,14 +200,14 @@ class UserAvatarDisplay extends StatelessWidget {
         PremiumAvatarIdX.fromStorageKey(equippedPremiumAvatarId);
     final hasPhoto = photoUrl != null && photoUrl!.trim().isNotEmpty;
 
-    Widget content;
+    Widget avatarContent;
     if (avatarId != null && hasPhoto) {
       // Tem avatar animado premium equipado E foto de perfil: em vez
       // de esconder a foto para sempre atrás do avatar, alterna entre
       // os dois em loop (avatar visível → foto revelada por alguns
       // segundos → avatar de volta...), para nenhum dos dois "sumir"
       // permanentemente.
-      content = _PremiumAvatarPhotoCycle(
+      avatarContent = _PremiumAvatarPhotoCycle(
         avatarId: avatarId,
         size: size,
         name: name,
@@ -206,7 +218,7 @@ class UserAvatarDisplay extends StatelessWidget {
       );
     } else if (avatarId != null) {
       // Sem foto salva: nada para alternar, mantém só o avatar.
-      content = ClipOval(
+      avatarContent = ClipOval(
         child: SizedBox(
           width: size,
           height: size,
@@ -214,13 +226,50 @@ class UserAvatarDisplay extends StatelessWidget {
         ),
       );
     } else {
-      content = AppAvatar(
+      avatarContent = AppAvatar(
         name: name,
         seed: seed,
         photoUrl: photoUrl,
         size: size,
         showBorder: showBorder,
         borderColor: borderColor,
+      );
+    }
+
+    final hasCheckinReward = CheckinRewardIdX.fromStorageKey(
+          equippedCheckinRewardId,
+        ) !=
+        null;
+
+    Widget content = avatarContent;
+    if (hasCheckinReward) {
+      // Selo no canto inferior direito, proporcional ao tamanho do
+      // avatar (não altera o tamanho/posição do avatar em si).
+      final badgeSize = (size * 0.42).clamp(14.0, 28.0);
+      content = SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            avatarContent,
+            Positioned(
+              right: -badgeSize * 0.12,
+              bottom: -badgeSize * 0.12,
+              child: Container(
+                padding: const EdgeInsets.all(1.5),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFF0A0A0A),
+                ),
+                child: CheckinRewardBadge(
+                  storageKey: equippedCheckinRewardId,
+                  size: badgeSize,
+                ),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
