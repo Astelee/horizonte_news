@@ -64,6 +64,18 @@ class PremiumAnimatedAvatar extends StatelessWidget {
         return _DeusaEstelarAvatar(size: size);
       case PremiumAvatarId.leaoDouradoReal:
         return _LeaoDouradoRealAvatar(size: size);
+      case PremiumAvatarId.orquideaLunar:
+        return _OrquideaLunarAvatar(size: size);
+      case PremiumAvatarId.borboletaCristal:
+        return _BorboletaCristalAvatar(size: size);
+      case PremiumAvatarId.florCerejeira:
+        return _FlorCerejeiraAvatar(size: size);
+      case PremiumAvatarId.coracaoAurora:
+        return _CoracaoAuroraAvatar(size: size);
+      case PremiumAvatarId.penaCisne:
+        return _PenaCisneAvatar(size: size);
+      case PremiumAvatarId.jardimZafira:
+        return _JardimZafiraAvatar(size: size);
     }
   }
 }
@@ -2464,4 +2476,702 @@ class _LeaoDouradoRealPainter extends CustomPainter {
   @override
   bool shouldRepaint(_LeaoDouradoRealPainter oldDelegate) =>
       oldDelegate.flame != flame || oldDelegate.glow != glow;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 17) ORQUÍDEA LUNAR — pétalas lilás desabrochando sob luz prateada
+// ═══════════════════════════════════════════════════════════════════
+class _OrquideaLunarAvatar extends StatefulWidget {
+  final double size;
+  const _OrquideaLunarAvatar({required this.size});
+
+  @override
+  State<_OrquideaLunarAvatar> createState() => _OrquideaLunarAvatarState();
+}
+
+class _OrquideaLunarAvatarState extends State<_OrquideaLunarAvatar>
+    with TickerProviderStateMixin {
+  late final AnimationController _bloomCtrl;
+  late final AnimationController _glowCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _bloomCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3200),
+    )..repeat(reverse: true);
+    _glowCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _bloomCtrl.dispose();
+    _glowCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _circleShell(
+      size: widget.size,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_bloomCtrl, _glowCtrl]),
+        builder: (context, _) => CustomPaint(
+          size: Size.square(widget.size),
+          painter: _OrquideaLunarPainter(
+            bloom: _bloomCtrl.value,
+            glow: _glowCtrl.value,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrquideaLunarPainter extends CustomPainter {
+  final double bloom;
+  final double glow;
+  _OrquideaLunarPainter({required this.bloom, required this.glow});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2;
+
+    final bgPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [const Color(0xFF2A1A38), const Color(0xFF0F0A14)],
+      ).createShader(Rect.fromCircle(center: center, radius: r));
+    canvas.drawCircle(center, r, bgPaint);
+
+    final openness = 0.7 + 0.3 * bloom;
+    const petalCount = 5;
+    for (int i = 0; i < petalCount; i++) {
+      final angle = (i / petalCount) * 2 * math.pi;
+      final len = r * 0.62 * openness;
+      final tip = Offset(
+        center.dx + math.cos(angle) * len,
+        center.dy + math.sin(angle) * len,
+      );
+      final spread = math.pi / petalCount * 0.75;
+      final c1 = Offset(
+        center.dx + math.cos(angle - spread) * len * 0.55,
+        center.dy + math.sin(angle - spread) * len * 0.55,
+      );
+      final c2 = Offset(
+        center.dx + math.cos(angle + spread) * len * 0.55,
+        center.dy + math.sin(angle + spread) * len * 0.55,
+      );
+
+      final petal = Path()
+        ..moveTo(center.dx, center.dy)
+        ..quadraticBezierTo(c1.dx, c1.dy, tip.dx, tip.dy)
+        ..quadraticBezierTo(c2.dx, c2.dy, center.dx, center.dy);
+
+      final petalPaint = Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.center,
+          end: Alignment(math.cos(angle).toDouble(), math.sin(angle).toDouble()),
+          colors: const [Color(0xFFCE93D8), Color(0xFF4A148C)],
+        ).createShader(Rect.fromCircle(center: center, radius: len));
+      canvas.drawPath(petal, petalPaint);
+    }
+
+    // Núcleo prateado pulsante
+    final glowRadius = r * (0.14 + 0.05 * math.sin(glow * 2 * math.pi));
+    final corePaint = Paint()
+      ..shader = RadialGradient(
+        colors: [Colors.white, const Color(0xFFE1BEE7).withOpacity(0.2)],
+      ).createShader(Rect.fromCircle(center: center, radius: glowRadius * 2));
+    canvas.drawCircle(center, glowRadius, corePaint);
+
+    // Poeira de luz orbitando
+    for (int i = 0; i < 6; i++) {
+      final a = glow * 2 * math.pi + i * math.pi / 3;
+      final d = r * 0.75;
+      final p = Offset(center.dx + math.cos(a) * d, center.dy + math.sin(a) * d);
+      final dust = Paint()..color = Colors.white.withOpacity(0.5);
+      canvas.drawCircle(p, 1.4, dust);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_OrquideaLunarPainter oldDelegate) =>
+      oldDelegate.bloom != bloom || oldDelegate.glow != glow;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 18) BORBOLETA DE CRISTAL — asas translúcidas batendo suavemente
+// ═══════════════════════════════════════════════════════════════════
+class _BorboletaCristalAvatar extends StatefulWidget {
+  final double size;
+  const _BorboletaCristalAvatar({required this.size});
+
+  @override
+  State<_BorboletaCristalAvatar> createState() =>
+      _BorboletaCristalAvatarState();
+}
+
+class _BorboletaCristalAvatarState extends State<_BorboletaCristalAvatar>
+    with TickerProviderStateMixin {
+  late final AnimationController _wingCtrl;
+  late final AnimationController _shimmerCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _wingCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _wingCtrl.dispose();
+    _shimmerCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _circleShell(
+      size: widget.size,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_wingCtrl, _shimmerCtrl]),
+        builder: (context, _) => CustomPaint(
+          size: Size.square(widget.size),
+          painter: _BorboletaCristalPainter(
+            wing: _wingCtrl.value,
+            shimmer: _shimmerCtrl.value,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BorboletaCristalPainter extends CustomPainter {
+  final double wing;
+  final double shimmer;
+  _BorboletaCristalPainter({required this.wing, required this.shimmer});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2;
+
+    final bgPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [const Color(0xFF14262B), const Color(0xFF0A1114)],
+      ).createShader(Rect.fromCircle(center: center, radius: r));
+    canvas.drawCircle(center, r, bgPaint);
+
+    final flap = 0.35 + 0.65 * wing;
+
+    for (final side in [-1.0, 1.0]) {
+      // Asa superior
+      final upperTip = Offset(
+        center.dx + side * r * 0.85 * flap,
+        center.dy - r * 0.45,
+      );
+      final upperPath = Path()
+        ..moveTo(center.dx, center.dy - r * 0.1)
+        ..quadraticBezierTo(
+            center.dx + side * r * 0.5, center.dy - r * 0.75,
+            upperTip.dx, upperTip.dy)
+        ..quadraticBezierTo(
+            center.dx + side * r * 0.35, center.dy - r * 0.15,
+            center.dx, center.dy - r * 0.1);
+      final upperPaint = Paint()
+        ..shader = LinearGradient(
+          colors: const [Color(0xFF80DEEA), Color(0xFFF48FB1)],
+        ).createShader(Rect.fromCircle(center: center, radius: r))
+        ..color = Colors.white.withOpacity(0.75 * flap + 0.15);
+      canvas.drawPath(upperPath, upperPaint);
+
+      // Asa inferior
+      final lowerTip = Offset(
+        center.dx + side * r * 0.55 * flap,
+        center.dy + r * 0.55,
+      );
+      final lowerPath = Path()
+        ..moveTo(center.dx, center.dy)
+        ..quadraticBezierTo(
+            center.dx + side * r * 0.4, center.dy + r * 0.4,
+            lowerTip.dx, lowerTip.dy)
+        ..quadraticBezierTo(
+            center.dx + side * r * 0.2, center.dy + r * 0.1,
+            center.dx, center.dy);
+      final lowerPaint = Paint()
+        ..shader = LinearGradient(
+          colors: const [Color(0xFFF48FB1), Color(0xFF80DEEA)],
+        ).createShader(Rect.fromCircle(center: center, radius: r))
+        ..color = Colors.white.withOpacity(0.6 * flap + 0.15);
+      canvas.drawPath(lowerPath, lowerPaint);
+
+      // Veios de brilho
+      final veinPhase = (shimmer + (side > 0 ? 0.5 : 0)) % 1.0;
+      final veinPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8
+        ..color = Colors.white.withOpacity(0.3 + 0.3 * veinPhase);
+      canvas.drawLine(
+          Offset(center.dx, center.dy - r * 0.1), upperTip, veinPaint);
+    }
+
+    // Corpo central
+    final bodyPaint = Paint()..color = const Color(0xFF37474F);
+    canvas.drawOval(
+      Rect.fromCenter(center: center, width: r * 0.1, height: r * 0.9),
+      bodyPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_BorboletaCristalPainter oldDelegate) =>
+      oldDelegate.wing != wing || oldDelegate.shimmer != shimmer;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 19) FLOR DE CEREJEIRA — pétalas rosadas flutuando em espiral
+// ═══════════════════════════════════════════════════════════════════
+class _FlorCerejeiraAvatar extends StatefulWidget {
+  final double size;
+  const _FlorCerejeiraAvatar({required this.size});
+
+  @override
+  State<_FlorCerejeiraAvatar> createState() => _FlorCerejeiraAvatarState();
+}
+
+class _FlorCerejeiraAvatarState extends State<_FlorCerejeiraAvatar>
+    with TickerProviderStateMixin {
+  late final AnimationController _driftCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _driftCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _driftCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _circleShell(
+      size: widget.size,
+      child: AnimatedBuilder(
+        animation: _driftCtrl,
+        builder: (context, _) => CustomPaint(
+          size: Size.square(widget.size),
+          painter: _FlorCerejeiraPainter(drift: _driftCtrl.value),
+        ),
+      ),
+    );
+  }
+}
+
+class _FlorCerejeiraPainter extends CustomPainter {
+  final double drift;
+  _FlorCerejeiraPainter({required this.drift});
+
+  void _drawBlossom(Canvas canvas, Offset pos, double scale, double rot) {
+    for (int i = 0; i < 5; i++) {
+      final angle = rot + (i / 5) * 2 * math.pi;
+      final petalCenter = Offset(
+        pos.dx + math.cos(angle) * scale * 0.5,
+        pos.dy + math.sin(angle) * scale * 0.5,
+      );
+      final petalPaint = Paint()
+        ..color = const Color(0xFFF06292).withOpacity(0.85);
+      canvas.save();
+      canvas.translate(petalCenter.dx, petalCenter.dy);
+      canvas.rotate(angle);
+      canvas.drawOval(
+        Rect.fromCenter(center: Offset.zero, width: scale * 0.55, height: scale * 0.35),
+        petalPaint,
+      );
+      canvas.restore();
+    }
+    canvas.drawCircle(pos, scale * 0.18, Paint()..color = const Color(0xFFFFF0F3));
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2;
+
+    final bgPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [const Color(0xFF2E1520), const Color(0xFF120A0E)],
+      ).createShader(Rect.fromCircle(center: center, radius: r));
+    canvas.drawCircle(center, r, bgPaint);
+
+    _drawBlossom(canvas, center, r * 0.65, drift * 2 * math.pi);
+
+    // Pétalas soltas flutuando em espiral ao redor
+    for (int i = 0; i < 7; i++) {
+      final t = ((drift + i / 7) % 1.0);
+      final angle = t * 2 * math.pi * 1.6;
+      final dist = r * (0.35 + 0.55 * t);
+      final p = Offset(
+        center.dx + math.cos(angle) * dist,
+        center.dy + math.sin(angle) * dist,
+      );
+      final petalScale = r * (0.16 - 0.06 * t);
+      canvas.save();
+      canvas.translate(p.dx, p.dy);
+      canvas.rotate(angle * 1.3);
+      canvas.drawOval(
+        Rect.fromCenter(center: Offset.zero, width: petalScale, height: petalScale * 0.6),
+        Paint()..color = const Color(0xFFFFCDD2).withOpacity(0.8 * (1 - t) + 0.15),
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_FlorCerejeiraPainter oldDelegate) =>
+      oldDelegate.drift != drift;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 20) CORAÇÃO AURORA — núcleo em forma de coração pulsando em pastel
+// ═══════════════════════════════════════════════════════════════════
+class _CoracaoAuroraAvatar extends StatefulWidget {
+  final double size;
+  const _CoracaoAuroraAvatar({required this.size});
+
+  @override
+  State<_CoracaoAuroraAvatar> createState() => _CoracaoAuroraAvatarState();
+}
+
+class _CoracaoAuroraAvatarState extends State<_CoracaoAuroraAvatar>
+    with TickerProviderStateMixin {
+  late final AnimationController _pulseCtrl;
+  late final AnimationController _hueCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+    _hueCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    _hueCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _circleShell(
+      size: widget.size,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_pulseCtrl, _hueCtrl]),
+        builder: (context, _) => CustomPaint(
+          size: Size.square(widget.size),
+          painter: _CoracaoAuroraPainter(
+            pulse: _pulseCtrl.value,
+            hue: _hueCtrl.value,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CoracaoAuroraPainter extends CustomPainter {
+  final double pulse;
+  final double hue;
+  _CoracaoAuroraPainter({required this.pulse, required this.hue});
+
+  Path _heartPath(Offset center, double s) {
+    return Path()
+      ..moveTo(center.dx, center.dy + s * 0.35)
+      ..cubicTo(
+        center.dx - s * 0.9, center.dy - s * 0.35,
+        center.dx - s * 0.35, center.dy - s * 0.95,
+        center.dx, center.dy - s * 0.4,
+      )
+      ..cubicTo(
+        center.dx + s * 0.35, center.dy - s * 0.95,
+        center.dx + s * 0.9, center.dy - s * 0.35,
+        center.dx, center.dy + s * 0.35,
+      )
+      ..close();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2;
+
+    final bgPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [const Color(0xFF2A1A24), const Color(0xFF120A10)],
+      ).createShader(Rect.fromCircle(center: center, radius: r));
+    canvas.drawCircle(center, r, bgPaint);
+
+    final beat = 0.85 + 0.15 * pulse;
+    final heart = _heartPath(Offset(center.dx, center.dy + r * 0.05), r * 0.62 * beat);
+
+    final colorA = Color.lerp(
+        const Color(0xFFF8BBD0), const Color(0xFFCE93D8), (math.sin(hue * 2 * math.pi) + 1) / 2)!;
+    final heartPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Colors.white, colorA],
+      ).createShader(Rect.fromCircle(center: center, radius: r * 0.65));
+    canvas.drawPath(heart, heartPaint);
+
+    // Halo suave ao redor
+    final haloPaint = Paint()
+      ..color = colorA.withOpacity(0.25 * beat)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+    canvas.drawCircle(center, r * 0.7 * beat, haloPaint);
+
+    // Partículas de aurora orbitando
+    for (int i = 0; i < 5; i++) {
+      final a = hue * 2 * math.pi + i * (2 * math.pi / 5);
+      final d = r * 0.82;
+      final p = Offset(center.dx + math.cos(a) * d, center.dy + math.sin(a) * d);
+      canvas.drawCircle(p, 1.6, Paint()..color = Colors.white.withOpacity(0.6));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CoracaoAuroraPainter oldDelegate) =>
+      oldDelegate.pulse != pulse || oldDelegate.hue != hue;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 21) PENA DE CISNE — plumagem branca leve flutuando sobre névoa
+// ═══════════════════════════════════════════════════════════════════
+class _PenaCisneAvatar extends StatefulWidget {
+  final double size;
+  const _PenaCisneAvatar({required this.size});
+
+  @override
+  State<_PenaCisneAvatar> createState() => _PenaCisneAvatarState();
+}
+
+class _PenaCisneAvatarState extends State<_PenaCisneAvatar>
+    with TickerProviderStateMixin {
+  late final AnimationController _floatCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _floatCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _floatCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _circleShell(
+      size: widget.size,
+      child: AnimatedBuilder(
+        animation: _floatCtrl,
+        builder: (context, _) => CustomPaint(
+          size: Size.square(widget.size),
+          painter: _PenaCisnePainter(float: _floatCtrl.value),
+        ),
+      ),
+    );
+  }
+}
+
+class _PenaCisnePainter extends CustomPainter {
+  final double float;
+  _PenaCisnePainter({required this.float});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2;
+
+    final bgPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [const Color(0xFF1A2630), const Color(0xFF0A1014)],
+      ).createShader(Rect.fromCircle(center: center, radius: r));
+    canvas.drawCircle(center, r, bgPaint);
+
+    final bob = math.sin(float * 2 * math.pi) * r * 0.06;
+    final tilt = math.sin(float * 2 * math.pi) * 0.15;
+
+    canvas.save();
+    canvas.translate(center.dx, center.dy + bob);
+    canvas.rotate(tilt);
+
+    // Haste central
+    final shaftPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = const Color(0xFFB3E5FC);
+    canvas.drawLine(Offset(0, -r * 0.7), Offset(0, r * 0.6), shaftPaint);
+
+    // Barbas da pena
+    for (final side in [-1.0, 1.0]) {
+      for (int i = 0; i < 10; i++) {
+        final t = i / 9;
+        final y = -r * 0.65 + t * r * 1.2;
+        final len = r * 0.45 * math.sin(t * math.pi) ;
+        final start = Offset(0, y);
+        final end = Offset(side * len, y + len * 0.3);
+        final barbPaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..strokeCap = StrokeCap.round
+          ..color = Colors.white.withOpacity(0.75 - t * 0.3);
+        canvas.drawLine(start, end, barbPaint);
+      }
+    }
+    canvas.restore();
+
+    // Névoa suave na base
+    final mistPaint = Paint()
+      ..color = const Color(0xFFE1F5FE).withOpacity(0.18)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+    canvas.drawCircle(Offset(center.dx, center.dy + r * 0.5), r * 0.5, mistPaint);
+  }
+
+  @override
+  bool shouldRepaint(_PenaCisnePainter oldDelegate) =>
+      oldDelegate.float != float;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 22) JARDIM ZAFIRA — flores azuis desabrochando em ciclo contínuo
+// ═══════════════════════════════════════════════════════════════════
+class _JardimZafiraAvatar extends StatefulWidget {
+  final double size;
+  const _JardimZafiraAvatar({required this.size});
+
+  @override
+  State<_JardimZafiraAvatar> createState() => _JardimZafiraAvatarState();
+}
+
+class _JardimZafiraAvatarState extends State<_JardimZafiraAvatar>
+    with TickerProviderStateMixin {
+  late final AnimationController _cycleCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _cycleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _cycleCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _circleShell(
+      size: widget.size,
+      child: AnimatedBuilder(
+        animation: _cycleCtrl,
+        builder: (context, _) => CustomPaint(
+          size: Size.square(widget.size),
+          painter: _JardimZafiraPainter(cycle: _cycleCtrl.value),
+        ),
+      ),
+    );
+  }
+}
+
+class _JardimZafiraPainter extends CustomPainter {
+  final double cycle;
+  _JardimZafiraPainter({required this.cycle});
+
+  void _drawFlower(Canvas canvas, Offset pos, double bloomT) {
+    final scale = (0.3 + 0.7 * bloomT);
+    for (int i = 0; i < 6; i++) {
+      final angle = (i / 6) * 2 * math.pi;
+      final petalCenter = Offset(
+        pos.dx + math.cos(angle) * scale * 6,
+        pos.dy + math.sin(angle) * scale * 6,
+      );
+      canvas.save();
+      canvas.translate(petalCenter.dx, petalCenter.dy);
+      canvas.rotate(angle);
+      canvas.drawOval(
+        Rect.fromCenter(center: Offset.zero, width: scale * 9, height: scale * 5),
+        Paint()..color = const Color(0xFF64B5F6).withOpacity(0.4 + 0.5 * bloomT),
+      );
+      canvas.restore();
+    }
+    canvas.drawCircle(pos, scale * 3, Paint()..color = const Color(0xFFE3F2FD));
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2;
+
+    final bgPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [const Color(0xFF122238), const Color(0xFF080E18)],
+      ).createShader(Rect.fromCircle(center: center, radius: r));
+    canvas.drawCircle(center, r, bgPaint);
+
+    final positions = [
+      Offset(center.dx, center.dy - r * 0.32),
+      Offset(center.dx - r * 0.42, center.dy + r * 0.18),
+      Offset(center.dx + r * 0.42, center.dy + r * 0.18),
+      Offset(center.dx, center.dy + r * 0.5),
+    ];
+
+    for (int i = 0; i < positions.length; i++) {
+      final phase = (cycle + i * 0.25) % 1.0;
+      final bloomT = (math.sin(phase * 2 * math.pi) + 1) / 2;
+      canvas.save();
+      canvas.translate(positions[i].dx, positions[i].dy);
+      canvas.scale(r / 60);
+      _drawFlower(canvas, Offset.zero, bloomT);
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_JardimZafiraPainter oldDelegate) =>
+      oldDelegate.cycle != cycle;
 }
