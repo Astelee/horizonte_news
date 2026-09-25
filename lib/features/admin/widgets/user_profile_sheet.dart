@@ -7,7 +7,6 @@ import '../../../config/premium_config.dart';
 import '../../../services/xp_service.dart';
 import '../../../widgets/app_avatar.dart';
 import '../../../widgets/avatar_frame.dart';
-import '../models/admin_log_model.dart';
 import '../services/admin_user_service.dart';
 import 'admin_shared_widgets.dart';
 import 'ban_user_dialog.dart';
@@ -432,10 +431,6 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
                 const SizedBox(height: 10),
                 _actionsGrid(name, level, realLevel, hasLevelOverride,
                     hasTitleOverride, titleOverrideLevel, premiumTier),
-                const SizedBox(height: 22),
-                _sectionTitle('HISTÓRICO', Icons.history_rounded),
-                const SizedBox(height: 10),
-                _historyBlock(),
               ],
             ),
           ),
@@ -1086,105 +1081,6 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
     );
   }
 
-  Widget _historyBlock() {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: widget.userService.userLogsStream(widget.userId),
-      builder: (context, snap) {
-        if (snap.hasError) {
-          // Causa mais comum: falta o índice composto do Firestore
-          // para admin_logs (targetId ASC + timestamp DESC) — a
-          // consulta nunca retorna e, sem este tratamento, o
-          // StreamBuilder ficava girando o loading para sempre em vez
-          // de mostrar o erro.
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'Não foi possível carregar o histórico.\n${snap.error}',
-              style: const TextStyle(
-                  color: AppColors.textMuted, fontSize: 11, height: 1.4),
-            ),
-          );
-        }
-        if (!snap.hasData) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: AppColors.primaryOrange),
-              ),
-            ),
-          );
-        }
-        final logs = snap.data!;
-        if (logs.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'Nenhuma ação administrativa registrada para este usuário.',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-            ),
-          );
-        }
-        return Column(
-          children: logs.map((l) {
-            final log = AdminLogModel(
-              id: l['id'] as String? ?? '',
-              adminUid: l['adminUid'] as String? ?? '',
-              adminName: l['adminName'] as String? ?? 'Admin',
-              action: l['action'] as String? ?? '',
-              targetId: l['targetId'] as String? ?? '',
-              targetType: l['targetType'] as String? ?? 'user',
-              timestamp:
-                  (l['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-            );
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryOrange.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.bolt_rounded,
-                        size: 12, color: AppColors.primaryOrange),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          log.actionLabel,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(
-                          'por ${log.adminName} · ${_fmtDateTime(log.timestamp)}',
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
 }
 
 /// Seletor de nível (1..maxLevel) reutilizado tanto para override de
