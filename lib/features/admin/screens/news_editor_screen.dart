@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1103,7 +1104,7 @@ class _QuietSelectionControls extends TextSelectionControls {
     Offset selectionMidpoint,
     List<TextSelectionPoint> endpoints,
     TextSelectionDelegate delegate,
-    ClipboardStatusNotifier? clipboardStatus,
+    ValueListenable<ClipboardStatus>? clipboardStatus,
     Offset? lastSecondaryTapDownPosition,
   ) =>
       _base.buildToolbar(
@@ -1140,12 +1141,11 @@ class _QuietSelectionControls extends TextSelectionControls {
       _base.canSelectAll(delegate);
 
   @override
-  void handleCut(TextSelectionDelegate delegate, [ClipboardStatusNotifier? c]) =>
-      _base.handleCut(delegate, c);
+  void handleCut(TextSelectionDelegate delegate) => _base.handleCut(delegate);
 
   @override
-  void handleCopy(TextSelectionDelegate delegate, [ClipboardStatusNotifier? c]) =>
-      _base.handleCopy(delegate, c);
+  void handleCopy(TextSelectionDelegate delegate) =>
+      _base.handleCopy(delegate);
 
   @override
   Future<void> handlePaste(TextSelectionDelegate delegate) =>
