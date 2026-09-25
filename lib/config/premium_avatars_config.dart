@@ -40,6 +40,12 @@ enum PremiumAvatarId {
   golemMagma,
   deusaEstelar,
   leaoDouradoReal,
+  orquideaLunar,
+  borboletaCristal,
+  florCerejeira,
+  coracaoAurora,
+  penaCisne,
+  jardimZafira,
 }
 
 extension PremiumAvatarIdX on PremiumAvatarId {
@@ -77,6 +83,18 @@ extension PremiumAvatarIdX on PremiumAvatarId {
         return 'premium_deusa_estelar';
       case PremiumAvatarId.leaoDouradoReal:
         return 'premium_leao_dourado_real';
+      case PremiumAvatarId.orquideaLunar:
+        return 'premium_orquidea_lunar';
+      case PremiumAvatarId.borboletaCristal:
+        return 'premium_borboleta_cristal';
+      case PremiumAvatarId.florCerejeira:
+        return 'premium_flor_cerejeira';
+      case PremiumAvatarId.coracaoAurora:
+        return 'premium_coracao_aurora';
+      case PremiumAvatarId.penaCisne:
+        return 'premium_pena_cisne';
+      case PremiumAvatarId.jardimZafira:
+        return 'premium_jardim_zafira';
     }
   }
 
@@ -249,6 +267,54 @@ class PremiumAvatarsConfig {
       description: 'Juba solar flamejante ao redor de um olhar imponente.',
       gradient: [Color(0xFFFFB300), Color(0xFF8D4E00)],
       accentColor: Color(0xFFFFD54F),
+      minTier: PremiumTier.ultra,
+    ),
+    PremiumAvatarDef(
+      id: PremiumAvatarId.orquideaLunar,
+      name: 'Orquídea Lunar',
+      description: 'Pétalas lilás desabrochando sob um brilho prateado.',
+      gradient: [Color(0xFFCE93D8), Color(0xFF4A148C)],
+      accentColor: Color(0xFFE1BEE7),
+      minTier: PremiumTier.ultra,
+    ),
+    PremiumAvatarDef(
+      id: PremiumAvatarId.borboletaCristal,
+      name: 'Borboleta de Cristal',
+      description: 'Asas translúcidas com veios de luz batendo suavemente.',
+      gradient: [Color(0xFF80DEEA), Color(0xFFF48FB1)],
+      accentColor: Color(0xFFB2EBF2),
+      minTier: PremiumTier.ultra,
+    ),
+    PremiumAvatarDef(
+      id: PremiumAvatarId.florCerejeira,
+      name: 'Flor de Cerejeira',
+      description: 'Pétalas rosadas flutuando em espiral ao vento.',
+      gradient: [Color(0xFFFFCDD2), Color(0xFFF06292)],
+      accentColor: Color(0xFFFFF0F3),
+      minTier: PremiumTier.ultra,
+    ),
+    PremiumAvatarDef(
+      id: PremiumAvatarId.coracaoAurora,
+      name: 'Coração Aurora',
+      description: 'Núcleo em forma de coração pulsando em tons pastel.',
+      gradient: [Color(0xFFF8BBD0), Color(0xFFCE93D8)],
+      accentColor: Color(0xFFFFCDE0),
+      minTier: PremiumTier.ultra,
+    ),
+    PremiumAvatarDef(
+      id: PremiumAvatarId.penaCisne,
+      name: 'Pena de Cisne',
+      description: 'Plumagem branca e leve flutuando sobre névoa suave.',
+      gradient: [Color(0xFFFFFFFF), Color(0xFFB3E5FC)],
+      accentColor: Color(0xFFE1F5FE),
+      minTier: PremiumTier.ultra,
+    ),
+    PremiumAvatarDef(
+      id: PremiumAvatarId.jardimZafira,
+      name: 'Jardim Zafira',
+      description: 'Flores azuis brilhantes desabrochando em ciclo contínuo.',
+      gradient: [Color(0xFF64B5F6), Color(0xFF1A237E)],
+      accentColor: Color(0xFF90CAF9),
       minTier: PremiumTier.ultra,
     ),
   ];
