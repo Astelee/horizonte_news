@@ -19,6 +19,8 @@ import '../services/auth_service.dart';
 import '../services/xp_service.dart';
 import '../providers/user_xp_provider.dart';
 import '../widgets/app_avatar.dart';
+import '../widgets/app_messenger.dart';
+import '../widgets/app_confirm_dialog.dart';
 import '../widgets/avatar_frame.dart';
 import '../widgets/badge_widgets.dart';
 import '../widgets/subscriber_badge.dart';
@@ -243,52 +245,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _handleLogout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF0A0A0A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(
-            color: AppColors.emergencyRed.withOpacity(0.3),
-          ),
-        ),
-        title: const Text(
-          'Sair da conta?',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        content: const Text(
-          'Seu progresso e XP estão salvos.',
-          style: TextStyle(
-            color: Color(0xFF9E9E9E),
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(
-                color: Color(0xFF9E9E9E),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Sair',
-              style: TextStyle(
-                color: AppColors.emergencyRed,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
+    final confirm = await AppConfirmDialog.show(
+      context,
+      title: 'Sair da conta?',
+      message: 'Seu progresso e XP estão salvos.',
+      confirmLabel: 'Sair',
+      confirmColor: AppColors.emergencyRed,
     );
 
     if (confirm == true && mounted) {
@@ -309,58 +271,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ================================================================
 
   Future<void> _handleDeleteAccount() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF0A0A0A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(
-            color: AppColors.emergencyRed.withOpacity(0.3),
-          ),
-        ),
-        title: const Text(
-          'Excluir conta permanentemente?',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        content: const Text(
-          'Todos os seus dados serão apagados:\n\n'
+    final confirm = await AppConfirmDialog.show(
+      context,
+      title: 'Excluir conta permanentemente?',
+      message: 'Todos os seus dados serão apagados:\n\n'
           '• Perfil e nome de usuário\n'
           '• Nível e pontos de XP\n'
           '• Favoritos salvos\n'
           '• Comentários\n'
           '• Histórico de visualizações\n\n'
           'Essa ação não pode ser desfeita.',
-          style: TextStyle(
-            color: Color(0xFF9E9E9E),
-            height: 1.6,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(
-                color: Color(0xFF9E9E9E),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'EXCLUIR',
-              style: TextStyle(
-                color: AppColors.emergencyRed,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
+      confirmLabel: 'EXCLUIR',
+      confirmColor: AppColors.emergencyRed,
     );
 
     if (confirm != true || !mounted) return;
@@ -651,39 +573,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     IconData? icon,
     bool success = false,
   }) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            if (icon != null) ...[
-              Icon(
-                icon,
-                color: success
-                    ? const Color(0xFF4CAF50)
-                    : AppColors.primaryOrange,
-                size: 16,
-              ),
-              const SizedBox(width: 10),
-            ],
-            Expanded(
-              child: Text(
-                msg,
-                style: const TextStyle(
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF1A1A1A),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 4),
-      ),
-    );
+    final isError = icon == Icons.error_outline_rounded ||
+        icon == Icons.error_rounded;
+    final isWarning = !isError &&
+        !success &&
+        (icon == Icons.warning_amber_rounded ||
+            icon == Icons.notifications_off_rounded);
+
+    if (success) {
+      AppMessenger.success(msg);
+    } else if (isError) {
+      AppMessenger.error(msg);
+    } else if (isWarning) {
+      AppMessenger.warning(msg);
+    } else {
+      AppMessenger.info(msg);
+    }
   }
 
   // ================================================================
