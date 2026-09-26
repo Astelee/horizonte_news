@@ -5,6 +5,7 @@ import '../../../../config/app_colors.dart';
 import '../../services/admin_config_service.dart';
 import '../../services/admin_news_service.dart';
 import '../../widgets/admin_shared_widgets.dart';
+import '../../../../widgets/app_messenger.dart';
 
 class ConfigTab extends StatefulWidget {
   final AdminConfigService configService;
@@ -156,21 +157,11 @@ class _ConfigTabState extends State<ConfigTab> {
     try {
       final count = await _adminNewsService.reindexSearchFields();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$count notícias reindexadas para a busca.'),
-            backgroundColor: const Color(0xFF1A1A1A),
-          ),
-        );
+        AppMessenger.success('$count notícias reindexadas para a busca.');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao reindexar: $e'),
-            backgroundColor: const Color(0xFF1A1A1A),
-          ),
-        );
+        AppMessenger.error('Erro ao reindexar: $e');
       }
     } finally {
       if (mounted) setState(() => _reindexing = false);
@@ -340,12 +331,7 @@ class _ConfigTabState extends State<ConfigTab> {
       message: _maintenanceMsgController.text.trim(),
     );
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Mensagem salva.'),
-          backgroundColor: Color(0xFF1A1A1A),
-        ),
-      );
+      AppMessenger.success('Mensagem salva.');
     }
   }
 }
@@ -579,12 +565,7 @@ class _AdminsManagerState extends State<_AdminsManager> {
     );
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$label agora é admin.'),
-          backgroundColor: const Color(0xFF66BB6A),
-        ),
-      );
+      AppMessenger.success('$label agora é admin.');
     }
   }
 
@@ -605,12 +586,7 @@ class _AdminsManagerState extends State<_AdminsManager> {
     await widget.configService.removeAdmin(uid);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Admin removido.'),
-          backgroundColor: Color(0xFFEF5350),
-        ),
-      );
+      AppMessenger.warning('Admin removido.');
     }
   }
 }
