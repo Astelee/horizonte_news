@@ -11,6 +11,7 @@ import '../config/app_routes.dart';
 import '../config/premium_config.dart';
 import '../services/purchase_service.dart';
 import 'premium_avatar_gallery_screen.dart';
+import '../widgets/app_messenger.dart';
 
 // ── URLs oficiais (mesmas usadas no cadastro) ────────────────────────
 const String _kTermsUrl = 'https://astelee.github.io/horizonte_termos/';
@@ -653,15 +654,11 @@ class _PremiumScreenState extends State<PremiumScreen> {
   }
 
   void _showSnack(BuildContext context, String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor:
-            isError ? const Color(0xFFE53935) : const Color(0xFF1A1A1A),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    if (isError) {
+      AppMessenger.error(msg);
+    } else {
+      AppMessenger.info(msg);
+    }
   }
 }
 
