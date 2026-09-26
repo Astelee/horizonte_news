@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
 import '../../../config/premium_config.dart';
+import '../../../widgets/app_messenger.dart';
 import '../services/admin_subscription_request_service.dart';
 import 'admin_shared_widgets.dart';
 
@@ -168,12 +169,7 @@ class AdminSubscriptionRequestTile extends StatelessWidget {
     );
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Assinatura de $userName aprovada.'),
-          backgroundColor: const Color(0xFF66BB6A),
-        ),
-      );
+      AppMessenger.success('Assinatura de $userName aprovada.');
     }
   }
 
@@ -187,8 +183,11 @@ class AdminSubscriptionRequestTile extends StatelessWidget {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF111111),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: const Color(0xFF0A0A0A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.2)),
+        ),
         title: const Text(
           'Recusar assinatura?',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
@@ -243,12 +242,7 @@ class AdminSubscriptionRequestTile extends StatelessWidget {
     );
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Assinatura de $userName recusada.'),
-          backgroundColor: const Color(0xFFEF5350),
-        ),
-      );
+      AppMessenger.warning('Assinatura de $userName recusada.');
     }
   }
 }
