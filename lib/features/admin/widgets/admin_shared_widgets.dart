@@ -90,9 +90,11 @@ class AdminConfirmDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF111111),
+      backgroundColor: const Color(0xFF0A0A0A),
       shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16)),
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.2)),
+      ),
       title: Text(
         title,
         style: const TextStyle(
