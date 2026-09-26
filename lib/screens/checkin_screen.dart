@@ -8,6 +8,7 @@ import '../config/checkin_rewards_config.dart';
 import '../providers/user_xp_provider.dart';
 import '../services/checkin_service.dart';
 import '../services/rewarded_ad_service.dart';
+import '../widgets/app_messenger.dart';
 import '../widgets/checkin_calendar.dart';
 import '../widgets/checkin_reward_painters.dart';
 
@@ -77,6 +78,7 @@ class _CheckinScreenState extends State<CheckinScreen>
   @override
   void dispose() {
     _summarySub?.cancel();
+    _recoverBatchResetTimer?.cancel();
     _glowCtrl.dispose();
     _burstCtrl.dispose();
     super.dispose();
@@ -190,6 +192,17 @@ class _CheckinScreenState extends State<CheckinScreen>
     }
   }
 
+  // Chave usada para agrupar mensagens de XP de recuperação de dias.
+  // Enquanto o usuário estiver recuperando vários dias em sequência
+  // (ex.: os 23 dias disponíveis de uma vez), todas as mensagens de
+  // "+X XP" reaproveitam a MESMA mensagem na tela, apenas atualizando
+  // o texto com o total acumulado — em vez de empilhar uma mensagem
+  // nova por dia, que era o que causava a fila enorme e demorada.
+  static const String _checkinXpGroupKey = 'checkin_recover_xp';
+  int _recoverBatchXp = 0;
+  int _recoverBatchDays = 0;
+  Timer? _recoverBatchResetTimer;
+
   void _handleDayTap(DateTime day, CheckinDayStatus status) {
     if (status != CheckinDayStatus.missed) return;
     _showRecoverSheet(day);
@@ -216,10 +229,37 @@ class _CheckinScreenState extends State<CheckinScreen>
   bool _recoveringDayKeyIs(String key) => _recoveringDayKey == key;
 
   // ── Feedback comum depois de uma recuperação bem-sucedida ─────────
+  //
+  // Em vez de disparar uma mensagem nova a cada dia recuperado (o que
+  // causava o acúmulo relatado — dezenas de mensagens empilhadas
+  // ficando visíveis por muito tempo depois de o usuário já ter
+  // terminado), usamos uma groupKey fixa: se o usuário está
+  // recuperando vários dias em sequência, a MESMA mensagem na tela é
+  // atualizada com o total acumulado ("+150 XP • 3 dias recuperados").
+  // Um pequeno debounce zera o contador do lote quando não chega
+  // nenhuma recuperação nova por 2s, para que o próximo lote comece
+  // do zero.
   void _afterRecoverSuccess(CheckinResult result) {
     _loadMonth();
     _refreshRecoverableCount();
-    _showSnack('Dia recuperado! +${result.xpGained} XP 🟢', isError: false);
+
+    _recoverBatchResetTimer?.cancel();
+    _recoverBatchXp += result.xpGained;
+    _recoverBatchDays += 1;
+
+    AppMessenger.reward(
+      '+$_recoverBatchXp XP',
+      subtitle: _recoverBatchDays == 1
+          ? 'Dia recuperado'
+          : '$_recoverBatchDays dias recuperados',
+      groupKey: _checkinXpGroupKey,
+    );
+
+    _recoverBatchResetTimer = Timer(const Duration(seconds: 2), () {
+      _recoverBatchXp = 0;
+      _recoverBatchDays = 0;
+    });
+
     if (result.unlockedReward != null) {
       // Recuperar um dia pode emendar a sequência e cruzar um marco.
       _showRewardUnlocked(result.unlockedReward!);
@@ -341,14 +381,11 @@ class _CheckinScreenState extends State<CheckinScreen>
   }
 
   void _showSnack(String msg, {required bool isError}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: isError ? const Color(0xFFE53935) : const Color(0xFF43B581),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    if (isError) {
+      AppMessenger.error(msg);
+    } else {
+      AppMessenger.success(msg);
+    }
   }
 
   @override
