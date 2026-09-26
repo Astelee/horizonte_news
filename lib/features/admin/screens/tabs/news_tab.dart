@@ -9,6 +9,7 @@ import '../../services/push_notification_service.dart';
 import '../../widgets/admin_shared_widgets.dart';
 import '../news_editor_screen.dart';
 import '../../../../utils/cloudinary_url_utils.dart';
+import '../../../../widgets/app_messenger.dart';
 
 /// Aba "NOTÍCIAS" do painel administrativo.
 ///
@@ -136,12 +137,7 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
         : PostStatus.published;
     final pushResult = await widget.newsService.setStatus(post.id, newStatus);
     if (mounted && pushResult != null && !pushResult.success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(pushResult.message ?? 'Falha ao enviar notificação push.'),
-          backgroundColor: Colors.red[900],
-        ),
-      );
+      AppMessenger.error(pushResult.message ?? 'Falha ao enviar notificação push.');
     }
   }
 
