@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
+import '../../../widgets/app_messenger.dart';
 import '../services/admin_user_service.dart';
 import 'admin_shared_widgets.dart';
 import 'user_profile_sheet.dart';
@@ -242,14 +243,7 @@ class AdminBannedTile extends StatelessWidget {
                         if (confirm == true) {
                           await userService.unsuspendUser(userId);
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                    'Banimento de $name removido.'),
-                                backgroundColor:
-                                    const Color(0xFF66BB6A),
-                              ),
-                            );
+                            AppMessenger.success('Banimento de $name removido.');
                           }
                         }
                       },
