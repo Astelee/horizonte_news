@@ -5,6 +5,7 @@ import '../services/app_notification_service.dart';
 import '../screens/post_detail_screen.dart';
 import '../services/news_service.dart';
 import '../widgets/app_avatar.dart';
+import '../widgets/app_messenger.dart';
 
 /// Central de notificações — lista as notificações de "respondeu ao
 /// seu comentário" e "curtiu seu comentário" do usuário logado, mais
@@ -50,9 +51,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       );
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Não foi possível abrir a notícia.')),
-        );
+        AppMessenger.error('Não foi possível abrir a notícia.');
       }
     }
   }
