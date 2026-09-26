@@ -15,6 +15,8 @@ import 'avatar_frame.dart';
 import 'app_avatar.dart';
 import 'subscriber_badge.dart';
 import '../services/app_config_service.dart';
+import 'app_messenger.dart';
+import 'app_confirm_dialog.dart';
 
 class CommentModel {
   final String id;
@@ -759,7 +761,7 @@ class CommentsSectionState extends State<CommentsSection>
 
     final config = await AppConfigService().fetch();
     if (!config.commentsEnabled) {
-      _showSnack('Os comentários estão temporariamente desativados.');
+      _showSnack('Os comentários estão temporariamente desativados.', isWarning: true);
       return;
     }
 
@@ -778,10 +780,10 @@ class CommentsSectionState extends State<CommentsSection>
         final reason = (data['reason'] as String?)?.trim() ?? '';
         final reasonText = reason.isNotEmpty ? '\nMotivo: $reason' : '';
         if (isPermanent) {
-          _showSnack('Você foi banido permanentemente.$reasonText');
+          _showSnack('Você foi banido permanentemente.$reasonText', isWarning: true);
         } else {
           final fmt = '${until.day}/${until.month}/${until.year}';
-          _showSnack('Você está suspenso até $fmt.$reasonText');
+          _showSnack('Você está suspenso até $fmt.$reasonText', isWarning: true);
         }
         setState(() => _isSending = false);
         return;
@@ -876,7 +878,7 @@ class CommentsSectionState extends State<CommentsSection>
         if (mounted) _showXpSnack();
       }
     } catch (e) {
-      _showSnack('Erro ao enviar comentário. Tente novamente.');
+      _showSnack('Erro ao enviar comentário. Tente novamente.', isError: true);
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
@@ -886,7 +888,7 @@ class CommentsSectionState extends State<CommentsSection>
     try {
       await _commentsRef.doc(commentId).delete();
     } catch (e) {
-      if (mounted) _showSnack('Erro ao excluir: $e');
+      if (mounted) _showSnack('Erro ao excluir: $e', isError: true);
     }
   }
 
@@ -920,7 +922,7 @@ class CommentsSectionState extends State<CommentsSection>
         });
       }
     } catch (e) {
-      if (mounted) _showSnack('Erro ao salvar edição: $e');
+      if (mounted) _showSnack('Erro ao salvar edição: $e', isError: true);
     }
   }
 
@@ -952,7 +954,7 @@ class CommentsSectionState extends State<CommentsSection>
           .doc(parentCommentId)
           .update({'repliesCount': FieldValue.increment(-1)});
     } catch (e) {
-      if (mounted) _showSnack('Erro ao excluir: $e');
+      if (mounted) _showSnack('Erro ao excluir: $e', isError: true);
     }
   }
 
@@ -1020,52 +1022,21 @@ class CommentsSectionState extends State<CommentsSection>
   }
 
   void _showLoginSnack() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(children: [
-          Icon(Icons.lock_outline_rounded, color: Colors.white, size: 16),
-          SizedBox(width: 10),
-          Text('Faça login para comentar.',
-              style: TextStyle(color: Colors.white)),
-        ]),
-        backgroundColor: AppColors.backgroundElevated,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
+    AppMessenger.warning('Faça login para comentar.');
   }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: const TextStyle(color: Colors.white)),
-        backgroundColor: AppColors.backgroundElevated,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 5),
-      ),
-    );
+  void _showSnack(String msg, {bool isError = false, bool isWarning = false}) {
+    if (isError) {
+      AppMessenger.error(msg);
+    } else if (isWarning) {
+      AppMessenger.warning(msg);
+    } else {
+      AppMessenger.info(msg);
+    }
   }
 
   void _showXpSnack() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(children: [
-          Icon(Icons.star_rounded, color: AppColors.primaryOrange, size: 18),
-          SizedBox(width: 10),
-          Text('+XP por comentar!',
-              style:
-                  TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        ]),
-        backgroundColor: const Color(0xFF1A0800),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    AppMessenger.reward('+XP', subtitle: 'Por comentar!', groupKey: 'comment_xp');
   }
 
   @override
@@ -1750,45 +1721,19 @@ class _CommentTileState extends State<_CommentTile>
   bool get _isOwner => widget.comment.userId == widget.currentUserId;
   bool get _canDelete => _isOwner || widget.isAdmin;
 
-  void _confirmDelete(BuildContext context) {
-    final rootNav = Navigator.of(context, rootNavigator: true);
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF0A0A0A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.2)),
-        ),
-        title: const Text('Excluir comentário?',
-            style: TextStyle(color: Colors.white, fontSize: 16)),
-        content: Text(
-          widget.isAdmin && !_isOwner
-              ? 'Você está excluindo o comentário de ${widget.comment.userName} como administrador.'
-              : 'Esta ação não pode ser desfeita.',
-          style: const TextStyle(
-              color: AppColors.textSecondary, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => rootNav.pop(),
-            child: const Text('Cancelar',
-                style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () {
-              rootNav.pop();
-              widget.onDelete();
-            },
-            child: const Text('Excluir',
-                style: TextStyle(
-                    color: AppColors.emergencyRed,
-                    fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await AppConfirmDialog.show(
+      context,
+      title: 'Excluir comentário?',
+      message: widget.isAdmin && !_isOwner
+          ? 'Você está excluindo o comentário de ${widget.comment.userName} como administrador.'
+          : 'Esta ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      confirmColor: AppColors.emergencyRed,
     );
+    if (confirmed == true) {
+      widget.onDelete();
+    }
   }
 
   Widget _buildAvatar(LiveAuthorInfo info) {
@@ -2641,45 +2586,19 @@ class _ReplyTileState extends State<_ReplyTile> {
     Future.delayed(const Duration(seconds: 3), widget.onHighlightShown);
   }
 
-  void _confirmDelete(BuildContext context) {
-    final rootNav = Navigator.of(context, rootNavigator: true);
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF0A0A0A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.2)),
-        ),
-        title: const Text('Excluir resposta?',
-            style: TextStyle(color: Colors.white, fontSize: 16)),
-        content: Text(
-          isAdmin && !_isOwner
-              ? 'Você está excluindo a resposta de ${reply.userName} como administrador.'
-              : 'Esta ação não pode ser desfeita.',
-          style:
-              const TextStyle(color: AppColors.textSecondary, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => rootNav.pop(),
-            child: const Text('Cancelar',
-                style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () {
-              rootNav.pop();
-              widget.onDelete();
-            },
-            child: const Text('Excluir',
-                style: TextStyle(
-                    color: AppColors.emergencyRed,
-                    fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await AppConfirmDialog.show(
+      context,
+      title: 'Excluir resposta?',
+      message: isAdmin && !_isOwner
+          ? 'Você está excluindo a resposta de ${reply.userName} como administrador.'
+          : 'Esta ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      confirmColor: AppColors.emergencyRed,
     );
+    if (confirmed == true) {
+      widget.onDelete();
+    }
   }
 
   Widget _buildMenuButton(BuildContext context) {
