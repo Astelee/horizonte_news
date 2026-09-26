@@ -52,9 +52,11 @@ class _PremiumGrantDialogState extends State<PremiumGrantDialog> {
     final accent = _selectedTier.accentColor;
 
     return AlertDialog(
-      backgroundColor: const Color(0xFF111111),
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: const Color(0xFF0A0A0A),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.2)),
+      ),
       title: Row(
         children: [
           const Icon(Icons.workspace_premium_rounded,
