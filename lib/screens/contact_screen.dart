@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/app_colors.dart';
+import '../widgets/app_messenger.dart';
 
 class ContactScreen extends StatefulWidget {
   const ContactScreen({Key? key}) : super(key: key);
@@ -68,16 +69,7 @@ class _ContactScreenState extends State<ContactScreen>
     final Uri url = Uri.parse(urlString);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Não foi possível abrir o link.'),
-          backgroundColor: AppColors.backgroundElevated,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      AppMessenger.error('Não foi possível abrir o link.');
     }
   }
 
