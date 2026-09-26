@@ -6,6 +6,7 @@ import '../../../config/badge_config.dart';
 import '../../../config/premium_config.dart';
 import '../../../services/xp_service.dart';
 import '../../../widgets/app_avatar.dart';
+import '../../../widgets/app_messenger.dart';
 import '../../../widgets/avatar_frame.dart';
 import '../services/admin_user_service.dart';
 import 'admin_shared_widgets.dart';
@@ -101,21 +102,11 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
     try {
       await action();
       if (mounted && okMessage != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(okMessage),
-            backgroundColor: const Color(0xFF1A1A1A),
-          ),
-        );
+        AppMessenger.success(okMessage);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Não foi possível concluir: $e'),
-            backgroundColor: const Color(0xFFE53935),
-          ),
-        );
+        AppMessenger.error('Não foi possível concluir: $e');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -249,27 +240,15 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
     );
     if (confirm == true && mounted) {
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Notificações são enviadas ao publicar uma matéria, '
-            'na aba Publicações.',
-          ),
-          backgroundColor: Color(0xFF1A1A1A),
-        ),
+      AppMessenger.info(
+        'Notificações são enviadas ao publicar uma matéria, na aba Publicações.',
       );
     }
   }
 
   void _copyUid() {
     Clipboard.setData(ClipboardData(text: widget.userId));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('UID copiado.'),
-        backgroundColor: Color(0xFF1A1A1A),
-        duration: Duration(seconds: 1),
-      ),
-    );
+    AppMessenger.success('UID copiado.', duration: const Duration(seconds: 1));
   }
 
   @override
@@ -1113,8 +1092,11 @@ class _LevelPickerDialogState extends State<_LevelPickerDialog> {
   Widget build(BuildContext context) {
     final color = BadgeConfig.levelColor(_level);
     return AlertDialog(
-      backgroundColor: const Color(0xFF111111),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: const Color(0xFF0A0A0A),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.2)),
+      ),
       title: Text(
         widget.title,
         style: const TextStyle(
