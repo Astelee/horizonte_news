@@ -4,6 +4,7 @@ import 'package:crop_your_image/crop_your_image.dart';
 import 'package:flutter/material.dart';
 
 import '../config/app_colors.dart';
+import 'app_messenger.dart';
 
 /// Tela de recorte da foto de perfil, usada antes do upload.
 ///
@@ -98,13 +99,7 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
                 'Erro ao recortar imagem: CropFailure',
               );
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Não foi possível recortar a foto.',
-                  ),
-                ),
-              );
+              AppMessenger.error('Não foi possível recortar a foto.');
               break;
           }
         },
