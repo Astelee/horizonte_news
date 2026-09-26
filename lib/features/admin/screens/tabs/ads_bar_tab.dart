@@ -8,6 +8,7 @@ import '../../../../config/app_colors.dart';
 import '../../../../services/cloudinary_upload_service.dart';
 import '../../services/admin_config_service.dart';
 import '../../widgets/admin_shared_widgets.dart';
+import '../../../../widgets/app_messenger.dart';
 
 /// Aba "Barra de anúncios" do painel admin.
 ///
@@ -378,13 +379,11 @@ class _AdsBarTabState extends State<AdsBarTab> {
   }
 
   void _showSnack(String message, {bool error = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor:
-            error ? const Color(0xFFEF5350) : const Color(0xFF1A1A1A),
-      ),
-    );
+    if (error) {
+      AppMessenger.error(message);
+    } else {
+      AppMessenger.success(message);
+    }
   }
 
   // ── Prévia de como fica na Home ─────────────────────────────
