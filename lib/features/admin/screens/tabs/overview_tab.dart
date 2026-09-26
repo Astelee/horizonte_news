@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/badge_config.dart';
 import '../../../../widgets/app_avatar.dart';
+import '../../../../widgets/app_messenger.dart';
 import '../../services/admin_avatar_approval_service.dart';
 import '../../services/admin_subscription_request_service.dart';
 import '../../services/admin_dashboard_service.dart';
@@ -81,12 +82,7 @@ class _OverviewTabState extends State<OverviewTab> {
       await widget.userService.syncAllUserLevels();
       await _loadDashboard();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Níveis de todos os usuários sincronizados.'),
-            backgroundColor: Color(0xFF1A1A1A),
-          ),
-        );
+        AppMessenger.success('Níveis de todos os usuários sincronizados.');
       }
     } finally {
       if (mounted) setState(() => _syncing = false);
