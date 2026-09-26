@@ -4,6 +4,7 @@ import '../../../../config/app_colors.dart';
 import '../../services/admin_comment_service.dart';
 import '../../services/admin_views_service.dart';
 import '../../widgets/admin_shared_widgets.dart';
+import '../../../../widgets/app_messenger.dart';
 
 class ViewsTab extends StatefulWidget {
   final AdminViewsService viewsService;
@@ -72,20 +73,10 @@ class _ViewsTabState extends State<ViewsTab> {
         _selectedPostId = null;
         _selectedPostTitle = null;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Visualizações, comentários e contadores zerados.'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      AppMessenger.success('Visualizações, comentários e contadores zerados.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao zerar: $e'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      AppMessenger.error('Erro ao zerar: $e');
     } finally {
       if (mounted) setState(() => _resetting = false);
     }
