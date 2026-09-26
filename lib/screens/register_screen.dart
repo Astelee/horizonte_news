@@ -516,10 +516,33 @@ class _RegisterScreenState extends State<RegisterScreen>
                                 _buildTermsCheckbox(),
                                 const SizedBox(height: 24),
 
-                                if (_errorMessage != null)
-                                  _buildErrorBanner(_errorMessage!),
-                                if (_errorMessage != null)
-                                  const SizedBox(height: 16),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 220),
+                                  transitionBuilder: (child, animation) =>
+                                      FadeTransition(
+                                    opacity: animation,
+                                    child: SizeTransition(
+                                      sizeFactor: animation,
+                                      axisAlignment: -1,
+                                      child: SlideTransition(
+                                        position: Tween<Offset>(
+                                          begin: const Offset(0, -0.15),
+                                          end: Offset.zero,
+                                        ).animate(animation),
+                                        child: child,
+                                      ),
+                                    ),
+                                  ),
+                                  child: _errorMessage != null
+                                      ? Padding(
+                                          key: ValueKey(_errorMessage),
+                                          padding:
+                                              const EdgeInsets.only(bottom: 16),
+                                          child: _buildErrorBanner(_errorMessage!),
+                                        )
+                                      : const SizedBox.shrink(
+                                          key: ValueKey('no-error')),
+                                ),
 
                                 _buildSubmitButton(),
                               ],
