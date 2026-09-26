@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
+import '../../../widgets/app_messenger.dart';
 
 class BanUserDialog extends StatefulWidget {
   final String authorName;
@@ -32,9 +33,11 @@ class _BanUserDialogState extends State<BanUserDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF111111),
+      backgroundColor: const Color(0xFF0A0A0A),
       shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16)),
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.2)),
+      ),
       title: Row(
         children: [
           const Icon(Icons.person_off_rounded,
@@ -211,13 +214,7 @@ class _BanUserDialogState extends State<BanUserDialog> {
           onPressed: () {
             final reason = _reasonCtrl.text.trim();
             if (reason.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content:
-                      Text('Informe o motivo do banimento.'),
-                  backgroundColor: Color(0xFFEF5350),
-                ),
-              );
+              AppMessenger.warning('Informe o motivo do banimento.');
               return;
             }
             Navigator.pop(context, {
