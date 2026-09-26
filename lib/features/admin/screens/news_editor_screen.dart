@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../config/app_colors.dart';
 import '../../../models/category_model.dart';
@@ -19,12 +20,17 @@ import '../../../widgets/app_messenger.dart';
 /// galeria de imagens, vídeo, e os três estados de publicação
 /// (rascunho, publicada, despublicada).
 ///
-/// ATENÇÃO: este arquivo é puramente visual. Todo o fluxo de salvar,
-/// publicar e disparar a notificação push continua idêntico —
+/// ATENÇÃO: este arquivo é puramente visual/estrutural. Todo o fluxo de
+/// salvar, publicar e disparar a notificação push continua idêntico —
 /// _buildPost, _save, createNews/updateNews e o tratamento de
-/// PushNotificationResult não foram alterados. Só o visual (cores,
-/// layout, animações) foi refeito para seguir a identidade do resto
-/// do app: fundo preto, partículas de fogo, glow laranja e gradientes.
+/// PushNotificationResult não foram alterados. O que mudou foi a
+/// apresentação: seções mais claras, contadores de caracteres, seletor
+/// de categoria visual (reaproveitando exatamente as categorias já
+/// usadas em CategoryBar), galeria de imagens com interface própria,
+/// selo de status, preview da matéria e estados de erro/carregamento
+/// padronizados — sempre em cima da mesma lógica de dados e dos mesmos
+/// serviços (Cloudinary, AdminNewsService, PushNotificationService,
+/// PlainTextHtmlConverter, VideoFrameEditor, AppMessenger).
 class NewsEditorScreen extends StatefulWidget {
   final AdminNewsService newsService;
   final PostModel? existingPost;
@@ -39,6 +45,42 @@ class NewsEditorScreen extends StatefulWidget {
   State<NewsEditorScreen> createState() => _NewsEditorScreenState();
 }
 
+/// Categoria disponível para seleção no editor. Mantém exatamente os
+/// mesmos rótulos, ícones e cores já usados em [CategoryBar] (a barra
+/// de categorias da Home), para que a categoria escolhida aqui seja a
+/// mesma categoria que o usuário final vê filtrada no app.
+class _EditorCategoryOption {
+  final String label;
+  final IconData icon;
+  final Color color;
+  const _EditorCategoryOption(this.label, this.icon, this.color);
+}
+
+const List<_EditorCategoryOption> _kEditorCategories = [
+  _EditorCategoryOption(
+      'Horizonte', FontAwesomeIcons.buildingColumns, Color(0xFFFF6B00)),
+  _EditorCategoryOption('Pacajus', FontAwesomeIcons.tree, Color(0xFF43A047)),
+  _EditorCategoryOption(
+      'Itaitinga', FontAwesomeIcons.water, Color(0xFF1E88E5)),
+  _EditorCategoryOption(
+      'Chorozinho', FontAwesomeIcons.wheatAwn, Color(0xFFFFB300)),
+  _EditorCategoryOption(
+      'Ceará', FontAwesomeIcons.mapLocationDot, Color(0xFF00ACC1)),
+  _EditorCategoryOption('Brasil', FontAwesomeIcons.flag, Color(0xFF43A047)),
+  _EditorCategoryOption(
+      'Mundo', FontAwesomeIcons.earthAmericas, Color(0xFF5C6BC0)),
+  _EditorCategoryOption('Esportes', FontAwesomeIcons.futbol, Color(0xFF26C6DA)),
+  _EditorCategoryOption('Saúde', FontAwesomeIcons.heartPulse, Color(0xFFEF5350)),
+  _EditorCategoryOption(
+      'Entretenimento', FontAwesomeIcons.film, Color(0xFFAB47BC)),
+];
+
+/// Limite recomendado (não bloqueante) de caracteres do título, só
+/// para dar feedback visual de "título muito grande" — o usuário
+/// continua podendo digitar além disso, o campo não trava.
+const int _kTitleSoftLimit = 90;
+const int _kSummarySoftLimit = 180;
+
 class _NewsEditorScreenState extends State<NewsEditorScreen>
     with TickerProviderStateMixin {
   final _cloudinary = CloudinaryUploadService();
@@ -50,6 +92,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
   late final TextEditingController _categoryCtrl;
 
   String _coverUrl = '';
+  bool _coverLoadError = false;
   List<String> _gallery = [];
   String? _videoUrl;
   File? _pendingVideoFile; // arquivo local só enquanto ajusta o enquadramento
@@ -60,8 +103,22 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
   bool _uploadingVideo = false;
   bool _saving = false;
 
+  // Rótulo do estado de salvamento em andamento, exibido na tela de
+  // loading (ex.: "Publicando...", "Enviando notificação..."). Não
+  // altera nenhuma lógica — é só o texto mostrado durante _save().
+  String _savingLabel = 'Salvando notícia...';
+
+  // Status "de trabalho" mostrado no selo do topo: por padrão segue o
+  // status do post existente (ou rascunho, para um post novo). Os
+  // botões de publicar/rascunho continuam sendo quem decide de fato o
+  // PostStatus gravado — este campo é só para o selo visual reagir
+  // imediatamente ao que o usuário está prestes a fazer.
+  late PostStatus _displayStatus;
+
   bool get _isEditing => widget.existingPost != null;
 
+  final FocusNode _titleFocusNode = FocusNode();
+  final FocusNode _summaryFocusNode = FocusNode();
   final FocusNode _contentFocusNode = FocusNode();
 
   late final AnimationController _glowCtrl;
@@ -83,6 +140,12 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
     _gallery = List<String>.from(post?.gallery ?? []);
     _videoUrl = post?.videoUrl;
     _videoFrameConfig = post?.videoFrameConfig ?? VideoFrameConfig.original;
+    _displayStatus = post?.status ?? PostStatus.draft;
+
+    // Reconstrói a tela quando os campos com contador mudam, para os
+    // contadores de caracteres atualizarem em tempo real.
+    _titleCtrl.addListener(_onCounterFieldChanged);
+    _summaryCtrl.addListener(_onCounterFieldChanged);
 
     _glowCtrl = AnimationController(
       vsync: this,
@@ -94,12 +157,20 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
     );
   }
 
+  void _onCounterFieldChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _titleCtrl.removeListener(_onCounterFieldChanged);
+    _summaryCtrl.removeListener(_onCounterFieldChanged);
     _titleCtrl.dispose();
     _summaryCtrl.dispose();
     _contentCtrl.dispose();
     _categoryCtrl.dispose();
+    _titleFocusNode.dispose();
+    _summaryFocusNode.dispose();
     _contentFocusNode.dispose();
     _glowCtrl.dispose();
     super.dispose();
@@ -121,15 +192,15 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
       sel.end,
       '$openTag$selected$closeTag',
     );
-    final newCursor = sel.start + openTag.length + selected.length + closeTag.length;
+    final newCursor =
+        sel.start + openTag.length + selected.length + closeTag.length;
     _contentCtrl.value = TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(offset: newCursor),
     );
   }
 
-  void _applyBold() =>
-      _wrapSelection(openTag: '<b>', closeTag: '</b>');
+  void _applyBold() => _wrapSelection(openTag: '<b>', closeTag: '</b>');
 
   void _applyHighlight() =>
       _wrapSelection(openTag: '<mark>', closeTag: '</mark>');
@@ -180,15 +251,26 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
     final picked =
         await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return;
-    setState(() => _uploadingCover = true);
+    setState(() {
+      _uploadingCover = true;
+      _coverLoadError = false;
+    });
     try {
       final url = await _cloudinary.uploadImage(File(picked.path));
       setState(() => _coverUrl = url);
     } catch (e) {
-      _showError('Falha ao enviar imagem de capa: $e');
+      _showError('Falha ao enviar imagem de capa. Verifique sua conexão '
+          'e tente novamente.');
     } finally {
       if (mounted) setState(() => _uploadingCover = false);
     }
+  }
+
+  void _removeCover() {
+    setState(() {
+      _coverUrl = '';
+      _coverLoadError = false;
+    });
   }
 
   Future<void> _pickAndUploadGalleryImage() async {
@@ -200,10 +282,30 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
       final url = await _cloudinary.uploadImage(File(picked.path));
       setState(() => _gallery = [..._gallery, url]);
     } catch (e) {
-      _showError('Falha ao enviar imagem da galeria: $e');
+      _showError('Falha ao enviar imagem da galeria. Verifique sua conexão '
+          'e tente novamente.');
     } finally {
       if (mounted) setState(() => _uploadingGallery = false);
     }
+  }
+
+  void _removeGalleryImage(int index) {
+    setState(() {
+      final updated = List<String>.from(_gallery);
+      updated.removeAt(index);
+      _gallery = updated;
+    });
+  }
+
+  void _moveGalleryImage(int index, int delta) {
+    final newIndex = index + delta;
+    if (newIndex < 0 || newIndex >= _gallery.length) return;
+    setState(() {
+      final updated = List<String>.from(_gallery);
+      final item = updated.removeAt(index);
+      updated.insert(newIndex, item);
+      _gallery = updated;
+    });
   }
 
   Future<void> _pickAndUploadVideo() async {
@@ -235,12 +337,21 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
       final url = await _cloudinary.uploadVideo(file);
       setState(() => _videoUrl = url);
     } catch (e) {
-      _showError('Falha ao enviar vídeo: $e');
+      _showError('Falha ao enviar vídeo. Verifique sua conexão e tente '
+          'novamente.');
     } finally {
       if (mounted) setState(() => _uploadingVideo = false);
       // _pendingVideoFile é mantido (não zerado) para permitir reabrir
       // o editor de enquadramento depois, sem pedir o arquivo de novo.
     }
+  }
+
+  void _removeVideo() {
+    setState(() {
+      _videoUrl = null;
+      _pendingVideoFile = null;
+      _videoFrameConfig = VideoFrameConfig.original;
+    });
   }
 
   /// Reabre o editor de enquadramento para um vídeo já enviado (ou em
@@ -267,31 +378,50 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
   bool _validate() {
     if (_titleCtrl.text.trim().isEmpty) {
       _showError('O título é obrigatório.');
+      FocusScope.of(context).requestFocus(_titleFocusNode);
       return false;
     }
     if (_contentCtrl.text.trim().isEmpty) {
       _showError('O conteúdo é obrigatório.');
+      FocusScope.of(context).requestFocus(_contentFocusNode);
       return false;
     }
-    if (_uploadingCover || _uploadingVideo) {
-      _showError(
-          'Aguarde o envio da ${_uploadingCover ? 'imagem' : 'vídeo'} '
-          'terminar antes de publicar.');
+    if (_uploadingCover || _uploadingVideo || _uploadingGallery) {
+      final what = _uploadingCover
+          ? 'da imagem de capa'
+          : _uploadingVideo
+              ? 'do vídeo'
+              : 'da imagem da galeria';
+      _showError('Aguarde o envio $what terminar antes de continuar.');
       return false;
     }
     return true;
   }
 
   Future<void> _save(PostStatus status) async {
+    if (_saving) return; // trava contra duplo toque/salvamento simultâneo
     if (!_validate()) return;
-    setState(() => _saving = true);
+    final previousDisplayStatus = _displayStatus;
+    setState(() {
+      _saving = true;
+      _savingLabel = status == PostStatus.published
+          ? 'Publicando notícia...'
+          : 'Salvando rascunho...';
+      _displayStatus = status;
+    });
     try {
       final post = _buildPost(status);
       PushNotificationResult? pushResult;
       if (_isEditing) {
+        if (status == PostStatus.published && mounted) {
+          setState(() => _savingLabel = 'Publicando e enviando notificação...');
+        }
         pushResult =
             await widget.newsService.updateNews(widget.existingPost!.id, post);
       } else {
+        if (status == PostStatus.published && mounted) {
+          setState(() => _savingLabel = 'Publicando e enviando notificação...');
+        }
         final (_, result) = await widget.newsService.createNews(post);
         pushResult = result;
       }
@@ -310,6 +440,8 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
             'Publicado, mas o push falhou: ${pushResult.message ?? "Erro desconhecido"}',
           );
         }
+      } else if (mounted) {
+        AppMessenger.success('Rascunho salvo.');
       }
 
       if (pushResult != null && !pushResult.success) {
@@ -319,17 +451,54 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      _showError('Falha ao salvar: $e');
+      if (mounted) setState(() => _displayStatus = previousDisplayStatus);
+      _showError('Falha ao salvar a notícia. Tente novamente em instantes.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
+  // ── Preview ──────────────────────────────────────────────────────────
+  void _openPreview() {
+    final categoryOption = _categoryOptionFor(_categoryCtrl.text.trim());
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _NewsPreviewSheet(
+        title: _titleCtrl.text.trim(),
+        summary: _summaryCtrl.text.trim(),
+        contentHtml:
+            PlainTextHtmlConverter.ensureHtml(_contentCtrl.text.trim()),
+        coverUrl: _coverUrl,
+        gallery: _gallery,
+        videoUrl: _videoUrl,
+        categoryLabel:
+            _categoryCtrl.text.trim().isEmpty ? null : _categoryCtrl.text.trim(),
+        categoryColor: categoryOption?.color ?? AppColors.primaryOrange,
+      ),
+    );
+  }
+
+  _EditorCategoryOption? _categoryOptionFor(String label) {
+    if (label.isEmpty) return null;
+    for (final c in _kEditorCategories) {
+      if (c.label.toLowerCase() == label.toLowerCase()) return c;
+    }
+    return null;
+  }
+
+  void _selectCategory(String label) {
+    setState(() => _categoryCtrl.text = label);
+  }
+
   // ── UI ───────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Scaffold(
       backgroundColor: Colors.black,
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           Positioned.fill(child: Container(color: Colors.black)),
@@ -346,42 +515,102 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
                       _buildAppBar(),
                       Expanded(
                         child: ListView(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                          padding: EdgeInsets.fromLTRB(
+                              16, 12, 16, 32 + bottomInset * 0.0),
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
                           children: [
-                            _sectionCard(
-                              title: 'Conteúdo',
-                              icon: Icons.article_rounded,
+                            _StatusBadgeBar(
+                              status: _displayStatus,
+                              isEditing: _isEditing,
+                              onPreview: _openPreview,
+                            ),
+                            const SizedBox(height: 14),
+                            _SectionCard(
+                              title: 'Informações da notícia',
+                              icon: Icons.info_outline_rounded,
                               children: [
                                 _label('Título'),
-                                _textField(_titleCtrl, hint: 'Título da notícia'),
+                                _CounterTextField(
+                                  controller: _titleCtrl,
+                                  focusNode: _titleFocusNode,
+                                  hint: 'Título chamativo e direto da notícia',
+                                  maxLines: 3,
+                                  minLines: 1,
+                                  softLimit: _kTitleSoftLimit,
+                                ),
                                 const SizedBox(height: 14),
-                                _label('Subtítulo / Resumo'),
-                                _textField(_summaryCtrl,
-                                    hint: 'Resumo curto que aparece na listagem',
-                                    maxLines: 2),
+                                _label('Resumo / linha fina'),
+                                _CounterTextField(
+                                  controller: _summaryCtrl,
+                                  focusNode: _summaryFocusNode,
+                                  hint:
+                                      'Resumo curto que aparece na listagem e no compartilhamento',
+                                  maxLines: 3,
+                                  minLines: 2,
+                                  softLimit: _kSummarySoftLimit,
+                                ),
                                 const SizedBox(height: 14),
                                 _label('Categoria'),
-                                _textField(_categoryCtrl,
-                                    hint: 'Ex.: Cidade, Esporte...'),
-                                const SizedBox(height: 14),
-                                _label('Conteúdo completo'),
-                                _buildFormatToolbar(),
-                                const SizedBox(height: 8),
-                                _textField(_contentCtrl,
-                                    hint:
-                                        'Texto da notícia. Pode conter HTML simples (<p>, <b>, <h2>...).',
-                                    maxLines: 10,
-                                    focusNode: _contentFocusNode,
-                                    quietSelectionHaptics: true),
+                                _CategorySelector(
+                                  controller: _categoryCtrl,
+                                  onSelected: _selectCategory,
+                                ),
                               ],
                             ),
                             const SizedBox(height: 16),
-                            _sectionCard(
+                            _SectionCard(
+                              title: 'Conteúdo',
+                              icon: Icons.article_rounded,
+                              children: [
+                                Row(
+                                  children: [
+                                    _label('Conteúdo completo'),
+                                    const Spacer(),
+                                    _WordCountBadge(text: _contentCtrl.text),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                _EditorToolbar(
+                                  onBold: _applyBold,
+                                  onUppercase: _applyUppercase,
+                                  onHighlight: _applyHighlight,
+                                ),
+                                const SizedBox(height: 8),
+                                _textField(
+                                  _contentCtrl,
+                                  hint:
+                                      'Texto da notícia. Selecione um trecho e use a barra acima para formatar.',
+                                  maxLines: 14,
+                                  minLines: 8,
+                                  focusNode: _contentFocusNode,
+                                  quietSelectionHaptics: true,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            _SectionCard(
                               title: 'Mídia',
                               icon: Icons.perm_media_rounded,
                               children: [
-                                _buildCoverSection(),
-                                const SizedBox(height: 18),
+                                _CoverSection(
+                                  coverUrl: _coverUrl,
+                                  uploading: _uploadingCover,
+                                  loadError: _coverLoadError,
+                                  onPick: _pickAndUploadCover,
+                                  onRemove: _removeCover,
+                                  onLoadError: () =>
+                                      setState(() => _coverLoadError = true),
+                                ),
+                                const SizedBox(height: 20),
+                                _GallerySection(
+                                  images: _gallery,
+                                  uploading: _uploadingGallery,
+                                  onAdd: _pickAndUploadGalleryImage,
+                                  onRemove: _removeGalleryImage,
+                                  onMove: _moveGalleryImage,
+                                ),
+                                const SizedBox(height: 20),
                                 _buildVideoSection(),
                               ],
                             ),
@@ -412,7 +641,8 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
                 gradient: AppColors.orangeGradient,
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primaryOrange.withOpacity(0.5 * _glowAnim.value),
+                    color:
+                        AppColors.primaryOrange.withOpacity(0.5 * _glowAnim.value),
                     blurRadius: 24,
                     spreadRadius: 2,
                   ),
@@ -429,12 +659,21 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
             ),
           ),
           const SizedBox(height: 18),
-          const Text(
-            'Salvando notícia...',
-            style: TextStyle(
+          Text(
+            _savingLabel,
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 14,
               fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Não feche o app durante o envio.',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -455,6 +694,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
       child: Row(
         children: [
           IconButton(
+            tooltip: 'Voltar',
             icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
@@ -492,10 +732,20 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  _isEditing ? 'Atualize os dados da matéria' : 'Preencha os dados da matéria',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  _isEditing
+                      ? 'Atualize os dados da matéria'
+                      : 'Preencha os dados da matéria',
+                  style:
+                      const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                 ),
               ],
+            ),
+          ),
+          Tooltip(
+            message: 'Pré-visualizar',
+            child: IconButton(
+              icon: const Icon(Icons.visibility_outlined, color: Colors.white70),
+              onPressed: _openPreview,
             ),
           ),
         ],
@@ -503,11 +753,357 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
     );
   }
 
-  Widget _sectionCard({
-    required String title,
-    required IconData icon,
-    required List<Widget> children,
+  Widget _label(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      );
+
+  Widget _textField(
+    TextEditingController controller, {
+    String? hint,
+    int maxLines = 1,
+    int? minLines,
+    FocusNode? focusNode,
+    bool quietSelectionHaptics = false,
   }) {
+    return TextField(
+      controller: controller,
+      focusNode: focusNode,
+      maxLines: maxLines,
+      minLines: minLines,
+      textCapitalization: TextCapitalization.sentences,
+      style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
+      cursorColor: AppColors.primaryOrange,
+      // Some Android keyboards fire a strong haptic pulse on every
+      // character the selection handle passes over while dragging.
+      // That's controlled by the system keyboard, not this widget —
+      // but Flutter's own selection-handle-drag haptic (a separate,
+      // smaller pulse) can be turned off here for fields where quick,
+      // repeated re-selecting is common (ex.: the long content field,
+      // used to select snippets to wrap with formatting tags).
+      selectionControls: quietSelectionHaptics
+          ? _QuietSelectionControls(materialTextSelectionControls)
+          : null,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Color(0xFF666666), fontSize: 13),
+        filled: true,
+        fillColor: const Color(0xFF0A0A0A),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFF262626)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFF262626)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.3),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      ),
+    );
+  }
+
+  Widget _uploadButton({
+    required VoidCallback? onPressed,
+    required bool loading,
+    required IconData icon,
+    required String label,
+    String? loadingLabel,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primaryOrange,
+          side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.5)),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          backgroundColor: AppColors.primaryOrange.withOpacity(0.06),
+        ),
+        icon: loading
+            ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: AppColors.primaryOrange),
+              )
+            : Icon(icon, size: 18),
+        label: Text(
+          loading ? (loadingLabel ?? 'Enviando...') : label,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVideoSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label('Vídeo (opcional)'),
+        if (_videoUrl != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0A0A0A),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF262626)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryOrange.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.videocam_rounded,
+                      color: AppColors.primaryOrange, size: 16),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Vídeo anexado',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        _uploadingVideo ? 'Processando vídeo...' : _videoUrl!,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.white54, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Tooltip(
+                  message: 'Remover vídeo',
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: _uploadingVideo ? null : _removeVideo,
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.close_rounded,
+                          color: AppColors.textSecondary, size: 18),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (_videoUrl != null && _pendingVideoFile != null) ...[
+          _buildVideoFrameSummary(),
+          const SizedBox(height: 8),
+        ] else if (_videoUrl != null) ...[
+          // Editando um post já existente: o arquivo local não está
+          // disponível (só a URL já publicada), então não dá pra reabrir
+          // o editor com preview ao vivo. Mostra o enquadramento salvo
+          // como informação, e orienta a trocar o vídeo para poder
+          // ajustar de novo.
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0A0A0A),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF262626)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.crop_rounded, color: Colors.white38, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$_videoFramePresetLabel · para ajustar, troque o vídeo',
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        _uploadButton(
+          onPressed: _uploadingVideo ? null : _pickAndUploadVideo,
+          loading: _uploadingVideo,
+          loadingLabel: 'Processando vídeo...',
+          icon: Icons.video_call_rounded,
+          label: _videoUrl == null ? 'Adicionar vídeo' : 'Trocar vídeo',
+        ),
+      ],
+    );
+  }
+
+  // ── Enquadramento de exibição do vídeo ────────────────────────────────
+  // Mostra o preset/proporção atualmente escolhidos e permite reabrir o
+  // editor de enquadramento (VideoFrameEditor) a qualquer momento antes
+  // de publicar, com preview ao vivo do próprio vídeo selecionado.
+  String get _videoFramePresetLabel {
+    switch (_videoFrameConfig.preset) {
+      case VideoFramePreset.original:
+        return 'Tamanho original';
+      case VideoFramePreset.ratio16x9:
+        return 'Proporção 16:9';
+      case VideoFramePreset.ratio1x1:
+        return 'Proporção 1:1';
+      case VideoFramePreset.ratio4x5:
+        return 'Proporção 4:5';
+      case VideoFramePreset.ratio9x16:
+        return 'Proporção 9:16';
+      case VideoFramePreset.custom:
+        return 'Enquadramento livre';
+    }
+  }
+
+  Widget _buildVideoFrameSummary() {
+    return GestureDetector(
+      onTap: _adjustVideoFrame,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0A0A0A),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFF262626)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.crop_rounded, color: AppColors.primaryOrange, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _videoFramePresetLabel,
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+            ),
+            const Text(
+              'Ajustar',
+              style: TextStyle(
+                  color: AppColors.primaryOrange,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right_rounded,
+                color: AppColors.primaryOrange, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    final bool uploadingAny =
+        _uploadingCover || _uploadingVideo || _uploadingGallery;
+    return Column(
+      children: [
+        if (uploadingAny)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _UploadingNotice(
+              label: _uploadingCover
+                  ? 'Enviando imagem de capa...'
+                  : _uploadingVideo
+                      ? 'Processando vídeo...'
+                      : 'Enviando imagem da galeria...',
+            ),
+          ),
+        AnimatedBuilder(
+          animation: _glowAnim,
+          builder: (_, child) => Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryOrange.withOpacity(0.3 * _glowAnim.value),
+                  blurRadius: 18,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: child,
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed:
+                  uploadingAny ? null : () => _save(PostStatus.published),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                foregroundColor: Colors.white,
+                disabledForegroundColor: Colors.white70,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape:
+                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.publish_rounded),
+              label: Text(
+                _isEditing ? 'Salvar alterações e publicar' : 'Publicar',
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: uploadingAny ? null : () => _save(PostStatus.draft),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Color(0xFF333333)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.save_outlined),
+            label: Text(
+              _isEditing ? 'Salvar como rascunho' : 'Salvar rascunho',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SEÇÃO / CARD — agrupa um bloco do formulário (Informações, Conteúdo,
+// Mídia) num cartão com título, ícone e o mesmo estilo visual usado em
+// toda a tela.
+// ═══════════════════════════════════════════════════════════════════
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final List<Widget> children;
+
+  const _SectionCard({
+    required this.title,
+    required this.icon,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
@@ -552,418 +1148,1278 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
       ),
     );
   }
+}
 
-  Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(
-          text,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
-          ),
-        ),
-      );
+// ═══════════════════════════════════════════════════════════════════
+// SELO DE STATUS — mostra o status atual da notícia (rascunho,
+// publicada, despublicada) e um atalho para pré-visualizar. Puramente
+// visual: não altera o PostStatus, que continua decidido pelos botões
+// de ação no rodapé da tela.
+// ═══════════════════════════════════════════════════════════════════
+class _StatusBadgeBar extends StatelessWidget {
+  final PostStatus status;
+  final bool isEditing;
+  final VoidCallback onPreview;
 
-  // Barra de formatação: negrito, MAIÚSCULAS e destaque laranja (<mark>),
-  // aplicados sobre o trecho selecionado no campo "Conteúdo completo".
-  Widget _buildFormatToolbar() {
-    return Row(
-      children: [
-        _formatButton(
-          icon: Icons.format_bold_rounded,
-          label: 'Negrito',
-          onTap: _applyBold,
-        ),
-        const SizedBox(width: 8),
-        _formatButton(
-          icon: Icons.text_fields_rounded,
-          label: 'MAIÚSC.',
-          onTap: _applyUppercase,
-        ),
-        const SizedBox(width: 8),
-        _formatButton(
-          icon: Icons.border_color_rounded,
-          label: 'Destacar',
-          onTap: _applyHighlight,
-          highlighted: true,
-        ),
-      ],
-    );
+  const _StatusBadgeBar({
+    required this.status,
+    required this.isEditing,
+    required this.onPreview,
+  });
+
+  ({String label, Color color, IconData icon}) get _style {
+    switch (status) {
+      case PostStatus.published:
+        return (
+          label: 'PUBLICADA',
+          color: const Color(0xFF43B581),
+          icon: Icons.check_circle_rounded,
+        );
+      case PostStatus.unpublished:
+        return (
+          label: 'DESPUBLICADA',
+          color: const Color(0xFFFFB300),
+          icon: Icons.visibility_off_rounded,
+        );
+      case PostStatus.draft:
+        return (
+          label: 'RASCUNHO',
+          color: const Color(0xFF9E9E9E),
+          icon: Icons.edit_note_rounded,
+        );
+    }
   }
 
-  Widget _formatButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool highlighted = false,
-  }) {
-    return Expanded(
-      child: Material(
-        color: highlighted
-            ? AppColors.primaryOrange.withOpacity(0.14)
-            : const Color(0xFF0A0A0A),
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: highlighted
-                    ? AppColors.primaryOrange.withOpacity(0.5)
-                    : const Color(0xFF262626),
+  @override
+  Widget build(BuildContext context) {
+    final s = _style;
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: s.color.withOpacity(0.14),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: s.color.withOpacity(0.5)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(s.icon, size: 13, color: s.color),
+              const SizedBox(width: 6),
+              Text(
+                s.label,
+                style: TextStyle(
+                  color: s.color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                ),
               ),
+            ],
+          ),
+        ),
+        const Spacer(),
+        InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onPreview,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFF2A2A2A)),
             ),
-            child: Column(
+            child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon,
-                    size: 16,
-                    color: highlighted
-                        ? AppColors.primaryOrange
-                        : Colors.white70),
-                const SizedBox(height: 2),
+                Icon(Icons.visibility_outlined,
+                    size: 14, color: Colors.white70),
+                SizedBox(width: 6),
                 Text(
-                  label,
+                  'Pré-visualizar',
                   style: TextStyle(
-                    fontSize: 10,
+                    color: Colors.white70,
+                    fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: highlighted
-                        ? AppColors.primaryOrange
-                        : Colors.white70,
                   ),
                 ),
               ],
             ),
           ),
         ),
-      ),
+      ],
     );
   }
+}
 
-  Widget _textField(TextEditingController controller,
-      {String? hint,
-      int maxLines = 1,
-      FocusNode? focusNode,
-      bool quietSelectionHaptics = false}) {
-    return TextField(
-      controller: controller,
-      focusNode: focusNode,
-      maxLines: maxLines,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
-      cursorColor: AppColors.primaryOrange,
-      // Some Android keyboards fire a strong haptic pulse on every
-      // character the selection handle passes over while dragging.
-      // That's controlled by the system keyboard, not this widget —
-      // but Flutter's own selection-handle-drag haptic (a separate,
-      // smaller pulse) can be turned off here for fields where quick,
-      // repeated re-selecting is common (ex.: the long content field,
-      // used to select snippets to wrap with formatting tags).
-      selectionControls: quietSelectionHaptics
-          ? _QuietSelectionControls(materialTextSelectionControls)
-          : null,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFF666666), fontSize: 13),
-        filled: true,
-        fillColor: const Color(0xFF0A0A0A),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF262626)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF262626)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.3),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      ),
-    );
-  }
+// ═══════════════════════════════════════════════════════════════════
+// CAMPO COM CONTADOR DE CARACTERES — usado no título e no resumo.
+// Mostra "usados/limite sugerido" e muda de cor quando passa do limite
+// recomendado. O limite é apenas visual/orientativo: o campo continua
+// aceitando texto além dele, sem travar a digitação.
+// ═══════════════════════════════════════════════════════════════════
+class _CounterTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode? focusNode;
+  final String hint;
+  final int maxLines;
+  final int minLines;
+  final int softLimit;
 
-  Widget _uploadButton({
-    required VoidCallback? onPressed,
-    required bool loading,
-    required IconData icon,
-    required String label,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primaryOrange,
-          side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.5)),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          backgroundColor: AppColors.primaryOrange.withOpacity(0.06),
-        ),
-        icon: loading
-            ? const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: AppColors.primaryOrange),
-              )
-            : Icon(icon, size: 18),
-        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-      ),
-    );
-  }
+  const _CounterTextField({
+    required this.controller,
+    required this.hint,
+    required this.softLimit,
+    this.focusNode,
+    this.maxLines = 1,
+    this.minLines = 1,
+  });
 
-  Widget _buildCoverSection() {
+  @override
+  Widget build(BuildContext context) {
+    final length = controller.text.runes.length;
+    final overLimit = length > softLimit;
+    final nearLimit = !overLimit && length >= (softLimit * 0.85).round();
+    final counterColor = overLimit
+        ? const Color(0xFFEF5350)
+        : nearLimit
+            ? const Color(0xFFFFB300)
+            : AppColors.textSecondary;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _label('Imagem de capa'),
-        if (_coverUrl.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: ClipRRect(
+        TextField(
+          controller: controller,
+          focusNode: focusNode,
+          maxLines: maxLines,
+          minLines: minLines,
+          textCapitalization: TextCapitalization.sentences,
+          style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.35),
+          cursorColor: AppColors.primaryOrange,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: Color(0xFF666666), fontSize: 13),
+            filled: true,
+            fillColor: const Color(0xFF0A0A0A),
+            border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              child: Stack(
-                children: [
-                  Image.network(_coverUrl,
-                      height: 150, width: double.infinity, fit: BoxFit.cover),
-                  Positioned.fill(
-                    child: DecoratedBox(
+              borderSide: BorderSide(
+                color: overLimit
+                    ? const Color(0xFFEF5350).withOpacity(0.6)
+                    : const Color(0xFF262626),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: overLimit
+                    ? const Color(0xFFEF5350).withOpacity(0.6)
+                    : const Color(0xFF262626),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: overLimit
+                    ? const Color(0xFFEF5350)
+                    : AppColors.primaryOrange,
+                width: 1.3,
+              ),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            overLimit
+                ? '$length caracteres · acima do recomendado ($softLimit)'
+                : '$length / $softLimit caracteres',
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              color: counterColor,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Contador de palavras/caracteres do conteúdo completo — só
+// informativo, ao lado do label da seção.
+// ═══════════════════════════════════════════════════════════════════
+class _WordCountBadge extends StatelessWidget {
+  final String text;
+  const _WordCountBadge({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmed = text.trim();
+    final words =
+        trimmed.isEmpty ? 0 : trimmed.split(RegExp(r'\s+')).length;
+    final chars = text.runes.length;
+    return Text(
+      '$words palavras · $chars caracteres',
+      style: const TextStyle(
+        color: AppColors.textSecondary,
+        fontSize: 10.5,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SELETOR DE CATEGORIA — chips horizontais com as mesmas categorias,
+// ícones e cores usados em CategoryBar (Home). Ao tocar, preenche o
+// mesmo _categoryCtrl que _buildPost já lê — nenhuma mudança na forma
+// como a categoria é salva (continua sendo uma string simples,
+// convertida por CategoryModel.fromString).
+// ═══════════════════════════════════════════════════════════════════
+class _CategorySelector extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onSelected;
+
+  const _CategorySelector({required this.controller, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final selectedLabel = controller.text.trim();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 40,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _kEditorCategories.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final cat = _kEditorCategories[index];
+                  final isSelected =
+                      selectedLabel.toLowerCase() == cat.label.toLowerCase();
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => onSelected(cat.label),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.transparent, Colors.black.withOpacity(0.35)],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
+                        color: isSelected
+                            ? cat.color.withOpacity(0.16)
+                            : const Color(0xFF0A0A0A),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isSelected
+                              ? cat.color.withOpacity(0.7)
+                              : const Color(0xFF262626),
+                          width: isSelected ? 1.4 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          FaIcon(cat.icon,
+                              size: 12,
+                              color: isSelected ? cat.color : Colors.white54),
+                          const SizedBox(width: 7),
+                          Text(
+                            cat.label,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight:
+                                  isSelected ? FontWeight.w800 : FontWeight.w500,
+                              color: isSelected ? cat.color : Colors.white70,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            if (selectedLabel.isNotEmpty &&
+                !_kEditorCategories
+                    .any((c) => c.label.toLowerCase() == selectedLabel.toLowerCase()))
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded,
+                        size: 13, color: AppColors.textSecondary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Categoria personalizada: "$selectedLabel"',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: GestureDetector(
-                      onTap: () => setState(() => _coverUrl = ''),
-                      child: const CircleAvatar(
-                        radius: 12,
-                        backgroundColor: Colors.black87,
-                        child: Icon(Icons.close_rounded,
-                            size: 14, color: Colors.white),
-                      ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BARRA DE FORMATAÇÃO — negrito, MAIÚSCULAS e destaque (<mark>),
+// aplicados sobre o trecho selecionado no campo "Conteúdo completo".
+// Mesmas três ações de sempre; só o visual (labels com tooltip) foi
+// reforçado.
+// ═══════════════════════════════════════════════════════════════════
+class _EditorToolbar extends StatelessWidget {
+  final VoidCallback onBold;
+  final VoidCallback onUppercase;
+  final VoidCallback onHighlight;
+
+  const _EditorToolbar({
+    required this.onBold,
+    required this.onUppercase,
+    required this.onHighlight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _FormatButton(
+          icon: Icons.format_bold_rounded,
+          label: 'Negrito',
+          tooltip: 'Aplicar negrito ao trecho selecionado',
+          onTap: onBold,
+        ),
+        const SizedBox(width: 8),
+        _FormatButton(
+          icon: Icons.text_fields_rounded,
+          label: 'MAIÚSC.',
+          tooltip: 'Colocar o trecho selecionado em maiúsculas',
+          onTap: onUppercase,
+        ),
+        const SizedBox(width: 8),
+        _FormatButton(
+          icon: Icons.border_color_rounded,
+          label: 'Destacar',
+          tooltip: 'Destacar o trecho selecionado em laranja',
+          onTap: onHighlight,
+          highlighted: true,
+        ),
+      ],
+    );
+  }
+}
+
+class _FormatButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final VoidCallback onTap;
+  final bool highlighted;
+
+  const _FormatButton({
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    required this.onTap,
+    this.highlighted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Tooltip(
+        message: tooltip,
+        child: Material(
+          color: highlighted
+              ? AppColors.primaryOrange.withOpacity(0.14)
+              : const Color(0xFF0A0A0A),
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: onTap,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 44),
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: highlighted
+                      ? AppColors.primaryOrange.withOpacity(0.5)
+                      : const Color(0xFF262626),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon,
+                      size: 16,
+                      color: highlighted ? AppColors.primaryOrange : Colors.white70),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: highlighted ? AppColors.primaryOrange : Colors.white70,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-        _uploadButton(
-          onPressed: _uploadingCover ? null : _pickAndUploadCover,
-          loading: _uploadingCover,
-          icon: Icons.image_rounded,
-          label: _coverUrl.isEmpty ? 'Escolher capa' : 'Trocar capa',
         ),
-      ],
+      ),
     );
   }
+}
 
-  Widget _buildVideoSection() {
+// ═══════════════════════════════════════════════════════════════════
+// AVISO DE UPLOAD EM ANDAMENTO — barra fina acima dos botões de ação,
+// deixando claro o que está acontecendo enquanto mídia é enviada.
+// ═══════════════════════════════════════════════════════════════════
+class _UploadingNotice extends StatelessWidget {
+  final String label;
+  const _UploadingNotice({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      decoration: BoxDecoration(
+        color: AppColors.primaryOrange.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primaryOrange.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+                strokeWidth: 2, color: AppColors.primaryOrange),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.primaryOrange,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CAPA — preview grande, estado de carregamento, tratamento de erro
+// amigável (em vez de deixar o Image.network quebrar visualmente) e
+// botões de trocar/remover.
+// ═══════════════════════════════════════════════════════════════════
+class _CoverSection extends StatelessWidget {
+  final String coverUrl;
+  final bool uploading;
+  final bool loadError;
+  final VoidCallback onPick;
+  final VoidCallback onRemove;
+  final VoidCallback onLoadError;
+
+  const _CoverSection({
+    required this.coverUrl,
+    required this.uploading,
+    required this.loadError,
+    required this.onPick,
+    required this.onRemove,
+    required this.onLoadError,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _label('Vídeo (opcional)'),
-        if (_videoUrl != null)
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0A0A0A),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFF262626)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.videocam_rounded,
-                    color: AppColors.primaryOrange, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(_videoUrl!,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                ),
-                GestureDetector(
-                  onTap: () => setState(() {
-                    _videoUrl = null;
-                    _pendingVideoFile = null;
-                    _videoFrameConfig = VideoFrameConfig.original;
-                  }),
-                  child: const Icon(Icons.close_rounded,
-                      color: AppColors.textSecondary, size: 18),
-                ),
-              ],
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text(
+            'Imagem de capa',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
             ),
           ),
-        if (_videoUrl != null && _pendingVideoFile != null) ...[
-          _buildVideoFrameSummary(),
-          const SizedBox(height: 8),
-        ] else if (_videoUrl != null) ...[
-          // Editando um post já existente: o arquivo local não está
-          // disponível (só a URL já publicada), então não dá pra reabrir
-          // o editor com preview ao vivo. Mostra o enquadramento salvo
-          // como informação, e orienta a trocar o vídeo para poder
-          // ajustar de novo.
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0A0A0A),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFF262626)),
+        ),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            height: 170,
+            width: double.infinity,
+            color: const Color(0xFF0A0A0A),
+            child: uploading
+                ? const _MediaLoadingIndicator(label: 'Enviando imagem...')
+                : coverUrl.isEmpty
+                    ? const _EmptyMediaPlaceholder(
+                        icon: Icons.image_outlined,
+                        label: 'Nenhuma capa selecionada',
+                      )
+                    : Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (loadError)
+                            const _EmptyMediaPlaceholder(
+                              icon: Icons.broken_image_outlined,
+                              label: 'Não foi possível carregar esta imagem',
+                              isError: true,
+                            )
+                          else
+                            Image.network(
+                              coverUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stack) {
+                                WidgetsBinding.instance
+                                    .addPostFrameCallback((_) => onLoadError());
+                                return const _EmptyMediaPlaceholder(
+                                  icon: Icons.broken_image_outlined,
+                                  label: 'Não foi possível carregar esta imagem',
+                                  isError: true,
+                                );
+                              },
+                              loadingBuilder: (context, child, progress) {
+                                if (progress == null) return child;
+                                return const _MediaLoadingIndicator(
+                                    label: 'Carregando...');
+                              },
+                            ),
+                          if (!loadError)
+                            Positioned.fill(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.transparent,
+                                      Colors.black.withOpacity(0.35)
+                                    ],
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Tooltip(
+                              message: 'Remover capa',
+                              child: GestureDetector(
+                                onTap: onRemove,
+                                child: const CircleAvatar(
+                                  radius: 14,
+                                  backgroundColor: Colors.black87,
+                                  child: Icon(Icons.close_rounded,
+                                      size: 16, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: uploading ? null : onPick,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primaryOrange,
+              side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.5)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              backgroundColor: AppColors.primaryOrange.withOpacity(0.06),
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.crop_rounded,
-                    color: Colors.white38, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '$_videoFramePresetLabel · para ajustar, troque o vídeo',
-                    style: const TextStyle(color: Colors.white38, fontSize: 12),
-                  ),
-                ),
-              ],
+            icon: uploading
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.primaryOrange),
+                  )
+                : Icon(coverUrl.isEmpty ? Icons.image_rounded : Icons.sync_alt_rounded,
+                    size: 18),
+            label: Text(
+              uploading
+                  ? 'Enviando imagem...'
+                  : (coverUrl.isEmpty ? 'Escolher capa' : 'Trocar capa'),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
-          const SizedBox(height: 8),
-        ],
-        _uploadButton(
-          onPressed: _uploadingVideo ? null : _pickAndUploadVideo,
-          loading: _uploadingVideo,
-          icon: Icons.video_call_rounded,
-          label: _videoUrl == null ? 'Adicionar vídeo' : 'Trocar vídeo',
         ),
       ],
     );
   }
+}
 
-  // ── Enquadramento de exibição do vídeo ────────────────────────────────
-  // Mostra o preset/proporção atualmente escolhidos e permite reabrir o
-  // editor de enquadramento (VideoFrameEditor) a qualquer momento antes
-  // de publicar, com preview ao vivo do próprio vídeo selecionado.
-  String get _videoFramePresetLabel {
-    switch (_videoFrameConfig.preset) {
-      case VideoFramePreset.original:
-        return 'Tamanho original';
-      case VideoFramePreset.ratio16x9:
-        return 'Proporção 16:9';
-      case VideoFramePreset.ratio1x1:
-        return 'Proporção 1:1';
-      case VideoFramePreset.ratio4x5:
-        return 'Proporção 4:5';
-      case VideoFramePreset.ratio9x16:
-        return 'Proporção 9:16';
-      case VideoFramePreset.custom:
-        return 'Enquadramento livre';
-    }
+class _MediaLoadingIndicator extends StatelessWidget {
+  final String label;
+  const _MediaLoadingIndicator({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+                strokeWidth: 2.4, color: AppColors.primaryOrange),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
+}
 
-  Widget _buildVideoFrameSummary() {
-    return GestureDetector(
-      onTap: _adjustVideoFrame,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0A0A0A),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF262626)),
+class _EmptyMediaPlaceholder extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isError;
+  const _EmptyMediaPlaceholder({
+    required this.icon,
+    required this.label,
+    this.isError = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isError ? const Color(0xFFEF5350) : Colors.white24;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: isError ? color.withOpacity(0.4) : const Color(0xFF262626),
         ),
-        child: Row(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.crop_rounded,
-                color: AppColors.primaryOrange, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
+            Icon(icon, color: color, size: 30),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
-                _videoFramePresetLabel,
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isError ? color : Colors.white38,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            const Text(
-              'Ajustar',
-              style: TextStyle(
-                  color: AppColors.primaryOrange,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(width: 4),
-            const Icon(Icons.chevron_right_rounded,
-                color: AppColors.primaryOrange, size: 18),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildActionButtons() {
+// ═══════════════════════════════════════════════════════════════════
+// GALERIA DE IMAGENS — o código de galeria já existia no modelo/serviço
+// (PostModel.gallery, AdminNewsService salva 'galeria'), mas não tinha
+// interface própria: era só uma List<String> preenchida em initState e
+// devolvida em _buildPost. Esta seção passa a mostrar essas imagens de
+// verdade (thumbnails), permite adicionar, remover e reordenar — sem
+// mudar o formato de dados (continua List<String> de URLs Cloudinary).
+// ═══════════════════════════════════════════════════════════════════
+class _GallerySection extends StatelessWidget {
+  final List<String> images;
+  final bool uploading;
+  final VoidCallback onAdd;
+  final void Function(int index) onRemove;
+  final void Function(int index, int delta) onMove;
+
+  const _GallerySection({
+    required this.images,
+    required this.uploading,
+    required this.onAdd,
+    required this.onRemove,
+    required this.onMove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AnimatedBuilder(
-          animation: _glowAnim,
-          builder: (_, child) => Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primaryOrange.withOpacity(0.3 * _glowAnim.value),
-                  blurRadius: 18,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: child,
-          ),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: (_uploadingCover || _uploadingVideo)
-                  ? null
-                  : () => _save(PostStatus.published),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryOrange,
-                foregroundColor: Colors.white,
-                disabledForegroundColor: Colors.white70,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
+        Row(
+          children: [
+            const Text(
+              'Galeria de imagens (opcional)',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.4,
               ),
-              icon: const Icon(Icons.publish_rounded),
-              label: const Text('Publicar',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            ),
+            const SizedBox(width: 6),
+            if (images.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryOrange.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${images.length}',
+                  style: const TextStyle(
+                    color: AppColors.primaryOrange,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (images.isNotEmpty)
+          SizedBox(
+            height: 96,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: images.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                return _GalleryThumb(
+                  url: images[index],
+                  canMoveLeft: index > 0,
+                  canMoveRight: index < images.length - 1,
+                  onRemove: () => onRemove(index),
+                  onMoveLeft: () => onMove(index, -1),
+                  onMoveRight: () => onMove(index, 1),
+                );
+              },
+            ),
+          )
+        else
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0A0A0A),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF262626)),
+            ),
+            child: const Center(
+              child: Text(
+                'Nenhuma imagem na galeria ainda',
+                style: TextStyle(color: Colors.white38, fontSize: 12),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: () => _save(PostStatus.draft),
+            onPressed: uploading ? null : onAdd,
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Color(0xFF333333)),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              foregroundColor: AppColors.primaryOrange,
+              side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.5)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              backgroundColor: AppColors.primaryOrange.withOpacity(0.06),
             ),
-            icon: const Icon(Icons.save_outlined),
-            label: const Text('Salvar como rascunho',
-                style: TextStyle(fontWeight: FontWeight.w700)),
+            icon: uploading
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.primaryOrange),
+                  )
+                : const Icon(Icons.add_photo_alternate_rounded, size: 18),
+            label: Text(
+              uploading ? 'Enviando imagem...' : 'Adicionar imagem à galeria',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ),
       ],
     );
   }
+}
+
+class _GalleryThumb extends StatelessWidget {
+  final String url;
+  final bool canMoveLeft;
+  final bool canMoveRight;
+  final VoidCallback onRemove;
+  final VoidCallback onMoveLeft;
+  final VoidCallback onMoveRight;
+
+  const _GalleryThumb({
+    required this.url,
+    required this.canMoveLeft,
+    required this.canMoveRight,
+    required this.onRemove,
+    required this.onMoveLeft,
+    required this.onMoveRight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Stack(
+        children: [
+          Container(
+            width: 96,
+            height: 96,
+            color: const Color(0xFF0A0A0A),
+            child: Image.network(
+              url,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stack) => const Icon(
+                Icons.broken_image_outlined,
+                color: Colors.white24,
+                size: 22,
+              ),
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return const Center(
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.primaryOrange),
+                  ),
+                );
+              },
+            ),
+          ),
+          Positioned(
+            top: 3,
+            right: 3,
+            child: Tooltip(
+              message: 'Remover imagem',
+              child: GestureDetector(
+                onTap: onRemove,
+                child: const CircleAvatar(
+                  radius: 11,
+                  backgroundColor: Colors.black87,
+                  child: Icon(Icons.close_rounded, size: 13, color: Colors.white),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 3,
+            left: 3,
+            right: 3,
+            child: Row(
+              children: [
+                _ThumbArrow(
+                  icon: Icons.chevron_left_rounded,
+                  enabled: canMoveLeft,
+                  onTap: onMoveLeft,
+                  tooltip: 'Mover para a esquerda',
+                ),
+                const Spacer(),
+                _ThumbArrow(
+                  icon: Icons.chevron_right_rounded,
+                  enabled: canMoveRight,
+                  onTap: onMoveRight,
+                  tooltip: 'Mover para a direita',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThumbArrow extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+  final String tooltip;
+
+  const _ThumbArrow({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+    required this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return const SizedBox(width: 20, height: 20);
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            color: Colors.black87,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(icon, size: 15, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PRÉ-VISUALIZAÇÃO — bottom sheet somente leitura mostrando como a
+// notícia deve aparecer: capa, categoria, título, resumo, conteúdo
+// (renderizado a partir das tags <b>/<mark> já usadas pelo restante do
+// app), galeria e indicação de vídeo anexado. Não lê nem grava nada;
+// é só uma projeção do estado atual do formulário.
+// ═══════════════════════════════════════════════════════════════════
+class _NewsPreviewSheet extends StatelessWidget {
+  final String title;
+  final String summary;
+  final String contentHtml;
+  final String coverUrl;
+  final List<String> gallery;
+  final String? videoUrl;
+  final String? categoryLabel;
+  final Color categoryColor;
+
+  const _NewsPreviewSheet({
+    required this.title,
+    required this.summary,
+    required this.contentHtml,
+    required this.coverUrl,
+    required this.gallery,
+    required this.videoUrl,
+    required this.categoryLabel,
+    required this.categoryColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return DraggableScrollableSheet(
+      initialChildSize: 0.86,
+      maxChildSize: 0.95,
+      minChildSize: 0.5,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF0B0B0B),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            border: Border.fromBorderSide(BorderSide(color: Color(0xFF232323))),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF333333),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.visibility_outlined,
+                        color: AppColors.primaryOrange, size: 16),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'PRÉ-VISUALIZAÇÃO',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: EdgeInsets.fromLTRB(
+                      16, 0, 16, 24 + mq.viewPadding.bottom),
+                  children: [
+                    if (coverUrl.isNotEmpty)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          coverUrl,
+                          height: 190,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stack) =>
+                              const _EmptyMediaPlaceholder(
+                            icon: Icons.broken_image_outlined,
+                            label: 'Não foi possível carregar a capa',
+                            isError: true,
+                          ),
+                        ),
+                      )
+                    else
+                      const _EmptyMediaPlaceholder(
+                        icon: Icons.image_outlined,
+                        label: 'Sem imagem de capa',
+                      ),
+                    const SizedBox(height: 14),
+                    if (categoryLabel != null)
+                      Container(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: categoryColor.withOpacity(0.16),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: categoryColor.withOpacity(0.6)),
+                        ),
+                        child: Text(
+                          categoryLabel!.toUpperCase(),
+                          style: TextStyle(
+                            color: categoryColor,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 10),
+                    Text(
+                      title.isEmpty ? 'Sem título' : title,
+                      style: TextStyle(
+                        color: title.isEmpty ? Colors.white38 : Colors.white,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w900,
+                        height: 1.25,
+                      ),
+                    ),
+                    if (summary.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        summary,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    if (videoUrl != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 14),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 10, horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141414),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF262626)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.play_circle_fill_rounded,
+                                color: AppColors.primaryOrange, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'Esta notícia inclui um vídeo',
+                              style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                    _PreviewHtmlContent(html: contentHtml),
+                    if (gallery.isNotEmpty) ...[
+                      const SizedBox(height: 18),
+                      const Text(
+                        'GALERIA',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 90,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: gallery.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          itemBuilder: (context, index) => ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.network(
+                              gallery[index],
+                              width: 90,
+                              height: 90,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stack) => Container(
+                                width: 90,
+                                height: 90,
+                                color: const Color(0xFF0A0A0A),
+                                child: const Icon(Icons.broken_image_outlined,
+                                    color: Colors.white24, size: 20),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Renderiza, de forma bem simples e só para preview, o HTML já usado
+/// pelo restante do app (<p>, <br>, <b>/<strong>, <mark>). Não é um
+/// parser de HTML completo — é suficiente para o conteúdo que o
+/// próprio editor produz via PlainTextHtmlConverter e a toolbar de
+/// formatação, então não introduz nenhuma dependência nova nem altera
+/// como o conteúdo é salvo.
+class _PreviewHtmlContent extends StatelessWidget {
+  final String html;
+  const _PreviewHtmlContent({required this.html});
+
+  @override
+  Widget build(BuildContext context) {
+    if (html.trim().isEmpty) {
+      return const Text(
+        'Sem conteúdo ainda.',
+        style: TextStyle(color: Colors.white38, fontSize: 13),
+      );
+    }
+
+    final baseStyle = const TextStyle(
+      color: Colors.white70,
+      fontSize: 14.5,
+      height: 1.55,
+    );
+
+    final paragraphs = html.split(RegExp(r'</p>', caseSensitive: false));
+    final widgets = <Widget>[];
+    for (final raw in paragraphs) {
+      final withoutOpenTag =
+          raw.replaceAll(RegExp(r'<p[^>]*>', caseSensitive: false), '');
+      if (withoutOpenTag.trim().isEmpty) continue;
+      widgets.add(Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: _buildInlineSpan(withoutOpenTag, baseStyle),
+      ));
+    }
+
+    if (widgets.isEmpty) {
+      widgets.add(_buildInlineSpan(html, baseStyle));
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: widgets);
+  }
+
+  Widget _buildInlineSpan(String source, TextStyle baseStyle) {
+    final tagPattern =
+        RegExp(r'<(/?)(mark|b|strong)>|<br\s*/?>', caseSensitive: false);
+    final children = <InlineSpan>[];
+    final markStyle =
+        baseStyle.copyWith(color: AppColors.primaryOrange, fontWeight: FontWeight.w800);
+    final boldStyle = baseStyle.copyWith(fontWeight: FontWeight.w800);
+
+    int cursor = 0;
+    final stack = <String>[];
+    TextStyle current() =>
+        stack.isEmpty ? baseStyle : (stack.last == 'mark' ? markStyle : boldStyle);
+
+    for (final match in tagPattern.allMatches(source)) {
+      if (match.start > cursor) {
+        children.add(TextSpan(
+          text: _unescape(source.substring(cursor, match.start)),
+          style: current(),
+        ));
+      }
+      final full = match.group(0)!.toLowerCase();
+      if (full.startsWith('<br')) {
+        children.add(const TextSpan(text: '\n'));
+      } else {
+        final isClosing = match.group(1) == '/';
+        final tagName = match.group(2)!.toLowerCase();
+        final normalized = tagName == 'strong' ? 'b' : tagName;
+        if (isClosing) {
+          if (stack.isNotEmpty && stack.last == normalized) stack.removeLast();
+        } else {
+          stack.add(normalized);
+        }
+      }
+      cursor = match.end;
+    }
+    if (cursor < source.length) {
+      children.add(TextSpan(text: _unescape(source.substring(cursor)), style: current()));
+    }
+    return RichText(text: TextSpan(style: baseStyle, children: children));
+  }
+
+  String _unescape(String text) => text
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&amp;', '&');
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1075,12 +2531,10 @@ class _QuietSelectionControls extends TextSelectionControls {
       );
 
   @override
-  Size getHandleSize(double textLineHeight) =>
-      _base.getHandleSize(textLineHeight);
+  Size getHandleSize(double textLineHeight) => _base.getHandleSize(textLineHeight);
 
   @override
-  Offset getHandleAnchor(
-          TextSelectionHandleType type, double textLineHeight) =>
+  Offset getHandleAnchor(TextSelectionHandleType type, double textLineHeight) =>
       _base.getHandleAnchor(type, textLineHeight);
 
   @override
@@ -1093,23 +2547,19 @@ class _QuietSelectionControls extends TextSelectionControls {
   bool canPaste(TextSelectionDelegate delegate) => _base.canPaste(delegate);
 
   @override
-  bool canSelectAll(TextSelectionDelegate delegate) =>
-      _base.canSelectAll(delegate);
+  bool canSelectAll(TextSelectionDelegate delegate) => _base.canSelectAll(delegate);
 
   @override
   void handleCut(TextSelectionDelegate delegate) => _base.handleCut(delegate);
 
   @override
-  void handleCopy(TextSelectionDelegate delegate) =>
-      _base.handleCopy(delegate);
+  void handleCopy(TextSelectionDelegate delegate) => _base.handleCopy(delegate);
 
   @override
-  Future<void> handlePaste(TextSelectionDelegate delegate) =>
-      _base.handlePaste(delegate);
+  Future<void> handlePaste(TextSelectionDelegate delegate) => _base.handlePaste(delegate);
 
   @override
-  void handleSelectAll(TextSelectionDelegate delegate) =>
-      _base.handleSelectAll(delegate);
+  void handleSelectAll(TextSelectionDelegate delegate) => _base.handleSelectAll(delegate);
 }
 
 // ═══════════════════════════════════════════════════════════════════
