@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../config/app_colors.dart';
 import '../services/avatar_upload_service.dart';
 import '../services/avatar_approval_service.dart';
+import 'app_messenger.dart';
 import 'avatar_crop_screen.dart';
 
 /// Bottom sheets reutilizáveis para edição de perfil (nome, ID de
@@ -22,40 +23,17 @@ void _showSnack(
   bool success = false,
   Duration duration = const Duration(seconds: 4),
 }) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (icon != null) ...[
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Icon(
-                icon,
-                color: success
-                    ? const Color(0xFF4CAF50)
-                    : AppColors.primaryOrange,
-                size: 16,
-              ),
-            ),
-            const SizedBox(width: 10),
-          ],
-          Expanded(
-            child: Text(
-              msg,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
-              maxLines: 6,
-            ),
-          ),
-        ],
-      ),
-      backgroundColor: const Color(0xFF141414),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(16),
-      duration: duration,
-    ),
-  );
+  final isError = icon == Icons.error_rounded ||
+      icon == Icons.error_outline_rounded ||
+      (!success && icon == null);
+
+  if (success) {
+    AppMessenger.success(msg, duration: duration);
+  } else if (isError) {
+    AppMessenger.error(msg, duration: duration);
+  } else {
+    AppMessenger.info(msg, duration: duration);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
