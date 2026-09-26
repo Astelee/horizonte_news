@@ -12,6 +12,7 @@ import '../services/admin_news_service.dart';
 import '../services/push_notification_service.dart';
 import '../../../utils/plain_text_html_converter.dart';
 import '../widgets/video_frame_editor.dart';
+import '../../../widgets/app_messenger.dart';
 
 /// Formulário de criação/edição de notícia, usado pela aba NOTÍCIAS
 /// do painel ADM. Cobre: título, resumo, conteúdo, categoria, capa,
@@ -260,9 +261,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red[900]),
-    );
+    AppMessenger.error(message);
   }
 
   bool _validate() {
@@ -297,63 +296,20 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
         pushResult = result;
       }
 
-      // Exibe um SnackBar discreto e elegante com a identidade visual do app.
-      //
-      // pushResult == null significa que nenhum push foi tentado — caso
-      // normal ao editar uma notícia que já estava publicada (o push só
-      // dispara na transição para "publicado", não a cada edição). Isso
-      // não é uma falha, então não deve ser tratado como aviso/erro.
+      // Feedback padronizado via AppMessenger (identidade visual do app).
       if (status == PostStatus.published && mounted) {
         final bool pushAttempted = pushResult != null;
         final bool success = pushResult?.success ?? false;
 
-        final String message;
-        final IconData icon;
-        final Color iconColor;
         if (!pushAttempted) {
-          message = 'Notícia atualizada.';
-          icon = Icons.check_circle_rounded;
-          iconColor = AppColors.primaryOrange;
+          AppMessenger.success('Notícia atualizada.');
         } else if (success) {
-          message = 'Notícia publicada e notificação enviada!';
-          icon = Icons.check_circle_rounded;
-          iconColor = AppColors.primaryOrange;
+          AppMessenger.success('Notícia publicada e notificação enviada!');
         } else {
-          message =
-              'Publicado, mas o push falhou: ${pushResult.message ?? "Erro desconhecido"}';
-          icon = Icons.warning_rounded;
-          iconColor = Colors.orangeAccent;
+          AppMessenger.warning(
+            'Publicado, mas o push falhou: ${pushResult.message ?? "Erro desconhecido"}',
+          );
         }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(icon, color: iconColor, size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    message,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: AppColors.backgroundElevated,
-            duration: const Duration(seconds: 4),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-              side: const BorderSide(
-                color: AppColors.primaryOrange,
-                width: 1,
-              ),
-            ),
-          ),
-        );
       }
 
       if (pushResult != null && !pushResult.success) {
