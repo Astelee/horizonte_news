@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
 import '../../../widgets/app_avatar.dart';
+import '../../../widgets/app_messenger.dart';
 import '../../../widgets/avatar_frame.dart';
 import '../../../widgets/badge_widgets.dart';
 import '../services/admin_comment_service.dart';
@@ -599,19 +600,13 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
   }) async {
     if (_busy) return;
     setState(() => _busy = true);
-    final messenger = ScaffoldMessenger.of(context);
     try {
       await action();
       if (okMessage != null) {
-        messenger.showSnackBar(SnackBar(content: Text(okMessage)));
+        AppMessenger.success(okMessage);
       }
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Não foi possível concluir: $e'),
-          backgroundColor: _red,
-        ),
-      );
+      AppMessenger.error('Não foi possível concluir: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
