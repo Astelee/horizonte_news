@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
+import '../../../widgets/app_messenger.dart';
 import '../services/admin_avatar_approval_service.dart';
 import 'admin_shared_widgets.dart';
 
@@ -194,12 +195,7 @@ class AdminAvatarApprovalTile extends StatelessWidget {
     await approvalService.approve(uid: uid, pendingPhotoUrl: pendingPhotoUrl);
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Foto de $userName aprovada.'),
-          backgroundColor: const Color(0xFF66BB6A),
-        ),
-      );
+      AppMessenger.success('Foto de $userName aprovada.');
     }
   }
 
@@ -209,9 +205,11 @@ class AdminAvatarApprovalTile extends StatelessWidget {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF111111),
+        backgroundColor: const Color(0xFF0A0A0A),
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: AppColors.primaryOrange.withOpacity(0.2)),
+        ),
         title: const Text(
           'Rejeitar foto?',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
@@ -266,12 +264,7 @@ class AdminAvatarApprovalTile extends StatelessWidget {
     );
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Foto de $userName rejeitada.'),
-          backgroundColor: const Color(0xFFEF5350),
-        ),
-      );
+      AppMessenger.warning('Foto de $userName rejeitada.');
     }
   }
 }
