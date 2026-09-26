@@ -8,6 +8,7 @@ import '../config/premium_avatars_config.dart';
 import '../config/premium_config.dart';
 import '../providers/user_xp_provider.dart';
 import '../widgets/premium_avatars.dart';
+import '../widgets/app_messenger.dart';
 import '../widgets/subscriber_badge.dart';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -230,23 +231,10 @@ class _AvatarCard extends StatelessWidget {
     final message = def.isUltraExclusive
         ? 'Este avatar é exclusivo de quem assina o ULTRA.'
         : 'Assine o Premium para equipar este avatar.';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFF141414),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-        content: Text(
-          message,
-          style: const TextStyle(color: Colors.white, fontSize: 13),
-        ),
-        action: SnackBarAction(
-          label: def.isUltraExclusive ? 'VER ULTRA' : 'ASSINAR',
-          textColor: AppColors.primaryOrange,
-          onPressed: () =>
-              Navigator.of(context).pushNamed(AppRoutes.premium),
-        ),
-      ),
+    AppMessenger.warning(
+      message,
+      actionLabel: def.isUltraExclusive ? 'VER ULTRA' : 'ASSINAR',
+      onAction: () => Navigator.of(context).pushNamed(AppRoutes.premium),
     );
   }
 
