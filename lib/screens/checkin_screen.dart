@@ -728,7 +728,7 @@ class _CheckinScreenState extends State<CheckinScreen>
   // COFRE DE RECOMPENSAS — coleção com desbloqueadas/bloqueadas
   // ═════════════════════════════════════════════════════════════════
   Widget _buildRewardVault() {
-    final all = CheckinRewardsConfig.all;
+    final all = CheckinRewardsConfig.currentMonthList;
     final unlockedCount = CheckinRewardsConfig.unlockedFor(_longestStreak).length;
 
     return Container(
@@ -792,10 +792,13 @@ class _CheckinScreenState extends State<CheckinScreen>
 
   void _onRewardTap(CheckinRewardDef reward) {
     final unlocked = CheckinRewardsConfig.isUnlocked(reward, _longestStreak);
-    showModalBottomSheet(
+    // Mesmo padrão do modal de check-in (_CheckinSuccessSheet):
+    // showDialog centralizado, compacto, em vez de bottom sheet de
+    // largura total.
+    showDialog(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.72),
       builder: (ctx) => _RewardDetailSheet(
         reward: reward,
         unlocked: unlocked,
@@ -1075,114 +1078,142 @@ class _RewardDetailSheet extends StatelessWidget {
     final missing =
         (reward.requiredStreak - currentStreak).clamp(0, 99999);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 26, 24, 34),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A0A0A),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-        border: Border(top: BorderSide(color: accent, width: 1.5)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            height: 108,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 86,
-                  height: 86,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: accent.withOpacity(unlocked ? 0.35 : 0.22),
-                        blurRadius: 40,
-                        spreadRadius: 3,
+    // Mesmo padrão visual do modal de Check-in (_CheckinSuccessSheet):
+    // Dialog centralizado com insetPadding + ConstrainedBox(maxWidth),
+    // em vez do bottom sheet de largura total que ocupava a tela
+    // inteira. Mantém margem confortável nas laterais/topo/base e
+    // todo o conteúdo (arte, título, descrição, status, botão).
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 300),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0A0A0A),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withOpacity(0.6), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withOpacity(unlocked ? 0.22 : 0.12),
+                blurRadius: 28,
+                spreadRadius: 1,
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 88,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 68,
+                      height: 68,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withOpacity(unlocked ? 0.35 : 0.22),
+                            blurRadius: 32,
+                            spreadRadius: 2,
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
+                    // Prévia sempre "acesa" (arte real, cores
+                    // completas): mesmo bloqueada, é uma prévia para o
+                    // usuário ver como a recompensa é — só a tag
+                    // "Bloqueado" e a condição abaixo deixam claro que
+                    // ainda não foi conquistada. O efeito dessaturado
+                    // (locked: true) fica reservado para os cards
+                    // pequenos do cofre.
+                    CheckinRewardArt(id: reward.id, size: 88, locked: false),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                reward.name,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '${reward.kind.label} · ${reward.rarityLabel.toUpperCase()} · ${reward.requiredStreak} DIAS',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.3,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                unlocked
+                    ? reward.description
+                    : 'Alcance ${reward.requiredStreak} dias seguidos para desbloquear.'
+                        '${missing > 0 ? ' Faltam $missing.' : ''}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: Colors.white60, fontSize: 12, height: 1.4),
+              ),
+              if (reward.bonusXp > 0) ...[
+                const SizedBox(height: 8),
+                Text(
+                  unlocked
+                      ? 'Conquistada aos ${reward.requiredStreak} dias · +${reward.bonusXp} XP'
+                      : 'Bônus do marco: +${reward.bonusXp} XP',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFFFFCA28),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                // Prévia sempre "acesa" (arte real, cores completas):
-                // mesmo bloqueada, é uma prévia para o usuário ver
-                // como a recompensa é — só a tag "Bloqueado" e a
-                // condição abaixo deixam claro que ainda não foi
-                // conquistada. O efeito dessaturado (locked: true)
-                // fica reservado para os cards pequenos do cofre.
-                CheckinRewardArt(id: reward.id, size: 108, locked: false),
               ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            reward.name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${reward.kind.label} · ${reward.rarityLabel.toUpperCase()} · ${reward.requiredStreak} DIAS',
-            style: TextStyle(
-              color: accent,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.6,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            unlocked
-                ? reward.description
-                : 'Alcance ${reward.requiredStreak} dias seguidos para desbloquear.'
-                    '${missing > 0 ? ' Faltam $missing.' : ''}',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-                color: Colors.white60, fontSize: 13, height: 1.45),
-          ),
-          if (reward.bonusXp > 0) ...[
-            const SizedBox(height: 10),
-            Text(
-              unlocked
-                  ? 'Conquistada aos ${reward.requiredStreak} dias · +${reward.bonusXp} XP'
-                  : 'Bônus do marco: +${reward.bonusXp} XP',
-              style: const TextStyle(
-                color: Color(0xFFFFCA28),
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              onPressed: unlocked ? onToggleEquip : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: accent,
-                disabledBackgroundColor: const Color(0xFF1A1A1A),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              child: Text(
-                !unlocked
-                    ? 'Bloqueado'
-                    : equipped
-                        ? 'Desequipar'
-                        : 'Equipar',
-                style: TextStyle(
-                  color: unlocked ? Colors.black87 : Colors.white38,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 14,
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 42,
+                child: ElevatedButton(
+                  onPressed: unlocked ? onToggleEquip : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accent,
+                    disabledBackgroundColor: const Color(0xFF1A1A1A),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13)),
+                  ),
+                  child: Text(
+                    !unlocked
+                        ? 'Bloqueado'
+                        : equipped
+                            ? 'Desequipar'
+                            : 'Equipar',
+                    style: TextStyle(
+                      color: unlocked ? Colors.black87 : Colors.white38,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
