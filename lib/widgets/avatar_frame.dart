@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import '../config/badge_config.dart';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -171,10 +172,23 @@ class AvatarFrame extends StatefulWidget {
 
 class _AvatarFrameState extends State<AvatarFrame>
     with TickerProviderStateMixin {
-  late AnimationController _rotationCtrl;
+  // ── _rotationCtrl e _particleCtrl NÃO usam AnimationController comum.
+  // Vários painters multiplicam `rotation`/`particleProgress` por
+  // fatores fracionários (ex: rotation * 2π * 0.4) para dar velocidades
+  // diferentes a cada camada. Com um AnimationController normal em
+  // repeat(), o valor faz wrap de 1.0 → 0.0 a cada volta; como
+  // fator_fracionário * 2π não é múltiplo de 2π, esse wrap produz um
+  // salto de ângulo visível ("reinício" da animação) toda vez que o
+  // controller completa um ciclo. Por isso usamos aqui um Ticker cru
+  // que acumula o tempo decorrido sem limite (sem wrap): o valor só
+  // cresce, então rotation*k é sempre contínuo, para qualquer k.
+  late Ticker _rotationTicker;
+  late Ticker _particleTicker;
+  double _rotationValue = 0.0; // cresce sem limite, período de 8s
+  double _particleValue = 0.0; // cresce sem limite, período de 6s
+
   late AnimationController _glowCtrl;
   late AnimationController _pulseCtrl;
-  late AnimationController _particleCtrl;
   late AnimationController _entryCtrl;
 
   late Animation<double> _glowAnim;
@@ -186,10 +200,19 @@ class _AvatarFrameState extends State<AvatarFrame>
   void initState() {
     super.initState();
 
-    _rotationCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 8),
-    )..repeat();
+    _rotationTicker = createTicker((elapsed) {
+      if (!mounted) return;
+      setState(() {
+        _rotationValue = elapsed.inMicroseconds / 8000000.0; // 8s por volta
+      });
+    })..start();
+
+    _particleTicker = createTicker((elapsed) {
+      if (!mounted) return;
+      setState(() {
+        _particleValue = elapsed.inMicroseconds / 6000000.0; // 6s por volta
+      });
+    })..start();
 
     _glowCtrl = AnimationController(
       vsync: this,
@@ -206,11 +229,6 @@ class _AvatarFrameState extends State<AvatarFrame>
     _pulseAnim = Tween<double>(begin: 1.0, end: 1.08).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
-
-    _particleCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 6),
-    )..repeat();
 
     _entryCtrl = AnimationController(
       vsync: this,
@@ -232,10 +250,10 @@ class _AvatarFrameState extends State<AvatarFrame>
 
   @override
   void dispose() {
-    _rotationCtrl.dispose();
+    _rotationTicker.dispose();
+    _particleTicker.dispose();
     _glowCtrl.dispose();
     _pulseCtrl.dispose();
-    _particleCtrl.dispose();
     _entryCtrl.dispose();
     super.dispose();
   }
@@ -247,8 +265,10 @@ class _AvatarFrameState extends State<AvatarFrame>
     final color = BadgeConfig.levelColor(widget.level);
 
     return AnimatedBuilder(
-      animation: Listenable.merge(
-          [_rotationCtrl, _glowCtrl, _pulseCtrl, _particleCtrl, _entryCtrl]),
+      // _rotationValue/_particleValue já disparam rebuild via setState
+      // nos próprios tickers; aqui só precisamos escutar os
+      // AnimationControllers que restaram (glow, pulse, entrada).
+      animation: Listenable.merge([_glowCtrl, _pulseCtrl, _entryCtrl]),
       builder: (context, _) {
         final scale = widget.enableEntryAnimation
             ? _entryScaleAnim.value
@@ -272,9 +292,13 @@ class _AvatarFrameState extends State<AvatarFrame>
                       rarity: rarity,
                       color: color,
                       gradient: gradient,
-                      rotation: _rotationCtrl.value,
+                      // Valores acumulados sem wrap (ver initState) —
+                      // continuam crescendo, então `rotation * k` nunca
+                      // salta, para qualquer k fracionário usado pelos
+                      // painters.
+                      rotation: _rotationValue,
                       glow: _glowAnim.value,
-                      particleProgress: _particleCtrl.value,
+                      particleProgress: _particleValue,
                       avatarSize: widget.size,
                     ),
                     child: Center(
