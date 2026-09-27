@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 
 // ═══════════════════════════════════════════════════════════════════
 // DISTINTIVO EXCLUSIVO DE ASSINANTE — 100% CustomPainter
@@ -28,7 +29,18 @@ class SubscriberBadge extends StatefulWidget {
 class _SubscriberBadgeState extends State<SubscriberBadge>
     with TickerProviderStateMixin {
   late final AnimationController _auraCtrl;
-  late final AnimationController _sweepCtrl;
+
+  // A varredura de brilho (sweep) NÃO usa AnimationController comum.
+  // Com `repeat()`, o valor faz wrap de 1.0 → 0.0 a cada 3s; como a
+  // posição X da faixa de luz é calculada linearmente a partir desse
+  // valor, o wrap fazia a faixa saltar instantaneamente de volta pro
+  // início — um "reinício" bem visível. Aqui usamos um Ticker cru
+  // que acumula o tempo decorrido sem limite (sem wrap): o valor só
+  // cresce, e o `% 1.0` é aplicado só na hora de desenhar, com uma
+  // margem extra fora da área clipada para que o salto do ciclo
+  // aconteça fora da região visível do selo.
+  late final Ticker _sweepTicker;
+  double _sweepValue = 0.0; // cresce sem limite, período de 3s
 
   @override
   void initState() {
@@ -37,28 +49,33 @@ class _SubscriberBadgeState extends State<SubscriberBadge>
       vsync: this,
       duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
-    _sweepCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
+
+    _sweepTicker = createTicker((elapsed) {
+      if (!mounted) return;
+      setState(() {
+        _sweepValue = elapsed.inMicroseconds / 3000000.0; // 3s por volta
+      });
+    })..start();
   }
 
   @override
   void dispose() {
     _auraCtrl.dispose();
-    _sweepCtrl.dispose();
+    _sweepTicker.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // `_sweepValue` já dispara rebuild via setState no próprio
+    // ticker; o AnimatedBuilder só precisa escutar o _auraCtrl.
     return AnimatedBuilder(
-      animation: Listenable.merge([_auraCtrl, _sweepCtrl]),
+      animation: _auraCtrl,
       builder: (context, _) => CustomPaint(
         size: Size.square(widget.size * 1.8),
         painter: _SubscriberBadgePainter(
           aura: _auraCtrl.value,
-          sweep: _sweepCtrl.value,
+          sweep: _sweepValue,
           coreSize: widget.size,
         ),
       ),
@@ -135,9 +152,16 @@ class _SubscriberBadgePainter extends CustomPainter {
     canvas.drawPath(diamond, outlinePaint);
 
     // ── Varredura de brilho cruzando a superfície ────────────────
+    // `sweep` cresce sem limite (Ticker); o `% 1.0` aqui é
+    // intencional (a faixa precisa "reaparecer" à esquerda depois de
+    // cruzar), mas usamos uma margem maior que o losango para que o
+    // salto do ciclo aconteça fora da área clipada — invisível.
     canvas.save();
     canvas.clipPath(diamond);
-    final sweepX = center.dx - half + (sweep * 2 * half);
+    final sweepMargin = half * 0.6;
+    final sweepSpan = 2 * half + sweepMargin * 2;
+    final sweepPhase = sweep % 1.0;
+    final sweepX = center.dx - half - sweepMargin + sweepSpan * sweepPhase;
     final sweepPaint = Paint()
       ..shader = LinearGradient(
         colors: [
