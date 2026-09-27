@@ -512,9 +512,10 @@ class _CommonFramePainter extends _BaseFramePainter {
 
 // ═══════════════════════════════════════════════════════════════════
 // 2 · INCOMUM (níveis 4-6) — moldura poligonal facetada, que ganha
-// lados a cada nível: nível 4 é um pentágono; nível 5 vira hexágono
-// com vértices duplos; nível 6 ganha um segundo polígono interno
-// contra-rotativo.
+// lados a cada nível: nível 4 é um pentágono com pequenos raios
+// saindo de cada vértice (identidade própria, sem vértice duplo);
+// nível 5 vira hexágono com vértices duplos (os raios do 4 somem);
+// nível 6 ganha um segundo polígono interno contra-rotativo.
 // ═══════════════════════════════════════════════════════════════════
 class _UncommonFramePainter extends _BaseFramePainter {
   _UncommonFramePainter({
@@ -574,6 +575,21 @@ class _UncommonFramePainter extends _BaseFramePainter {
       if (band >= 1) {
         final p2 = Offset(center.dx + math.cos(a) * (r - 4), center.dy + math.sin(a) * (r - 4));
         canvas.drawCircle(p2, 0.9, vertexPaint);
+      }
+      // Nível 4 (band 0): pequenos raios saindo de cada vértice do
+      // pentágono — identidade própria, só desse nível, em vez de
+      // ficar um polígono liso igual ao início da faixa Raro.
+      if (band == 0) {
+        final spikeDir = Offset(math.cos(a), math.sin(a));
+        final spikeTip = p + spikeDir * 5;
+        canvas.drawLine(
+          p,
+          spikeTip,
+          Paint()
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = 1.2
+            ..color = color.withOpacity(0.6 * glow),
+        );
       }
     }
 
@@ -776,8 +792,11 @@ class _EpicFramePainter extends _BaseFramePainter {
 
 // ═══════════════════════════════════════════════════════════════════
 // 6 · HEROICO (níveis 16-18) — escudo de facetas triangulares. Nível
-// 16: coroa de 10 pontas. Nível 17: 12 pontas + anel contra-rotativo.
-// Nível 18: 14 pontas + segundo anel interno cravejado.
+// 16: coroa de 10 pontas com pequenas chamas brilhando nas pontas
+// (identidade própria, sem anel). Nível 17: 12 pontas, chamas somem e
+// entra um anel externo contra-rotativo (marca visual forte, bem
+// diferente do 16). Nível 18: 14 pontas + segundo anel interno
+// cravejado, além do anel externo do 17.
 // ═══════════════════════════════════════════════════════════════════
 class _HeroicFramePainter extends _BaseFramePainter {
   _HeroicFramePainter({
@@ -793,15 +812,24 @@ class _HeroicFramePainter extends _BaseFramePainter {
     final band = levelInBand;
     final teeth = 10 + band * 2; // 10, 12, 14
 
-    // Anel externo contra-rotativo a partir do nível 17 (band >= 1).
+    // Anel externo contra-rotativo a partir do nível 17 (band >= 1) —
+    // marca visual forte, própria do 17 em diante, para não ficar
+    // parecido com o 16 (que tem as chamas nas pontas em vez disso).
     if (band >= 1) {
+      final ringGlow = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.5
+        ..color = gradient[1].withOpacity(0.18 * glow)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      canvas.drawCircle(center, radius + 9, ringGlow);
+
       final ringPaint = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
+        ..strokeWidth = 1.8
         ..shader = SweepGradient(
           startAngle: -rotation * 1.6 * math.pi,
-          endAngle: -rotation * 1.6 * math.pi + math.pi * 1.2,
-          colors: [Colors.transparent, gradient[1].withOpacity(0.7 * glow), Colors.transparent],
+          endAngle: -rotation * 1.6 * math.pi + math.pi * 1.6,
+          colors: [Colors.transparent, gradient[1].withOpacity(0.9 * glow), Colors.transparent],
         ).createShader(Rect.fromCircle(center: center, radius: radius + 9));
       canvas.drawCircle(center, radius + 9, ringPaint);
     }
@@ -840,6 +868,23 @@ class _HeroicFramePainter extends _BaseFramePainter {
       final a = (i / teeth) * 2 * math.pi + rotation * 2 * math.pi * 0.4;
       final p = Offset(center.dx + math.cos(a) * (radius + 6), center.dy + math.sin(a) * (radius + 6));
       canvas.drawCircle(p, 1.4, tipPaint);
+    }
+
+    // Nível 16 (band 0): pequenas chamas/brilhos nas pontas da coroa —
+    // identidade própria desse nível específico, em vez de só "a
+    // coroa dentada sem anel" (que ficava parecida demais com o 17
+    // quando visto lado a lado). Some a partir do 17, quando o anel
+    // externo já dá a leitura de progressão.
+    if (band == 0) {
+      final pulse = (math.sin(particleProgress * 2 * math.pi) + 1) / 2;
+      for (int i = 0; i < teeth; i += 2) {
+        final a = (i / teeth) * 2 * math.pi + rotation * 2 * math.pi * 0.4;
+        final tipPos = Offset(center.dx + math.cos(a) * (radius + 6), center.dy + math.sin(a) * (radius + 6));
+        final flamePaint = Paint()
+          ..color = gradient[1].withOpacity((0.35 + 0.35 * pulse) * glow)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.4);
+        canvas.drawCircle(tipPos, 2.6 + 1.2 * pulse, flamePaint);
+      }
     }
 
     // Nível 18 (band 2): segundo anel interno "cravejado" com pontos
@@ -1169,12 +1214,16 @@ class _SupremeFramePainter extends _BaseFramePainter {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 10 · HORIZONTE ELITE (níveis 28-30) — Trono Solar. Nível 28: coroa
-// facetada + raios solares (a versão "sol" plena começa aqui). Nível
-// 29: + marcadores cardeais. Nível 30 — ÁPICE ABSOLUTO: sol pleno
-// completo — coroa dupla, raios mais longos e densos, arco duplo de
-// energia dourada e núcleo radiante central, o desenho mais elaborado
-// de toda a progressão.
+// 10 · HORIZONTE ELITE (níveis 28-30) — Trono Solar, no mesmo estilo
+// visual do ícone "Sol do Horizonte" do Check-in (_SolPainter em
+// checkin_reward_painters.dart): raios longos e curtos com leve
+// "wobble" senoidal, anel dourado, e mini-coroa de 5 pontas no topo.
+// Nível 28: raios solares + coroa facetada (a versão "sol" plena
+// começa aqui). Nível 29: + marcadores cardeais e anel dourado mais
+// presente. Nível 30 — ÁPICE ABSOLUTO, visual igual ao Sol do
+// Horizonte: anel dourado externo completo, raios com wobble idêntico
+// ao do Check-in, mini-coroa de 5 pontas no topo e núcleo radiante
+// central — o desenho mais elaborado de toda a progressão.
 // ═══════════════════════════════════════════════════════════════════
 class _EliteFramePainter extends _BaseFramePainter {
   _EliteFramePainter({
@@ -1192,7 +1241,50 @@ class _EliteFramePainter extends _BaseFramePainter {
     _paintSolarThroneFrame(canvas, center, radius, band);
     _paintFacetedCrown(canvas, center, radius, band);
     if (band >= 1) _paintCardinalMarks(canvas, center, radius);
-    if (band >= 2) _paintSunCore(canvas, center, radius);
+    if (band >= 2) {
+      _paintSunCore(canvas, center, radius);
+      _paintGoldenRing(canvas, center, radius);
+      _paintFivePointCrown(canvas, center, radius);
+    }
+  }
+
+  // Anel dourado fino ao redor do trono — mesmo elemento do disco
+  // solar do Check-in (lá: "Anel dourado externo").
+  void _paintGoldenRing(Canvas canvas, Offset center, double radius) {
+    canvas.drawCircle(
+      center,
+      radius + 30,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..color = const Color(0xFFFFE082).withOpacity(0.9 * glow),
+    );
+  }
+
+  // Mini-coroa de 5 pontas acima do trono — mesmo desenho da
+  // "referência ao marco de 1 ano" do Sol do Horizonte, escalada para
+  // o tamanho da moldura.
+  void _paintFivePointCrown(Canvas canvas, Offset center, double radius) {
+    final u = radius * 2;
+    final cy = center.dy - radius - u * 0.20;
+    final crown = Path()
+      ..moveTo(center.dx - u * 0.10, cy + u * 0.05)
+      ..lineTo(center.dx - u * 0.11, cy - u * 0.01)
+      ..lineTo(center.dx - u * 0.05, cy + u * 0.02)
+      ..lineTo(center.dx, cy - u * 0.05)
+      ..lineTo(center.dx + u * 0.05, cy + u * 0.02)
+      ..lineTo(center.dx + u * 0.11, cy - u * 0.01)
+      ..lineTo(center.dx + u * 0.10, cy + u * 0.05)
+      ..close();
+    canvas.drawPath(
+      crown,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.white.withOpacity(glow), const Color(0xFFFFC107)],
+        ).createShader(crown.getBounds()),
+    );
   }
 
   // Coroa de facetas douradas — dobra de densidade no nível 30 (sol
@@ -1316,8 +1408,18 @@ class _EliteFramePainter extends _BaseFramePainter {
     for (int i = 0; i < rayCount; i++) {
       final a = (i / rayCount) * 2 * math.pi + rotation * 0.3 * math.pi;
       final isLong = i.isEven;
-      final len = isLong ? throneRadius + (isFullSun ? 22 : 16) : throneRadius + (isFullSun ? 12 : 8);
+      var len = isLong ? throneRadius + (isFullSun ? 22 : 16) : throneRadius + (isFullSun ? 12 : 8);
       final width = isLong ? (isFullSun ? 6.0 : 5.0) : (isFullSun ? 3.6 : 3.0);
+
+      // Nível 30: mesmo "wobble" senoidal dos raios do Sol do
+      // Horizonte no Check-in (lá: wob = 0.85 + 0.25*sin(t*π*4+i*1.7)),
+      // usando particleProgress — que, como `rotation`, é um valor
+      // acumulado sem wrap (ver Ticker em initState), então o wobble
+      // nunca dá salto de fase.
+      if (isFullSun) {
+        final wob = 0.85 + 0.25 * math.sin(particleProgress * math.pi * 4 + i * 1.7);
+        len = throneRadius + (len - throneRadius) * wob;
+      }
 
       final dir = Offset(math.cos(a), math.sin(a));
       final base = center + dir * throneRadius * 0.92;
