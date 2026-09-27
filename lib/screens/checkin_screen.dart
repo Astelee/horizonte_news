@@ -339,10 +339,16 @@ class _CheckinScreenState extends State<CheckinScreen>
   }
 
   void _showResultSheet(CheckinResult result) {
-    showModalBottomSheet(
+    // Antes era um bottom sheet (largura total, grudado na base da
+    // tela) — só uma confirmação rápida de "check-in feito", não
+    // precisa ocupar tanto espaço nem competir com o calendário atrás.
+    // Agora é um diálogo centralizado, menor (conteúdo com metade do
+    // tamanho de antes: ícone, textos e paddings reduzidos), com a
+    // tela ao redor escurecida.
+    showDialog(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.72),
       builder: (_) => _CheckinSuccessSheet(result: result),
     );
   }
@@ -1319,172 +1325,193 @@ class _CheckinSuccessSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reward = result.unlockedReward;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 36),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0A0A0A),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border(
-          top: BorderSide(color: AppColors.primaryOrange, width: 1.5),
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 76,
-            height: 76,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [Color(0xFF43B581), Color(0xFF2E9464)],
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+      child: ConstrainedBox(
+        // ~metade da largura que o bottom sheet ocupava (que era a
+        // largura da tela inteira) e sem ficar preso à base — o
+        // insetPadding acima + este maxWidth já centralizam o card.
+        constraints: const BoxConstraints(maxWidth: 260),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0A0A0A),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: AppColors.primaryOrange.withOpacity(0.6),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF43B581).withOpacity(0.4),
-                  blurRadius: 24,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: const Icon(Icons.check_rounded, color: Colors.white, size: 40),
+            ],
           ),
-          const SizedBox(height: 18),
-          const Text(
-            'Check-in realizado!',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '+${result.xpGained} XP',
-            style: const TextStyle(
-              color: AppColors.primaryOrange,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (result.bonusXp > 0) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Bônus de sequência: +${result.bonusXp} XP',
-              style: const TextStyle(
-                color: Color(0xFFFFCA28),
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              color: const Color(0xFFFF6B00).withOpacity(0.12),
-              border: Border.all(
-                  color: AppColors.primaryOrange.withOpacity(0.4)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const FaIcon(FontAwesomeIcons.fire,
-                    color: AppColors.primaryOrange, size: 14),
-                const SizedBox(width: 8),
-                Text(
-                  'Sequência: ${result.streak} ${result.streak == 1 ? 'dia' : 'dias'}',
-                  style: const TextStyle(
-                    color: AppColors.primaryOrange,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF43B581), Color(0xFF2E9464)],
                   ),
-                ),
-              ],
-            ),
-          ),
-          if (result.bonusLabel != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              result.bonusLabel!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-          if (reward != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: reward.accentColor.withOpacity(0.10),
-                border:
-                    Border.all(color: reward.accentColor.withOpacity(0.5)),
-              ),
-              child: Row(
-                children: [
-                  CheckinRewardArt(id: reward.id, size: 52),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'RECOMPENSA DESBLOQUEADA',
-                          style: TextStyle(
-                            color: reward.accentColor,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.4,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          reward.name,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const Text(
-                          'Veja no Cofre de Recompensas.',
-                          style: TextStyle(
-                              color: Colors.white54, fontSize: 11.5),
-                        ),
-                      ],
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF43B581).withOpacity(0.4),
+                      blurRadius: 14,
+                      spreadRadius: 1,
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                child: const Icon(Icons.check_rounded,
+                    color: Colors.white, size: 22),
               ),
-            ),
-          ],
-          const SizedBox(height: 22),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryOrange,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              child: const Text(
-                'Continuar',
+              const SizedBox(height: 10),
+              const Text(
+                'Check-in realizado!',
+                textAlign: TextAlign.center,
                 style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14),
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
-            ),
+              const SizedBox(height: 3),
+              Text(
+                '+${result.xpGained} XP',
+                style: const TextStyle(
+                  color: AppColors.primaryOrange,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (result.bonusXp > 0) ...[
+                const SizedBox(height: 2),
+                Text(
+                  'Bônus de sequência: +${result.bonusXp} XP',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFFFFCA28),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: const Color(0xFFFF6B00).withOpacity(0.12),
+                  border: Border.all(
+                      color: AppColors.primaryOrange.withOpacity(0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const FaIcon(FontAwesomeIcons.fire,
+                        color: AppColors.primaryOrange, size: 10),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Sequência: ${result.streak} ${result.streak == 1 ? 'dia' : 'dias'}',
+                      style: const TextStyle(
+                        color: AppColors.primaryOrange,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (result.bonusLabel != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  result.bonusLabel!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              if (reward != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: reward.accentColor.withOpacity(0.10),
+                    border:
+                        Border.all(color: reward.accentColor.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    children: [
+                      CheckinRewardArt(id: reward.id, size: 32),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'RECOMPENSA DESBLOQUEADA',
+                              style: TextStyle(
+                                color: reward.accentColor,
+                                fontSize: 7,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              reward.name,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const Text(
+                              'Veja no Cofre de Recompensas.',
+                              style: TextStyle(
+                                  color: Colors.white54, fontSize: 8.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                height: 36,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryOrange,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(11)),
+                  ),
+                  child: const Text(
+                    'Continuar',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
