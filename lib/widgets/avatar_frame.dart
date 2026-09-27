@@ -984,18 +984,23 @@ class _MythicFramePainter extends _BaseFramePainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = avatarSize / 2 + 10;
+    // Tudo proporcional a avatarSize (u), igual ao Sol do Horizonte do
+    // Check-in — sem offsets fixos em px, para não "estourar" em
+    // avatares pequenos (ex.: grid de níveis a 36px).
+    final u = avatarSize;
+    final radius = u / 2 + u * 0.09;
     final band = levelInBand;
 
-    _paintCrystalVeil(canvas, center, radius, band);
-    _paintCrystalDragonFrame(canvas, center, radius);
+    _paintCrystalVeil(canvas, center, radius, u, band);
+    _paintCrystalDragonFrame(canvas, center, radius, u);
 
     // Nível 24 (band 2): arco de energia fria adicional, contornando
     // por fora do véu — reforça a sensação de topo da faixa.
     if (band >= 2) {
+      final r = radius + u * 0.27;
       final arcPaint = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
+        ..strokeWidth = u * 0.014
         ..strokeCap = StrokeCap.round
         ..shader = SweepGradient(
           startAngle: rotation * 1.8 * math.pi,
@@ -1006,24 +1011,25 @@ class _MythicFramePainter extends _BaseFramePainter {
             const Color(0xFF7C4DFF).withOpacity(0.8 * glow),
             Colors.transparent,
           ],
-        ).createShader(Rect.fromCircle(center: center, radius: radius + 30));
-      canvas.drawCircle(center, radius + 30, arcPaint);
+        ).createShader(Rect.fromCircle(center: center, radius: r));
+      canvas.drawCircle(center, r, arcPaint);
     }
   }
 
-  void _paintCrystalVeil(Canvas canvas, Offset center, double radius, int band) {
+  void _paintCrystalVeil(
+      Canvas canvas, Offset center, double radius, double u, int band) {
     final layerCount = band >= 1 ? 2 : 1;
     for (int layer = 0; layer < layerCount; layer++) {
       final count = 5 + layer * 3;
-      final r = radius + 4 + layer * 9.0;
+      final r = radius + u * 0.035 + layer * u * 0.08;
       final speed = layer == 0 ? 1.0 : -0.6;
+      final s = u * (0.023 - layer * 0.0035);
       for (int i = 0; i < count; i++) {
         final a = (i / count) * 2 * math.pi + rotation * 2 * math.pi * speed;
         final pos = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r * 0.85);
         canvas.save();
         canvas.translate(pos.dx, pos.dy);
         canvas.rotate(a);
-        final s = 2.6 - layer * 0.4;
         final shardPath = Path()
           ..moveTo(0, -s)
           ..lineTo(s * 0.6, 0)
@@ -1032,15 +1038,16 @@ class _MythicFramePainter extends _BaseFramePainter {
           ..close();
         final shardPaint = Paint()
           ..color = const Color(0xFF00E5FF).withOpacity((0.25 + layer * 0.1) * glow)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.8);
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, u * 0.007);
         canvas.drawPath(shardPath, shardPaint);
         canvas.restore();
       }
     }
   }
 
-  void _paintCrystalDragonFrame(Canvas canvas, Offset center, double radius) {
-    final dragonRadius = radius + 20;
+  void _paintCrystalDragonFrame(
+      Canvas canvas, Offset center, double radius, double u) {
+    final dragonRadius = radius + u * 0.18;
 
     final mistPaint = Paint()
       ..shader = RadialGradient(
@@ -1048,8 +1055,8 @@ class _MythicFramePainter extends _BaseFramePainter {
           const Color(0xFF00E5FF).withOpacity(0.12 * glow),
           Colors.transparent,
         ],
-      ).createShader(Rect.fromCircle(center: center, radius: dragonRadius + 12));
-    canvas.drawCircle(center, dragonRadius + 12, mistPaint);
+      ).createShader(Rect.fromCircle(center: center, radius: dragonRadius + u * 0.11));
+    canvas.drawCircle(center, dragonRadius + u * 0.11, mistPaint);
 
     for (final side in [-1.0, 1.0]) {
       final baseAngle = side < 0 ? math.pi * 0.82 : math.pi * 0.18;
@@ -1065,12 +1072,14 @@ class _MythicFramePainter extends _BaseFramePainter {
       canvas.translate(headCenter.dx, headCenter.dy);
       canvas.rotate(-angle * side);
 
+      // Cabeça de dragão, escalada por u em vez de px fixos.
+      final hs = u * 0.11;
       final headPath = Path()
-        ..moveTo(0, -9)
-        ..lineTo(14 * side, 0)
-        ..lineTo(6 * side, 6)
-        ..lineTo(-6 * side, 10)
-        ..lineTo(-10 * side, 0)
+        ..moveTo(0, -hs * 0.82)
+        ..lineTo(hs * 1.27 * side, 0)
+        ..lineTo(hs * 0.55 * side, hs * 0.55)
+        ..lineTo(-hs * 0.55 * side, hs * 0.91)
+        ..lineTo(-hs * 0.91 * side, 0)
         ..close();
 
       final headPaint = Paint()
@@ -1079,26 +1088,27 @@ class _MythicFramePainter extends _BaseFramePainter {
             const Color(0xFF00E5FF).withOpacity(0.85 * glow),
             const Color(0xFF7C4DFF).withOpacity(0.85 * glow),
           ],
-        ).createShader(const Rect.fromLTWH(-14, -9, 28, 19));
+        ).createShader(Rect.fromCircle(center: Offset.zero, radius: hs * 1.3));
       canvas.drawPath(headPath, headPaint);
 
       final headOutline = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
+        ..strokeWidth = u * 0.009
         ..color = Colors.white.withOpacity(0.7 * glow);
       canvas.drawPath(headPath, headOutline);
 
       final eyePaint = Paint()..color = Colors.white.withOpacity(glow);
-      canvas.drawCircle(Offset(2 * side, -1), 1.4, eyePaint);
+      canvas.drawCircle(Offset(hs * 0.18 * side, -hs * 0.09), u * 0.013, eyePaint);
 
       canvas.restore();
     }
 
+    final crystalR = dragonRadius + u * 0.055;
     for (int i = 0; i < 6; i++) {
       final a = (i / 6) * 2 * math.pi + rotation * 2 * math.pi;
       final pos = Offset(
-        center.dx + math.cos(a) * (dragonRadius + 6),
-        center.dy + math.sin(a) * (dragonRadius + 6) * 0.6,
+        center.dx + math.cos(a) * crystalR,
+        center.dy + math.sin(a) * crystalR * 0.6,
       );
       final crystalPaint = Paint()
         ..color = Color.lerp(
@@ -1107,11 +1117,12 @@ class _MythicFramePainter extends _BaseFramePainter {
       canvas.save();
       canvas.translate(pos.dx, pos.dy);
       canvas.rotate(a);
+      final cs = u * 0.032;
       final crystalPath = Path()
-        ..moveTo(0, -3.5)
-        ..lineTo(2.2, 0)
-        ..lineTo(0, 3.5)
-        ..lineTo(-2.2, 0)
+        ..moveTo(0, -cs)
+        ..lineTo(cs * 0.63, 0)
+        ..lineTo(0, cs)
+        ..lineTo(-cs * 0.63, 0)
         ..close();
       canvas.drawPath(crystalPath, crystalPaint);
       canvas.restore();
@@ -1150,13 +1161,16 @@ class _SupremeFramePainter extends _BaseFramePainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final base = avatarSize / 2 + 9;
+    // Tudo proporcional a avatarSize (u) — sem offsets fixos em px.
+    final u = avatarSize;
+    final base = u / 2 + u * 0.08;
     final band = levelInBand;
+    final strokeUnit = u * 0.017;
 
     final allLayers = [
-      (sides: 3, r: base + 2, speed: 1.0, width: 1.6),
-      (sides: 4, r: base + 9, speed: -0.7, width: 1.8),
-      (sides: 8, r: base + 17, speed: 0.45, width: 1.4),
+      (sides: 3, r: base + u * 0.018, speed: 1.0, width: strokeUnit * 0.94),
+      (sides: 4, r: base + u * 0.08, speed: -0.7, width: strokeUnit * 1.06),
+      (sides: 8, r: base + u * 0.15, speed: 0.45, width: strokeUnit * 0.82),
     ];
     final layers = band >= 1 ? allLayers : allLayers.sublist(0, 2);
 
@@ -1166,10 +1180,10 @@ class _SupremeFramePainter extends _BaseFramePainter {
 
       final glowPaint = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = l.width + 2.5
+        ..strokeWidth = l.width + u * 0.022
         ..color = Color.lerp(gradient[0], gradient[1], i / layers.length)!
             .withOpacity(0.22 * glow)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, u * 0.026);
       canvas.drawPath(path, glowPaint);
 
       final strokePaint = Paint()
@@ -1195,19 +1209,21 @@ class _SupremeFramePainter extends _BaseFramePainter {
       ..shader = RadialGradient(colors: [
         Colors.white.withOpacity((band >= 2 ? 0.16 : 0.10) * glow * (0.5 + pulse * 0.5)),
         Colors.transparent,
-      ]).createShader(Rect.fromCircle(center: center, radius: base - 2));
-    canvas.drawCircle(center, base - 2, corePaint);
+      ]).createShader(Rect.fromCircle(center: center, radius: base - u * 0.018));
+    canvas.drawCircle(center, base - u * 0.018, corePaint);
 
     final outer = layers.last;
+    final vertexR = u * 0.011;
     final vertexPaint = Paint()..color = Colors.white.withOpacity(0.75 * glow);
     for (int i = 0; i < outer.sides; i++) {
       final a = (i / outer.sides) * 2 * math.pi + rotation * 2 * math.pi * outer.speed;
       final p = Offset(center.dx + math.cos(a) * outer.r, center.dy + math.sin(a) * outer.r);
-      canvas.drawCircle(p, 1.3, vertexPaint);
+      canvas.drawCircle(p, vertexR, vertexPaint);
       // Nível 27 (band 2): vértices duplos no anel externo.
       if (band >= 2) {
-        final p2 = Offset(center.dx + math.cos(a) * (outer.r + 4), center.dy + math.sin(a) * (outer.r + 4));
-        canvas.drawCircle(p2, 0.8, vertexPaint);
+        final r2 = outer.r + u * 0.035;
+        final p2 = Offset(center.dx + math.cos(a) * r2, center.dy + math.sin(a) * r2);
+        canvas.drawCircle(p2, vertexR * 0.6, vertexPaint);
       }
     }
   }
@@ -1235,28 +1251,33 @@ class _EliteFramePainter extends _BaseFramePainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = avatarSize / 2 + 10;
+    // Tudo proporcional a avatarSize (u) — mesma lógica do Sol do
+    // Horizonte no Check-in (_SolPainter), que usa `u = s.width` como
+    // única unidade. Sem offsets fixos em px: escala igual em 36px
+    // (grid de níveis) ou 90px (preview grande).
+    final u = avatarSize;
+    final radius = u / 2 + u * 0.09;
     final band = levelInBand; // 0=28, 1=29, 2=30
 
-    _paintSolarThroneFrame(canvas, center, radius, band);
-    _paintFacetedCrown(canvas, center, radius, band);
-    if (band >= 1) _paintCardinalMarks(canvas, center, radius);
+    _paintSolarThroneFrame(canvas, center, radius, u, band);
+    _paintFacetedCrown(canvas, center, radius, u, band);
+    if (band >= 1) _paintCardinalMarks(canvas, center, radius, u);
     if (band >= 2) {
-      _paintSunCore(canvas, center, radius);
-      _paintGoldenRing(canvas, center, radius);
-      _paintFivePointCrown(canvas, center, radius);
+      _paintSunCore(canvas, center, radius, u);
+      _paintGoldenRing(canvas, center, radius, u);
+      _paintFivePointCrown(canvas, center, radius, u);
     }
   }
 
   // Anel dourado fino ao redor do trono — mesmo elemento do disco
   // solar do Check-in (lá: "Anel dourado externo").
-  void _paintGoldenRing(Canvas canvas, Offset center, double radius) {
+  void _paintGoldenRing(Canvas canvas, Offset center, double radius, double u) {
     canvas.drawCircle(
       center,
-      radius + 30,
+      radius + u * 0.27,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0
+        ..strokeWidth = u * 0.018
         ..color = const Color(0xFFFFE082).withOpacity(0.9 * glow),
     );
   }
@@ -1264,8 +1285,7 @@ class _EliteFramePainter extends _BaseFramePainter {
   // Mini-coroa de 5 pontas acima do trono — mesmo desenho da
   // "referência ao marco de 1 ano" do Sol do Horizonte, escalada para
   // o tamanho da moldura.
-  void _paintFivePointCrown(Canvas canvas, Offset center, double radius) {
-    final u = radius * 2;
+  void _paintFivePointCrown(Canvas canvas, Offset center, double radius, double u) {
     final cy = center.dy - radius - u * 0.20;
     final crown = Path()
       ..moveTo(center.dx - u * 0.10, cy + u * 0.05)
@@ -1289,16 +1309,17 @@ class _EliteFramePainter extends _BaseFramePainter {
 
   // Coroa de facetas douradas — dobra de densidade no nível 30 (sol
   // pleno), formando uma coroa dupla.
-  void _paintFacetedCrown(Canvas canvas, Offset center, double radius, int band) {
+  void _paintFacetedCrown(
+      Canvas canvas, Offset center, double radius, double u, int band) {
     final facets = band >= 2 ? 20 : 14;
+    final s = u * 0.026;
     for (int i = 0; i < facets; i++) {
       final a = (i / facets) * 2 * math.pi - rotation * 2 * math.pi * 0.5;
-      final r = radius + 3;
+      final r = radius + u * 0.03;
       final pos = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r);
       canvas.save();
       canvas.translate(pos.dx, pos.dy);
       canvas.rotate(a);
-      final s = 2.4;
       final facetPath = Path()
         ..moveTo(0, -s)
         ..lineTo(s * 0.7, s * 0.4)
@@ -1308,7 +1329,7 @@ class _EliteFramePainter extends _BaseFramePainter {
         ..shader = LinearGradient(colors: [
           const Color(0xFFFFD700), const Color(0xFFFFF176),
         ]).createShader(Rect.fromCircle(center: Offset.zero, radius: s))
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.5);
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, u * 0.0055);
       canvas.drawPath(facetPath, facetPaint);
       canvas.restore();
     }
@@ -1317,18 +1338,18 @@ class _EliteFramePainter extends _BaseFramePainter {
     // mais espaçada — a "coroa dupla" do sol pleno.
     if (band >= 2) {
       const outerFacets = 10;
+      final s2 = u * 0.035;
       for (int i = 0; i < outerFacets; i++) {
         final a = (i / outerFacets) * 2 * math.pi + rotation * 2 * math.pi * 0.35;
-        final r = radius + 34;
+        final r = radius + u * 0.30;
         final pos = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r);
         canvas.save();
         canvas.translate(pos.dx, pos.dy);
         canvas.rotate(a + math.pi);
-        const s = 3.2;
         final facetPath = Path()
-          ..moveTo(0, -s)
-          ..lineTo(s * 0.7, s * 0.4)
-          ..lineTo(-s * 0.7, s * 0.4)
+          ..moveTo(0, -s2)
+          ..lineTo(s2 * 0.7, s2 * 0.4)
+          ..lineTo(-s2 * 0.7, s2 * 0.4)
           ..close();
         final facetPaint = Paint()
           ..color = const Color(0xFFFFF176).withOpacity(0.75 * glow)
@@ -1339,15 +1360,16 @@ class _EliteFramePainter extends _BaseFramePainter {
     }
   }
 
-  void _paintCardinalMarks(Canvas canvas, Offset center, double radius) {
+  void _paintCardinalMarks(Canvas canvas, Offset center, double radius, double u) {
     final pulse = (math.sin(particleProgress * 2 * math.pi) + 1) / 2;
     final markPaint = Paint()
       ..color = Colors.white.withOpacity((0.6 + 0.4 * pulse) * glow)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, u * 0.007);
+    final d = u * 0.026;
     for (int i = 0; i < 4; i++) {
       final a = (i / 4) * 2 * math.pi;
-      final pos = Offset(center.dx + math.cos(a) * (radius + 26), center.dy + math.sin(a) * (radius + 26));
-      const d = 3.6;
+      final r = radius + u * 0.19;
+      final pos = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r);
       final path = Path()
         ..moveTo(pos.dx, pos.dy - d)
         ..lineTo(pos.dx + d, pos.dy)
@@ -1361,22 +1383,24 @@ class _EliteFramePainter extends _BaseFramePainter {
   // Núcleo radiante — exclusivo do nível 30. Um brilho central intenso
   // por trás do avatar, como o próprio disco solar, culminando a
   // progressão inteira de 30 níveis.
-  void _paintSunCore(Canvas canvas, Offset center, double radius) {
+  void _paintSunCore(Canvas canvas, Offset center, double radius, double u) {
     final pulse = (math.sin(particleProgress * 2 * math.pi) + 1) / 2;
+    final coreR = radius + u * 0.045;
     final corePaint = Paint()
       ..shader = RadialGradient(colors: [
         const Color(0xFFFFF9C4).withOpacity(0.35 * glow * (0.6 + pulse * 0.4)),
         const Color(0xFFFFD700).withOpacity(0.18 * glow),
         Colors.transparent,
       ], stops: const [0.0, 0.5, 1.0])
-          .createShader(Rect.fromCircle(center: center, radius: radius + 6));
-    canvas.drawCircle(center, radius + 6, corePaint);
+          .createShader(Rect.fromCircle(center: center, radius: coreR));
+    canvas.drawCircle(center, coreR, corePaint);
 
     // Segundo arco dourado, contra-rotativo em relação ao arco do
     // trono solar, reforçando a leitura de "sol pleno".
+    final arcR = radius + u * 0.29;
     final arcPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
+      ..strokeWidth = u * 0.014
       ..strokeCap = StrokeCap.round
       ..shader = SweepGradient(
         startAngle: rotation * 1.7 * math.pi,
@@ -1387,29 +1411,32 @@ class _EliteFramePainter extends _BaseFramePainter {
           const Color(0xFFFFD700).withOpacity(0.85 * glow),
           Colors.transparent,
         ],
-      ).createShader(Rect.fromCircle(center: center, radius: radius + 38));
-    canvas.drawCircle(center, radius + 38, arcPaint);
+      ).createShader(Rect.fromCircle(center: center, radius: arcR));
+    canvas.drawCircle(center, arcR, arcPaint);
   }
 
-  void _paintSolarThroneFrame(Canvas canvas, Offset center, double radius, int band) {
-    final throneRadius = radius + 22;
+  void _paintSolarThroneFrame(
+      Canvas canvas, Offset center, double radius, double u, int band) {
+    final throneRadius = radius + u * 0.17;
     final isFullSun = band >= 2;
 
+    final haloR = throneRadius + u * 0.12;
     final haloPaint = Paint()
       ..shader = RadialGradient(
         colors: [
           const Color(0xFFFFD700).withOpacity((isFullSun ? 0.30 : 0.22) * glow),
           Colors.transparent,
         ],
-      ).createShader(Rect.fromCircle(center: center, radius: throneRadius + 16));
-    canvas.drawCircle(center, throneRadius + 16, haloPaint);
+      ).createShader(Rect.fromCircle(center: center, radius: haloR));
+    canvas.drawCircle(center, haloR, haloPaint);
 
     final rayCount = isFullSun ? 24 : 16;
     for (int i = 0; i < rayCount; i++) {
       final a = (i / rayCount) * 2 * math.pi + rotation * 0.3 * math.pi;
       final isLong = i.isEven;
-      var len = isLong ? throneRadius + (isFullSun ? 22 : 16) : throneRadius + (isFullSun ? 12 : 8);
-      final width = isLong ? (isFullSun ? 6.0 : 5.0) : (isFullSun ? 3.6 : 3.0);
+      var len = throneRadius +
+          u * (isLong ? (isFullSun ? 0.17 : 0.12) : (isFullSun ? 0.09 : 0.06));
+      final width = u * (isLong ? (isFullSun ? 0.045 : 0.038) : (isFullSun ? 0.027 : 0.022));
 
       // Nível 30: mesmo "wobble" senoidal dos raios do Sol do
       // Horizonte no Check-in (lá: wob = 0.85 + 0.25*sin(t*π*4+i*1.7)),
@@ -1442,9 +1469,10 @@ class _EliteFramePainter extends _BaseFramePainter {
       canvas.drawPath(rayPath, rayPaint);
     }
 
+    final ringR = throneRadius + u * 0.03;
     final arcPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
+      ..strokeWidth = u * 0.019
       ..strokeCap = StrokeCap.round
       ..shader = SweepGradient(
         startAngle: -rotation * 2.2 * math.pi,
@@ -1455,18 +1483,19 @@ class _EliteFramePainter extends _BaseFramePainter {
           const Color(0xFFFFD700).withOpacity(0.9 * glow),
           Colors.transparent,
         ],
-      ).createShader(Rect.fromCircle(center: center, radius: throneRadius + 4));
-    canvas.drawCircle(center, throneRadius + 4, arcPaint);
+      ).createShader(Rect.fromCircle(center: center, radius: ringR));
+    canvas.drawCircle(center, ringR, arcPaint);
 
-    final crestCenter = Offset(center.dx, center.dy - throneRadius - 4);
+    final crestCenter = Offset(center.dx, center.dy - throneRadius - u * 0.03);
     final crestPaint = Paint()
       ..color = Colors.white.withOpacity(0.9 * glow)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, u * 0.011);
+    final cd = u * 0.035;
     final crestPath = Path()
-      ..moveTo(crestCenter.dx, crestCenter.dy - 5)
-      ..lineTo(crestCenter.dx + 4, crestCenter.dy + 3)
-      ..lineTo(crestCenter.dx, crestCenter.dy + 1)
-      ..lineTo(crestCenter.dx - 4, crestCenter.dy + 3)
+      ..moveTo(crestCenter.dx, crestCenter.dy - cd * 1.4)
+      ..lineTo(crestCenter.dx + cd, crestCenter.dy + cd * 0.86)
+      ..lineTo(crestCenter.dx, crestCenter.dy + cd * 0.29)
+      ..lineTo(crestCenter.dx - cd, crestCenter.dy + cd * 0.86)
       ..close();
     canvas.drawPath(crestPath, crestPaint);
   }
