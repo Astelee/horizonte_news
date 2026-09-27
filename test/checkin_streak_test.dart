@@ -20,7 +20,8 @@ Map<String, String> _range(DateTime start, DateTime end,
 void main() {
   final today = DateTime(2026, 9, 23);
 
-  group('CheckinService.computeStreaks — reconstrução do histórico', () {
+  group('CheckinService.computeStreaks — mês civil (não atravessa virada de mês)',
+      () {
     test('caso real: check-ins do dia 1 ao 23 => sequência de 23', () {
       final h = _range(DateTime(2026, 9, 1), DateTime(2026, 9, 23));
       final r = CheckinService.computeStreaks(h, today: today);
@@ -75,22 +76,97 @@ void main() {
 
     test('recorde antigo maior que a sequência atual é preservado', () {
       final h = {
-        ..._range(DateTime(2026, 7, 1), DateTime(2026, 8, 9)), // 40 dias
+        ..._range(DateTime(2026, 7, 1), DateTime(2026, 7, 31)), // 31 dias
         ..._range(DateTime(2026, 9, 20), DateTime(2026, 9, 23)), // 4 dias
       };
       final r = CheckinService.computeStreaks(h, today: today);
 
       expect(r.current, 4);
-      expect(r.longest, 40);
+      expect(r.longest, 31);
     });
 
-    test('atravessa virada de ano e ano bissexto (29/fev)', () {
-      final h = _range(DateTime(2027, 12, 25), DateTime(2028, 3, 2));
+    test('31/01 → sequência 31; 01/02 → sequência reinicia em 1', () {
+      final h = {
+        ..._range(DateTime(2026, 1, 1), DateTime(2026, 1, 31)),
+        '2026-02-01': 'done',
+      };
       final r =
-          CheckinService.computeStreaks(h, today: DateTime(2028, 3, 2));
+          CheckinService.computeStreaks(h, today: DateTime(2026, 2, 1));
 
-      expect(r.current, h.length);
-      expect(r.longest, h.length);
+      expect(r.current, 1);
+      // Recorde continua sendo o de janeiro (31), mesmo com fevereiro
+      // já tendo começado.
+      expect(r.longest, 31);
+    });
+
+    test('30/04 → sequência 30; 01/05 → sequência reinicia em 1', () {
+      final h = {
+        ..._range(DateTime(2026, 4, 1), DateTime(2026, 4, 30)),
+        '2026-05-01': 'done',
+      };
+      final r =
+          CheckinService.computeStreaks(h, today: DateTime(2026, 5, 1));
+
+      expect(r.current, 1);
+      expect(r.longest, 30);
+    });
+
+    test('28/02 (não bissexto) → sequência 28; 01/03 → reinicia em 1', () {
+      final h = {
+        ..._range(DateTime(2026, 2, 1), DateTime(2026, 2, 28)),
+        '2026-03-01': 'done',
+      };
+      final r =
+          CheckinService.computeStreaks(h, today: DateTime(2026, 3, 1));
+
+      expect(r.current, 1);
+      expect(r.longest, 28);
+    });
+
+    test('29/02 (bissexto) → sequência 29; 01/03 → reinicia em 1', () {
+      final h = {
+        ..._range(DateTime(2028, 2, 1), DateTime(2028, 2, 29)),
+        '2028-03-01': 'done',
+      };
+      final r =
+          CheckinService.computeStreaks(h, today: DateTime(2028, 3, 1));
+
+      expect(r.current, 1);
+      expect(r.longest, 29);
+    });
+
+    test(
+        'recorde histórico entre meses: jan=25, fev=28, mar=31 => recorde 31',
+        () {
+      final h = {
+        ..._range(DateTime(2026, 1, 1), DateTime(2026, 1, 25)),
+        ..._range(DateTime(2026, 2, 1), DateTime(2026, 2, 28)),
+        ..._range(DateTime(2026, 3, 1), DateTime(2026, 3, 31)),
+      };
+      final r =
+          CheckinService.computeStreaks(h, today: DateTime(2026, 3, 31));
+
+      expect(r.longest, 31);
+      expect(r.current, 31);
+    });
+
+    test('mesmo com dias de calendário adjacentes, meses diferentes nunca emendam',
+        () {
+      // 31/01 e 01/02 são "dia seguinte" no calendário, mas NUNCA
+      // devem contar como sequência contínua.
+      final h = {
+        '2026-01-30': 'done',
+        '2026-01-31': 'done',
+        '2026-02-01': 'done',
+        '2026-02-02': 'done',
+      };
+      final r =
+          CheckinService.computeStreaks(h, today: DateTime(2026, 2, 2));
+
+      // A sequência atual deve ser só os dias de fevereiro (2), não 4.
+      expect(r.current, 2);
+      // O maior trecho DENTRO de um único mês também é 2 (não 4).
+      expect(r.longest, 2);
     });
 
     test('histórico vazio não inventa nada', () {
@@ -131,12 +207,12 @@ void main() {
       for (var i = 1; i < m.length; i++) {
         expect(m[i], greaterThan(m[i - 1]));
       }
-      expect(m, [7, 14, 30, 60, 100, 150, 200, 365]);
+      expect(m, [3, 5, 7, 10, 14, 18, 24, 31]);
     });
 
     test('bônus de XP bate com o que a regra do Firestore aceita', () {
       // Valores aceitos em isValidCheckinXp (firestore.rules).
-      const aceitos = {10, 40, 70, 160, 310, 510, 260, 410, 1010};
+      const aceitos = {10, 25, 35, 50, 70, 100, 140, 210, 360};
       for (final r in CheckinRewardsConfig.all) {
         expect(aceitos.contains(CheckinService.baseXp + r.bonusXp), isTrue,
             reason:
@@ -145,23 +221,23 @@ void main() {
     });
 
     test('desbloqueio depende do RECORDE, não da sequência atual', () {
-      final faisca = CheckinRewardsConfig.forStreak(7)!;
-      expect(CheckinRewardsConfig.isUnlocked(faisca, 6), isFalse);
-      expect(CheckinRewardsConfig.isUnlocked(faisca, 7), isTrue);
-      expect(CheckinRewardsConfig.isUnlocked(faisca, 40), isTrue);
+      final faisca = CheckinRewardsConfig.forStreak(3)!;
+      expect(CheckinRewardsConfig.isUnlocked(faisca, 2), isFalse);
+      expect(CheckinRewardsConfig.isUnlocked(faisca, 3), isTrue);
+      expect(CheckinRewardsConfig.isUnlocked(faisca, 31), isTrue);
     });
 
     test('nextLocked devolve a próxima recompensa e null ao completar tudo',
         () {
-      expect(CheckinRewardsConfig.nextLocked(0)!.requiredStreak, 7);
-      expect(CheckinRewardsConfig.nextLocked(7)!.requiredStreak, 14);
-      expect(CheckinRewardsConfig.nextLocked(364)!.requiredStreak, 365);
-      expect(CheckinRewardsConfig.nextLocked(365), isNull);
+      expect(CheckinRewardsConfig.nextLocked(0)!.requiredStreak, 3);
+      expect(CheckinRewardsConfig.nextLocked(3)!.requiredStreak, 5);
+      expect(CheckinRewardsConfig.nextLocked(30)!.requiredStreak, 31);
+      expect(CheckinRewardsConfig.nextLocked(31), isNull);
     });
 
     test('progressToNext fica sempre entre 0 e 1', () {
-      for (final longest in [0, 3, 7, 20, 99, 100, 364, 365, 999]) {
-        for (final cur in [0, 1, 5, 30, 200, 999]) {
+      for (final longest in [0, 2, 3, 7, 20, 24, 30, 31]) {
+        for (final cur in [0, 1, 5, 15, 20, 31]) {
           final p = CheckinRewardsConfig.progressToNext(cur, longest);
           expect(p, inInclusiveRange(0.0, 1.0));
         }
@@ -190,14 +266,14 @@ void main() {
 
   group('CheckinService — marcos e rótulos', () {
     test('bônus só existe nos marcos do catálogo', () {
-      expect(CheckinService.bonusForStreak(7), 30);
-      expect(CheckinService.bonusForStreak(365), 1000);
+      expect(CheckinService.bonusForStreak(3), 15);
+      expect(CheckinService.bonusForStreak(31), 350);
       expect(CheckinService.bonusForStreak(8), 0);
       expect(CheckinService.bonusForStreak(0), 0);
     });
 
     test('rótulo de bônus é nulo fora dos marcos', () {
-      expect(CheckinService.bonusLabelForStreak(7), isNotNull);
+      expect(CheckinService.bonusLabelForStreak(3), isNotNull);
       expect(CheckinService.bonusLabelForStreak(8), isNull);
     });
   });
