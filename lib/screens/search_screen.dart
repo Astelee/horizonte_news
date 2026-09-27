@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -7,9 +6,9 @@ import '../providers/posts_provider.dart';
 import '../widgets/news_card.dart';
 
 /// Tela de busca de notícias. Segue a mesma identidade visual do
-/// resto do app (fundo preto, partículas de fogo animadas, glow
-/// laranja, cards translúcidos com blur) — o mesmo padrão usado no
-/// editor de notícias do painel ADM.
+/// resto do app (fundo preto com glow laranja estático, cards
+/// translúcidos com blur) — o mesmo padrão usado no editor de
+/// notícias do painel ADM e na aba "Notícias" do ADM.
 ///
 /// ATENÇÃO: só o visual foi refeito. Toda a lógica de busca (chamada
 /// a PostsProvider.search, tratamento de loading/erro/resultado
@@ -25,17 +24,18 @@ class _SearchScreenState extends State<SearchScreen>
     with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
 
-  late final AnimationController _particleCtrl;
   late final AnimationController _glowCtrl;
   late final Animation<double> _glowAnim;
 
   @override
   void initState() {
     super.initState();
-    _particleCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 10),
-    )..repeat();
+    // O fundo era animado (partículas de fogo subindo, redesenhadas a
+    // cada frame por um AnimationController em loop infinito). Trocado
+    // por um CustomPaint estático (ver _SearchStaticBackgroundPainter),
+    // igual ao padrão já usado no editor de notícias e na aba
+    // "Notícias" do ADM: sem custo de repaint contínuo atrás da tela de
+    // busca, que fica aberta enquanto o usuário digita.
 
     _glowCtrl = AnimationController(
       vsync: this,
@@ -57,7 +57,6 @@ class _SearchScreenState extends State<SearchScreen>
   @override
   void dispose() {
     _searchController.dispose();
-    _particleCtrl.dispose();
     _glowCtrl.dispose();
     super.dispose();
   }
@@ -69,12 +68,9 @@ class _SearchScreenState extends State<SearchScreen>
       body: Stack(
         children: [
           Positioned.fill(child: Container(color: Colors.black)),
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _particleCtrl,
-              builder: (_, __) => CustomPaint(
-                painter: _SearchParticlePainter(_particleCtrl.value),
-              ),
+          const Positioned.fill(
+            child: RepaintBoundary(
+              child: CustomPaint(painter: _SearchStaticBackgroundPainter()),
             ),
           ),
           SafeArea(
@@ -298,24 +294,12 @@ class _SearchScreenState extends State<SearchScreen>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// PARTÍCULAS DE FOGO DE FUNDO (mesmo padrão visual do editor/ranking)
+// FUNDO ESTÁTICO (sem partículas, sem animação) — só os dois glows
+// radiais fixos, no mesmo padrão do editor de notícias e da aba
+// "Notícias" do ADM. Pintado uma única vez, sem custo por frame.
 // ═══════════════════════════════════════════════════════════════════
-class _SearchParticlePainter extends CustomPainter {
-  final double t;
-  _SearchParticlePainter(this.t);
-
-  static final _rng = math.Random(7);
-  static final _particles = List.generate(
-    36,
-    (i) => _SPData(
-      x: _rng.nextDouble(),
-      y: _rng.nextDouble(),
-      size: 1.2 + _rng.nextDouble() * 2.6,
-      speed: 0.02 + _rng.nextDouble() * 0.05,
-      opacity: 0.25 + _rng.nextDouble() * 0.45,
-      phase: _rng.nextDouble(),
-    ),
-  );
+class _SearchStaticBackgroundPainter extends CustomPainter {
+  const _SearchStaticBackgroundPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -355,47 +339,8 @@ class _SearchParticlePainter extends CustomPainter {
       size.width * 0.75,
       orbPaint2,
     );
-
-    for (final p in _particles) {
-      final dy = 1.0 - ((p.y + t * p.speed + p.phase) % 1.0);
-      final dx = p.x + 0.025 * math.sin((t * 2 * math.pi * 0.6) + p.phase * 6.28);
-      final fireRatio = 1.0 - dy;
-      final color = Color.lerp(
-        const Color(0xFFFFA040),
-        const Color(0xFFFF2200),
-        fireRatio,
-      )!;
-      final opacity = p.opacity *
-          (0.5 + 0.5 * math.sin(t * 2 * math.pi * p.speed * 10 + p.phase));
-
-      final center = Offset(dx * size.width, dy * size.height);
-      final finalOpacity = opacity.clamp(0.0, 0.7);
-
-      canvas.drawCircle(
-        center,
-        p.size * 3,
-        Paint()..color = color.withOpacity(finalOpacity * 0.15),
-      );
-      canvas.drawCircle(
-        center,
-        p.size,
-        Paint()..color = color.withOpacity(finalOpacity),
-      );
-    }
   }
 
   @override
-  bool shouldRepaint(_SearchParticlePainter old) => old.t != t;
-}
-
-class _SPData {
-  final double x, y, size, speed, opacity, phase;
-  const _SPData({
-    required this.x,
-    required this.y,
-    required this.size,
-    required this.speed,
-    required this.opacity,
-    required this.phase,
-  });
+  bool shouldRepaint(_SearchStaticBackgroundPainter old) => false;
 }
