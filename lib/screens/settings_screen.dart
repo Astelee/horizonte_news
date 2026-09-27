@@ -44,6 +44,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _photoUrl;
   bool _uploadingPhoto = false;
   bool _showAge = false;
+  // Se a conta já possui birthDate salvo no Firestore. Contas antigas
+  // (criadas antes do calendário existir no register_screen.dart) podem
+  // não ter esse campo — nesse caso o próprio toggle "Mostrar minha
+  // idade" pede a data antes de ativar (ver _toggleShowAge).
+  bool _hasBirthDate = false;
 
   // Link oficial da Política de Privacidade
   static const String _privacyPolicyUrl =
@@ -76,12 +81,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final username = data?['username'] as String?;
       final photoUrl = data?['photoUrl'] as String?;
       final showAge = data?['showAge'] as bool? ?? false;
+      final birthDate = data?['birthDate'] as Timestamp?;
 
       if (mounted) {
         setState(() {
           _currentUsername = username;
           _photoUrl = photoUrl;
           _showAge = showAge;
+          _hasBirthDate = birthDate != null;
         });
       }
     } catch (_) {
@@ -882,22 +889,132 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // Mesmo cálculo de idade usado no register_screen.dart e no
+  // comments_section.dart (considera se o aniversário já ocorreu
+  // no ano atual). Mantido igual nos três lugares de propósito.
+  int _calculateAge(DateTime birthDate) {
+    final today = DateTime.now();
+    int age = today.year - birthDate.year;
+    final hasHadBirthdayThisYear = (today.month > birthDate.month) ||
+        (today.month == birthDate.month && today.day >= birthDate.day);
+    if (!hasHadBirthdayThisYear) age--;
+    return age;
+  }
+
+  // Mesmo seletor de data (com o mesmo tema) usado no cadastro, para
+  // contas antigas que nunca informaram a data de nascimento.
+  Future<DateTime?> _pickBirthDateForSettings() {
+    final now = DateTime.now();
+    return showDatePicker(
+      context: context,
+      initialDate: DateTime(now.year - 18, now.month, now.day),
+      firstDate: DateTime(now.year - 120, 1, 1),
+      lastDate: now,
+      helpText: 'DATA DE NASCIMENTO',
+      cancelText: 'CANCELAR',
+      confirmText: 'CONFIRMAR',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppColors.primaryOrange,
+              onPrimary: Colors.white,
+              surface: Color(0xFF141414),
+              onSurface: Colors.white,
+            ),
+            dialogBackgroundColor: const Color(0xFF0A0A0A),
+          ),
+          child: child!,
+        );
+      },
+    );
+  }
+
   Future<void> _toggleShowAge(bool value) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    setState(() => _showAge = value);
+    // Desativando: só oculta a idade para outras pessoas. O
+    // birthDate nunca é apagado.
+    if (!value) {
+      setState(() => _showAge = false);
+      try {
+        await FirebaseFirestore.instance
+            .collection('users_xp')
+            .doc(user.uid)
+            .set({'showAge': false}, SetOptions(merge: true));
+      } catch (_) {
+        if (mounted) {
+          setState(() => _showAge = true);
+          _showSnack(
+            'Erro ao atualizar preferência.',
+            icon: Icons.error_rounded,
+            success: false,
+          );
+        }
+      }
+      return;
+    }
+
+    // Ativando, e a conta já tem birthDate salvo: funciona direto,
+    // sem pedir a data de novo.
+    if (_hasBirthDate) {
+      setState(() => _showAge = true);
+      try {
+        await FirebaseFirestore.instance
+            .collection('users_xp')
+            .doc(user.uid)
+            .set({'showAge': true}, SetOptions(merge: true));
+      } catch (_) {
+        if (mounted) {
+          setState(() => _showAge = false);
+          _showSnack(
+            'Erro ao atualizar preferência.',
+            icon: Icons.error_rounded,
+            success: false,
+          );
+        }
+      }
+      return;
+    }
+
+    // Ativando, mas a conta é antiga e não tem birthDate: pede a
+    // data antes de ativar. Se cancelar, não ativa o toggle.
+    final picked = await _pickBirthDateForSettings();
+    if (picked == null) return;
+
+    if (_calculateAge(picked) < 16) {
+      if (mounted) {
+        _showSnack(
+          'Você precisa ter pelo menos 16 anos para usar este recurso.',
+          icon: Icons.error_rounded,
+          success: false,
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _showAge = true;
+      _hasBirthDate = true;
+    });
 
     try {
-      await FirebaseFirestore.instance
-          .collection('users_xp')
-          .doc(user.uid)
-          .set({'showAge': value}, SetOptions(merge: true));
+      await FirebaseFirestore.instance.collection('users_xp').doc(user.uid).set(
+        {
+          'birthDate': Timestamp.fromDate(picked),
+          'showAge': true,
+        },
+        SetOptions(merge: true),
+      );
     } catch (_) {
       if (mounted) {
-        setState(() => _showAge = !value);
+        setState(() {
+          _showAge = false;
+          _hasBirthDate = false;
+        });
         _showSnack(
-          'Erro ao atualizar preferência.',
+          'Erro ao salvar sua data de nascimento.',
           icon: Icons.error_rounded,
           success: false,
         );
