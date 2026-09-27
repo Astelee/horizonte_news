@@ -209,8 +209,6 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
                 posts.where((p) => p.status == PostStatus.published).length;
             final draftCount =
                 posts.where((p) => p.status == PostStatus.draft).length;
-            final unpublishedCount =
-                posts.where((p) => p.status == PostStatus.unpublished).length;
 
             if (_filterStatus != null) {
               posts = posts.where((p) => p.status == _filterStatus).toList();
@@ -218,13 +216,16 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
             if (_search.isNotEmpty) {
               final q = _search.toLowerCase();
               posts = posts.where((p) => p.title.toLowerCase().contains(q)).toList();
-            } else if (_filterStatus == null) {
-              // Sem busca nem filtro ativo: mostra só as 3 notícias mais
-              // recentes (a lista já vem ordenada por atualizadoEm
-              // descendente do allNewsStream). Para ver as demais, o
-              // usuário busca pelo título ou usa um dos chips de filtro
-              // acima, que continuam mostrando a lista inteira daquele
-              // status.
+            } else if (_filterStatus == null ||
+                _filterStatus == PostStatus.published) {
+              // Sem busca ativa, em "Todas" ou em "Publicadas": mostra só
+              // as 3 notícias mais recentes (a lista já vem ordenada por
+              // atualizadoEm descendente do allNewsStream). São os dois
+              // filtros com volume alto (a maioria das notícias termina
+              // publicada), então nenhum dos dois precisa da lista
+              // completa nem de paginação aqui. Para ver as demais, o
+              // usuário busca pelo título. Outros filtros (Rascunhos)
+              // continuam mostrando a lista inteira daquele status.
               posts = posts.take(3).toList();
             }
 
@@ -249,7 +250,6 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
                       total: total,
                       published: publishedCount,
                       draft: draftCount,
-                      unpublished: unpublishedCount,
                       filterStatus: _filterStatus,
                       searchController: _searchController,
                       searchFocusNode: _searchFocusNode,
@@ -270,20 +270,29 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
                           : ListView.builder(
                               padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
                               itemCount: posts.length +
-                                  (_search.isEmpty && _filterStatus == null && total > 3
+                                  (_search.isEmpty &&
+                                          (_filterStatus == null ||
+                                              _filterStatus == PostStatus.published) &&
+                                          (_filterStatus == null
+                                                  ? total
+                                                  : publishedCount) >
+                                              3
                                       ? 1
                                       : 0),
                               itemBuilder: (context, i) {
                                 if (i == posts.length) {
-                                  // Aviso ao final das 3 mais recentes,
-                                  // só quando não há busca/filtro ativo
-                                  // e existem mais notícias além dessas.
+                                  // Aviso ao final das 3 mais recentes, só
+                                  // quando não há busca ativa, o filtro é
+                                  // "Todas" ou "Publicadas", e existem mais
+                                  // notícias daquele total além dessas 3.
+                                  final shownTotal = _filterStatus == null
+                                      ? total
+                                      : publishedCount;
                                   return Padding(
                                     padding: const EdgeInsets.symmetric(vertical: 16),
                                     child: Text(
-                                      'Mostrando as 3 mais recentes de $total. '
-                                      'Busque pelo título ou use um filtro acima '
-                                      'para ver as demais.',
+                                      'Mostrando as 3 mais recentes de $shownTotal. '
+                                      'Busque pelo título para ver as demais.',
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         color: AppColors.textSecondary,
@@ -359,7 +368,6 @@ class _NewsHeader extends StatelessWidget {
   final int total;
   final int published;
   final int draft;
-  final int unpublished;
   final PostStatus? filterStatus;
   final TextEditingController searchController;
   final FocusNode searchFocusNode;
@@ -373,7 +381,6 @@ class _NewsHeader extends StatelessWidget {
     required this.total,
     required this.published,
     required this.draft,
-    required this.unpublished,
     required this.filterStatus,
     required this.searchController,
     required this.searchFocusNode,
@@ -458,14 +465,6 @@ class _NewsHeader extends StatelessWidget {
                   color: const Color(0xFFFFC107),
                   selected: filterStatus == PostStatus.draft,
                   onTap: () => onFilterChanged(PostStatus.draft),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'Despublicadas',
-                  count: unpublished,
-                  color: AppColors.textSecondary,
-                  selected: filterStatus == PostStatus.unpublished,
-                  onTap: () => onFilterChanged(PostStatus.unpublished),
                 ),
               ],
             ),
