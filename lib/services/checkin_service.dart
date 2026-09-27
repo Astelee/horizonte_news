@@ -173,15 +173,15 @@ class CheckinService {
   static String? bonusLabelForStreak(int streak) {
     final reward = CheckinRewardsConfig.forStreak(streak);
     if (reward == null) return null;
-    if (streak >= 365) {
-      return 'Um ano inteiro de sequência — Sol do Horizonte! ☀️';
+    if (streak >= 31) {
+      return 'Mês inteiro de sequência — Sol do Horizonte! ☀️';
     }
-    if (streak >= 100) return 'Sequência de $streak dias — ${reward.name}! 🏆';
+    if (streak >= 24) return 'Sequência de $streak dias — ${reward.name}! 🏆';
     return 'Sequência de $streak dias! 🔥';
   }
 
   // Marco especial: conquista permanente além do XP.
-  static bool isSpecialMilestone(int streak) => streak == 100;
+  static bool isSpecialMilestone(int streak) => streak == 31;
 
   DocumentReference<Map<String, dynamic>>? get _userDoc {
     final uid = _auth.currentUser?.uid;
@@ -224,17 +224,30 @@ class CheckinService {
   }
 
   // ═════════════════════════════════════════════════════════════════
-  // CÁLCULO PURO DA SEQUÊNCIA
+  // CÁLCULO PURO DA SEQUÊNCIA (BASE MENSAL — mês civil atual)
   // ═════════════════════════════════════════════════════════════════
   /// Calcula sequência atual, recorde, primeiro/último dia a partir
   /// de um mapa `dateKey -> status` ('done' | 'recovered').
   ///
-  /// Regras (idênticas às já usadas pelo app):
+  /// Regras (mês civil — a sequência NUNCA atravessa a virada de mês):
   ///  • 'done' e 'recovered' contam IGUAL para a sequência.
-  ///  • Dias consecutivos = dias de calendário adjacentes.
+  ///  • Dias consecutivos = dias de calendário adjacentes E que
+  ///    pertencem ao MESMO mês/ano (dia 1 nunca emenda com o dia 31
+  ///    do mês anterior, mesmo sendo "o dia seguinte" no calendário).
   ///  • A sequência ATUAL só é válida se o último dia coberto for
-  ///    HOJE ou ONTEM; caso contrário está quebrada (current = 0).
-  ///  • O recorde é o maior trecho consecutivo de TODO o histórico.
+  ///    HOJE ou ONTEM (e, no caso de ontem, só se ontem ainda
+  ///    pertencer ao mesmo mês de hoje — senão a virada de mês já a
+  ///    zerou); caso contrário está quebrada (current = 0).
+  ///  • O recorde ("longestCheckinStreak") é o maior trecho
+  ///    consecutivo encontrado DENTRO DE UM ÚNICO MÊS, em todo o
+  ///    histórico — não pode ser formado por dias de meses
+  ///    diferentes. O recorde nunca diminui quando o mês vira: quem
+  ///    já bateu 31 em janeiro mantém "recorde = 31" mesmo que
+  ///    fevereiro só tenha 28 dias possíveis.
+  ///  • O tamanho máximo de uma sequência mensal acompanha o
+  ///    calendário real (28/29/30/31 dias) — isso é automático aqui
+  ///    porque a quebra ocorre na virada de mês, não em um número
+  ///    fixo.
   ///
   /// Função pura e estática: não acessa Firestore nem relógio (o
   /// "hoje" é injetado), então pode ser testada com dados fixos.
@@ -282,10 +295,22 @@ class CheckinService {
     bool isNextDay(DateTime prev, DateTime cur) =>
         cur == DateTime(prev.year, prev.month, prev.day + 1);
 
+    // Dois dias só "emendam" a sequência se forem consecutivos NO
+    // CALENDÁRIO e pertencerem ao MESMO mês/ano. Isso garante que
+    // dia 1 de um mês nunca herde a sequência do último dia do mês
+    // anterior (31/01 → 01/02 sempre quebra, mesmo sendo "dia
+    // seguinte" cronologicamente).
+    bool isSameMonthNextDay(DateTime prev, DateTime cur) =>
+        isNextDay(prev, cur) &&
+        prev.year == cur.year &&
+        prev.month == cur.month;
+
+    // Recorde: maior trecho consecutivo DENTRO DE UM MESMO MÊS, em
+    // todo o histórico.
     int longest = 1;
     int run = 1;
     for (int i = 1; i < dates.length; i++) {
-      if (isNextDay(dates[i - 1], dates[i])) {
+      if (isSameMonthNextDay(dates[i - 1], dates[i])) {
         run++;
       } else {
         run = 1;
@@ -294,15 +319,19 @@ class CheckinService {
     }
 
     // Sequência atual: o trecho que termina no último dia coberto,
-    // mas só vale se esse dia for hoje ou ontem.
+    // mas só vale se esse dia for hoje ou ontem E ontem ainda
+    // pertencer ao mesmo mês civil de hoje (a virada de mês zera a
+    // sequência mesmo que o último check-in tenha sido "ontem").
     final last = dates.last;
     final todayD = DateTime(today.year, today.month, today.day);
     final yesterday = DateTime(today.year, today.month, today.day - 1);
     int current = 0;
-    if (last == todayD || last == yesterday) {
+    final lastIsValidAnchor = last == todayD ||
+        (last == yesterday && last.year == todayD.year && last.month == todayD.month);
+    if (lastIsValidAnchor) {
       current = 1;
       for (int i = dates.length - 1; i > 0; i--) {
-        if (isNextDay(dates[i - 1], dates[i])) {
+        if (isSameMonthNextDay(dates[i - 1], dates[i])) {
           current++;
         } else {
           break;
@@ -533,23 +562,35 @@ class CheckinService {
       final longestStreak =
           (data['longestCheckinStreak'] as num?)?.toInt() ?? 0;
 
-      // Sequência continua se o último dia coberto foi ONTEM.
+      // Sequência continua se o último dia coberto foi ONTEM E ontem
+      // ainda pertence ao MESMO mês/ano de hoje. Na virada de mês
+      // (ex.: ontem = 31/01, hoje = 01/02) a sequência SEMPRE reinicia
+      // em 1, mesmo sendo "o dia seguinte" no calendário.
       int newStreak = 1;
       if (lastCheckinDate != null) {
         final lastDate = _parseKey(lastCheckinDate);
         if (lastDate != null) {
           final expectedNext =
               DateTime(lastDate.year, lastDate.month, lastDate.day + 1);
-          if (expectedNext == today) newStreak = currentStreak + 1;
+          final sameMonth =
+              lastDate.year == today.year && lastDate.month == today.month;
+          if (expectedNext == today && sameMonth) {
+            newStreak = currentStreak + 1;
+          }
         }
       }
 
       // Segurança extra: resumo desatualizado (caso típico de quem já
       // tinha histórico antes do sistema atual). Uma leitura do doc
-      // de ontem evita quebrar a sequência à toa.
-      if (newStreak == 1) {
-        final yKey =
-            dateKey(DateTime(today.year, today.month, today.day - 1));
+      // de ontem evita quebrar a sequência à toa — mas só se ontem
+      // ainda pertencer ao mesmo mês civil de hoje. Se hoje é dia 1,
+      // "ontem" é do mês anterior e NÃO deve emendar a sequência,
+      // mesmo que o documento exista de verdade no histórico.
+      final yesterday = DateTime(today.year, today.month, today.day - 1);
+      final yesterdaySameMonth =
+          yesterday.year == today.year && yesterday.month == today.month;
+      if (newStreak == 1 && yesterdaySameMonth) {
+        final yKey = dateKey(yesterday);
         final ySnap = await col.doc(yKey).get();
         if (ySnap.exists) {
           final rebuilt = await rebuildStreakFromHistory();
@@ -593,7 +634,7 @@ class CheckinService {
           if (freshData['checkinFirstDate'] == null)
             'checkinFirstDate': todayKey,
           if (isSpecialMilestone(newStreak))
-            'achievements': FieldValue.arrayUnion(['checkin_100']),
+            'achievements': FieldValue.arrayUnion(['checkin_month_complete']),
         });
       });
 
