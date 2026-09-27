@@ -267,7 +267,7 @@ class _AvatarFrameState extends State<AvatarFrame>
                 alignment: Alignment.center,
                 children: [
                   CustomPaint(
-                    painter: _FramePainter(
+                    painter: _buildPainterForRarity(
                       rarity: rarity,
                       color: color,
                       gradient: gradient,
@@ -306,9 +306,81 @@ class _AvatarFrameState extends State<AvatarFrame>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// CUSTOM PAINTER — desenha anel, partículas, halo cósmico, aura 360°
+// FACTORY — escolhe o painter certo para a faixa do nível
 // ═══════════════════════════════════════════════════════════════════
-class _FramePainter extends CustomPainter {
+// Cada faixa de raridade tem sua própria classe CustomPainter, com
+// composição gráfica exclusiva (não é o mesmo anel genérico com cor
+// trocada). As 3 propriedades animadas (rotation/glow/particleProgress)
+// continuam vindo dos AnimationControllers já existentes em
+// _AvatarFrameState — nenhum painter cria controller próprio.
+CustomPainter _buildPainterForRarity({
+  required FrameRarity rarity,
+  required Color color,
+  required List<Color> gradient,
+  required double rotation,
+  required double glow,
+  required double particleProgress,
+  required double avatarSize,
+}) {
+  switch (rarity) {
+    case FrameRarity.common:
+      return _CommonFramePainter(
+          rarity: rarity, color: color, gradient: gradient,
+          rotation: rotation, glow: glow,
+          particleProgress: particleProgress, avatarSize: avatarSize);
+    case FrameRarity.uncommon:
+      return _UncommonFramePainter(
+          rarity: rarity, color: color, gradient: gradient,
+          rotation: rotation, glow: glow,
+          particleProgress: particleProgress, avatarSize: avatarSize);
+    case FrameRarity.rare:
+      return _RareFramePainter(
+          rarity: rarity, color: color, gradient: gradient,
+          rotation: rotation, glow: glow,
+          particleProgress: particleProgress, avatarSize: avatarSize);
+    case FrameRarity.special:
+      return _SpecialFramePainter(
+          rarity: rarity, color: color, gradient: gradient,
+          rotation: rotation, glow: glow,
+          particleProgress: particleProgress, avatarSize: avatarSize);
+    case FrameRarity.epic:
+      return _EpicFramePainter(
+          rarity: rarity, color: color, gradient: gradient,
+          rotation: rotation, glow: glow,
+          particleProgress: particleProgress, avatarSize: avatarSize);
+    case FrameRarity.heroic:
+      return _HeroicFramePainter(
+          rarity: rarity, color: color, gradient: gradient,
+          rotation: rotation, glow: glow,
+          particleProgress: particleProgress, avatarSize: avatarSize);
+    case FrameRarity.legendary:
+      return _LegendaryFramePainter(
+          rarity: rarity, color: color, gradient: gradient,
+          rotation: rotation, glow: glow,
+          particleProgress: particleProgress, avatarSize: avatarSize);
+    case FrameRarity.mythic:
+      return _MythicFramePainter(
+          rarity: rarity, color: color, gradient: gradient,
+          rotation: rotation, glow: glow,
+          particleProgress: particleProgress, avatarSize: avatarSize);
+    case FrameRarity.supreme:
+      return _SupremeFramePainter(
+          rarity: rarity, color: color, gradient: gradient,
+          rotation: rotation, glow: glow,
+          particleProgress: particleProgress, avatarSize: avatarSize);
+    case FrameRarity.elite:
+      return _EliteFramePainter(
+          rarity: rarity, color: color, gradient: gradient,
+          rotation: rotation, glow: glow,
+          particleProgress: particleProgress, avatarSize: avatarSize);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BASE COMPARTILHADA — só carrega os campos comuns e o shouldRepaint
+// padrão. Cada faixa estende isso e implementa paint() do zero.
+// ═══════════════════════════════════════════════════════════════════
+abstract class _BaseFramePainter extends CustomPainter {
   final FrameRarity rarity;
   final Color color;
   final List<Color> gradient;
@@ -317,7 +389,7 @@ class _FramePainter extends CustomPainter {
   final double particleProgress;
   final double avatarSize;
 
-  _FramePainter({
+  _BaseFramePainter({
     required this.rarity,
     required this.color,
     required this.gradient,
@@ -328,55 +400,469 @@ class _FramePainter extends CustomPainter {
   });
 
   @override
+  bool shouldRepaint(covariant _BaseFramePainter oldDelegate) =>
+      oldDelegate.rotation != rotation ||
+      oldDelegate.glow != glow ||
+      oldDelegate.particleProgress != particleProgress;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 1 · COMUM — quase nada: um traço tracejado fino e quieto.
+// Conceito: "recém-chegado", moldura quase invisível, só 6 tracinhos
+// finos e curtos em volta do avatar, sem brilho nem rotação.
+// ═══════════════════════════════════════════════════════════════════
+class _CommonFramePainter extends _BaseFramePainter {
+  _CommonFramePainter({
+    required super.rarity, required super.color, required super.gradient,
+    required super.rotation, required super.glow,
+    required super.particleProgress, required super.avatarSize,
+  });
+
+  @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final ringRadius = avatarSize / 2 + 10;
+    final radius = avatarSize / 2 + 8;
+    const tickCount = 8;
+    final tickPaint = Paint()
+      ..color = color.withOpacity(0.35 + 0.15 * glow)
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
 
-    if (rarity.is360Aura) {
-      _paintAura360(canvas, center, ringRadius);
+    for (int i = 0; i < tickCount; i++) {
+      final a = (i / tickCount) * 2 * math.pi;
+      final inner = Offset(
+        center.dx + math.cos(a) * radius,
+        center.dy + math.sin(a) * radius,
+      );
+      final outer = Offset(
+        center.dx + math.cos(a) * (radius + 4),
+        center.dy + math.sin(a) * (radius + 4),
+      );
+      canvas.drawLine(inner, outer, tickPaint);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 2 · INCOMUM — moldura hexagonal facetada, girando devagar.
+// Conceito: contorno poligonal de 6 lados (não um círculo!) com
+// vértices levemente "respirando" — a primeira forma geométrica
+// própria que o jogador desbloqueia.
+// ═══════════════════════════════════════════════════════════════════
+class _UncommonFramePainter extends _BaseFramePainter {
+  _UncommonFramePainter({
+    required super.rarity, required super.color, required super.gradient,
+    required super.rotation, required super.glow,
+    required super.particleProgress, required super.avatarSize,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final baseRadius = avatarSize / 2 + 10;
+    const sides = 6;
+    final breathe = math.sin(particleProgress * 2 * math.pi) * 1.6;
+
+    final path = Path();
+    for (int i = 0; i <= sides; i++) {
+      final a = (i / sides) * 2 * math.pi + rotation * 2 * math.pi * 0.25;
+      final r = baseRadius + breathe;
+      final p = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r);
+      if (i == 0) {
+        path.moveTo(p.dx, p.dy);
+      } else {
+        path.lineTo(p.dx, p.dy);
+      }
+    }
+    path.close();
+
+    final glowPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..color = color.withOpacity(0.25 * glow)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    canvas.drawPath(path, glowPaint);
+
+    final strokePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeJoin = StrokeJoin.round
+      ..shader = LinearGradient(colors: gradient)
+          .createShader(Rect.fromCircle(center: center, radius: baseRadius));
+    canvas.drawPath(path, strokePaint);
+
+    // Pequenos pontos de luz fixos em cada vértice
+    final vertexPaint = Paint()..color = Colors.white.withOpacity(0.7 * glow);
+    for (int i = 0; i < sides; i++) {
+      final a = (i / sides) * 2 * math.pi + rotation * 2 * math.pi * 0.25;
+      final r = baseRadius + breathe;
+      final p = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r);
+      canvas.drawCircle(p, 1.3, vertexPaint);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 3 · RARO — dois losangos orbitando em trilhas elípticas cruzadas.
+// Conceito: não é um anel contínuo — são só 2 marcadores em forma de
+// losango, cada um numa órbita elíptica com inclinação diferente,
+// cruzando-se periodicamente atrás do avatar.
+// ═══════════════════════════════════════════════════════════════════
+class _RareFramePainter extends _BaseFramePainter {
+  _RareFramePainter({
+    required super.rarity, required super.color, required super.gradient,
+    required super.rotation, required super.glow,
+    required super.particleProgress, required super.avatarSize,
+  });
+
+  void _drawDiamond(Canvas canvas, Offset pos, double s, Paint paint) {
+    final path = Path()
+      ..moveTo(pos.dx, pos.dy - s)
+      ..lineTo(pos.dx + s * 0.65, pos.dy)
+      ..lineTo(pos.dx, pos.dy + s)
+      ..lineTo(pos.dx - s * 0.65, pos.dy)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final rx = avatarSize / 2 + 12;
+
+    // faixa fina de base, elíptica, quase reta
+    final basePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..color = color.withOpacity(0.25 * glow);
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: rx * 2, height: rx * 1.1), basePaint);
+    canvas.restore();
+
+    for (int i = 0; i < 2; i++) {
+      final tilt = i == 0 ? 0.35 : -0.35;
+      final speed = i == 0 ? 1.0 : -1.3;
+      final angle = rotation * 2 * math.pi * speed + i * math.pi;
+
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(tilt);
+      final pos = Offset(math.cos(angle) * rx, math.sin(angle) * rx * 0.55);
+
+      final trailPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = gradient[i % gradient.length].withOpacity(0.35 * glow);
+      canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: rx * 2, height: rx * 1.1), trailPaint);
+
+      final gemPaint = Paint()
+        ..shader = LinearGradient(colors: [gradient[0], gradient[1]])
+            .createShader(Rect.fromCircle(center: pos, radius: 6))
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.6);
+      _drawDiamond(canvas, pos, 4.2 + rarity.index * 0.2, gemPaint);
+
+      final corePaint = Paint()..color = Colors.white.withOpacity(0.8 * glow);
+      canvas.drawCircle(pos, 1.2, corePaint);
+
+      canvas.restore();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 4 · ESPECIAL — anel segmentado tipo "engrenagem de luz".
+// Conceito: em vez de um traço contínuo, o anel é feito de arcos
+// curtos separados por vãos, como dentes de engrenagem luminosos,
+// girando em bloco.
+// ═══════════════════════════════════════════════════════════════════
+class _SpecialFramePainter extends _BaseFramePainter {
+  _SpecialFramePainter({
+    required super.rarity, required super.color, required super.gradient,
+    required super.rotation, required super.glow,
+    required super.particleProgress, required super.avatarSize,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = avatarSize / 2 + 11;
+    const segments = 10;
+    final gapFraction = 0.35;
+    final segAngle = (2 * math.pi / segments) * (1 - gapFraction);
+
+    final segPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.2
+      ..strokeCap = StrokeCap.butt
+      ..shader = LinearGradient(colors: gradient)
+          .createShader(Rect.fromCircle(center: center, radius: radius));
+
+    for (int i = 0; i < segments; i++) {
+      final start = (i / segments) * 2 * math.pi + rotation * 2 * math.pi;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        start, segAngle, false, segPaint,
+      );
     }
 
-    if (rarity.hasCosmicHalo) {
-      _paintCosmicHalo(canvas, center, ringRadius);
+    // pequenos "dentes" radiais nas bordas de cada segmento
+    final teethPaint = Paint()
+      ..color = Colors.white.withOpacity(0.55 * glow)
+      ..strokeWidth = 1.6;
+    for (int i = 0; i < segments; i++) {
+      final start = (i / segments) * 2 * math.pi + rotation * 2 * math.pi;
+      for (final off in [0.0, segAngle]) {
+        final a = start + off;
+        final p1 = Offset(center.dx + math.cos(a) * (radius - 2), center.dy + math.sin(a) * (radius - 2));
+        final p2 = Offset(center.dx + math.cos(a) * (radius + 3), center.dy + math.sin(a) * (radius + 3));
+        canvas.drawLine(p1, p2, teethPaint);
+      }
     }
 
-    if (rarity.hasRotatingRing) {
-      _paintRotatingRing(canvas, center, ringRadius);
+    // núcleo de brilho suave por trás
+    final corePaint = Paint()
+      ..shader = RadialGradient(colors: [
+        color.withOpacity(0.18 * glow), Colors.transparent,
+      ]).createShader(Rect.fromCircle(center: center, radius: radius + 6));
+    canvas.drawCircle(center, radius + 6, corePaint);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 5 · ÉPICO — dupla espiral áurea pulsante.
+// Conceito: dois braços em espiral (tipo galáxia) saindo do centro
+// para fora, com pontos de luz decrescendo em tamanho ao longo do
+// braço — nada de anel nem partícula orbital genérica.
+// ═══════════════════════════════════════════════════════════════════
+class _EpicFramePainter extends _BaseFramePainter {
+  _EpicFramePainter({
+    required super.rarity, required super.color, required super.gradient,
+    required super.rotation, required super.glow,
+    required super.particleProgress, required super.avatarSize,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final maxR = avatarSize / 2 + 16;
+    final minR = avatarSize / 2 + 4;
+    const dotsPerArm = 9;
+    const arms = 2;
+
+    for (int arm = 0; arm < arms; arm++) {
+      final armOffset = arm * math.pi;
+      for (int i = 0; i < dotsPerArm; i++) {
+        final t = i / (dotsPerArm - 1); // 0..1 outward
+        final spiralTurns = 1.3;
+        final a = armOffset +
+            rotation * 2 * math.pi +
+            t * spiralTurns * 2 * math.pi;
+        final r = minR + (maxR - minR) * t;
+        final pos = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r);
+
+        final dotSize = 3.2 - t * 2.0;
+        final pulse = (math.sin(particleProgress * 2 * math.pi + i * 0.6) + 1) / 2;
+        final opacity = (0.35 + 0.65 * pulse) * glow;
+
+        final dotPaint = Paint()
+          ..color = Color.lerp(gradient[0], gradient[1], t)!.withOpacity(opacity)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
+        canvas.drawCircle(pos, dotSize, dotPaint);
+      }
     }
 
-    if (rarity.hasSecondRing) {
-      _paintSecondRing(canvas, center, ringRadius);
+    // linha-guia sutil conectando os dois braços perto do centro
+    final linkPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..color = Colors.white.withOpacity(0.25 * glow);
+    canvas.drawCircle(center, minR - 2, linkPaint);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 6 · HEROICO — escudo de facetas triangulares + anel contra-girando.
+// Conceito: um "colar" de triângulos alternando para dentro/fora do
+// raio (como uma coroa de escudo), com um fino anel externo girando
+// no sentido oposto por baixo.
+// ═══════════════════════════════════════════════════════════════════
+class _HeroicFramePainter extends _BaseFramePainter {
+  _HeroicFramePainter({
+    required super.rarity, required super.color, required super.gradient,
+    required super.rotation, required super.glow,
+    required super.particleProgress, required super.avatarSize,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = avatarSize / 2 + 10;
+
+    // anel externo fino, contra-rotativo
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..shader = SweepGradient(
+        startAngle: -rotation * 1.6 * math.pi,
+        endAngle: -rotation * 1.6 * math.pi + math.pi * 1.2,
+        colors: [Colors.transparent, gradient[1].withOpacity(0.7 * glow), Colors.transparent],
+      ).createShader(Rect.fromCircle(center: center, radius: radius + 9));
+    canvas.drawCircle(center, radius + 9, ringPaint);
+
+    // coroa de facetas triangulares
+    const teeth = 12;
+    final crownPath = Path();
+    for (int i = 0; i <= teeth; i++) {
+      final a = (i / teeth) * 2 * math.pi + rotation * 2 * math.pi * 0.4;
+      final isOut = i.isEven;
+      final r = radius + (isOut ? 6.0 : 0.0);
+      final p = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r);
+      if (i == 0) {
+        crownPath.moveTo(p.dx, p.dy);
+      } else {
+        crownPath.lineTo(p.dx, p.dy);
+      }
+    }
+    crownPath.close();
+
+    final crownGlow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..color = color.withOpacity(0.3 * glow)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+    canvas.drawPath(crownPath, crownGlow);
+
+    final crownPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeJoin = StrokeJoin.round
+      ..shader = LinearGradient(colors: gradient)
+          .createShader(Rect.fromCircle(center: center, radius: radius));
+    canvas.drawPath(crownPath, crownPaint);
+
+    // pontas iluminadas
+    final tipPaint = Paint()..color = Colors.white.withOpacity(0.75 * glow);
+    for (int i = 0; i < teeth; i += 2) {
+      final a = (i / teeth) * 2 * math.pi + rotation * 2 * math.pi * 0.4;
+      final p = Offset(center.dx + math.cos(a) * (radius + 6), center.dy + math.sin(a) * (radius + 6));
+      canvas.drawCircle(p, 1.4, tipPaint);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 7 · LENDÁRIO — constelação: estrelas conectadas por linhas finas.
+// Conceito: pontos fixos (padrão de espiral áurea) ligados por linhas
+// que se acendem em sequência, como uma constelação sendo traçada,
+// com um halo suave por trás.
+// ═══════════════════════════════════════════════════════════════════
+class _LegendaryFramePainter extends _BaseFramePainter {
+  _LegendaryFramePainter({
+    required super.rarity, required super.color, required super.gradient,
+    required super.rotation, required super.glow,
+    required super.particleProgress, required super.avatarSize,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = avatarSize / 2 + 13;
+    const starCount = 8;
+
+    // halo de fundo
+    final haloPaint = Paint()
+      ..shader = RadialGradient(colors: [
+        gradient[0].withOpacity(0.16 * glow), Colors.transparent,
+      ]).createShader(Rect.fromCircle(center: center, radius: radius + 14));
+    canvas.drawCircle(center, radius + 14, haloPaint);
+
+    final points = <Offset>[];
+    for (int i = 0; i < starCount; i++) {
+      final a = (i * 2.399) % (2 * math.pi) + rotation * 2 * math.pi * 0.15;
+      final r = radius * (0.7 + 0.3 * ((i * 0.618) % 1.0));
+      points.add(Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r));
     }
 
-    if (rarity.particleCount > 0) {
-      _paintOrbitalParticles(canvas, center, ringRadius);
+    // linhas conectando estrelas vizinhas, acendendo em sequência
+    final linkPaint = Paint()
+      ..strokeWidth = 0.8
+      ..style = PaintingStyle.stroke;
+    for (int i = 0; i < starCount; i++) {
+      final next = (i + 1) % starCount;
+      final phase = ((particleProgress * starCount - i) % starCount);
+      final lit = phase >= 0 && phase < 1.0;
+      linkPaint.color = Colors.white.withOpacity((lit ? 0.55 : 0.12) * glow);
+      canvas.drawLine(points[i], points[next], linkPaint);
     }
 
-    if (rarity.hasSparkles) {
-      _paintSparkles(canvas, center, ringRadius);
+    // estrelas nos vértices
+    final starPaint = Paint()..style = PaintingStyle.fill;
+    for (int i = 0; i < starCount; i++) {
+      final twinkle = (math.sin(particleProgress * 4 * math.pi + i * 1.1) + 1) / 2;
+      starPaint
+        ..color = Color.lerp(gradient[0], gradient[1], i / starCount)!
+            .withOpacity((0.5 + 0.5 * twinkle) * glow)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
+      canvas.drawCircle(points[i], 1.8 + twinkle * 1.2, starPaint);
     }
+  }
+}
 
-    if (rarity == FrameRarity.elite) {
-      _paintEliteMark(canvas, center, ringRadius);
-    }
+// ═══════════════════════════════════════════════════════════════════
+// 8 · MÍTICO — Dragão de Cristal (moldura especial existente) +
+// véu de fumaça facetada girando devagar por trás.
+// Conceito: mantém a marca "dragão de cristal" já criada para esta
+// faixa, envolta numa névoa geométrica exclusiva desta faixa.
+// ═══════════════════════════════════════════════════════════════════
+class _MythicFramePainter extends _BaseFramePainter {
+  _MythicFramePainter({
+    required super.rarity, required super.color, required super.gradient,
+    required super.rotation, required super.glow,
+    required super.particleProgress, required super.avatarSize,
+  });
 
-    // ── Molduras especiais desenhadas (antes eram imagens PNG) ──────
-    if (rarity.hasCrystalDragonFrame) {
-      _paintCrystalDragonFrame(canvas, center, ringRadius);
-    }
-    if (rarity.hasSolarThroneFrame) {
-      _paintSolarThroneFrame(canvas, center, ringRadius);
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = avatarSize / 2 + 10;
+
+    _paintCrystalVeil(canvas, center, radius);
+    _paintCrystalDragonFrame(canvas, center, radius);
+  }
+
+  // Véu de cristais facetados girando em duas camadas de velocidades
+  // diferentes — dá profundidade sem repetir "anel + partícula".
+  void _paintCrystalVeil(Canvas canvas, Offset center, double radius) {
+    for (final layer in [0, 1]) {
+      final count = 5 + layer * 3;
+      final r = radius + 4 + layer * 9.0;
+      final speed = layer == 0 ? 1.0 : -0.6;
+      for (int i = 0; i < count; i++) {
+        final a = (i / count) * 2 * math.pi + rotation * 2 * math.pi * speed;
+        final pos = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r * 0.85);
+        canvas.save();
+        canvas.translate(pos.dx, pos.dy);
+        canvas.rotate(a);
+        final s = 2.6 - layer * 0.4;
+        final shardPath = Path()
+          ..moveTo(0, -s)
+          ..lineTo(s * 0.6, 0)
+          ..lineTo(0, s)
+          ..lineTo(-s * 0.6, 0)
+          ..close();
+        final shardPaint = Paint()
+          ..color = const Color(0xFF00E5FF).withOpacity((0.25 + layer * 0.1) * glow)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.8);
+        canvas.drawPath(shardPath, shardPaint);
+        canvas.restore();
+      }
     }
   }
 
-  // ── MOLDURA DRAGÃO DE CRISTAL (Mítico) ────────────────────────────
-  // Recompensa rara: duas "cabeças de dragão" facetadas guardando o
-  // avatar nas laterais, com cristais orbitando e respiro de energia
-  // fria. Desenhada 100% em código — sem depender de nenhuma imagem.
   void _paintCrystalDragonFrame(Canvas canvas, Offset center, double radius) {
     final dragonRadius = radius + 20;
 
-    // Névoa cristalina de fundo
     final mistPaint = Paint()
       ..shader = RadialGradient(
         colors: [
@@ -386,8 +872,6 @@ class _FramePainter extends CustomPainter {
       ).createShader(Rect.fromCircle(center: center, radius: dragonRadius + 12));
     canvas.drawCircle(center, dragonRadius + 12, mistPaint);
 
-    // Duas cabeças de dragão estilizadas (esquerda/direita), feitas de
-    // triângulos facetados apontando para o avatar central.
     for (final side in [-1.0, 1.0]) {
       final baseAngle = side < 0 ? math.pi * 0.82 : math.pi * 0.18;
       final sway = math.sin(rotation * 2 * math.pi) * 0.05;
@@ -425,14 +909,12 @@ class _FramePainter extends CustomPainter {
         ..color = Colors.white.withOpacity(0.7 * glow);
       canvas.drawPath(headPath, headOutline);
 
-      // "Olho" do dragão
       final eyePaint = Paint()..color = Colors.white.withOpacity(glow);
       canvas.drawCircle(Offset(2 * side, -1), 1.4, eyePaint);
 
       canvas.restore();
     }
 
-    // Cristais pequenos orbitando entre as duas cabeças
     for (int i = 0; i < 6; i++) {
       final a = (i / 6) * 2 * math.pi + rotation * 2 * math.pi;
       final pos = Offset(
@@ -456,15 +938,175 @@ class _FramePainter extends CustomPainter {
       canvas.restore();
     }
   }
+}
 
-  // ── MOLDURA TRONO SOLAR (Horizonte Elite) ─────────────────────────
-  // Recompensa máxima: raios solares geométricos irradiando atrás do
-  // avatar, como o encosto de um trono, com um arco duplo de energia
-  // dourada circulando por cima. 100% código, sem imagem.
+// ═══════════════════════════════════════════════════════════════════
+// 9 · SUPREMO — três anéis poligonais concêntricos, cada um girando
+// numa velocidade diferente, com núcleo pulsante no centro.
+// Conceito: "engrenagens celestiais" — triângulo interno + quadrado
+// médio + octógono externo, todos girando em sentidos/velocidades
+// distintos, criando uma sensação de mecanismo cósmico complexo.
+// ═══════════════════════════════════════════════════════════════════
+class _SupremeFramePainter extends _BaseFramePainter {
+  _SupremeFramePainter({
+    required super.rarity, required super.color, required super.gradient,
+    required super.rotation, required super.glow,
+    required super.particleProgress, required super.avatarSize,
+  });
+
+  Path _polygon(Offset center, double r, int sides, double angleOffset) {
+    final path = Path();
+    for (int i = 0; i <= sides; i++) {
+      final a = (i / sides) * 2 * math.pi + angleOffset;
+      final p = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r);
+      if (i == 0) {
+        path.moveTo(p.dx, p.dy);
+      } else {
+        path.lineTo(p.dx, p.dy);
+      }
+    }
+    path.close();
+    return path;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final base = avatarSize / 2 + 9;
+
+    final layers = [
+      (sides: 3, r: base + 2, speed: 1.0, width: 1.6),
+      (sides: 4, r: base + 9, speed: -0.7, width: 1.8),
+      (sides: 8, r: base + 17, speed: 0.45, width: 1.4),
+    ];
+
+    for (int i = 0; i < layers.length; i++) {
+      final l = layers[i];
+      final path = _polygon(center, l.r, l.sides, rotation * 2 * math.pi * l.speed);
+
+      final glowPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = l.width + 2.5
+        ..color = Color.lerp(gradient[0], gradient[1], i / layers.length)!
+            .withOpacity(0.22 * glow)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      canvas.drawPath(path, glowPaint);
+
+      final strokePaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = l.width
+        ..strokeJoin = StrokeJoin.round
+        ..shader = SweepGradient(
+          startAngle: rotation * 2 * math.pi * l.speed,
+          endAngle: rotation * 2 * math.pi * l.speed + 2 * math.pi,
+          colors: [
+            Colors.transparent,
+            gradient[0].withOpacity(0.85 * glow),
+            gradient[1].withOpacity(0.85 * glow),
+            Colors.transparent,
+          ],
+          stops: const [0.0, 0.3, 0.7, 1.0],
+        ).createShader(Rect.fromCircle(center: center, radius: l.r));
+      canvas.drawPath(path, strokePaint);
+    }
+
+    // núcleo pulsante suave logo atrás do avatar
+    final pulse = (math.sin(particleProgress * 2 * math.pi) + 1) / 2;
+    final corePaint = Paint()
+      ..shader = RadialGradient(colors: [
+        Colors.white.withOpacity(0.10 * glow * (0.5 + pulse * 0.5)),
+        Colors.transparent,
+      ]).createShader(Rect.fromCircle(center: center, radius: base - 2));
+    canvas.drawCircle(center, base - 2, corePaint);
+
+    // vértices luminosos do anel externo
+    final vertexPaint = Paint()..color = Colors.white.withOpacity(0.75 * glow);
+    for (int i = 0; i < 8; i++) {
+      final a = (i / 8) * 2 * math.pi + rotation * 2 * math.pi * layers[2].speed;
+      final p = Offset(center.dx + math.cos(a) * layers[2].r, center.dy + math.sin(a) * layers[2].r);
+      canvas.drawCircle(p, 1.3, vertexPaint);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 10 · HORIZONTE ELITE — Trono Solar (moldura especial existente) +
+// coroa geométrica de facetas douradas e marcadores cardeais.
+// Conceito: topo absoluto — combina o trono solar já criado com uma
+// coroa facetada adicional e marcadores nos 4 pontos cardeais,
+// exclusivos desta faixa.
+// ═══════════════════════════════════════════════════════════════════
+class _EliteFramePainter extends _BaseFramePainter {
+  _EliteFramePainter({
+    required super.rarity, required super.color, required super.gradient,
+    required super.rotation, required super.glow,
+    required super.particleProgress, required super.avatarSize,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = avatarSize / 2 + 10;
+
+    _paintSolarThroneFrame(canvas, center, radius);
+    _paintFacetedCrown(canvas, center, radius);
+    _paintCardinalMarks(canvas, center, radius);
+  }
+
+  // Coroa adicional de pequenas facetas douradas, mais próxima do
+  // avatar que os raios do trono — dá camada extra de riqueza.
+  void _paintFacetedCrown(Canvas canvas, Offset center, double radius) {
+    const facets = 14;
+    for (int i = 0; i < facets; i++) {
+      final a = (i / facets) * 2 * math.pi - rotation * 2 * math.pi * 0.5;
+      final r = radius + 3;
+      final pos = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r);
+      canvas.save();
+      canvas.translate(pos.dx, pos.dy);
+      canvas.rotate(a);
+      final s = 2.4;
+      final facetPath = Path()
+        ..moveTo(0, -s)
+        ..lineTo(s * 0.7, s * 0.4)
+        ..lineTo(-s * 0.7, s * 0.4)
+        ..close();
+      final facetPaint = Paint()
+        ..shader = LinearGradient(colors: [
+          const Color(0xFFFFD700), const Color(0xFFFFF176),
+        ]).createShader(Rect.fromCircle(center: Offset.zero, radius: s))
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.5);
+      canvas.drawPath(facetPath, facetPaint);
+      canvas.restore();
+    }
+  }
+
+  // 4 marcadores cardeais (N/S/L/O) — losangos dourados fixos que só
+  // pulsam, não giram, ancorando a moldura visualmente.
+  void _paintCardinalMarks(Canvas canvas, Offset center, double radius) {
+    final pulse = (math.sin(particleProgress * 2 * math.pi) + 1) / 2;
+    final markPaint = Paint()
+      ..color = Colors.white.withOpacity((0.6 + 0.4 * pulse) * glow)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
+    for (int i = 0; i < 4; i++) {
+      final a = (i / 4) * 2 * math.pi;
+      final pos = Offset(
+        center.dx + math.cos(a) * (radius + 26),
+        center.dy + math.sin(a) * (radius + 26),
+      );
+      const d = 3.6;
+      final path = Path()
+        ..moveTo(pos.dx, pos.dy - d)
+        ..lineTo(pos.dx + d, pos.dy)
+        ..lineTo(pos.dx, pos.dy + d)
+        ..lineTo(pos.dx - d, pos.dy)
+        ..close();
+      canvas.drawPath(path, markPaint);
+    }
+  }
+
   void _paintSolarThroneFrame(Canvas canvas, Offset center, double radius) {
     final throneRadius = radius + 22;
 
-    // Resplendor solar de fundo (glow amplo)
     final haloPaint = Paint()
       ..shader = RadialGradient(
         colors: [
@@ -474,8 +1116,6 @@ class _FramePainter extends CustomPainter {
       ).createShader(Rect.fromCircle(center: center, radius: throneRadius + 16));
     canvas.drawCircle(center, throneRadius + 16, haloPaint);
 
-    // Raios triangulares alternando comprimento, como o encosto de um
-    // trono solar — desenhados em leque atrás do avatar.
     const rayCount = 16;
     for (int i = 0; i < rayCount; i++) {
       final a = (i / rayCount) * 2 * math.pi + rotation * 0.3 * math.pi;
@@ -504,7 +1144,6 @@ class _FramePainter extends CustomPainter {
       canvas.drawPath(rayPath, rayPaint);
     }
 
-    // Arco duplo de energia dourada circulando por cima dos raios
     final arcPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.2
@@ -521,7 +1160,6 @@ class _FramePainter extends CustomPainter {
       ).createShader(Rect.fromCircle(center: center, radius: throneRadius + 4));
     canvas.drawCircle(center, throneRadius + 4, arcPaint);
 
-    // Pequeno brasão central no topo, marcando o "trono"
     final crestCenter = Offset(center.dx, center.dy - throneRadius - 4);
     final crestPaint = Paint()
       ..color = Colors.white.withOpacity(0.9 * glow)
@@ -534,237 +1172,6 @@ class _FramePainter extends CustomPainter {
       ..close();
     canvas.drawPath(crestPath, crestPaint);
   }
-
-  // ── Aura dinâmica 360° (Mítico / Supremo / Elite) ────────────────
-  void _paintAura360(Canvas canvas, Offset center, double radius) {
-    final auraRadius = radius + 14;
-    final sweepPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4 + (rarity.index - FrameRarity.mythic.index) * 1.2
-      ..strokeCap = StrokeCap.round
-      ..shader = SweepGradient(
-        center: Alignment.center,
-        startAngle: rotation * 2 * math.pi,
-        endAngle: rotation * 2 * math.pi + 2 * math.pi,
-        colors: [
-          gradient[0].withOpacity(0.0),
-          gradient[0].withOpacity(0.7 * glow),
-          gradient[1].withOpacity(0.9 * glow),
-          gradient[0].withOpacity(0.0),
-        ],
-        stops: const [0.0, 0.3, 0.6, 1.0],
-      ).createShader(Rect.fromCircle(center: center, radius: auraRadius));
-
-    canvas.drawCircle(center, auraRadius, sweepPaint);
-
-    final innerSweep = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..shader = SweepGradient(
-        center: Alignment.center,
-        startAngle: -rotation * 3 * math.pi,
-        endAngle: -rotation * 3 * math.pi + 2 * math.pi,
-        colors: [
-          Colors.transparent,
-          Colors.white.withOpacity(0.5 * glow),
-          Colors.transparent,
-        ],
-      ).createShader(Rect.fromCircle(center: center, radius: auraRadius - 6));
-
-    canvas.drawCircle(center, auraRadius - 6, innerSweep);
-  }
-
-  // ── Halo cósmico (Lendário / Mítico / Supremo / Elite) ───────────
-  void _paintCosmicHalo(Canvas canvas, Offset center, double radius) {
-    final haloPaint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          gradient[1].withOpacity(0.0),
-          gradient[0].withOpacity(0.18 * glow),
-          Colors.transparent,
-        ],
-        stops: const [0.5, 0.75, 1.0],
-      ).createShader(
-          Rect.fromCircle(center: center, radius: radius + 26));
-
-    canvas.drawCircle(center, radius + 26, haloPaint);
-
-    final starCount = 4 + (rarity.index - FrameRarity.legendary.index) * 2;
-    final starPaint = Paint()..color = Colors.white.withOpacity(0.8 * glow);
-    for (int i = 0; i < starCount; i++) {
-      final angle = (i / starCount) * 2 * math.pi + rotation * math.pi;
-      final dist = radius + 18 + (i % 2 == 0 ? 4 : -4);
-      final pos = Offset(
-        center.dx + math.cos(angle) * dist,
-        center.dy + math.sin(angle) * dist,
-      );
-      canvas.drawCircle(pos, 1.4, starPaint);
-    }
-  }
-
-  // ── Anel girando (a partir de Incomum) ───────────────────────────
-  void _paintRotatingRing(Canvas canvas, Offset center, double radius) {
-    final strokeW = rarity.ringStrokeWidth;
-    final ringPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeW
-      ..strokeCap = StrokeCap.round
-      ..shader = SweepGradient(
-        center: Alignment.center,
-        startAngle: rotation * 2 * math.pi,
-        endAngle: rotation * 2 * math.pi + math.pi * 1.4,
-        colors: [
-          Colors.transparent,
-          gradient[0].withOpacity(0.9 * glow),
-          gradient[1].withOpacity(0.9 * glow),
-          Colors.transparent,
-        ],
-      ).createShader(Rect.fromCircle(center: center, radius: radius));
-
-    canvas.drawCircle(center, radius, ringPaint);
-
-    final tipAngle = rotation * 2 * math.pi + math.pi * 1.4;
-    final tipPos = Offset(
-      center.dx + math.cos(tipAngle) * radius,
-      center.dy + math.sin(tipAngle) * radius,
-    );
-    final tipPaint = Paint()
-      ..color = Colors.white.withOpacity(glow)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-    canvas.drawCircle(tipPos, 2 + strokeW * 0.4, tipPaint);
-  }
-
-  // ── Segundo anel — gira em sentido contrário, um pouco mais externo
-  // (a partir de Heroico) para dar profundidade extra à moldura ──────
-  void _paintSecondRing(Canvas canvas, Offset center, double radius) {
-    final outerRadius = radius + 7;
-    final strokeW = rarity.ringStrokeWidth * 0.6;
-    final ringPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeW
-      ..strokeCap = StrokeCap.round
-      ..shader = SweepGradient(
-        center: Alignment.center,
-        startAngle: -rotation * 1.6 * math.pi,
-        endAngle: -rotation * 1.6 * math.pi + math.pi * 0.9,
-        colors: [
-          Colors.transparent,
-          Colors.white.withOpacity(0.5 * glow),
-          gradient[1].withOpacity(0.7 * glow),
-          Colors.transparent,
-        ],
-      ).createShader(Rect.fromCircle(center: center, radius: outerRadius));
-
-    canvas.drawCircle(center, outerRadius, ringPaint);
-  }
-
-  // ── Partículas orbitais — presentes desde Incomum, crescem sempre,
-  // agora com paleta variada (não só as 2 pontas do gradiente) ───────
-  void _paintOrbitalParticles(Canvas canvas, Offset center, double radius) {
-    final count = rarity.particleCount;
-    final particlePaint = Paint()..style = PaintingStyle.fill;
-    final mid = Color.lerp(gradient[0], gradient[1], 0.5)!;
-    final palette = [gradient[0], mid, gradient[1], Colors.white];
-
-    for (int i = 0; i < count; i++) {
-      final baseAngle = (i / count) * 2 * math.pi;
-      final speedVariation = 1.0 + (i % 3) * 0.3;
-      final angle = baseAngle + particleProgress * 2 * math.pi * speedVariation;
-
-      final orbitRadius =
-          radius + 4 + math.sin(particleProgress * 4 * math.pi + i) * 3;
-
-      final pos = Offset(
-        center.dx + math.cos(angle) * orbitRadius,
-        center.dy + math.sin(angle) * orbitRadius * 0.92,
-      );
-
-      final particleSize = 1.2 + (rarity.index * 0.15);
-
-      final pulse = (math.sin(particleProgress * 6 * math.pi + i * 2) + 1) / 2;
-      final opacity = (0.4 + pulse * 0.6) * glow;
-
-      particlePaint
-        ..color = palette[i % palette.length].withOpacity(
-            i % palette.length == 3 ? opacity * 0.85 : opacity)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2);
-
-      canvas.drawCircle(pos, particleSize, particlePaint);
-    }
-  }
-
-  // ── Faíscas cintilantes — pequenos brilhos em posições fixas que
-  // aparecem/somem rapidamente (Mítico, Supremo, Elite) ─────────────
-  void _paintSparkles(Canvas canvas, Offset center, double radius) {
-    final sparkleCount = 6 + (rarity.index - FrameRarity.mythic.index) * 3;
-    final sparklePaint = Paint()..style = PaintingStyle.fill;
-
-    for (int i = 0; i < sparkleCount; i++) {
-      // Posição fixa por índice (não gira), só a fase do brilho muda.
-      final fixedAngle = (i * 2.399) % (2 * math.pi); // espiral áurea
-      final dist = radius * (0.55 + 0.4 * ((i * 0.618) % 1.0));
-      final pos = Offset(
-        center.dx + math.cos(fixedAngle) * dist,
-        center.dy + math.sin(fixedAngle) * dist,
-      );
-
-      final phase = (particleProgress * 3 + i * 0.37) % 1.0;
-      final twinkle = (math.sin(phase * 2 * math.pi) + 1) / 2;
-      if (twinkle < 0.55) continue; // pisca — só visível parte do tempo
-
-      final opacity = ((twinkle - 0.55) / 0.45) * glow;
-      sparklePaint
-        ..color = Colors.white.withOpacity(opacity)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
-
-      _drawStarShape(canvas, pos, 2.0 + twinkle * 1.5, sparklePaint);
-    }
-  }
-
-  void _drawStarShape(Canvas canvas, Offset pos, double size, Paint paint) {
-    final path = Path();
-    path.moveTo(pos.dx, pos.dy - size);
-    path.lineTo(pos.dx + size * 0.3, pos.dy - size * 0.3);
-    path.lineTo(pos.dx + size, pos.dy);
-    path.lineTo(pos.dx + size * 0.3, pos.dy + size * 0.3);
-    path.lineTo(pos.dx, pos.dy + size);
-    path.lineTo(pos.dx - size * 0.3, pos.dy + size * 0.3);
-    path.lineTo(pos.dx - size, pos.dy);
-    path.lineTo(pos.dx - size * 0.3, pos.dy - size * 0.3);
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  // ── Marca exclusiva Horizonte Elite ──────────────────────────────
-  void _paintEliteMark(Canvas canvas, Offset center, double radius) {
-    final markPaint = Paint()
-      ..color = Colors.white.withOpacity(0.85 * glow)
-      ..style = PaintingStyle.fill;
-
-    for (int i = 0; i < 4; i++) {
-      final angle = (i / 4) * 2 * math.pi + rotation * 0.5 * math.pi;
-      final pos = Offset(
-        center.dx + math.cos(angle) * (radius + 16),
-        center.dy + math.sin(angle) * (radius + 16),
-      );
-
-      final path = Path();
-      const d = 3.2;
-      path.moveTo(pos.dx, pos.dy - d);
-      path.lineTo(pos.dx + d, pos.dy);
-      path.lineTo(pos.dx, pos.dy + d);
-      path.lineTo(pos.dx - d, pos.dy);
-      path.close();
-
-      canvas.drawPath(path, markPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_FramePainter oldDelegate) =>
-      oldDelegate.rotation != rotation ||
-      oldDelegate.glow != glow ||
-      oldDelegate.particleProgress != particleProgress;
 }
 
 // ═══════════════════════════════════════════════════════════════════
