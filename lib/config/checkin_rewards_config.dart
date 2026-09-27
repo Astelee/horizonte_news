@@ -138,13 +138,22 @@ class CheckinRewardDef {
 class CheckinRewardsConfig {
   CheckinRewardsConfig._();
 
-  // ── Progressão equilibrada (BASE MENSAL — mês civil, máx. 31) ────
+  // ── Progressão equilibrada (BASE MENSAL — calendário real) ───────
   // Espaçamento crescente dentro de um único mês: 3 → 5 → 7 → 10 →
-  // 14 → 18 → 24 → 31. Todos os marcos cabem no pior caso
-  // (fevereiro, 28/29 dias) exceto o último (31), que só é
-  // alcançável em meses de 31 dias — é o marco de prestígio máximo,
-  // igual antes. Cada marco troca de categoria visual para a
-  // coleção não ficar repetitiva.
+  // 14 → 18 → 24 → (último dia do mês). Os 7 primeiros marcos cabem
+  // no pior caso (fevereiro, 28 dias). O ÚLTIMO marco ("Sol do
+  // Horizonte") NÃO é mais um número fixo (31): ele é calculado
+  // dinamicamente como o último dia do mês corrente, para que a
+  // recompensa máxima seja SEMPRE alcançável, mesmo em meses de 28,
+  // 29 ou 30 dias — nunca um marco impossível de bater.
+  //
+  // `all` continua existindo (com 31 como valor "de catálogo",
+  // nunca lido diretamente para decidir desbloqueio) só para não
+  // quebrar código legado; todo o app deve usar `allForMonth()` /
+  // `currentMonthList` daqui pra frente, que devolve os defs com o
+  // último `requiredStreak` já ajustado ao mês.
+  static const int _lastMilestoneBaseValue = 31;
+
   static const List<CheckinRewardDef> all = [
     CheckinRewardDef(
       id: CheckinRewardId.faisca,
@@ -224,8 +233,12 @@ class CheckinRewardsConfig {
       bonusXp: 200,
     ),
     CheckinRewardDef(
+      // requiredStreak aqui é só o valor "de catálogo" (31). O valor
+      // REAL usado pelo app vem de allForMonth()/currentMonthList,
+      // que troca este número pelo último dia do mês corrente
+      // (28/29/30/31) — então este marco é sempre alcançável.
       id: CheckinRewardId.solDoHorizonte,
-      requiredStreak: 31,
+      requiredStreak: _lastMilestoneBaseValue,
       name: 'Sol do Horizonte',
       description: 'O mês inteiro, sem falhar um dia. O item mais raro do Horizonte News.',
       kind: CheckinRewardKind.icone,
@@ -236,29 +249,92 @@ class CheckinRewardsConfig {
     ),
   ];
 
-  static CheckinRewardDef defFor(CheckinRewardId id) =>
-      all.firstWhere((e) => e.id == id, orElse: () => all.first);
+  // ═════════════════════════════════════════════════════════════════
+  // CALENDÁRIO REAL — último marco dinâmico
+  // ═════════════════════════════════════════════════════════════════
+  /// Quantos dias tem [month] (calendário real: 28/29/30/31). Usa o
+  /// mesmo truque de `DateTime(ano, mes + 1, dia 0)` já usado no
+  /// calendário visual (checkin_calendar.dart) e no CheckinService —
+  /// uma única fonte de verdade para "dias do mês" em todo o app.
+  static int daysInMonth(DateTime month) =>
+      DateTime(month.year, month.month + 1, 0).day;
 
-  static CheckinRewardDef? defForStorageKey(String? key) {
-    final id = CheckinRewardIdX.fromStorageKey(key);
-    if (id == null) return null;
-    return defFor(id);
+  /// A lista de recompensas ajustada para [month] (padrão: mês
+  /// corrente): os marcos intermediários (3, 5, 7, 10, 14, 18, 24)
+  /// nunca mudam — cabem em qualquer mês. Só o ÚLTIMO marco do
+  /// catálogo é recalculado para ser exatamente o último dia real
+  /// de [month] (30 em abril, 28/29 em fevereiro, 31 em janeiro...),
+  /// para que a recompensa máxima seja sempre alcançável naquele
+  /// mês e nunca fique "impossível" (ex.: pedir dia 31 em um mês de
+  /// 30 dias).
+  ///
+  /// Se o último marco de catálogo (31) já for <= dias do mês (ou
+  /// seja, mês de 31 dias), o valor não muda. Isso preserva 100% do
+  /// comportamento anterior em meses de 31 dias.
+  static List<CheckinRewardDef> allForMonth([DateTime? month]) {
+    final ref = month ?? DateTime.now();
+    final total = daysInMonth(ref);
+    if (all.isEmpty) return all;
+
+    return List<CheckinRewardDef>.generate(all.length, (i) {
+      final def = all[i];
+      final isLast = i == all.length - 1;
+      if (!isLast || def.requiredStreak <= total) return def;
+
+      // Mês mais curto que 31 dias: o marco final "encosta" no
+      // último dia real do mês em vez de ficar fixo em 31.
+      return CheckinRewardDef(
+        id: def.id,
+        requiredStreak: total,
+        name: def.name,
+        description: def.description,
+        kind: def.kind,
+        rarity: def.rarity,
+        gradient: def.gradient,
+        accentColor: def.accentColor,
+        bonusXp: def.bonusXp,
+      );
+    }, growable: false);
   }
 
-  /// Lista de marcos (7, 14, 30, ...) na ordem do catálogo.
-  static List<int> get milestones =>
-      all.map((e) => e.requiredStreak).toList(growable: false);
+  /// Lista de recompensas do mês CORRENTE — é o que toda a UI e o
+  /// CheckinService devem usar em vez de `all` diretamente, para que
+  /// a última recompensa sempre reflita o calendário real de hoje.
+  static List<CheckinRewardDef> get currentMonthList => allForMonth();
 
-  /// Recompensa cujo marco é exatamente [streak], ou null.
-  static CheckinRewardDef? forStreak(int streak) {
-    for (final r in all) {
+  static CheckinRewardDef defFor(CheckinRewardId id, {DateTime? month}) {
+    final list = allForMonth(month);
+    return list.firstWhere((e) => e.id == id, orElse: () => list.first);
+  }
+
+  static CheckinRewardDef? defForStorageKey(String? key, {DateTime? month}) {
+    final id = CheckinRewardIdX.fromStorageKey(key);
+    if (id == null) return null;
+    return defFor(id, month: month);
+  }
+
+  /// Lista de marcos (3, 5, 7, ..., último dia do mês corrente) na
+  /// ordem do catálogo — mantido como getter (sem parênteses) para
+  /// não quebrar quem já chamava `CheckinRewardsConfig.milestones`.
+  static List<int> get milestones => milestonesForMonth();
+
+  /// Igual a [milestones], mas permite passar um mês específico —
+  /// útil para testar outros meses sem depender do relógio real.
+  static List<int> milestonesForMonth([DateTime? month]) =>
+      allForMonth(month).map((e) => e.requiredStreak).toList(growable: false);
+
+  /// Recompensa cujo marco é exatamente [streak] no mês informado
+  /// (padrão: mês corrente), ou null.
+  static CheckinRewardDef? forStreak(int streak, {DateTime? month}) {
+    for (final r in allForMonth(month)) {
       if (r.requiredStreak == streak) return r;
     }
     return null;
   }
 
   /// Bônus de XP do marco [streak] (0 se não for um marco).
-  static int bonusForStreak(int streak) => forStreak(streak)?.bonusXp ?? 0;
+  static int bonusForStreak(int streak, {DateTime? month}) =>
+      forStreak(streak, month: month)?.bonusXp ?? 0;
 
   /// Uma recompensa está desbloqueada quando o RECORDE já alcançou
   /// o marco. Usa o recorde (não a sequência atual) de propósito:
@@ -266,14 +342,18 @@ class CheckinRewardsConfig {
   static bool isUnlocked(CheckinRewardDef def, int longestStreak) =>
       longestStreak >= def.requiredStreak;
 
-  /// Recompensas já desbloqueadas para um dado recorde.
-  static List<CheckinRewardDef> unlockedFor(int longestStreak) =>
-      all.where((r) => isUnlocked(r, longestStreak)).toList(growable: false);
+  /// Recompensas já desbloqueadas para um dado recorde, no mês
+  /// informado (padrão: mês corrente).
+  static List<CheckinRewardDef> unlockedFor(int longestStreak,
+          {DateTime? month}) =>
+      allForMonth(month)
+          .where((r) => isUnlocked(r, longestStreak))
+          .toList(growable: false);
 
   /// Próxima recompensa ainda bloqueada, ou null se tudo foi
-  /// conquistado.
-  static CheckinRewardDef? nextLocked(int longestStreak) {
-    for (final r in all) {
+  /// conquistado (mês informado, padrão: mês corrente).
+  static CheckinRewardDef? nextLocked(int longestStreak, {DateTime? month}) {
+    for (final r in allForMonth(month)) {
       if (!isUnlocked(r, longestStreak)) return r;
     }
     return null;
@@ -281,11 +361,13 @@ class CheckinRewardsConfig {
 
   /// Fração 0..1 do caminho entre o marco anterior e o próximo,
   /// usada na barra de progressão.
-  static double progressToNext(int currentStreak, int longestStreak) {
-    final next = nextLocked(longestStreak);
+  static double progressToNext(int currentStreak, int longestStreak,
+      {DateTime? month}) {
+    final list = allForMonth(month);
+    final next = nextLocked(longestStreak, month: month);
     if (next == null) return 1.0;
     int prev = 0;
-    for (final r in all) {
+    for (final r in list) {
       if (r.requiredStreak < next.requiredStreak) prev = r.requiredStreak;
     }
     final span = next.requiredStreak - prev;
