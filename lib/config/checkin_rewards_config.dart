@@ -138,99 +138,101 @@ class CheckinRewardDef {
 class CheckinRewardsConfig {
   CheckinRewardsConfig._();
 
-  // ── Progressão equilibrada ───────────────────────────────────────
-  // Espaçamento crescente: 7 → 14 → 30 → 60 → 100 → 150 → 200 → 365.
-  // As primeiras chegam em semanas (motivam o hábito); as últimas
-  // exigem meses/1 ano (prestígio real). Cada marco troca de
-  // categoria visual para a coleção não ficar repetitiva.
+  // ── Progressão equilibrada (BASE MENSAL — mês civil, máx. 31) ────
+  // Espaçamento crescente dentro de um único mês: 3 → 5 → 7 → 10 →
+  // 14 → 18 → 24 → 31. Todos os marcos cabem no pior caso
+  // (fevereiro, 28/29 dias) exceto o último (31), que só é
+  // alcançável em meses de 31 dias — é o marco de prestígio máximo,
+  // igual antes. Cada marco troca de categoria visual para a
+  // coleção não ficar repetitiva.
   static const List<CheckinRewardDef> all = [
     CheckinRewardDef(
       id: CheckinRewardId.faisca,
-      requiredStreak: 7,
+      requiredStreak: 3,
       name: 'Faísca',
       description: 'Uma chama pequena com fagulhas. O começo do hábito.',
       kind: CheckinRewardKind.emblema,
       rarity: 1,
       gradient: [Color(0xFFFF8C3A), Color(0xFFFFD54F)],
       accentColor: Color(0xFFFF8C3A),
-      bonusXp: 30,
+      bonusXp: 15,
     ),
     CheckinRewardDef(
       id: CheckinRewardId.brasaViva,
-      requiredStreak: 14,
+      requiredStreak: 5,
       name: 'Brasa Viva',
       description: 'Núcleo incandescente que pulsa como um coração.',
       kind: CheckinRewardKind.simbolo,
       rarity: 2,
       gradient: [Color(0xFFFF6B00), Color(0xFFCC2200)],
       accentColor: Color(0xFFFF6B00),
-      bonusXp: 60,
+      bonusXp: 25,
     ),
     CheckinRewardDef(
       id: CheckinRewardId.anelDeFogo,
-      requiredStreak: 30,
+      requiredStreak: 7,
       name: 'Anel de Fogo',
       description: 'Moldura giratória com partículas em brasa ao redor.',
       kind: CheckinRewardKind.moldura,
       rarity: 3,
       gradient: [Color(0xFFFF6D00), Color(0xFFFFAB40)],
       accentColor: Color(0xFFFF9100),
-      bonusXp: 150,
+      bonusXp: 40,
     ),
     CheckinRewardDef(
       id: CheckinRewardId.chamaDupla,
-      requiredStreak: 60,
+      requiredStreak: 10,
       name: 'Chama Dupla',
       description: 'Duas chamas em órbita, uma clara e uma escura.',
       kind: CheckinRewardKind.efeito,
       rarity: 3,
       gradient: [Color(0xFFFF3D00), Color(0xFFFFFFFF)],
       accentColor: Color(0xFFFF5722),
-      bonusXp: 300,
+      bonusXp: 60,
     ),
     CheckinRewardDef(
       id: CheckinRewardId.coroaIgnea,
-      requiredStreak: 100,
+      requiredStreak: 14,
       name: 'Coroa Ígnea',
-      description: 'A coroa dos 100 dias. Só quem não desiste a usa.',
+      description: 'A coroa de duas semanas seguidas. Só quem não desiste a usa.',
       kind: CheckinRewardKind.icone,
       rarity: 4,
       gradient: [Color(0xFFFFD54F), Color(0xFFFF6B00)],
       accentColor: Color(0xFFFFC107),
-      bonusXp: 500,
+      bonusXp: 90,
     ),
     CheckinRewardDef(
       id: CheckinRewardId.eclipse,
-      requiredStreak: 150,
+      requiredStreak: 18,
       name: 'Eclipse',
       description: 'Um disco escuro coroado por uma corona laranja.',
       kind: CheckinRewardKind.moldura,
       rarity: 4,
       gradient: [Color(0xFF1A0A00), Color(0xFFFF6B00)],
       accentColor: Color(0xFFFF7A1A),
-      bonusXp: 250,
+      bonusXp: 130,
     ),
     CheckinRewardDef(
       id: CheckinRewardId.fenixDeCinzas,
-      requiredStreak: 200,
+      requiredStreak: 24,
       name: 'Fênix de Cinzas',
       description: 'Asas em brasa que se recompõem a cada ciclo.',
       kind: CheckinRewardKind.icone,
       rarity: 5,
       gradient: [Color(0xFFFF3D00), Color(0xFFFFC400)],
       accentColor: Color(0xFFFF5722),
-      bonusXp: 400,
+      bonusXp: 200,
     ),
     CheckinRewardDef(
       id: CheckinRewardId.solDoHorizonte,
-      requiredStreak: 365,
+      requiredStreak: 31,
       name: 'Sol do Horizonte',
-      description: 'Um ano inteiro. O item mais raro do Horizonte News.',
+      description: 'O mês inteiro, sem falhar um dia. O item mais raro do Horizonte News.',
       kind: CheckinRewardKind.icone,
       rarity: 5,
       gradient: [Color(0xFFFFFFFF), Color(0xFFFFB300), Color(0xFFFF6B00)],
       accentColor: Color(0xFFFFD54F),
-      bonusXp: 1000,
+      bonusXp: 350,
     ),
   ];
 
