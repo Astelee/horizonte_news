@@ -268,6 +268,7 @@ class _AvatarFrameState extends State<AvatarFrame>
                 children: [
                   CustomPaint(
                     painter: _buildPainterForRarity(
+                      level: widget.level,
                       rarity: rarity,
                       color: color,
                       gradient: gradient,
@@ -310,10 +311,15 @@ class _AvatarFrameState extends State<AvatarFrame>
 // ═══════════════════════════════════════════════════════════════════
 // Cada faixa de raridade tem sua própria classe CustomPainter, com
 // composição gráfica exclusiva (não é o mesmo anel genérico com cor
-// trocada). As 3 propriedades animadas (rotation/glow/particleProgress)
-// continuam vindo dos AnimationControllers já existentes em
-// _AvatarFrameState — nenhum painter cria controller próprio.
+// trocada). Dentro de cada faixa, os 3 níveis também têm desenhos
+// distintos entre si — o painter recebe `level` e usa `levelInBand`
+// (0, 1 ou 2) para adicionar/mudar elementos geométricos, não só
+// intensidade de cor. As 3 propriedades animadas (rotation/glow/
+// particleProgress) continuam vindo dos AnimationControllers já
+// existentes em _AvatarFrameState — nenhum painter cria controller
+// próprio.
 CustomPainter _buildPainterForRarity({
+  required int level,
   required FrameRarity rarity,
   required Color color,
   required List<Color> gradient,
@@ -325,62 +331,65 @@ CustomPainter _buildPainterForRarity({
   switch (rarity) {
     case FrameRarity.common:
       return _CommonFramePainter(
-          rarity: rarity, color: color, gradient: gradient,
+          level: level, rarity: rarity, color: color, gradient: gradient,
           rotation: rotation, glow: glow,
           particleProgress: particleProgress, avatarSize: avatarSize);
     case FrameRarity.uncommon:
       return _UncommonFramePainter(
-          rarity: rarity, color: color, gradient: gradient,
+          level: level, rarity: rarity, color: color, gradient: gradient,
           rotation: rotation, glow: glow,
           particleProgress: particleProgress, avatarSize: avatarSize);
     case FrameRarity.rare:
       return _RareFramePainter(
-          rarity: rarity, color: color, gradient: gradient,
+          level: level, rarity: rarity, color: color, gradient: gradient,
           rotation: rotation, glow: glow,
           particleProgress: particleProgress, avatarSize: avatarSize);
     case FrameRarity.special:
       return _SpecialFramePainter(
-          rarity: rarity, color: color, gradient: gradient,
+          level: level, rarity: rarity, color: color, gradient: gradient,
           rotation: rotation, glow: glow,
           particleProgress: particleProgress, avatarSize: avatarSize);
     case FrameRarity.epic:
       return _EpicFramePainter(
-          rarity: rarity, color: color, gradient: gradient,
+          level: level, rarity: rarity, color: color, gradient: gradient,
           rotation: rotation, glow: glow,
           particleProgress: particleProgress, avatarSize: avatarSize);
     case FrameRarity.heroic:
       return _HeroicFramePainter(
-          rarity: rarity, color: color, gradient: gradient,
+          level: level, rarity: rarity, color: color, gradient: gradient,
           rotation: rotation, glow: glow,
           particleProgress: particleProgress, avatarSize: avatarSize);
     case FrameRarity.legendary:
       return _LegendaryFramePainter(
-          rarity: rarity, color: color, gradient: gradient,
+          level: level, rarity: rarity, color: color, gradient: gradient,
           rotation: rotation, glow: glow,
           particleProgress: particleProgress, avatarSize: avatarSize);
     case FrameRarity.mythic:
       return _MythicFramePainter(
-          rarity: rarity, color: color, gradient: gradient,
+          level: level, rarity: rarity, color: color, gradient: gradient,
           rotation: rotation, glow: glow,
           particleProgress: particleProgress, avatarSize: avatarSize);
     case FrameRarity.supreme:
       return _SupremeFramePainter(
-          rarity: rarity, color: color, gradient: gradient,
+          level: level, rarity: rarity, color: color, gradient: gradient,
           rotation: rotation, glow: glow,
           particleProgress: particleProgress, avatarSize: avatarSize);
     case FrameRarity.elite:
       return _EliteFramePainter(
-          rarity: rarity, color: color, gradient: gradient,
+          level: level, rarity: rarity, color: color, gradient: gradient,
           rotation: rotation, glow: glow,
           particleProgress: particleProgress, avatarSize: avatarSize);
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// BASE COMPARTILHADA — só carrega os campos comuns e o shouldRepaint
-// padrão. Cada faixa estende isso e implementa paint() do zero.
+// BASE COMPARTILHADA — carrega os campos comuns, calcula `levelInBand`
+// (posição do nível dentro da faixa: 0, 1 ou 2) e faz o shouldRepaint
+// padrão. Cada faixa estende isso e implementa paint() do zero, usando
+// `levelInBand` para variar a FORMA entre os 3 níveis, não só a cor.
 // ═══════════════════════════════════════════════════════════════════
 abstract class _BaseFramePainter extends CustomPainter {
+  final int level;
   final FrameRarity rarity;
   final Color color;
   final List<Color> gradient;
@@ -390,6 +399,7 @@ abstract class _BaseFramePainter extends CustomPainter {
   final double avatarSize;
 
   _BaseFramePainter({
+    required this.level,
     required this.rarity,
     required this.color,
     required this.gradient,
@@ -399,22 +409,28 @@ abstract class _BaseFramePainter extends CustomPainter {
     required this.avatarSize,
   });
 
+  /// Posição do nível dentro da faixa de 3: 0 (mais baixo), 1 (meio),
+  /// 2 (mais alto). Usado para acrescentar elementos geométricos
+  /// extras nível a nível, não apenas mudar cor/intensidade.
+  int get levelInBand => (level - 1) % 3;
+
   @override
   bool shouldRepaint(covariant _BaseFramePainter oldDelegate) =>
+      oldDelegate.level != level ||
       oldDelegate.rotation != rotation ||
       oldDelegate.glow != glow ||
       oldDelegate.particleProgress != particleProgress;
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 1 · COMUM — quase nada: um traço tracejado fino e quieto.
-// Conceito: "recém-chegado", moldura quase invisível, só 6 tracinhos
-// finos e curtos em volta do avatar, sem brilho nem rotação.
+// 1 · COMUM (níveis 1-3) — traços tracejados que ganham corpo a cada
+// nível: nível 1 só os tracinhos; nível 2 ganha um arco fino; nível 3
+// ganha um segundo conjunto de tracinhos internos + leve brilho.
 // ═══════════════════════════════════════════════════════════════════
 class _CommonFramePainter extends _BaseFramePainter {
   _CommonFramePainter({
-    required super.rarity, required super.color, required super.gradient,
-    required super.rotation, required super.glow,
+    required super.level, required super.rarity, required super.color,
+    required super.gradient, required super.rotation, required super.glow,
     required super.particleProgress, required super.avatarSize,
   });
 
@@ -422,51 +438,71 @@ class _CommonFramePainter extends _BaseFramePainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = avatarSize / 2 + 8;
-    const tickCount = 8;
+    final band = levelInBand;
+    final tickCount = 8 + band * 2;
+
     final tickPaint = Paint()
-      ..color = color.withOpacity(0.35 + 0.15 * glow)
-      ..strokeWidth = 1.4
+      ..color = color.withOpacity(0.32 + 0.12 * glow + band * 0.06)
+      ..strokeWidth = 1.3 + band * 0.2
       ..strokeCap = StrokeCap.round;
 
     for (int i = 0; i < tickCount; i++) {
       final a = (i / tickCount) * 2 * math.pi;
-      final inner = Offset(
-        center.dx + math.cos(a) * radius,
-        center.dy + math.sin(a) * radius,
-      );
-      final outer = Offset(
-        center.dx + math.cos(a) * (radius + 4),
-        center.dy + math.sin(a) * (radius + 4),
-      );
+      final inner = Offset(center.dx + math.cos(a) * radius, center.dy + math.sin(a) * radius);
+      final outer = Offset(center.dx + math.cos(a) * (radius + 4 + band), center.dy + math.sin(a) * (radius + 4 + band));
       canvas.drawLine(inner, outer, tickPaint);
+    }
+
+    // Nível 2 (band 1): arco fino parcial aparece, marcando o início
+    // de movimento na moldura.
+    if (band >= 1) {
+      final arcPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..strokeCap = StrokeCap.round
+        ..color = color.withOpacity(0.4 * glow);
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius - 3),
+        rotation * 2 * math.pi, math.pi * 0.6, false, arcPaint,
+      );
+    }
+
+    // Nível 3 (band 2): segundo anel de tracinhos internos, mais
+    // curtos, alternados com os externos — já antecipa a textura de
+    // "faceta" que a próxima faixa vai desenvolver.
+    if (band >= 2) {
+      final innerTickPaint = Paint()
+        ..color = Colors.white.withOpacity(0.3 * glow)
+        ..strokeWidth = 1.0
+        ..strokeCap = StrokeCap.round;
+      const innerCount = 8;
+      for (int i = 0; i < innerCount; i++) {
+        final a = (i / innerCount) * 2 * math.pi + math.pi / innerCount;
+        final inner = Offset(center.dx + math.cos(a) * (radius - 5), center.dy + math.sin(a) * (radius - 5));
+        final outer = Offset(center.dx + math.cos(a) * (radius - 2), center.dy + math.sin(a) * (radius - 2));
+        canvas.drawLine(inner, outer, innerTickPaint);
+      }
     }
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 2 · INCOMUM — moldura hexagonal facetada, girando devagar.
-// Conceito: contorno poligonal de 6 lados (não um círculo!) com
-// vértices levemente "respirando" — a primeira forma geométrica
-// própria que o jogador desbloqueia.
+// 2 · INCOMUM (níveis 4-6) — moldura poligonal facetada, que ganha
+// lados a cada nível: nível 4 é um pentágono; nível 5 vira hexágono
+// com vértices duplos; nível 6 ganha um segundo polígono interno
+// contra-rotativo.
 // ═══════════════════════════════════════════════════════════════════
 class _UncommonFramePainter extends _BaseFramePainter {
   _UncommonFramePainter({
-    required super.rarity, required super.color, required super.gradient,
-    required super.rotation, required super.glow,
+    required super.level, required super.rarity, required super.color,
+    required super.gradient, required super.rotation, required super.glow,
     required super.particleProgress, required super.avatarSize,
   });
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final baseRadius = avatarSize / 2 + 10;
-    const sides = 6;
-    final breathe = math.sin(particleProgress * 2 * math.pi) * 1.6;
-
+  Path _polygon(Offset center, double r, int sides, double angleOffset) {
     final path = Path();
     for (int i = 0; i <= sides; i++) {
-      final a = (i / sides) * 2 * math.pi + rotation * 2 * math.pi * 0.25;
-      final r = baseRadius + breathe;
+      final a = (i / sides) * 2 * math.pi + angleOffset;
       final p = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r);
       if (i == 0) {
         path.moveTo(p.dx, p.dy);
@@ -475,6 +511,20 @@ class _UncommonFramePainter extends _BaseFramePainter {
       }
     }
     path.close();
+    return path;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final baseRadius = avatarSize / 2 + 10;
+    final band = levelInBand;
+    final sides = 5 + band; // 5, 6, 7 lados
+    final breathe = math.sin(particleProgress * 2 * math.pi) * 1.6;
+    final r = baseRadius + breathe;
+    final angleOffset = rotation * 2 * math.pi * 0.25;
+
+    final path = _polygon(center, r, sides, angleOffset);
 
     final glowPaint = Paint()
       ..style = PaintingStyle.stroke
@@ -488,30 +538,43 @@ class _UncommonFramePainter extends _BaseFramePainter {
       ..strokeWidth = 1.6
       ..strokeJoin = StrokeJoin.round
       ..shader = LinearGradient(colors: gradient)
-          .createShader(Rect.fromCircle(center: center, radius: baseRadius));
+          .createShader(Rect.fromCircle(center: center, radius: r));
     canvas.drawPath(path, strokePaint);
 
-    // Pequenos pontos de luz fixos em cada vértice
     final vertexPaint = Paint()..color = Colors.white.withOpacity(0.7 * glow);
     for (int i = 0; i < sides; i++) {
-      final a = (i / sides) * 2 * math.pi + rotation * 2 * math.pi * 0.25;
-      final r = baseRadius + breathe;
+      final a = (i / sides) * 2 * math.pi + angleOffset;
       final p = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r);
-      canvas.drawCircle(p, 1.3, vertexPaint);
+      canvas.drawCircle(p, band >= 1 ? 1.6 : 1.3, vertexPaint);
+      // Nível 5+ (band 1): vértice duplo, uma segunda marca logo atrás.
+      if (band >= 1) {
+        final p2 = Offset(center.dx + math.cos(a) * (r - 4), center.dy + math.sin(a) * (r - 4));
+        canvas.drawCircle(p2, 0.9, vertexPaint);
+      }
+    }
+
+    // Nível 6 (band 2): segundo polígono interno, contra-rotativo,
+    // criando um efeito de "engrenagem dupla".
+    if (band >= 2) {
+      final innerPath = _polygon(center, r - 9, sides - 1, -rotation * 2 * math.pi * 0.4);
+      final innerPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..color = Colors.white.withOpacity(0.35 * glow);
+      canvas.drawPath(innerPath, innerPaint);
     }
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 3 · RARO — dois losangos orbitando em trilhas elípticas cruzadas.
-// Conceito: não é um anel contínuo — são só 2 marcadores em forma de
-// losango, cada um numa órbita elíptica com inclinação diferente,
-// cruzando-se periodicamente atrás do avatar.
+// 3 · RARO (níveis 7-9) — losangos orbitando em trilhas elípticas.
+// Nível 7: 1 losango. Nível 8: 2 losangos cruzados. Nível 9: 3
+// losangos formando um pequeno triângulo orbital.
 // ═══════════════════════════════════════════════════════════════════
 class _RareFramePainter extends _BaseFramePainter {
   _RareFramePainter({
-    required super.rarity, required super.color, required super.gradient,
-    required super.rotation, required super.glow,
+    required super.level, required super.rarity, required super.color,
+    required super.gradient, required super.rotation, required super.glow,
     required super.particleProgress, required super.avatarSize,
   });
 
@@ -529,21 +592,22 @@ class _RareFramePainter extends _BaseFramePainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final rx = avatarSize / 2 + 12;
+    final band = levelInBand;
+    final gemCount = 1 + band; // 1, 2, 3
 
-    // faixa fina de base, elíptica, quase reta
     final basePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0
-      ..color = color.withOpacity(0.25 * glow);
+      ..color = color.withOpacity(0.22 * glow);
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: rx * 2, height: rx * 1.1), basePaint);
     canvas.restore();
 
-    for (int i = 0; i < 2; i++) {
-      final tilt = i == 0 ? 0.35 : -0.35;
-      final speed = i == 0 ? 1.0 : -1.3;
-      final angle = rotation * 2 * math.pi * speed + i * math.pi;
+    for (int i = 0; i < gemCount; i++) {
+      final tilt = (i - (gemCount - 1) / 2) * 0.35;
+      final speed = (i.isEven ? 1.0 : -1.3) * (1.0 + i * 0.15);
+      final angle = rotation * 2 * math.pi * speed + i * (2 * math.pi / gemCount);
 
       canvas.save();
       canvas.translate(center.dx, center.dy);
@@ -553,7 +617,7 @@ class _RareFramePainter extends _BaseFramePainter {
       final trailPaint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.4
-        ..color = gradient[i % gradient.length].withOpacity(0.35 * glow);
+        ..color = gradient[i % gradient.length].withOpacity(0.3 * glow);
       canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: rx * 2, height: rx * 1.1), trailPaint);
 
       final gemPaint = Paint()
@@ -571,15 +635,14 @@ class _RareFramePainter extends _BaseFramePainter {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 4 · ESPECIAL — anel segmentado tipo "engrenagem de luz".
-// Conceito: em vez de um traço contínuo, o anel é feito de arcos
-// curtos separados por vãos, como dentes de engrenagem luminosos,
-// girando em bloco.
+// 4 · ESPECIAL (níveis 10-12) — anel segmentado tipo "engrenagem de
+// luz". Nível 10: 8 segmentos. Nível 11: 10 segmentos + dentes.
+// Nível 12: 12 segmentos + halo de núcleo mais forte.
 // ═══════════════════════════════════════════════════════════════════
 class _SpecialFramePainter extends _BaseFramePainter {
   _SpecialFramePainter({
-    required super.rarity, required super.color, required super.gradient,
-    required super.rotation, required super.glow,
+    required super.level, required super.rarity, required super.color,
+    required super.gradient, required super.rotation, required super.glow,
     required super.particleProgress, required super.avatarSize,
   });
 
@@ -587,58 +650,66 @@ class _SpecialFramePainter extends _BaseFramePainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = avatarSize / 2 + 11;
-    const segments = 10;
-    final gapFraction = 0.35;
+    final band = levelInBand;
+    final segments = 8 + band * 2; // 8, 10, 12
+    const gapFraction = 0.35;
     final segAngle = (2 * math.pi / segments) * (1 - gapFraction);
 
     final segPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.2
+      ..strokeWidth = 3.0 + band * 0.3
       ..strokeCap = StrokeCap.butt
       ..shader = LinearGradient(colors: gradient)
           .createShader(Rect.fromCircle(center: center, radius: radius));
 
     for (int i = 0; i < segments; i++) {
       final start = (i / segments) * 2 * math.pi + rotation * 2 * math.pi;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        start, segAngle, false, segPaint,
-      );
+      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), start, segAngle, false, segPaint);
     }
 
-    // pequenos "dentes" radiais nas bordas de cada segmento
-    final teethPaint = Paint()
-      ..color = Colors.white.withOpacity(0.55 * glow)
-      ..strokeWidth = 1.6;
-    for (int i = 0; i < segments; i++) {
-      final start = (i / segments) * 2 * math.pi + rotation * 2 * math.pi;
-      for (final off in [0.0, segAngle]) {
-        final a = start + off;
-        final p1 = Offset(center.dx + math.cos(a) * (radius - 2), center.dy + math.sin(a) * (radius - 2));
-        final p2 = Offset(center.dx + math.cos(a) * (radius + 3), center.dy + math.sin(a) * (radius + 3));
-        canvas.drawLine(p1, p2, teethPaint);
+    // Dentes radiais aparecem a partir do nível 11 (band >= 1).
+    if (band >= 1) {
+      final teethPaint = Paint()
+        ..color = Colors.white.withOpacity(0.55 * glow)
+        ..strokeWidth = 1.6;
+      for (int i = 0; i < segments; i++) {
+        final start = (i / segments) * 2 * math.pi + rotation * 2 * math.pi;
+        for (final off in [0.0, segAngle]) {
+          final a = start + off;
+          final p1 = Offset(center.dx + math.cos(a) * (radius - 2), center.dy + math.sin(a) * (radius - 2));
+          final p2 = Offset(center.dx + math.cos(a) * (radius + 3), center.dy + math.sin(a) * (radius + 3));
+          canvas.drawLine(p1, p2, teethPaint);
+        }
       }
     }
 
-    // núcleo de brilho suave por trás
+    // Núcleo de brilho — mais forte no nível 12 (band 2).
     final corePaint = Paint()
       ..shader = RadialGradient(colors: [
-        color.withOpacity(0.18 * glow), Colors.transparent,
+        color.withOpacity((band >= 2 ? 0.28 : 0.16) * glow), Colors.transparent,
       ]).createShader(Rect.fromCircle(center: center, radius: radius + 6));
     canvas.drawCircle(center, radius + 6, corePaint);
+
+    // Nível 12: segundo anel fino, bem interno, girando ao contrário.
+    if (band >= 2) {
+      final innerRingPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..color = Colors.white.withOpacity(0.4 * glow);
+      canvas.drawCircle(center, radius - 6, innerRingPaint);
+    }
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 5 · ÉPICO — dupla espiral áurea pulsante.
-// Conceito: dois braços em espiral (tipo galáxia) saindo do centro
-// para fora, com pontos de luz decrescendo em tamanho ao longo do
-// braço — nada de anel nem partícula orbital genérica.
+// 5 · ÉPICO (níveis 13-15) — espiral(is) áurea pulsante. Nível 13:
+// 1 braço. Nível 14: 2 braços (dupla espiral). Nível 15: 3 braços +
+// anel-guia mais definido.
 // ═══════════════════════════════════════════════════════════════════
 class _EpicFramePainter extends _BaseFramePainter {
   _EpicFramePainter({
-    required super.rarity, required super.color, required super.gradient,
-    required super.rotation, required super.glow,
+    required super.level, required super.rarity, required super.color,
+    required super.gradient, required super.rotation, required super.glow,
     required super.particleProgress, required super.avatarSize,
   });
 
@@ -647,17 +718,16 @@ class _EpicFramePainter extends _BaseFramePainter {
     final center = Offset(size.width / 2, size.height / 2);
     final maxR = avatarSize / 2 + 16;
     final minR = avatarSize / 2 + 4;
+    final band = levelInBand;
+    final arms = 1 + band; // 1, 2, 3
     const dotsPerArm = 9;
-    const arms = 2;
 
     for (int arm = 0; arm < arms; arm++) {
-      final armOffset = arm * math.pi;
+      final armOffset = arm * (2 * math.pi / arms);
       for (int i = 0; i < dotsPerArm; i++) {
-        final t = i / (dotsPerArm - 1); // 0..1 outward
-        final spiralTurns = 1.3;
-        final a = armOffset +
-            rotation * 2 * math.pi +
-            t * spiralTurns * 2 * math.pi;
+        final t = i / (dotsPerArm - 1);
+        const spiralTurns = 1.3;
+        final a = armOffset + rotation * 2 * math.pi + t * spiralTurns * 2 * math.pi;
         final r = minR + (maxR - minR) * t;
         final pos = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r);
 
@@ -672,25 +742,23 @@ class _EpicFramePainter extends _BaseFramePainter {
       }
     }
 
-    // linha-guia sutil conectando os dois braços perto do centro
     final linkPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
-      ..color = Colors.white.withOpacity(0.25 * glow);
+      ..strokeWidth = band >= 2 ? 1.4 : 1.0
+      ..color = Colors.white.withOpacity((band >= 2 ? 0.4 : 0.25) * glow);
     canvas.drawCircle(center, minR - 2, linkPaint);
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 6 · HEROICO — escudo de facetas triangulares + anel contra-girando.
-// Conceito: um "colar" de triângulos alternando para dentro/fora do
-// raio (como uma coroa de escudo), com um fino anel externo girando
-// no sentido oposto por baixo.
+// 6 · HEROICO (níveis 16-18) — escudo de facetas triangulares. Nível
+// 16: coroa de 10 pontas. Nível 17: 12 pontas + anel contra-rotativo.
+// Nível 18: 14 pontas + segundo anel interno cravejado.
 // ═══════════════════════════════════════════════════════════════════
 class _HeroicFramePainter extends _BaseFramePainter {
   _HeroicFramePainter({
-    required super.rarity, required super.color, required super.gradient,
-    required super.rotation, required super.glow,
+    required super.level, required super.rarity, required super.color,
+    required super.gradient, required super.rotation, required super.glow,
     required super.particleProgress, required super.avatarSize,
   });
 
@@ -698,20 +766,22 @@ class _HeroicFramePainter extends _BaseFramePainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = avatarSize / 2 + 10;
+    final band = levelInBand;
+    final teeth = 10 + band * 2; // 10, 12, 14
 
-    // anel externo fino, contra-rotativo
-    final ringPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..shader = SweepGradient(
-        startAngle: -rotation * 1.6 * math.pi,
-        endAngle: -rotation * 1.6 * math.pi + math.pi * 1.2,
-        colors: [Colors.transparent, gradient[1].withOpacity(0.7 * glow), Colors.transparent],
-      ).createShader(Rect.fromCircle(center: center, radius: radius + 9));
-    canvas.drawCircle(center, radius + 9, ringPaint);
+    // Anel externo contra-rotativo a partir do nível 17 (band >= 1).
+    if (band >= 1) {
+      final ringPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..shader = SweepGradient(
+          startAngle: -rotation * 1.6 * math.pi,
+          endAngle: -rotation * 1.6 * math.pi + math.pi * 1.2,
+          colors: [Colors.transparent, gradient[1].withOpacity(0.7 * glow), Colors.transparent],
+        ).createShader(Rect.fromCircle(center: center, radius: radius + 9));
+      canvas.drawCircle(center, radius + 9, ringPaint);
+    }
 
-    // coroa de facetas triangulares
-    const teeth = 12;
     final crownPath = Path();
     for (int i = 0; i <= teeth; i++) {
       final a = (i / teeth) * 2 * math.pi + rotation * 2 * math.pi * 0.4;
@@ -741,26 +811,36 @@ class _HeroicFramePainter extends _BaseFramePainter {
           .createShader(Rect.fromCircle(center: center, radius: radius));
     canvas.drawPath(crownPath, crownPaint);
 
-    // pontas iluminadas
     final tipPaint = Paint()..color = Colors.white.withOpacity(0.75 * glow);
     for (int i = 0; i < teeth; i += 2) {
       final a = (i / teeth) * 2 * math.pi + rotation * 2 * math.pi * 0.4;
       final p = Offset(center.dx + math.cos(a) * (radius + 6), center.dy + math.sin(a) * (radius + 6));
       canvas.drawCircle(p, 1.4, tipPaint);
     }
+
+    // Nível 18 (band 2): segundo anel interno "cravejado" com pontos
+    // pequenos entre o avatar e a coroa.
+    if (band >= 2) {
+      final studPaint = Paint()..color = Colors.white.withOpacity(0.5 * glow);
+      const studs = 8;
+      for (int i = 0; i < studs; i++) {
+        final a = (i / studs) * 2 * math.pi - rotation * 2 * math.pi * 0.3;
+        final p = Offset(center.dx + math.cos(a) * (radius - 5), center.dy + math.sin(a) * (radius - 5));
+        canvas.drawCircle(p, 1.0, studPaint);
+      }
+    }
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 7 · LENDÁRIO — constelação: estrelas conectadas por linhas finas.
-// Conceito: pontos fixos (padrão de espiral áurea) ligados por linhas
-// que se acendem em sequência, como uma constelação sendo traçada,
-// com um halo suave por trás.
+// 7 · LENDÁRIO (níveis 19-21) — constelação de estrelas conectadas.
+// Nível 19: 6 estrelas. Nível 20: 8 estrelas. Nível 21: 10 estrelas +
+// halo mais amplo.
 // ═══════════════════════════════════════════════════════════════════
 class _LegendaryFramePainter extends _BaseFramePainter {
   _LegendaryFramePainter({
-    required super.rarity, required super.color, required super.gradient,
-    required super.rotation, required super.glow,
+    required super.level, required super.rarity, required super.color,
+    required super.gradient, required super.rotation, required super.glow,
     required super.particleProgress, required super.avatarSize,
   });
 
@@ -768,14 +848,14 @@ class _LegendaryFramePainter extends _BaseFramePainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = avatarSize / 2 + 13;
-    const starCount = 8;
+    final band = levelInBand;
+    final starCount = 6 + band * 2; // 6, 8, 10
 
-    // halo de fundo
     final haloPaint = Paint()
       ..shader = RadialGradient(colors: [
-        gradient[0].withOpacity(0.16 * glow), Colors.transparent,
-      ]).createShader(Rect.fromCircle(center: center, radius: radius + 14));
-    canvas.drawCircle(center, radius + 14, haloPaint);
+        gradient[0].withOpacity((0.14 + band * 0.02) * glow), Colors.transparent,
+      ]).createShader(Rect.fromCircle(center: center, radius: radius + 14 + band * 2));
+    canvas.drawCircle(center, radius + 14 + band * 2, haloPaint);
 
     final points = <Offset>[];
     for (int i = 0; i < starCount; i++) {
@@ -784,7 +864,6 @@ class _LegendaryFramePainter extends _BaseFramePainter {
       points.add(Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r));
     }
 
-    // linhas conectando estrelas vizinhas, acendendo em sequência
     final linkPaint = Paint()
       ..strokeWidth = 0.8
       ..style = PaintingStyle.stroke;
@@ -796,7 +875,19 @@ class _LegendaryFramePainter extends _BaseFramePainter {
       canvas.drawLine(points[i], points[next], linkPaint);
     }
 
-    // estrelas nos vértices
+    // Nível 21 (band 2): linhas extras cruzando o centro, ligando
+    // estrelas opostas — a constelação "fecha" visualmente.
+    if (band >= 2) {
+      final crossPaint = Paint()
+        ..strokeWidth = 0.6
+        ..style = PaintingStyle.stroke
+        ..color = Colors.white.withOpacity(0.18 * glow);
+      for (int i = 0; i < starCount; i += 2) {
+        final opp = (i + starCount ~/ 2) % starCount;
+        canvas.drawLine(points[i], points[opp], crossPaint);
+      }
+    }
+
     final starPaint = Paint()..style = PaintingStyle.fill;
     for (int i = 0; i < starCount; i++) {
       final twinkle = (math.sin(particleProgress * 4 * math.pi + i * 1.1) + 1) / 2;
@@ -810,15 +901,14 @@ class _LegendaryFramePainter extends _BaseFramePainter {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 8 · MÍTICO — Dragão de Cristal (moldura especial existente) +
-// véu de fumaça facetada girando devagar por trás.
-// Conceito: mantém a marca "dragão de cristal" já criada para esta
-// faixa, envolta numa névoa geométrica exclusiva desta faixa.
+// 8 · MÍTICO (níveis 22-24) — Dragão de Cristal + véu de fumaça
+// facetada. Nível 22: dragão + véu de 1 camada. Nível 23: véu de 2
+// camadas. Nível 24: véu de 2 camadas + arco de energia fria extra.
 // ═══════════════════════════════════════════════════════════════════
 class _MythicFramePainter extends _BaseFramePainter {
   _MythicFramePainter({
-    required super.rarity, required super.color, required super.gradient,
-    required super.rotation, required super.glow,
+    required super.level, required super.rarity, required super.color,
+    required super.gradient, required super.rotation, required super.glow,
     required super.particleProgress, required super.avatarSize,
   });
 
@@ -826,15 +916,35 @@ class _MythicFramePainter extends _BaseFramePainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = avatarSize / 2 + 10;
+    final band = levelInBand;
 
-    _paintCrystalVeil(canvas, center, radius);
+    _paintCrystalVeil(canvas, center, radius, band);
     _paintCrystalDragonFrame(canvas, center, radius);
+
+    // Nível 24 (band 2): arco de energia fria adicional, contornando
+    // por fora do véu — reforça a sensação de topo da faixa.
+    if (band >= 2) {
+      final arcPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..shader = SweepGradient(
+          startAngle: rotation * 1.8 * math.pi,
+          endAngle: rotation * 1.8 * math.pi + math.pi * 0.9,
+          colors: [
+            Colors.transparent,
+            const Color(0xFF00E5FF).withOpacity(0.8 * glow),
+            const Color(0xFF7C4DFF).withOpacity(0.8 * glow),
+            Colors.transparent,
+          ],
+        ).createShader(Rect.fromCircle(center: center, radius: radius + 30));
+      canvas.drawCircle(center, radius + 30, arcPaint);
+    }
   }
 
-  // Véu de cristais facetados girando em duas camadas de velocidades
-  // diferentes — dá profundidade sem repetir "anel + partícula".
-  void _paintCrystalVeil(Canvas canvas, Offset center, double radius) {
-    for (final layer in [0, 1]) {
+  void _paintCrystalVeil(Canvas canvas, Offset center, double radius, int band) {
+    final layerCount = band >= 1 ? 2 : 1;
+    for (int layer = 0; layer < layerCount; layer++) {
       final count = 5 + layer * 3;
       final r = radius + 4 + layer * 9.0;
       final speed = layer == 0 ? 1.0 : -0.6;
@@ -941,16 +1051,15 @@ class _MythicFramePainter extends _BaseFramePainter {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 9 · SUPREMO — três anéis poligonais concêntricos, cada um girando
-// numa velocidade diferente, com núcleo pulsante no centro.
-// Conceito: "engrenagens celestiais" — triângulo interno + quadrado
-// médio + octógono externo, todos girando em sentidos/velocidades
-// distintos, criando uma sensação de mecanismo cósmico complexo.
+// 9 · SUPREMO (níveis 25-27) — anéis poligonais concêntricos girando
+// em velocidades diferentes. Nível 25: 2 camadas (triângulo +
+// quadrado). Nível 26: 3 camadas (+ octógono). Nível 27: 3 camadas +
+// núcleo pulsante mais forte e vértices duplos no anel externo.
 // ═══════════════════════════════════════════════════════════════════
 class _SupremeFramePainter extends _BaseFramePainter {
   _SupremeFramePainter({
-    required super.rarity, required super.color, required super.gradient,
-    required super.rotation, required super.glow,
+    required super.level, required super.rarity, required super.color,
+    required super.gradient, required super.rotation, required super.glow,
     required super.particleProgress, required super.avatarSize,
   });
 
@@ -973,12 +1082,14 @@ class _SupremeFramePainter extends _BaseFramePainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final base = avatarSize / 2 + 9;
+    final band = levelInBand;
 
-    final layers = [
+    final allLayers = [
       (sides: 3, r: base + 2, speed: 1.0, width: 1.6),
       (sides: 4, r: base + 9, speed: -0.7, width: 1.8),
       (sides: 8, r: base + 17, speed: 0.45, width: 1.4),
     ];
+    final layers = band >= 1 ? allLayers : allLayers.sublist(0, 2);
 
     for (int i = 0; i < layers.length; i++) {
       final l = layers[i];
@@ -1010,36 +1121,41 @@ class _SupremeFramePainter extends _BaseFramePainter {
       canvas.drawPath(path, strokePaint);
     }
 
-    // núcleo pulsante suave logo atrás do avatar
     final pulse = (math.sin(particleProgress * 2 * math.pi) + 1) / 2;
     final corePaint = Paint()
       ..shader = RadialGradient(colors: [
-        Colors.white.withOpacity(0.10 * glow * (0.5 + pulse * 0.5)),
+        Colors.white.withOpacity((band >= 2 ? 0.16 : 0.10) * glow * (0.5 + pulse * 0.5)),
         Colors.transparent,
       ]).createShader(Rect.fromCircle(center: center, radius: base - 2));
     canvas.drawCircle(center, base - 2, corePaint);
 
-    // vértices luminosos do anel externo
+    final outer = layers.last;
     final vertexPaint = Paint()..color = Colors.white.withOpacity(0.75 * glow);
-    for (int i = 0; i < 8; i++) {
-      final a = (i / 8) * 2 * math.pi + rotation * 2 * math.pi * layers[2].speed;
-      final p = Offset(center.dx + math.cos(a) * layers[2].r, center.dy + math.sin(a) * layers[2].r);
+    for (int i = 0; i < outer.sides; i++) {
+      final a = (i / outer.sides) * 2 * math.pi + rotation * 2 * math.pi * outer.speed;
+      final p = Offset(center.dx + math.cos(a) * outer.r, center.dy + math.sin(a) * outer.r);
       canvas.drawCircle(p, 1.3, vertexPaint);
+      // Nível 27 (band 2): vértices duplos no anel externo.
+      if (band >= 2) {
+        final p2 = Offset(center.dx + math.cos(a) * (outer.r + 4), center.dy + math.sin(a) * (outer.r + 4));
+        canvas.drawCircle(p2, 0.8, vertexPaint);
+      }
     }
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 10 · HORIZONTE ELITE — Trono Solar (moldura especial existente) +
-// coroa geométrica de facetas douradas e marcadores cardeais.
-// Conceito: topo absoluto — combina o trono solar já criado com uma
-// coroa facetada adicional e marcadores nos 4 pontos cardeais,
-// exclusivos desta faixa.
+// 10 · HORIZONTE ELITE (níveis 28-30) — Trono Solar. Nível 28: coroa
+// facetada + raios solares (a versão "sol" plena começa aqui). Nível
+// 29: + marcadores cardeais. Nível 30 — ÁPICE ABSOLUTO: sol pleno
+// completo — coroa dupla, raios mais longos e densos, arco duplo de
+// energia dourada e núcleo radiante central, o desenho mais elaborado
+// de toda a progressão.
 // ═══════════════════════════════════════════════════════════════════
 class _EliteFramePainter extends _BaseFramePainter {
   _EliteFramePainter({
-    required super.rarity, required super.color, required super.gradient,
-    required super.rotation, required super.glow,
+    required super.level, required super.rarity, required super.color,
+    required super.gradient, required super.rotation, required super.glow,
     required super.particleProgress, required super.avatarSize,
   });
 
@@ -1047,16 +1163,18 @@ class _EliteFramePainter extends _BaseFramePainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = avatarSize / 2 + 10;
+    final band = levelInBand; // 0=28, 1=29, 2=30
 
-    _paintSolarThroneFrame(canvas, center, radius);
-    _paintFacetedCrown(canvas, center, radius);
-    _paintCardinalMarks(canvas, center, radius);
+    _paintSolarThroneFrame(canvas, center, radius, band);
+    _paintFacetedCrown(canvas, center, radius, band);
+    if (band >= 1) _paintCardinalMarks(canvas, center, radius);
+    if (band >= 2) _paintSunCore(canvas, center, radius);
   }
 
-  // Coroa adicional de pequenas facetas douradas, mais próxima do
-  // avatar que os raios do trono — dá camada extra de riqueza.
-  void _paintFacetedCrown(Canvas canvas, Offset center, double radius) {
-    const facets = 14;
+  // Coroa de facetas douradas — dobra de densidade no nível 30 (sol
+  // pleno), formando uma coroa dupla.
+  void _paintFacetedCrown(Canvas canvas, Offset center, double radius, int band) {
+    final facets = band >= 2 ? 20 : 14;
     for (int i = 0; i < facets; i++) {
       final a = (i / facets) * 2 * math.pi - rotation * 2 * math.pi * 0.5;
       final r = radius + 3;
@@ -1078,10 +1196,33 @@ class _EliteFramePainter extends _BaseFramePainter {
       canvas.drawPath(facetPath, facetPaint);
       canvas.restore();
     }
+
+    // Nível 30: segunda camada de facetas, um pouco mais externa e
+    // mais espaçada — a "coroa dupla" do sol pleno.
+    if (band >= 2) {
+      const outerFacets = 10;
+      for (int i = 0; i < outerFacets; i++) {
+        final a = (i / outerFacets) * 2 * math.pi + rotation * 2 * math.pi * 0.35;
+        final r = radius + 34;
+        final pos = Offset(center.dx + math.cos(a) * r, center.dy + math.sin(a) * r);
+        canvas.save();
+        canvas.translate(pos.dx, pos.dy);
+        canvas.rotate(a + math.pi);
+        const s = 3.2;
+        final facetPath = Path()
+          ..moveTo(0, -s)
+          ..lineTo(s * 0.7, s * 0.4)
+          ..lineTo(-s * 0.7, s * 0.4)
+          ..close();
+        final facetPaint = Paint()
+          ..color = const Color(0xFFFFF176).withOpacity(0.75 * glow)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.6);
+        canvas.drawPath(facetPath, facetPaint);
+        canvas.restore();
+      }
+    }
   }
 
-  // 4 marcadores cardeais (N/S/L/O) — losangos dourados fixos que só
-  // pulsam, não giram, ancorando a moldura visualmente.
   void _paintCardinalMarks(Canvas canvas, Offset center, double radius) {
     final pulse = (math.sin(particleProgress * 2 * math.pi) + 1) / 2;
     final markPaint = Paint()
@@ -1089,10 +1230,7 @@ class _EliteFramePainter extends _BaseFramePainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
     for (int i = 0; i < 4; i++) {
       final a = (i / 4) * 2 * math.pi;
-      final pos = Offset(
-        center.dx + math.cos(a) * (radius + 26),
-        center.dy + math.sin(a) * (radius + 26),
-      );
+      final pos = Offset(center.dx + math.cos(a) * (radius + 26), center.dy + math.sin(a) * (radius + 26));
       const d = 3.6;
       final path = Path()
         ..moveTo(pos.dx, pos.dy - d)
@@ -1104,24 +1242,58 @@ class _EliteFramePainter extends _BaseFramePainter {
     }
   }
 
-  void _paintSolarThroneFrame(Canvas canvas, Offset center, double radius) {
+  // Núcleo radiante — exclusivo do nível 30. Um brilho central intenso
+  // por trás do avatar, como o próprio disco solar, culminando a
+  // progressão inteira de 30 níveis.
+  void _paintSunCore(Canvas canvas, Offset center, double radius) {
+    final pulse = (math.sin(particleProgress * 2 * math.pi) + 1) / 2;
+    final corePaint = Paint()
+      ..shader = RadialGradient(colors: [
+        const Color(0xFFFFF9C4).withOpacity(0.35 * glow * (0.6 + pulse * 0.4)),
+        const Color(0xFFFFD700).withOpacity(0.18 * glow),
+        Colors.transparent,
+      ], stops: const [0.0, 0.5, 1.0])
+          .createShader(Rect.fromCircle(center: center, radius: radius + 6));
+    canvas.drawCircle(center, radius + 6, corePaint);
+
+    // Segundo arco dourado, contra-rotativo em relação ao arco do
+    // trono solar, reforçando a leitura de "sol pleno".
+    final arcPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..shader = SweepGradient(
+        startAngle: rotation * 1.7 * math.pi,
+        endAngle: rotation * 1.7 * math.pi + math.pi * 1.3,
+        colors: [
+          Colors.transparent,
+          const Color(0xFFFFF9C4).withOpacity(0.85 * glow),
+          const Color(0xFFFFD700).withOpacity(0.85 * glow),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius + 38));
+    canvas.drawCircle(center, radius + 38, arcPaint);
+  }
+
+  void _paintSolarThroneFrame(Canvas canvas, Offset center, double radius, int band) {
     final throneRadius = radius + 22;
+    final isFullSun = band >= 2;
 
     final haloPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          const Color(0xFFFFD700).withOpacity(0.22 * glow),
+          const Color(0xFFFFD700).withOpacity((isFullSun ? 0.30 : 0.22) * glow),
           Colors.transparent,
         ],
       ).createShader(Rect.fromCircle(center: center, radius: throneRadius + 16));
     canvas.drawCircle(center, throneRadius + 16, haloPaint);
 
-    const rayCount = 16;
+    final rayCount = isFullSun ? 24 : 16;
     for (int i = 0; i < rayCount; i++) {
       final a = (i / rayCount) * 2 * math.pi + rotation * 0.3 * math.pi;
       final isLong = i.isEven;
-      final len = isLong ? throneRadius + 16 : throneRadius + 8;
-      final width = isLong ? 5.0 : 3.0;
+      final len = isLong ? throneRadius + (isFullSun ? 22 : 16) : throneRadius + (isFullSun ? 12 : 8);
+      final width = isLong ? (isFullSun ? 6.0 : 5.0) : (isFullSun ? 3.6 : 3.0);
 
       final dir = Offset(math.cos(a), math.sin(a));
       final base = center + dir * throneRadius * 0.92;
