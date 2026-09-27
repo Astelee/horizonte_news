@@ -173,15 +173,25 @@ class CheckinService {
   static String? bonusLabelForStreak(int streak) {
     final reward = CheckinRewardsConfig.forStreak(streak);
     if (reward == null) return null;
-    if (streak >= 31) {
+    // O marco máximo é o ÚLTIMO da lista do mês corrente — seu
+    // requiredStreak já reflete o calendário real (28/29/30/31),
+    // então comparar com o marco em si (em vez de um "31" fixo)
+    // continua correto em qualquer mês.
+    final isMaxMilestone = CheckinRewardsConfig.currentMonthList.last.id ==
+        reward.id;
+    if (isMaxMilestone) {
       return 'Mês inteiro de sequência — Sol do Horizonte! ☀️';
     }
     if (streak >= 24) return 'Sequência de $streak dias — ${reward.name}! 🏆';
     return 'Sequência de $streak dias! 🔥';
   }
 
-  // Marco especial: conquista permanente além do XP.
-  static bool isSpecialMilestone(int streak) => streak == 31;
+  // Marco especial: conquista permanente além do XP. É o ÚLTIMO
+  // marco do catálogo do mês corrente, cujo requiredStreak já se
+  // adapta ao calendário real (30 em abril, 28/29 em fevereiro, 31
+  // em janeiro...) — nunca mais um "31" fixo.
+  static bool isSpecialMilestone(int streak) =>
+      streak > 0 && streak == CheckinRewardsConfig.currentMonthList.last.requiredStreak;
 
   DocumentReference<Map<String, dynamic>>? get _userDoc {
     final uid = _auth.currentUser?.uid;
@@ -744,7 +754,7 @@ class CheckinService {
 
       // Recuperar pode empurrar o recorde por cima de um marco.
       CheckinRewardDef? newlyUnlocked;
-      for (final r in CheckinRewardsConfig.all) {
+      for (final r in CheckinRewardsConfig.currentMonthList) {
         if (longestBefore < r.requiredStreak &&
             newLongest >= r.requiredStreak) {
           newlyUnlocked = r; // fica com o mais alto atingido agora
