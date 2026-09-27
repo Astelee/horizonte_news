@@ -202,8 +202,8 @@ void main() {
   });
 
   group('CheckinRewardsConfig — catálogo e progressão', () {
-    test('marcos estão em ordem estritamente crescente', () {
-      final m = CheckinRewardsConfig.milestones;
+    test('marcos estão em ordem estritamente crescente (mês de 31 dias)', () {
+      final m = CheckinRewardsConfig.milestonesForMonth(DateTime(2026, 1, 1));
       for (var i = 1; i < m.length; i++) {
         expect(m[i], greaterThan(m[i - 1]));
       }
@@ -227,21 +227,77 @@ void main() {
       expect(CheckinRewardsConfig.isUnlocked(faisca, 31), isTrue);
     });
 
-    test('nextLocked devolve a próxima recompensa e null ao completar tudo',
+    test('nextLocked devolve a próxima recompensa e null ao completar tudo (mês de 31 dias)',
         () {
-      expect(CheckinRewardsConfig.nextLocked(0)!.requiredStreak, 3);
-      expect(CheckinRewardsConfig.nextLocked(3)!.requiredStreak, 5);
-      expect(CheckinRewardsConfig.nextLocked(30)!.requiredStreak, 31);
-      expect(CheckinRewardsConfig.nextLocked(31), isNull);
+      final jan = DateTime(2026, 1, 1);
+      expect(CheckinRewardsConfig.nextLocked(0, month: jan)!.requiredStreak, 3);
+      expect(CheckinRewardsConfig.nextLocked(3, month: jan)!.requiredStreak, 5);
+      expect(CheckinRewardsConfig.nextLocked(30, month: jan)!.requiredStreak, 31);
+      expect(CheckinRewardsConfig.nextLocked(31, month: jan), isNull);
     });
 
     test('progressToNext fica sempre entre 0 e 1', () {
+      final jan = DateTime(2026, 1, 1);
       for (final longest in [0, 2, 3, 7, 20, 24, 30, 31]) {
         for (final cur in [0, 1, 5, 15, 20, 31]) {
-          final p = CheckinRewardsConfig.progressToNext(cur, longest);
+          final p = CheckinRewardsConfig.progressToNext(cur, longest, month: jan);
           expect(p, inInclusiveRange(0.0, 1.0));
         }
       }
+    });
+
+    test('mês de 30 dias (abril): último marco vira 30, nunca 31', () {
+      final abril = DateTime(2026, 4, 15);
+      final m = CheckinRewardsConfig.milestonesForMonth(abril);
+      expect(m.last, 30);
+      expect(m, [3, 5, 7, 10, 14, 18, 24, 30]);
+
+      // O recorde de 30 dias em abril já desbloqueia o Sol do
+      // Horizonte — não fica preso esperando um dia 31 inexistente.
+      final list = CheckinRewardsConfig.allForMonth(abril);
+      final sol = list.last;
+      expect(sol.id, CheckinRewardId.solDoHorizonte);
+      expect(sol.requiredStreak, 30);
+      expect(CheckinRewardsConfig.isUnlocked(sol, 30), isTrue);
+      expect(CheckinRewardsConfig.nextLocked(30, month: abril), isNull);
+    });
+
+    test('fevereiro não bissexto (28 dias): último marco vira 28', () {
+      final fev = DateTime(2026, 2, 10);
+      final m = CheckinRewardsConfig.milestonesForMonth(fev);
+      expect(m.last, 28);
+    });
+
+    test('fevereiro bissexto (29 dias): último marco vira 29', () {
+      final fev = DateTime(2028, 2, 10);
+      final m = CheckinRewardsConfig.milestonesForMonth(fev);
+      expect(m.last, 29);
+    });
+
+    test('mês de 31 dias: último marco continua 31 (comportamento preservado)',
+        () {
+      final jan = DateTime(2026, 1, 10);
+      final dez = DateTime(2026, 12, 10);
+      expect(CheckinRewardsConfig.milestonesForMonth(jan).last, 31);
+      expect(CheckinRewardsConfig.milestonesForMonth(dez).last, 31);
+    });
+
+    test('marcos intermediários nunca mudam entre meses', () {
+      final abril = DateTime(2026, 4, 1);
+      final jan = DateTime(2026, 1, 1);
+      final mAbril = CheckinRewardsConfig.milestonesForMonth(abril);
+      final mJan = CheckinRewardsConfig.milestonesForMonth(jan);
+      // Todos os marcos exceto o último são idênticos.
+      expect(mAbril.sublist(0, mAbril.length - 1),
+          mJan.sublist(0, mJan.length - 1));
+    });
+
+    test('bônus de XP do marco final é preservado mesmo com requiredStreak ajustado',
+        () {
+      final abril = DateTime(2026, 4, 1);
+      final sol = CheckinRewardsConfig.allForMonth(abril).last;
+      expect(sol.bonusXp, 350);
+      expect(sol.name, 'Sol do Horizonte');
     });
 
     test('storageKey é único e faz round-trip', () {
@@ -265,16 +321,27 @@ void main() {
   });
 
   group('CheckinService — marcos e rótulos', () {
-    test('bônus só existe nos marcos do catálogo', () {
+    test('bônus só existe nos marcos do catálogo do mês corrente', () {
       expect(CheckinService.bonusForStreak(3), 15);
-      expect(CheckinService.bonusForStreak(31), 350);
       expect(CheckinService.bonusForStreak(8), 0);
       expect(CheckinService.bonusForStreak(0), 0);
+      // O bônus do marco final é 350 independentemente de qual
+      // número o marco assume no mês corrente (30, 31, 28, 29...).
+      final ultimo = CheckinRewardsConfig.currentMonthList.last;
+      expect(CheckinService.bonusForStreak(ultimo.requiredStreak), 350);
     });
 
     test('rótulo de bônus é nulo fora dos marcos', () {
       expect(CheckinService.bonusLabelForStreak(3), isNotNull);
       expect(CheckinService.bonusLabelForStreak(8), isNull);
+    });
+
+    test('isSpecialMilestone acompanha o último dia real do mês corrente',
+        () {
+      final ultimo = CheckinRewardsConfig.currentMonthList.last.requiredStreak;
+      expect(CheckinService.isSpecialMilestone(ultimo), isTrue);
+      expect(CheckinService.isSpecialMilestone(ultimo - 1), isFalse);
+      expect(CheckinService.isSpecialMilestone(0), isFalse);
     });
   });
 }
