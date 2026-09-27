@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import '../config/checkin_rewards_config.dart';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -10,9 +11,17 @@ import '../config/checkin_rewards_config.dart';
 // partículas e profundidade — mas com desenhos e ids exclusivos.
 //
 // Cada recompensa é desenhada dentro de um quadrado [size]. Um único
-// AnimationController (loop de 6s) alimenta todos os painters, e
-// cada um deriva o movimento de `t` (0..1) — assim há 1 ticker por
-// arte, sem controllers extras nem vazamento.
+// Ticker cru (sem AnimationController) alimenta todos os painters,
+// acumulando o tempo decorrido em segundos sem limite — `t` só
+// cresce, nunca volta de 1 para 0. Vários painters multiplicam `t`
+// por fatores fracionários de π (velocidades diferentes por camada);
+// com um AnimationController comum em `repeat()`, o valor faz wrap
+// de 1.0 → 0.0 a cada 6s e, como fator_fracionário * 2π nem sempre é
+// múltiplo de 2π, esse wrap produz um salto visível ("reinício") no
+// ângulo/posição toda vez que o ciclo reinicia. Usando tempo
+// acumulado sem wrap, `t * k` é sempre contínuo, para qualquer k.
+// Continua havendo 1 ticker por arte, sem controllers extras nem
+// vazamento.
 // ═══════════════════════════════════════════════════════════════════
 
 /// Único ponto de entrada: dado um [CheckinRewardId], desenha a arte.
@@ -39,32 +48,47 @@ class CheckinRewardArt extends StatefulWidget {
 
 class _CheckinRewardArtState extends State<CheckinRewardArt>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
+  // Ticker cru em vez de AnimationController: acumula o tempo
+  // decorrido sem limite, então `_t` nunca dá wrap de 1.0 → 0.0 (ver
+  // explicação no topo do arquivo). `_t` mantém o mesmo "período
+  // visual" de 6s que o controller antigo tinha (duration: 6s +
+  // repeat()), ou seja, ainda vale 1.0 a cada 6 segundos — só que
+  // continua crescendo (2.0, 3.0, ...) em vez de voltar a 0.
+  late final Ticker _ticker;
+  double _t = 0.0;
+  bool _running = false;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 6),
-    );
-    if (widget.animate && !widget.locked) _ctrl.repeat();
+    _ticker = createTicker((elapsed) {
+      if (!mounted) return;
+      setState(() {
+        _t = elapsed.inMicroseconds / 6000000.0; // 6s por "volta"
+      });
+    });
+    if (widget.animate && !widget.locked) {
+      _running = true;
+      _ticker.start();
+    }
   }
 
   @override
   void didUpdateWidget(covariant CheckinRewardArt old) {
     super.didUpdateWidget(old);
     final shouldRun = widget.animate && !widget.locked;
-    if (shouldRun && !_ctrl.isAnimating) {
-      _ctrl.repeat();
-    } else if (!shouldRun && _ctrl.isAnimating) {
-      _ctrl.stop();
+    if (shouldRun && !_running) {
+      _running = true;
+      _ticker.start();
+    } else if (!shouldRun && _running) {
+      _running = false;
+      _ticker.stop();
     }
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _ticker.dispose();
     super.dispose();
   }
 
@@ -92,13 +116,13 @@ class _CheckinRewardArtState extends State<CheckinRewardArt>
 
   @override
   Widget build(BuildContext context) {
+    // `_t` já dispara rebuild via setState dentro do próprio ticker
+    // (ver initState); não precisamos de AnimatedBuilder/Listenable
+    // aqui — o CustomPaint é reconstruído a cada tick naturalmente.
     final art = RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: _ctrl,
-        builder: (_, __) => CustomPaint(
-          size: Size.square(widget.size),
-          painter: _painterFor(_ctrl.value),
-        ),
+      child: CustomPaint(
+        size: Size.square(widget.size),
+        painter: _painterFor(_t),
       ),
     );
 
@@ -530,8 +554,15 @@ class _CoroaIgneaPainter extends CustomPainter {
       );
     }
 
-    // Varredura de brilho cruzando a coroa.
-    final sweepX = left + (right - left) * ((t * 1.5) % 1.0);
+    // Varredura de brilho cruzando a coroa. O ciclo (%1.0) aqui é
+    // intencional — a faixa de luz precisa "reaparecer" do lado
+    // esquerdo depois de cruzar — mas para não haver um salto visível
+    // quando isso acontece, a faixa some fora da área clipada (mais
+    // larga que [left, right]) antes do reinício, então o próprio
+    // corpo da coroa (clipPath) já a esconde nesse instante.
+    final sweepSpan = (right - left) + u * 0.30;
+    final sweepPhase = (t * 1.5) % 1.0;
+    final sweepX = left - u * 0.15 + sweepSpan * sweepPhase;
     canvas.save();
     canvas.clipPath(body);
     canvas.drawRect(
@@ -822,7 +853,8 @@ class _SolPainter extends CustomPainter {
 // ═══════════════════════════════════════════════════════════════════
 // PARTÍCULAS DE FUNDO — usadas pela tela de Check-in (atmosfera)
 // ═══════════════════════════════════════════════════════════════════
-/// Campo de brasas flutuando no fundo da tela. Um único controller,
+/// Campo de brasas flutuando no fundo da tela. Um único Ticker cru
+/// (tempo acumulado, sem wrap — ver explicação no topo do arquivo),
 /// poucas partículas (parâmetro [count]) e RepaintBoundary — barato.
 class CheckinEmberField extends StatefulWidget {
   final int count;
@@ -839,18 +871,23 @@ class CheckinEmberField extends StatefulWidget {
 
 class _CheckinEmberFieldState extends State<CheckinEmberField>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
+  late final Ticker _ticker;
+  double _t = 0.0;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(seconds: 14))
-      ..repeat();
+    _ticker = createTicker((elapsed) {
+      if (!mounted) return;
+      setState(() {
+        _t = elapsed.inMicroseconds / 14000000.0; // 14s por "volta"
+      });
+    })..start();
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _ticker.dispose();
     super.dispose();
   }
 
@@ -858,12 +895,9 @@ class _CheckinEmberFieldState extends State<CheckinEmberField>
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: RepaintBoundary(
-        child: AnimatedBuilder(
-          animation: _ctrl,
-          builder: (_, __) => CustomPaint(
-            size: Size.infinite,
-            painter: _EmberFieldPainter(_ctrl.value, widget.count, widget.color),
-          ),
+        child: CustomPaint(
+          size: Size.infinite,
+          painter: _EmberFieldPainter(_t, widget.count, widget.color),
         ),
       ),
     );
