@@ -7,8 +7,8 @@ import 'package:flutter/scheduler.dart' show Ticker;
 // ═══════════════════════════════════════════════════════════════════
 // Completamente diferente dos distintivos de nível (BadgeConfig /
 // badge_widgets.dart, que usam ícones do font_awesome_flutter com
-// glow estático) e da moldura de avatar (AvatarFrame, que fica ao
-// redor da foto). Este é um selo compacto — um losango facetado com
+// glow estático) e do selo de nível (LevelBadge, que flutua no canto
+// superior esquerdo do avatar). Este é um selo compacto — um losango facetado com
 // aura pulsante e uma varredura de brilho cruzando a superfície —
 // pensado para ficar ao lado do nome/nível do assinante, sinalizando
 // "assinante" independente de nível ou avatar equipado.
