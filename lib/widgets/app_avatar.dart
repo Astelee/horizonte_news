@@ -6,6 +6,7 @@ import '../config/premium_avatars_config.dart';
 import '../config/checkin_rewards_config.dart';
 import 'premium_avatars.dart';
 import 'checkin_reward_painters.dart';
+import 'level_badge_painters.dart';
 
 /// Avatar circular do app. Quando [photoUrl] é informado, exibe a foto
 /// de perfil do usuário; caso contrário, gera as iniciais do nome em
@@ -158,10 +159,17 @@ class AppAvatar extends StatelessWidget {
 /// aqui replicado para todo lugar que exibe o avatar do usuário
 /// (perfil, ranking, comentários, respostas, configurações...).
 ///
-/// Este é o único ponto de decisão dessa prioridade — usado como
-/// substituto direto de AppAvatar em todo lugar que já compõe
-/// `AvatarFrame(child: AppAvatar(...))`, preservando exatamente o
-/// mesmo tamanho e posição, sem alterar o resto do layout.
+/// Quando [level] é informado (> 0), o [LevelBadge] correspondente
+/// flutua sobre o canto superior esquerdo do avatar — substituindo o
+/// antigo AvatarFrame (moldura ao redor de todo o avatar). O avatar
+/// em si (foto/iniciais/assinatura) nunca ganha borda ou efeito de
+/// nível; o selo é um elemento independente, fechado e autocontido,
+/// desenhado por cima, sem envolver a foto.
+///
+/// Este é o único ponto de decisão dessa composição — usado como
+/// substituto direto de AppAvatar (e do antigo
+/// `AvatarFrame(child: AppAvatar(...))`) em todo lugar que exibe o
+/// avatar de um usuário, preservando o mesmo tamanho e posição gerais.
 class UserAvatarDisplay extends StatelessWidget {
   final String? name;
   final String? seed;
@@ -173,8 +181,14 @@ class UserAvatarDisplay extends StatelessWidget {
   final String? equippedPremiumAvatarId;
 
   /// Chave salva em equippedCheckinRewardId (UserXpData). Quando nula
-  /// ou desconhecida, nenhum selo é desenhado.
+  /// ou desconhecida, nenhum selo é desenhado no canto inferior
+  /// direito.
   final String? equippedCheckinRewardId;
+
+  /// Nível do usuário (UserXpData.level). Quando nulo ou <= 0, nenhum
+  /// selo de nível é desenhado no canto superior esquerdo — usado
+  /// pelas telas que ainda não têm esse dado à mão.
+  final int? level;
 
   final double size;
   final bool showBorder;
@@ -188,6 +202,7 @@ class UserAvatarDisplay extends StatelessWidget {
     this.photoUrl,
     this.equippedPremiumAvatarId,
     this.equippedCheckinRewardId,
+    this.level,
     this.size = 44,
     this.showBorder = false,
     this.borderColor,
@@ -240,12 +255,18 @@ class UserAvatarDisplay extends StatelessWidget {
           equippedCheckinRewardId,
         ) !=
         null;
+    final hasLevelBadge = level != null && level! > 0;
 
     Widget content = avatarContent;
-    if (hasCheckinReward) {
-      // Selo no canto inferior direito, proporcional ao tamanho do
-      // avatar (não altera o tamanho/posição do avatar em si).
-      final badgeSize = (size * 0.42).clamp(14.0, 28.0);
+    if (hasCheckinReward || hasLevelBadge) {
+      // Selos flutuantes, independentes do avatar em si — nunca criam
+      // moldura ao redor da foto/iniciais, só se sobrepõem nos cantos.
+      // Nível no canto superior esquerdo (novo LevelBadge, substitui
+      // o antigo AvatarFrame); recompensa de check-in no canto
+      // inferior direito, como já funcionava. Ambos proporcionais ao
+      // tamanho do avatar, para continuar legíveis mesmo em ~36px.
+      final checkinBadgeSize = (size * 0.42).clamp(14.0, 28.0);
+      final levelBadgeSize = (size * 0.4).clamp(13.0, 26.0);
       content = SizedBox(
         width: size,
         height: size,
@@ -253,21 +274,38 @@ class UserAvatarDisplay extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             avatarContent,
-            Positioned(
-              right: -badgeSize * 0.12,
-              bottom: -badgeSize * 0.12,
-              child: Container(
-                padding: const EdgeInsets.all(1.5),
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFF0A0A0A),
-                ),
-                child: CheckinRewardBadge(
-                  storageKey: equippedCheckinRewardId,
-                  size: badgeSize,
+            if (hasLevelBadge)
+              Positioned(
+                left: -levelBadgeSize * 0.12,
+                top: -levelBadgeSize * 0.12,
+                child: Container(
+                  padding: const EdgeInsets.all(1.5),
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFF0A0A0A),
+                  ),
+                  child: LevelBadge(
+                    level: level!,
+                    size: levelBadgeSize,
+                  ),
                 ),
               ),
-            ),
+            if (hasCheckinReward)
+              Positioned(
+                right: -checkinBadgeSize * 0.12,
+                bottom: -checkinBadgeSize * 0.12,
+                child: Container(
+                  padding: const EdgeInsets.all(1.5),
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFF0A0A0A),
+                  ),
+                  child: CheckinRewardBadge(
+                    storageKey: equippedCheckinRewardId,
+                    size: checkinBadgeSize,
+                  ),
+                ),
+              ),
           ],
         ),
       );
