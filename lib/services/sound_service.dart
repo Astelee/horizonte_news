@@ -4,13 +4,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Sons de interação disponíveis no app.
 ///
-/// Arquivos em assets/sounds/: click.mp3, ambient.mp3, ranking.mp3.
+/// Arquivos em assets/sounds/: ambient.mp3, ranking.mp3.
 ///
 /// Para adicionar um novo som: 1) coloque o arquivo em assets/sounds/
 /// 2) adicione uma entrada aqui no enum
 /// 3) use play(AppSound.xxx) no lugar desejado
 enum AppSound {
-  click('click.mp3'),
   ranking('ranking.mp3'),
   ambient('ambient.mp3');
 
@@ -19,9 +18,6 @@ enum AppSound {
 }
 
 /// Serviço central de sons do app.
-///
-/// Uso para clique/toque comum (botões, menus, abas):
-///   SoundService.instance.playSystemClick();
 ///
 /// Uso para som de arquivo específico:
 ///   SoundService.instance.play(AppSound.ranking);
@@ -65,22 +61,6 @@ class SoundService {
       final player = AudioPlayer();
       player.setReleaseMode(ReleaseMode.stop);
       _pool.add(player);
-    }
-  }
-
-  /// Toca o som de clique/toque padrão (click.mp3) para botões,
-  /// menus, abas e outras interações rápidas.
-  Future<void> playSystemClick() async {
-    if (!_enabled || !_initialized) return;
-    try {
-      final player = _pool[_poolIndex];
-      _poolIndex = (_poolIndex + 1) % _pool.length;
-
-      await player.stop();
-      await player.setVolume(_volume);
-      await player.play(AssetSource('sounds/click.mp3'));
-    } catch (e) {
-      debugPrint('SoundService: erro ao tocar clique: $e');
     }
   }
 
