@@ -9,7 +9,7 @@ import '../config/badge_config.dart';
 import '../providers/user_xp_provider.dart';
 import '../services/xp_service.dart';
 import '../widgets/app_avatar.dart';
-import '../widgets/avatar_frame.dart';
+import '../widgets/frame_rarity_tag.dart';
 import '../widgets/badge_widgets.dart';
 import '../widgets/level_up_overlay.dart';
 import '../widgets/profile_edit_sheets.dart';
@@ -369,46 +369,42 @@ class _ProfileScreenState extends State<ProfileScreen>
                         onTap: _uploadingAvatar
                             ? null
                             : () => _handleAvatarTap(context),
-                        child: AvatarFrame(
-                          level: data.level,
-                          size: 84,
-                          enableEntryAnimation: true,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              UserAvatarDisplay(
-                                name: user?.displayName ??
-                                    user?.email?.split('@').first ??
-                                    'Usuário',
-                                seed: user?.uid,
-                                photoUrl: data.photoUrl,
-                                equippedPremiumAvatarId:
-                                    data.equippedPremiumAvatarId,
-                                equippedCheckinRewardId:
-                                    data.equippedCheckinRewardId,
-                                size: 84,
-                              ),
-                              if (_uploadingAvatar)
-                                Container(
-                                  width: 84,
-                                  height: 84,
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.black54,
-                                  ),
-                                  child: const Center(
-                                    child: SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: AppColors.primaryOrange,
-                                      ),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            UserAvatarDisplay(
+                              name: user?.displayName ??
+                                  user?.email?.split('@').first ??
+                                  'Usuário',
+                              seed: user?.uid,
+                              photoUrl: data.photoUrl,
+                              equippedPremiumAvatarId:
+                                  data.equippedPremiumAvatarId,
+                              equippedCheckinRewardId:
+                                  data.equippedCheckinRewardId,
+                              level: data.level,
+                              size: 84,
+                            ),
+                            if (_uploadingAvatar)
+                              Container(
+                                width: 84,
+                                height: 84,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.black54,
+                                ),
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.primaryOrange,
                                     ),
                                   ),
                                 ),
-                            ],
-                          ),
+                              ),
+                          ],
                         ),
                       ),
                       // Atalho para a galeria de avatares animados
