@@ -257,6 +257,16 @@ class _PoderesTabState extends State<PoderesTab> {
 
             const SizedBox(height: 24),
 
+            // ── Lista de teste das 10 auras de nível ──────────────
+            _SectionLabel(
+                label: 'TESTE DAS AURAS DE NÍVEL',
+                icon: Icons.auto_awesome_rounded),
+            const SizedBox(height: 12),
+
+            const _AurasTestList(),
+
+            const SizedBox(height: 24),
+
             // ── Grade de molduras ────────────────────────────────
             _SectionLabel(
                 label: 'TODAS AS MOLDURAS',
@@ -421,6 +431,81 @@ class _MoldurasGrid extends StatelessWidget {
               }).toList(),
             ),
           ],
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ── Lista de teste das 30 auras de nível ───────────────────────────
+/// Lista simples e não-interativa: uma linha por nível (1 a 30), cada
+/// uma com um avatar de tamanho real (grande o bastante para a aura
+/// aparecer) exibindo a aura daquele nível em loop. Só para conferir
+/// visualmente as 30 auras, do mais discreto ao mais espetacular —
+/// não seleciona nível nem afeta o preview do topo.
+class _AurasTestList extends StatelessWidget {
+  const _AurasTestList();
+
+  @override
+  Widget build(BuildContext context) {
+    final xpData = context.watch<UserXpProvider>().data;
+    final displayName = (xpData.username != null &&
+            xpData.username!.trim().isNotEmpty)
+        ? xpData.username!
+        : 'Você';
+    final photoUrl = xpData.photoUrl;
+
+    return Column(
+      children: List.generate(30, (i) => i + 1).map((lvl) {
+        final title = BadgeConfig.levelTitle(lvl);
+        final rarity = BadgeConfig.levelRarity(lvl);
+        final color = BadgeConfig.levelColor(lvl);
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: const Color(0xFF0A0A0A),
+            border: Border.all(color: const Color(0xFF1A1A1A)),
+          ),
+          child: Row(
+            children: [
+              UserAvatarDisplay(
+                name: displayName,
+                photoUrl: photoUrl,
+                level: lvl,
+                size: 64,
+                showLevelAura: true,
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'NÍVEL $lvl · ${title.toUpperCase()}',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      rarity,
+                      style: const TextStyle(
+                        color: Color(0xFF888888),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         );
       }).toList(),
     );
