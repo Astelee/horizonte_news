@@ -7,7 +7,7 @@ import '../../../config/premium_config.dart';
 import '../../../services/xp_service.dart';
 import '../../../widgets/app_avatar.dart';
 import '../../../widgets/app_messenger.dart';
-import '../../../widgets/avatar_frame.dart';
+import '../../../widgets/frame_rarity_tag.dart';
 import '../services/admin_user_service.dart';
 import 'admin_shared_widgets.dart';
 import 'ban_user_dialog.dart';
@@ -451,20 +451,16 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AvatarFrame(
+              UserAvatarDisplay(
+                name: name,
+                seed: widget.userId,
+                photoUrl: photoUrl,
+                equippedPremiumAvatarId:
+                    d['equippedPremiumAvatarId'] as String?,
+                equippedCheckinRewardId:
+                    d['equippedCheckinRewardId'] as String?,
                 level: level,
                 size: 72,
-                enableEntryAnimation: false,
-                child: UserAvatarDisplay(
-                  name: name,
-                  seed: widget.userId,
-                  photoUrl: photoUrl,
-                  equippedPremiumAvatarId:
-                      d['equippedPremiumAvatarId'] as String?,
-                  equippedCheckinRewardId:
-                      d['equippedCheckinRewardId'] as String?,
-                  size: 72,
-                ),
               ),
               const SizedBox(width: 14),
               Expanded(
