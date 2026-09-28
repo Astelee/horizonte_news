@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
 import '../../../widgets/app_avatar.dart';
 import '../../../widgets/app_messenger.dart';
-import '../../../widgets/avatar_frame.dart';
+import '../../../widgets/frame_rarity_tag.dart';
 import '../../../widgets/badge_widgets.dart';
 import '../services/admin_comment_service.dart';
 import '../services/admin_user_service.dart';
@@ -332,17 +332,14 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AvatarFrame(
+        UserAvatarDisplay(
+          name: displayName,
+          seed: authorId,
+          photoUrl: photoUrl,
+          equippedPremiumAvatarId: premiumAvatar,
+          equippedCheckinRewardId: checkinReward,
           level: level,
           size: 40,
-          child: UserAvatarDisplay(
-            name: displayName,
-            seed: authorId,
-            photoUrl: photoUrl,
-            equippedPremiumAvatarId: premiumAvatar,
-            equippedCheckinRewardId: checkinReward,
-            size: 40,
-          ),
         ),
         const SizedBox(width: 12),
         Expanded(
