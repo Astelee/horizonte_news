@@ -7,6 +7,7 @@ import '../config/checkin_rewards_config.dart';
 import 'premium_avatars.dart';
 import 'checkin_reward_painters.dart';
 import 'level_badge_painters.dart';
+import 'level_aura.dart';
 
 /// Avatar circular do app. Quando [photoUrl] é informado, exibe a foto
 /// de perfil do usuário; caso contrário, gera as iniciais do nome em
@@ -198,10 +199,26 @@ class UserAvatarDisplay extends StatelessWidget {
   final double levelBadgeScale;
 
   /// Deslocamento do selo de nível para FORA do avatar, como fração do
-  /// tamanho do selo. Padrão 0.45 = o selo sobe para o canto superior
-  /// esquerdo, fora da foto, em vez de ficar por cima dela. Use 0 para
-  /// o comportamento antigo (selo colado sobre o canto da foto).
+  /// tamanho do selo. Padrão 0.75 = o selo sobe bem para o canto
+  /// superior esquerdo, fora da foto e acima da aura, em vez de ficar
+  /// por cima dela. Use 0 para o comportamento antigo (selo colado
+  /// sobre o canto da foto).
   final double levelBadgeOutset;
+
+  /// Mostra a aura animada de nível (partículas, raios, fogos) ao
+  /// redor da foto. Uma por faixa de raridade — ver [LevelAura].
+  ///
+  /// Passe `true`/`false` explicitamente para forçar o comportamento;
+  /// quando não informado (`null`), a aura só aparece em avatares de
+  /// destaque (>= 48px, como perfil, pódio do ranking, comentário
+  /// principal e a prévia de níveis do admin) — em avatares bem
+  /// pequenos usados dentro de Row (respostas, linhas de ranking,
+  /// tela ADM), ela fica desligada por padrão, pois o Stack cresce
+  /// além da foto e empurraria o texto ao lado.
+  final bool? showLevelAura;
+
+  /// Reduz/aumenta o quanto a aura se estende para fora da foto.
+  final double levelAuraExtentScale;
 
   final double size;
   final bool showBorder;
@@ -217,7 +234,9 @@ class UserAvatarDisplay extends StatelessWidget {
     this.equippedCheckinRewardId,
     this.level,
     this.levelBadgeScale = 1.5,
-    this.levelBadgeOutset = 0.45,
+    this.levelBadgeOutset = 0.75,
+    this.showLevelAura,
+    this.levelAuraExtentScale = 1.0,
     this.size = 44,
     this.showBorder = false,
     this.borderColor,
@@ -285,19 +304,36 @@ class UserAvatarDisplay extends StatelessWidget {
               levelBadgeScale)
           .toDouble();
       // Posição do selo: padrão colado no canto (-12%); com outset > 0
-      // ele sobe/sai pela esquerda, ficando fora da foto.
+      // ele sobe/sai pela esquerda, ficando fora da foto — e acima da
+      // aura, que também se estende para fora nesse mesmo canto.
       final levelBadgeOffset = -levelBadgeSize * (0.12 + levelBadgeOutset);
+      final showAura =
+          hasLevelBadge && (showLevelAura ?? size >= 48);
+      // Quanto a aura se estende para fora da foto, de cada lado —
+      // determina o tamanho extra do Stack para a aura não ser
+      // cortada.
+      final auraExtent = showAura
+          ? LevelAura.extentFor(level!, size, scale: levelAuraExtentScale)
+          : 0.0;
+      final stackSize = size * (1 + 2 * auraExtent);
       content = SizedBox(
-        width: size,
-        height: size,
+        width: stackSize,
+        height: stackSize,
         child: Stack(
           clipBehavior: Clip.none,
+          alignment: Alignment.center,
           children: [
+            if (showAura)
+              LevelAura(
+                level: level!,
+                avatarSize: size,
+                extentScale: levelAuraExtentScale,
+              ),
             avatarContent,
             if (hasLevelBadge)
               Positioned(
-                left: levelBadgeOffset,
-                top: levelBadgeOffset,
+                left: stackSize / 2 - size / 2 + levelBadgeOffset,
+                top: stackSize / 2 - size / 2 + levelBadgeOffset,
                 child: Container(
                   padding: const EdgeInsets.all(1.5),
                   decoration: const BoxDecoration(
@@ -312,8 +348,8 @@ class UserAvatarDisplay extends StatelessWidget {
               ),
             if (hasCheckinReward)
               Positioned(
-                right: -checkinBadgeSize * 0.12,
-                bottom: -checkinBadgeSize * 0.12,
+                right: stackSize / 2 - size / 2 - checkinBadgeSize * 0.12,
+                bottom: stackSize / 2 - size / 2 - checkinBadgeSize * 0.12,
                 child: Container(
                   padding: const EdgeInsets.all(1.5),
                   decoration: const BoxDecoration(
