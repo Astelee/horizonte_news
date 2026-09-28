@@ -11,7 +11,7 @@ import '../providers/user_xp_provider.dart';
 import '../features/admin/providers/admin_provider.dart';
 import '../services/app_notification_service.dart';
 import 'badge_widgets.dart';
-import 'avatar_frame.dart';
+import 'frame_rarity_tag.dart';
 import 'app_avatar.dart';
 import 'subscriber_badge.dart';
 import '../services/app_config_service.dart';
@@ -294,17 +294,14 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
           // Avatar com moldura + info
           Row(
             children: [
-              AvatarFrame(
+              UserAvatarDisplay(
+                name: widget.userName,
+                seed: widget.userId,
+                photoUrl: photoUrl,
+                equippedPremiumAvatarId: equippedPremiumAvatarId,
+                equippedCheckinRewardId: equippedCheckinRewardId,
                 level: level,
                 size: 60,
-                child: UserAvatarDisplay(
-                  name: widget.userName,
-                  seed: widget.userId,
-                  photoUrl: photoUrl,
-                  equippedPremiumAvatarId: equippedPremiumAvatarId,
-                  equippedCheckinRewardId: equippedCheckinRewardId,
-                  size: 60,
-                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -1401,19 +1398,16 @@ class CommentsSectionState extends State<CommentsSection>
     final currentUser = FirebaseAuth.instance.currentUser;
     return Consumer<UserXpProvider>(
       builder: (context, xpProvider, _) {
-        return AvatarFrame(
+        return UserAvatarDisplay(
+          name: currentUser?.displayName ??
+              currentUser?.email?.split('@').first ??
+              'Leitor',
+          seed: currentUser?.uid,
+          photoUrl: xpProvider.data.photoUrl,
+          equippedPremiumAvatarId: xpProvider.data.equippedPremiumAvatarId,
+          equippedCheckinRewardId: xpProvider.data.equippedCheckinRewardId,
           level: xpProvider.data.level,
           size: 36,
-          child: UserAvatarDisplay(
-            name: currentUser?.displayName ??
-                currentUser?.email?.split('@').first ??
-                'Leitor',
-            seed: currentUser?.uid,
-            photoUrl: xpProvider.data.photoUrl,
-            equippedPremiumAvatarId: xpProvider.data.equippedPremiumAvatarId,
-            equippedCheckinRewardId: xpProvider.data.equippedCheckinRewardId,
-            size: 36,
-          ),
         );
       },
     );
@@ -1739,17 +1733,14 @@ class _CommentTileState extends State<_CommentTile>
   Widget _buildAvatar(LiveAuthorInfo info) {
     return GestureDetector(
       onTap: widget.onTapUser,
-      child: AvatarFrame(
+      child: UserAvatarDisplay(
+        name: widget.comment.userName,
+        seed: widget.comment.userId,
+        photoUrl: info.photoUrl,
+        equippedPremiumAvatarId: info.equippedPremiumAvatarId,
+        equippedCheckinRewardId: info.equippedCheckinRewardId,
         level: info.level,
         size: 36,
-        child: UserAvatarDisplay(
-          name: widget.comment.userName,
-          seed: widget.comment.userId,
-          photoUrl: info.photoUrl,
-          equippedPremiumAvatarId: info.equippedPremiumAvatarId,
-          equippedCheckinRewardId: info.equippedCheckinRewardId,
-          size: 36,
-        ),
       ),
     );
   }
@@ -2674,17 +2665,14 @@ class _ReplyTileState extends State<_ReplyTile> {
         builder: (context, info) => Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AvatarFrame(
+            UserAvatarDisplay(
+              name: reply.userName,
+              seed: reply.userId,
+              photoUrl: info.photoUrl,
+              equippedPremiumAvatarId: info.equippedPremiumAvatarId,
+              equippedCheckinRewardId: info.equippedCheckinRewardId,
               level: info.level,
               size: 28,
-              child: UserAvatarDisplay(
-                name: reply.userName,
-                seed: reply.userId,
-                photoUrl: info.photoUrl,
-                equippedPremiumAvatarId: info.equippedPremiumAvatarId,
-                equippedCheckinRewardId: info.equippedCheckinRewardId,
-                size: 28,
-              ),
             ),
             const SizedBox(width: 10),
             Expanded(
