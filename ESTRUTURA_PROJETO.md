@@ -98,7 +98,6 @@ AuthGate
 │   ├── icons/
 │   └── sounds/
 │       ├── ambient.mp3
-│       ├── click.mp3
 │       └── ranking.mp3
 │
 ├── lib/
@@ -627,7 +626,6 @@ search_normalizer.dart
 assets/images/icon_app.png
 assets/icons/
 assets/sounds/ambient.mp3
-assets/sounds/click.mp3
 assets/sounds/ranking.mp3
 assets/ads/parceiros/parceiro_1.png
 ```
