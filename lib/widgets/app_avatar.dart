@@ -160,11 +160,13 @@ class AppAvatar extends StatelessWidget {
 /// (perfil, ranking, comentários, respostas, configurações...).
 ///
 /// Quando [level] é informado (> 0), o [LevelBadge] correspondente
-/// flutua sobre o canto superior esquerdo do avatar — substituindo o
-/// antigo AvatarFrame (moldura ao redor de todo o avatar). O avatar
-/// em si (foto/iniciais/assinatura) nunca ganha borda ou efeito de
-/// nível; o selo é um elemento independente, fechado e autocontido,
-/// desenhado por cima, sem envolver a foto.
+/// flutua no canto superior esquerdo do avatar, 50% maior que o
+/// tamanho original e deslocado PARA FORA da foto (ver
+/// [levelBadgeScale] e [levelBadgeOutset]) — substituindo o antigo
+/// AvatarFrame (moldura ao redor de todo o avatar). O avatar em si
+/// (foto/iniciais/assinatura) nunca ganha borda ou efeito de nível;
+/// o selo é um elemento independente, fechado e autocontido, que não
+/// cobre mais o rosto.
 ///
 /// Este é o único ponto de decisão dessa composição — usado como
 /// substituto direto de AppAvatar (e do antigo
@@ -190,6 +192,17 @@ class UserAvatarDisplay extends StatelessWidget {
   /// pelas telas que ainda não têm esse dado à mão.
   final int? level;
 
+  /// Multiplicador do tamanho do selo de nível. Padrão 1.5 = 50% maior
+  /// que o tamanho original, em TODO o app (ranking, perfil,
+  /// configurações, comentários, respostas e painel ADM).
+  final double levelBadgeScale;
+
+  /// Deslocamento do selo de nível para FORA do avatar, como fração do
+  /// tamanho do selo. Padrão 0.45 = o selo sobe para o canto superior
+  /// esquerdo, fora da foto, em vez de ficar por cima dela. Use 0 para
+  /// o comportamento antigo (selo colado sobre o canto da foto).
+  final double levelBadgeOutset;
+
   final double size;
   final bool showBorder;
   final Color? borderColor;
@@ -203,6 +216,8 @@ class UserAvatarDisplay extends StatelessWidget {
     this.equippedPremiumAvatarId,
     this.equippedCheckinRewardId,
     this.level,
+    this.levelBadgeScale = 1.5,
+    this.levelBadgeOutset = 0.45,
     this.size = 44,
     this.showBorder = false,
     this.borderColor,
@@ -266,7 +281,12 @@ class UserAvatarDisplay extends StatelessWidget {
       // inferior direito, como já funcionava. Ambos proporcionais ao
       // tamanho do avatar, para continuar legíveis mesmo em ~36px.
       final checkinBadgeSize = (size * 0.42).clamp(14.0, 28.0);
-      final levelBadgeSize = (size * 0.4).clamp(13.0, 26.0);
+      final levelBadgeSize = ((size * 0.4).clamp(13.0, 26.0) *
+              levelBadgeScale)
+          .toDouble();
+      // Posição do selo: padrão colado no canto (-12%); com outset > 0
+      // ele sobe/sai pela esquerda, ficando fora da foto.
+      final levelBadgeOffset = -levelBadgeSize * (0.12 + levelBadgeOutset);
       content = SizedBox(
         width: size,
         height: size,
@@ -276,8 +296,8 @@ class UserAvatarDisplay extends StatelessWidget {
             avatarContent,
             if (hasLevelBadge)
               Positioned(
-                left: -levelBadgeSize * 0.12,
-                top: -levelBadgeSize * 0.12,
+                left: levelBadgeOffset,
+                top: levelBadgeOffset,
                 child: Container(
                   padding: const EdgeInsets.all(1.5),
                   decoration: const BoxDecoration(
