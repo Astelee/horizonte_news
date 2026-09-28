@@ -21,7 +21,7 @@ import '../providers/user_xp_provider.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_messenger.dart';
 import '../widgets/app_confirm_dialog.dart';
-import '../widgets/avatar_frame.dart';
+import '../widgets/frame_rarity_tag.dart';
 import '../widgets/badge_widgets.dart';
 import '../widgets/subscriber_badge.dart';
 import '../widgets/profile_edit_sheets.dart' show showEditDisplayNameSheet, showEditUsernameSheet, showAvatarOptionsSheet;
@@ -1086,48 +1086,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 GestureDetector(
                   onTap: _uploadingPhoto ? null : _handleAvatarTap,
-                  child: AvatarFrame(
-                    level: data.level,
-                    size: 88,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        UserAvatarDisplay(
-                          // data.photoUrl vem do stream ao vivo do
-                          // UserXpProvider — reflete na hora quando um
-                          // admin aprova/rejeita a foto pendente.
-                          // _photoUrl (variável local) só é usado no
-                          // hasPhoto: do bottom sheet mais abaixo.
-                          name: displayName,
-                          seed: user?.uid,
-                          photoUrl: data.photoUrl,
-                          equippedPremiumAvatarId:
-                              data.equippedPremiumAvatarId,
-                          equippedCheckinRewardId:
-                              data.equippedCheckinRewardId,
-                          size: 88,
-                        ),
-                        if (_uploadingPhoto)
-                          Container(
-                            width: 88,
-                            height: 88,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.black54,
-                            ),
-                            child: const Center(
-                              child: SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.primaryOrange,
-                                ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      UserAvatarDisplay(
+                        // data.photoUrl vem do stream ao vivo do
+                        // UserXpProvider — reflete na hora quando um
+                        // admin aprova/rejeita a foto pendente.
+                        // _photoUrl (variável local) só é usado no
+                        // hasPhoto: do bottom sheet mais abaixo.
+                        name: displayName,
+                        seed: user?.uid,
+                        photoUrl: data.photoUrl,
+                        equippedPremiumAvatarId:
+                            data.equippedPremiumAvatarId,
+                        equippedCheckinRewardId:
+                            data.equippedCheckinRewardId,
+                        level: data.level,
+                        size: 88,
+                      ),
+                      if (_uploadingPhoto)
+                        Container(
+                          width: 88,
+                          height: 88,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black54,
+                          ),
+                          child: const Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.primaryOrange,
                               ),
                             ),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
                 ),
                 Positioned(
