@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../config/app_colors.dart';
-import '../widgets/avatar_frame.dart';
+import '../widgets/frame_rarity_tag.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/badge_widgets.dart';
 
@@ -661,19 +661,16 @@ class _PodiumSpotState extends State<_PodiumSpot>
                       ),
                     ),
                   ),
-                AvatarFrame(
+                UserAvatarDisplay(
+                  name: widget.user.name,
+                  seed: widget.user.uid,
+                  photoUrl: widget.user.photoUrl,
+                  equippedPremiumAvatarId:
+                      widget.user.equippedPremiumAvatarId,
+                  equippedCheckinRewardId:
+                      widget.user.equippedCheckinRewardId,
                   level: widget.user.level,
                   size: widget.avatarSize,
-                  child: UserAvatarDisplay(
-                    name: widget.user.name,
-                    seed: widget.user.uid,
-                    photoUrl: widget.user.photoUrl,
-                    equippedPremiumAvatarId:
-                        widget.user.equippedPremiumAvatarId,
-                    equippedCheckinRewardId:
-                        widget.user.equippedCheckinRewardId,
-                    size: widget.avatarSize,
-                  ),
                 ),
                 Positioned(
                   bottom: -4,
@@ -851,17 +848,14 @@ class _RankTileState extends State<_RankTile>
                 ),
               ),
               const SizedBox(width: 8),
-              AvatarFrame(
+              UserAvatarDisplay(
+                name: widget.user.name,
+                seed: widget.user.uid,
+                photoUrl: widget.user.photoUrl,
+                equippedPremiumAvatarId: widget.user.equippedPremiumAvatarId,
+                equippedCheckinRewardId: widget.user.equippedCheckinRewardId,
                 level: widget.user.level,
                 size: 40,
-                child: UserAvatarDisplay(
-                  name: widget.user.name,
-                  seed: widget.user.uid,
-                  photoUrl: widget.user.photoUrl,
-                  equippedPremiumAvatarId: widget.user.equippedPremiumAvatarId,
-                  equippedCheckinRewardId: widget.user.equippedCheckinRewardId,
-                  size: 40,
-                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -987,17 +981,14 @@ class _MyPositionBar extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            AvatarFrame(
+            UserAvatarDisplay(
+              name: user.name,
+              seed: user.uid,
+              photoUrl: user.photoUrl,
+              equippedPremiumAvatarId: user.equippedPremiumAvatarId,
+              equippedCheckinRewardId: user.equippedCheckinRewardId,
               level: user.level,
               size: 36,
-              child: UserAvatarDisplay(
-                name: user.name,
-                seed: user.uid,
-                photoUrl: user.photoUrl,
-                equippedPremiumAvatarId: user.equippedPremiumAvatarId,
-                equippedCheckinRewardId: user.equippedCheckinRewardId,
-                size: 36,
-              ),
             ),
             const SizedBox(width: 10),
             Expanded(
