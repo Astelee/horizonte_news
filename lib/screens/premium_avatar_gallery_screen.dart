@@ -272,10 +272,9 @@ class _AvatarCard extends StatelessWidget {
                 alignment: Alignment.center,
                 clipBehavior: Clip.none,
                 children: [
-                  // Reaproveita o AvatarFrame com um nível "neutro"
-                  // (só para mostrar o preview do avatar dentro do
-                  // círculo, sem moldura de nível competindo
-                  // visualmente com o próprio avatar premium).
+                  // Preview do avatar premium dentro do círculo, sem
+                  // nenhum selo/moldura de nível competindo
+                  // visualmente com o próprio avatar.
                   Opacity(
                     opacity: canEquip ? 1.0 : 0.55,
                     child: SizedBox(
