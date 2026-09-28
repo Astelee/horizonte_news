@@ -3,19 +3,26 @@ import 'package:flutter/material.dart';
 import '../config/level_badge_config.dart';
 
 // ═══════════════════════════════════════════════════════════════════
-// AURAS DE NÍVEL — 10 efeitos animados ao redor da foto de perfil
+// AURAS DE NÍVEL — 30 efeitos animados ao redor da foto de perfil
 // ═══════════════════════════════════════════════════════════════════
-// Uma aura por faixa de raridade (mesmas 10 faixas do LevelBadgeRarity):
-//   1 Comum       → brisa suave com poeira de luz
-//   2 Incomum     → cometas orbitando
-//   3 Raro        → raios giratórios + vaga-lumes
-//   4 Especial    → raios dourados radiantes + brilhos
-//   5 Épico       → chamas + brasas subindo
-//   6 Heroico     → tempestade: cometas duplos + relâmpagos
-//   7 Lendário    → aurora estelar + estrelas + fogos de artifício
-//   8 Mítico      → cósmico arco-íris + gemas + fogos coloridos
-//   9 Supremo     → inferno: chamas em 3 camadas + ondas + faíscas
-//  10 Elite       → sol supremo: raios duplos + arco-íris + fogos
+// Uma aura por nível (1 a 30), cada vez mais bonita e mais densa. As
+// 10 faixas de raridade continuam existindo (3 níveis cada) e dão a
+// "família" de cada trio, mas cada nível dentro da faixa acrescenta
+// uma camada nova em vez de repetir a mesma arte:
+//   nível X (base da faixa)   → a composição original da raridade
+//   nível X+1 (meio da faixa) → + uma camada de destaque
+//   nível X+2 (topo da faixa) → + duas camadas de destaque
+//
+//  1-3   Comum      → brisa suave com poeira de luz
+//  4-6   Incomum    → cometas orbitando
+//  7-9   Raro       → raios giratórios + vaga-lumes
+// 10-12  Especial   → raios dourados radiantes + brilhos
+// 13-15  Épico      → chamas + brasas subindo
+// 16-18  Heroico    → tempestade: cometas duplos + relâmpagos
+// 19-21  Lendário   → aurora estelar + estrelas + fogos de artifício
+// 22-24  Mítico     → cósmico arco-íris + gemas + fogos coloridos
+// 25-27  Supremo    → inferno: chamas em 3 camadas + ondas + faíscas
+// 28-30  Elite      → sol supremo: raios duplos + arco-íris + fogos
 //
 // 100% CustomPainter, sem imagens. Tudo se repete de forma contínua
 // e sem "pulo" a cada volta de 12s (todo movimento usa múltiplos
@@ -30,33 +37,62 @@ class _AuraSpec {
   /// do avatar, de cada lado.
   final double ext;
   final List<Color> colors;
-  const _AuraSpec(this.ext, this.colors);
+
+  /// Posição do nível dentro da sua faixa de raridade: 0 = base,
+  /// 1 = meio (+1 camada extra), 2 = topo (+2 camadas extras).
+  final int tier;
+  const _AuraSpec(this.ext, this.colors, this.tier);
 }
 
+/// Uma entrada por nível (índice 0 = nível 1 ... índice 29 = nível 30).
+/// Extensão cresce suavemente do nível 1 ao 30; as cores dentro de
+/// cada faixa de raridade vão clareando/intensificando do nível base
+/// (tier 0) ao nível topo (tier 2), para o avanço dentro da própria
+/// faixa já parecer mais bonito, não só o salto entre faixas.
 const List<_AuraSpec> _specs = [
-  // 0 Comum
-  _AuraSpec(0.16, [Color(0xFF90A4AE), Color(0xFF64B5F6), Color(0xFFE3F2FD)]),
-  // 1 Incomum
-  _AuraSpec(0.20, [Color(0xFF29B6F6), Color(0xFF26C6DA), Color(0xFF00BFA5)]),
-  // 2 Raro
-  _AuraSpec(0.23, [Color(0xFF66BB6A), Color(0xFF9CCC65), Color(0xFFD4E157)]),
-  // 3 Especial
-  _AuraSpec(0.27, [Color(0xFFFFD700), Color(0xFFFFCA28), Color(0xFFFFA726)]),
-  // 4 Épico
-  _AuraSpec(0.30, [Color(0xFFFF7043), Color(0xFFEC407A), Color(0xFFFFA726)]),
-  // 5 Heroico
-  _AuraSpec(0.32, [Color(0xFFF06292), Color(0xFFBA68C8), Color(0xFF9575CD)]),
-  // 6 Lendário
-  _AuraSpec(0.35, [Color(0xFF7E57C2), Color(0xFF5C6BC0), Color(0xFF00E5FF)]),
-  // 7 Mítico
-  _AuraSpec(0.38, [Color(0xFFE040FB), Color(0xFF00E5FF), Color(0xFFD500F9)]),
-  // 8 Supremo
-  _AuraSpec(0.40, [Color(0xFFFF1744), Color(0xFFFF3D00), Color(0xFFFFC400)]),
-  // 9 Elite
-  _AuraSpec(0.44, [Color(0xFFFFF176), Color(0xFFFFC400), Color(0xFFFF6D00)]),
+  // ── Comum (1-3) ─────────────────────────────────────────────
+  _AuraSpec(0.14, [Color(0xFF78909C), Color(0xFF64B5F6), Color(0xFFCFD8DC)], 0),
+  _AuraSpec(0.16, [Color(0xFF90A4AE), Color(0xFF64B5F6), Color(0xFFE1F5FE)], 1),
+  _AuraSpec(0.18, [Color(0xFFB0BEC5), Color(0xFF81D4FA), Color(0xFFE3F2FD)], 2),
+  // ── Incomum (4-6) ───────────────────────────────────────────
+  _AuraSpec(0.19, [Color(0xFF0288D1), Color(0xFF26C6DA), Color(0xFF00897B)], 0),
+  _AuraSpec(0.21, [Color(0xFF29B6F6), Color(0xFF26C6DA), Color(0xFF00BFA5)], 1),
+  _AuraSpec(0.23, [Color(0xFF4FC3F7), Color(0xFF4DD0E1), Color(0xFF1DE9B6)], 2),
+  // ── Raro (7-9) ──────────────────────────────────────────────
+  _AuraSpec(0.24, [Color(0xFF558B2F), Color(0xFF8BC34A), Color(0xFFAFB42B)], 0),
+  _AuraSpec(0.26, [Color(0xFF66BB6A), Color(0xFF9CCC65), Color(0xFFD4E157)], 1),
+  _AuraSpec(0.28, [Color(0xFF81C784), Color(0xFFAED581), Color(0xFFDCE775)], 2),
+  // ── Especial (10-12) ────────────────────────────────────────
+  _AuraSpec(0.28, [Color(0xFFB8860B), Color(0xFFFFC107), Color(0xFFFF9800)], 0),
+  _AuraSpec(0.30, [Color(0xFFFFD700), Color(0xFFFFCA28), Color(0xFFFFA726)], 1),
+  _AuraSpec(0.32, [Color(0xFFFFE082), Color(0xFFFFD54F), Color(0xFFFFB74D)], 2),
+  // ── Épico (13-15) ───────────────────────────────────────────
+  _AuraSpec(0.31, [Color(0xFFE64A19), Color(0xFFD81B60), Color(0xFFFF9800)], 0),
+  _AuraSpec(0.33, [Color(0xFFFF7043), Color(0xFFEC407A), Color(0xFFFFA726)], 1),
+  _AuraSpec(0.35, [Color(0xFFFF8A65), Color(0xFFF06292), Color(0xFFFFB74D)], 2),
+  // ── Heroico (16-18) ─────────────────────────────────────────
+  _AuraSpec(0.33, [Color(0xFFEC407A), Color(0xFFAB47BC), Color(0xFF7E57C2)], 0),
+  _AuraSpec(0.35, [Color(0xFFF06292), Color(0xFFBA68C8), Color(0xFF9575CD)], 1),
+  _AuraSpec(0.37, [Color(0xFFF48FB1), Color(0xFFCE93D8), Color(0xFFB39DDB)], 2),
+  // ── Lendário (19-21) ────────────────────────────────────────
+  _AuraSpec(0.36, [Color(0xFF673AB7), Color(0xFF5C6BC0), Color(0xFF00B8D4)], 0),
+  _AuraSpec(0.38, [Color(0xFF7E57C2), Color(0xFF5C6BC0), Color(0xFF00E5FF)], 1),
+  _AuraSpec(0.40, [Color(0xFF9575CD), Color(0xFF7986CB), Color(0xFF18FFFF)], 2),
+  // ── Mítico (22-24) ──────────────────────────────────────────
+  _AuraSpec(0.39, [Color(0xFFAB00D6), Color(0xFF00B8D4), Color(0xFFC51162)], 0),
+  _AuraSpec(0.41, [Color(0xFFE040FB), Color(0xFF00E5FF), Color(0xFFD500F9)], 1),
+  _AuraSpec(0.43, [Color(0xFFEA80FC), Color(0xFF84FFFF), Color(0xFFFF4081)], 2),
+  // ── Supremo (25-27) ─────────────────────────────────────────
+  _AuraSpec(0.42, [Color(0xFFD50000), Color(0xFFFF3D00), Color(0xFFFFAB00)], 0),
+  _AuraSpec(0.44, [Color(0xFFFF1744), Color(0xFFFF3D00), Color(0xFFFFC400)], 1),
+  _AuraSpec(0.46, [Color(0xFFFF5252), Color(0xFFFF6E40), Color(0xFFFFD740)], 2),
+  // ── Horizonte Elite (28-30) ─────────────────────────────────
+  _AuraSpec(0.46, [Color(0xFFFFEB3B), Color(0xFFFFB300), Color(0xFFFF6D00)], 0),
+  _AuraSpec(0.48, [Color(0xFFFFF176), Color(0xFFFFC400), Color(0xFFFF6D00)], 1),
+  _AuraSpec(0.50, [Color(0xFFFFFDE7), Color(0xFFFFE57F), Color(0xFFFF9E40)], 2),
 ];
 
-_AuraSpec _specFor(LevelBadgeRarity r) => _specs[r.index];
+_AuraSpec _specForLevel(int level) => _specs[level.clamp(1, 30) - 1];
 
 /// Aura animada que envolve a foto de perfil. Deve ser posicionada
 /// centralizada sobre o avatar, com largura/altura de
@@ -84,7 +120,7 @@ class LevelAura extends StatefulWidget {
   /// cada lado.
   static double extentFor(int level, double avatarSize,
       {double scale = 1.0}) {
-    final spec = _specFor(LevelBadgeRarityX.fromLevel(level));
+    final spec = _specForLevel(level);
     final lite = avatarSize < 48;
     return spec.ext * scale * (lite ? 0.75 : 1.0);
   }
@@ -129,7 +165,6 @@ class _LevelAuraState extends State<LevelAura>
 
   @override
   Widget build(BuildContext context) {
-    final rarity = LevelBadgeRarityX.fromLevel(widget.level);
     final e = LevelAura.extentFor(
       widget.level,
       widget.avatarSize,
@@ -143,7 +178,7 @@ class _LevelAuraState extends State<LevelAura>
           painter: _AuraPainter(
             anim: _ctrl,
             avatarSize: widget.avatarSize,
-            rarity: rarity,
+            level: widget.level,
             lite: widget.avatarSize < 48,
           ),
         ),
@@ -194,28 +229,33 @@ class _Ctx {
 class _AuraPainter extends CustomPainter {
   final Animation<double> anim;
   final double avatarSize;
-  final LevelBadgeRarity rarity;
+  final int level;
   final bool lite;
 
   _AuraPainter({
     required this.anim,
     required this.avatarSize,
-    required this.rarity,
+    required this.level,
     required this.lite,
   }) : super(repaint: anim);
 
   @override
   void paint(Canvas canvas, Size size) {
+    final rarity = LevelBadgeRarityX.fromLevel(level);
+    final spec = _specForLevel(level);
     final x = _Ctx(
       canvas,
       Offset(size.width / 2, size.height / 2),
       avatarSize / 2,
       size.width / 2,
       anim.value,
-      _specFor(rarity).colors,
+      spec.colors,
       lite,
     );
     if (x.mr <= x.r + 1) return;
+
+    // Camada base — a composição original da raridade, presente nos
+    // 3 níveis da faixa.
     switch (rarity) {
       case LevelBadgeRarity.common:
         _paintCommon(x);
@@ -248,14 +288,99 @@ class _AuraPainter extends CustomPainter {
         _paintElite(x);
         break;
     }
+
+    // Camadas extras — acrescentadas conforme o nível avança dentro
+    // da própria faixa (tier 1 = nível do meio, tier 2 = nível topo),
+    // para cada nível parecer visivelmente mais bonito que o anterior
+    // mesmo sem trocar de raridade.
+    if (spec.tier >= 1) _extraLayerTier1(x, rarity);
+    if (spec.tier >= 2) _extraLayerTier2(x, rarity);
   }
 
   @override
   bool shouldRepaint(covariant _AuraPainter old) =>
-      old.rarity != rarity ||
+      old.level != level ||
       old.avatarSize != avatarSize ||
       old.lite != lite ||
       old.anim != anim;
+}
+
+/// Camada extra do nível do meio de cada faixa (tier 1): acrescenta
+/// um único efeito de destaque, escolhido para combinar com a família
+/// visual daquela raridade sem repetir o que a camada base já faz.
+void _extraLayerTier1(_Ctx x, LevelBadgeRarity rarity) {
+  final col = x.col;
+  switch (rarity) {
+    case LevelBadgeRarity.common:
+      _twinkles(x, count: x.n(3), fromF: 0.4, toF: 1.0, k: 3, size: x.r * 0.14, seed: 31);
+      break;
+    case LevelBadgeRarity.uncommon:
+      _orbit(x, count: x.n(4), radius: x.at(0.35), speed: 1, size: x.r * 0.04, wobble: 0.1, wk: 2, twinkle: 3);
+      break;
+    case LevelBadgeRarity.rare:
+      _sweepRing(x, radius: x.at(0.32), stroke: x.r * 0.03, colors: [col[0].withOpacity(0), col[2].withOpacity(0.55), col[0].withOpacity(0)], rot: x.spin(-1));
+      break;
+    case LevelBadgeRarity.special:
+      _twinkles(x, count: x.n(4), fromF: 0.15, toF: 0.5, k: 4, size: x.r * 0.16, seed: 51);
+      break;
+    case LevelBadgeRarity.epic:
+      _bolts(x, count: 1, r0: x.at(0.15), r1: x.at(0.85), color: col[1], stroke: x.r * 0.03);
+      break;
+    case LevelBadgeRarity.heroic:
+      _shock(x, k: 3, off: 0.0, color: col[0], stroke: x.r * 0.04);
+      break;
+    case LevelBadgeRarity.legendary:
+      _orbitStars(x, count: x.n(3), radius: x.at(0.3), speed: -1, size: x.r * 0.08, points: 4);
+      break;
+    case LevelBadgeRarity.mythic:
+      _shock(x, k: 3, off: 0.33, color: col[1], stroke: x.r * 0.04);
+      break;
+    case LevelBadgeRarity.supreme:
+      _sweepRing(x, radius: x.at(0.68), stroke: x.r * 0.025, colors: [col[1].withOpacity(0), col[2].withOpacity(0.5), col[1].withOpacity(0)], rot: x.spin(2));
+      break;
+    case LevelBadgeRarity.elite:
+      _orbitStars(x, count: x.n(4), radius: x.at(0.32), speed: 2, size: x.r * 0.07, points: 5);
+      break;
+  }
+}
+
+/// Camada extra do nível topo de cada faixa (tier 2): soma-se à do
+/// tier 1 — mais um efeito, deixando o último nível da faixa
+/// visivelmente o mais rico dos três.
+void _extraLayerTier2(_Ctx x, LevelBadgeRarity rarity) {
+  final col = x.col;
+  switch (rarity) {
+    case LevelBadgeRarity.common:
+      _orbit(x, count: x.n(3), radius: x.at(0.85), speed: -1, size: x.r * 0.04, wobble: 0.1, wk: 3, twinkle: 2, alpha: 0.7);
+      break;
+    case LevelBadgeRarity.uncommon:
+      _twinkles(x, count: x.n(4), fromF: 0.2, toF: 0.6, k: 3, size: x.r * 0.15, seed: 42);
+      break;
+    case LevelBadgeRarity.rare:
+      _bolts(x, count: 1, r0: x.at(0.2), r1: x.at(0.9), color: col[2], stroke: x.r * 0.025);
+      break;
+    case LevelBadgeRarity.special:
+      _sweepRing(x, radius: x.at(0.85), stroke: x.r * 0.02, colors: [col[1].withOpacity(0), col[0].withOpacity(0.5), col[1].withOpacity(0)], rot: x.spin(-2));
+      break;
+    case LevelBadgeRarity.epic:
+      _outflow(x, count: x.n(8), from: x.at(0.2), to: x.at(0.95), k: 3, size: x.r * 0.04, lift: 0.2, seed: 53);
+      break;
+    case LevelBadgeRarity.heroic:
+      _orbitStars(x, count: x.n(3), radius: x.at(0.8), speed: 1, size: x.r * 0.07, points: 4);
+      break;
+    case LevelBadgeRarity.legendary:
+      _firework(x, idx: 5, off: 0.75, colors: col, rays: 8);
+      break;
+    case LevelBadgeRarity.mythic:
+      _firework(x, idx: 6, off: 0.9, colors: _rainbow(x.t, 1.0, n: 5));
+      break;
+    case LevelBadgeRarity.supreme:
+      _bolts(x, count: 1, r0: x.at(0.25), r1: x.at(1.0), color: col[0], stroke: x.r * 0.03);
+      break;
+    case LevelBadgeRarity.elite:
+      _firework(x, idx: 7, off: 0.1, colors: _rainbow(1 - x.t, 1.0, n: 6), rays: 12);
+      break;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
