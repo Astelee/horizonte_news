@@ -8,8 +8,8 @@ import '../config/premium_avatars_config.dart';
 // Cada avatar é um StatefulWidget independente com seus próprios
 // AnimationControllers (sempre dispose() corretamente). Todos
 // recebem [size] e desenham dentro de um círculo desse diâmetro,
-// para caber perfeitamente como `child` de AvatarFrame — a mesma
-// posição hoje ocupada por AppAvatar.
+// para caber perfeitamente no círculo do UserAvatarDisplay — a mesma
+// posição ocupada por AppAvatar.
 //
 // Para adicionar um novo avatar: crie uma classe aqui + registre em
 // PremiumAvatarsConfig.all + adicione o case no switch de
@@ -81,7 +81,7 @@ class PremiumAnimatedAvatar extends StatelessWidget {
 }
 
 /// Base comum: fundo circular escuro + clip circular, para que todo
-/// avatar tenha o mesmo "encaixe" visual dentro do AvatarFrame.
+/// avatar tenha o mesmo "encaixe" visual dentro do UserAvatarDisplay.
 Widget _circleShell({required double size, required Widget child}) {
   return ClipOval(
     child: Container(
