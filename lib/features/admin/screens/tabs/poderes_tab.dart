@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/badge_config.dart';
-import '../../../../widgets/avatar_frame.dart';
 import '../../../../widgets/app_avatar.dart';
+import '../../../../widgets/level_badge_painters.dart';
 import '../../../../providers/user_xp_provider.dart';
 
-/// Tela somente-visualização: mostra como cada nível/moldura fica,
-/// sem aplicar nada em usuário nenhum. Útil como referência rápida
-/// para decisões de design (cores, raridades, molduras) sem risco
-/// de mexer em dados reais.
+/// Tela somente-visualização: mostra como cada nível/selo fica, sem
+/// aplicar nada em usuário nenhum. Útil como referência rápida para
+/// decisões de design (cores, raridades, selos) sem risco de mexer
+/// em dados reais.
 ///
 /// Antes esta aba aplicava overrides de nível diretamente no perfil
 /// do admin logado (via AdminUserService.applyLevelOverride). Essa
@@ -83,24 +83,20 @@ class _PoderesTabState extends State<PoderesTab> {
 
             const SizedBox(height: 24),
 
-            // ── Preview da moldura ───────────────────────────────
+            // ── Preview do selo de nível ──────────────────────────
             _SectionLabel(
-                label: 'PREVIEW DA MOLDURA',
+                label: 'PREVIEW DO SELO DE NÍVEL',
                 icon: Icons.preview_rounded),
             const SizedBox(height: 16),
 
             Center(
               child: Column(
                 children: [
-                  AvatarFrame(
+                  UserAvatarDisplay(
+                    name: displayName,
+                    photoUrl: photoUrl,
                     level: _previewLevel,
                     size: 90,
-                    enableEntryAnimation: false,
-                    child: AppAvatar(
-                      name: displayName,
-                      photoUrl: photoUrl,
-                      size: 90,
-                    ),
                   ),
                   const SizedBox(height: 16),
                   Container(
@@ -281,7 +277,7 @@ class _PoderesTabState extends State<PoderesTab> {
   }
 }
 
-// ── Grade de molduras ────────────────────────────────────────────
+// ── Grade de selos de nível ───────────────────────────────────────
 class _MoldurasGrid extends StatelessWidget {
   final int selectedLevel;
   final ValueChanged<int> onSelect;
@@ -352,7 +348,6 @@ class _MoldurasGrid extends StatelessWidget {
               children: levels.map((lvl) {
                 final selected = selectedLevel == lvl;
                 final c = BadgeConfig.levelColor(lvl);
-                final g = BadgeConfig.levelGradient(lvl);
                 return Expanded(
                   child: GestureDetector(
                     onTap: () => onSelect(lvl),
@@ -384,27 +379,13 @@ class _MoldurasGrid extends StatelessWidget {
                       ),
                       child: Column(
                         children: [
-                          AvatarFrame(
+                          // Selo real do nível — o mesmo LevelBadgeArt
+                          // usado nos avatares, não uma antiga
+                          // moldura com o número dentro.
+                          LevelBadgeArt(
                             level: lvl,
                             size: 36,
-                            enableEntryAnimation: false,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient:
-                                    LinearGradient(colors: g),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '$lvl',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                            ),
+                            animate: selected,
                           ),
                           const SizedBox(height: 6),
                           Text(
