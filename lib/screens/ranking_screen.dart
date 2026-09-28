@@ -636,7 +636,10 @@ class _PodiumSpotState extends State<_PodiumSpot>
                   ],
                 ),
               ),
-            const SizedBox(height: 6),
+            // Espaço extra: o selo de nível agora fica fora do avatar
+            // (acima), então precisa de folga para não encostar na
+            // coroa nem ser cortado no topo do pódio.
+            SizedBox(height: widget.isChampion ? 14 : 22),
             Stack(
               alignment: Alignment.center,
               clipBehavior: Clip.none,
