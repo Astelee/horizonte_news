@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import 'xp_event_banner.dart';
 
 class CategoryBar extends StatefulWidget {
   const CategoryBar({Key? key}) : super(key: key);
@@ -69,6 +70,18 @@ class _CategoryBarState extends State<CategoryBar> {
 
   @override
   Widget build(BuildContext context) {
+    // Barra de categorias + aviso de XP em dobro logo abaixo (some
+    // sozinho e não ocupa espaço quando não há evento valendo).
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildBar(context),
+        const XpEventBanner(),
+      ],
+    );
+  }
+
+  Widget _buildBar(BuildContext context) {
     return SizedBox(
       height: 56,
       child: ListView.builder(
