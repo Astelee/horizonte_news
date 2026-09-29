@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../config/premium_config.dart';
+import '../services/notification_service.dart';
 import '../services/xp_service.dart';
 
 class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
@@ -19,6 +21,11 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   // painel (moldura/nível/título) — chega aqui automaticamente e
   // atualiza a tela de perfil sem precisar reabrir nada.
   StreamSubscription<UserXpData>? _xpSubscription;
+
+  // Dispara a re-sincronização da tag `tier` do OneSignal no momento
+  // em que o Premium vence (o Firestore não emite evento quando só o
+  // relógio passa da data de expiração).
+  Timer? _tierExpiryTimer;
 
   Function(int newLevel)? onLevelUp;
 
@@ -61,6 +68,7 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
       firstEvent = false;
 
       notifyListeners();
+      _syncPremiumTag();
     }, onError: (_) {
       _isLoading = false;
       notifyListeners();
@@ -76,6 +84,9 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
         if (_xpSubscription == null) {
           _startWatching();
         }
+        // Se o Premium venceu enquanto o app estava em segundo plano,
+        // corrige a tag do OneSignal ao voltar.
+        _syncPremiumTag();
         _updateLastSeen();
         _startTimer();
         break;
@@ -95,6 +106,37 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
         // para fora): aí sim paramos o timer e salvamos o resto.
         _pauseAndSave();
         break;
+    }
+  }
+
+  // ── Tag `tier` do OneSignal (none / pro / ultra) ─────────────────
+  // Chamada a cada snapshot de users_xp/{uid}, então cobre login,
+  // assinatura nova, troca de plano e cancelamento. O plano é
+  // calculado por premiumTierFromData (mesma regra do resto do app),
+  // que já devolve none quando premiumExpiresAt passou. Para o caso
+  // do vencimento acontecer com o app aberto, agenda um timer.
+  void _syncPremiumTag() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final expiresAt = _data.premiumExpiresAt;
+    final tier = premiumTierFromData({
+      'premiumTier': _data.premiumTier.id,
+      if (expiresAt != null) 'premiumExpiresAt': Timestamp.fromDate(expiresAt),
+    });
+
+    NotificationService.syncPremiumTier(uid, tier);
+
+    _tierExpiryTimer?.cancel();
+    _tierExpiryTimer = null;
+    if (tier.isPremium && expiresAt != null) {
+      var delay = expiresAt.difference(DateTime.now()) +
+          const Duration(seconds: 1);
+      if (delay.isNegative) delay = const Duration(seconds: 1);
+      // Limita a espera; ao disparar, recalcula e reagenda se preciso.
+      const maxDelay = Duration(hours: 6);
+      if (delay > maxDelay) delay = maxDelay;
+      _tierExpiryTimer = Timer(delay, _syncPremiumTag);
     }
   }
 
@@ -233,6 +275,7 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   void dispose() {
     _pauseAndSave();
     _xpSubscription?.cancel();
+    _tierExpiryTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
