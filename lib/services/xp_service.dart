@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../config/name_style_config.dart';
 import '../config/premium_config.dart';
 import 'xp_event_service.dart';
 
@@ -32,6 +33,10 @@ class UserXpData {
   // CheckinRewardId.storageKey). Independente do avatar VIP acima:
   // o usuário pode ter os dois equipados ao mesmo tempo.
   final String? equippedCheckinRewardId;
+  // Personalização do NOME do assinante (cor/efeitos/intensidade).
+  // Já vem filtrada pela assinatura (NameStyle.fromUserData usa
+  // premiumTierFromData): sem plano vigente é sempre null.
+  final NameStyle? nameStyle;
 
   const UserXpData({
     required this.totalXp,
@@ -53,6 +58,7 @@ class UserXpData {
     this.premiumExpiresAt,
     this.equippedPremiumAvatarId,
     this.equippedCheckinRewardId,
+    this.nameStyle,
   });
 
   factory UserXpData.empty() => const UserXpData(
@@ -82,6 +88,8 @@ class UserXpData {
     bool clearEquippedPremiumAvatar = false,
     String? equippedCheckinRewardId,
     bool clearEquippedCheckinReward = false,
+    NameStyle? nameStyle,
+    bool clearNameStyle = false,
   }) {
     return UserXpData(
       totalXp: totalXp,
@@ -107,6 +115,7 @@ class UserXpData {
       equippedCheckinRewardId: clearEquippedCheckinReward
           ? null
           : (equippedCheckinRewardId ?? this.equippedCheckinRewardId),
+      nameStyle: clearNameStyle ? null : (nameStyle ?? this.nameStyle),
     );
   }
 
@@ -212,6 +221,7 @@ class XpService {
     DateTime? premiumExpiresAt,
     String? equippedPremiumAvatarId,
     String? equippedCheckinRewardId,
+    NameStyle? nameStyle,
   }) {
     final calculatedLevel = levelFromXp(totalXp);
     final level = (overrideLevel ?? calculatedLevel).clamp(1, maxLevel).toInt();
@@ -244,6 +254,7 @@ class XpService {
       premiumExpiresAt: premiumExpiresAt,
       equippedPremiumAvatarId: equippedPremiumAvatarId,
       equippedCheckinRewardId: equippedCheckinRewardId,
+      nameStyle: nameStyle,
     );
   }
 
@@ -335,6 +346,7 @@ class XpService {
         premiumExpiresAt: premiumExpiresAt,
         equippedPremiumAvatarId: equippedPremiumAvatarId,
         equippedCheckinRewardId: equippedCheckinRewardId,
+        nameStyle: NameStyle.fromUserData(dataUpdated),
       );
 
       // Só sincroniza level no Firestore se NÃO houver override ativo
@@ -404,6 +416,7 @@ class XpService {
       premiumExpiresAt: premiumExpiresAt,
       equippedPremiumAvatarId: equippedPremiumAvatarId,
       equippedCheckinRewardId: equippedCheckinRewardId,
+      nameStyle: NameStyle.fromUserData(data),
     );
   }
 
