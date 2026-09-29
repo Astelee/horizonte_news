@@ -8,7 +8,9 @@ import '../../../services/xp_service.dart';
 import '../../../widgets/app_avatar.dart';
 import '../../../widgets/app_messenger.dart';
 import '../../../widgets/frame_rarity_tag.dart';
+import '../services/admin_push_service.dart';
 import '../services/admin_user_service.dart';
+import 'admin_push_dialog.dart';
 import 'admin_shared_widgets.dart';
 import 'ban_user_dialog.dart';
 import 'premium_grant_dialog.dart';
@@ -227,22 +229,31 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
   }
 
   Future<void> _handleNotify(String name) async {
-    final confirm = await showDialog<bool>(
+    final msg = await showDialog<AdminPushMessage>(
       context: context,
-      builder: (_) => AdminConfirmDialog(
-        title: 'Enviar notificação push?',
-        message: 'O envio atual do app alcança TODOS os usuários '
-            'inscritos — ainda não existe envio individual por '
-            'usuário. Esta notificação não será exclusiva para $name.',
-        confirmLabel: 'Entendi, ver Publicações',
-        confirmColor: AppColors.primaryOrange,
+      builder: (_) => AdminPushDialog(
+        dialogTitle: 'Notificação para $name',
+        targetInfo: 'Só $name receberá este push (exige que ele tenha '
+            'aberto o app numa versão recente e permitido notificações).',
+        confirmLabel: 'Enviar',
       ),
     );
-    if (confirm == true && mounted) {
-      Navigator.of(context).pop();
-      AppMessenger.info(
-        'Notificações são enviadas ao publicar uma matéria, na aba Publicações.',
-      );
+    if (msg == null || !mounted) return;
+
+    setState(() => _busy = true);
+    final result = await AdminPushService.sendToUser(
+      uid: widget.userId,
+      title: msg.title,
+      body: msg.body,
+      data: const {'kind': 'admin_message'},
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    if (result.success) {
+      AppMessenger.success(result.message ?? 'Notificação enviada.');
+    } else {
+      AppMessenger.error(result.message ?? 'Não foi possível enviar.');
     }
   }
 
