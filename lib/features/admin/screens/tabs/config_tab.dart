@@ -2,9 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../config/app_colors.dart';
+import '../../../../services/xp_event_service.dart';
 import '../../services/admin_config_service.dart';
 import '../../services/admin_news_service.dart';
 import '../../widgets/admin_shared_widgets.dart';
+import '../../widgets/xp_event_admin_card.dart';
 import '../../../../widgets/app_messenger.dart';
 
 class ConfigTab extends StatefulWidget {
@@ -63,6 +65,12 @@ class _ConfigTabState extends State<ConfigTab> {
                   _buildMaintenanceCard(maintenanceOn, maintenanceMsg),
                   const SizedBox(height: 14),
                   _buildCommentsCard(commentsOn),
+                  const SizedBox(height: 14),
+                  XpEventAdminCard(
+                    configService: widget.configService,
+                    config: XpEventConfig.fromMap(
+                        data ?? <String, dynamic>{}),
+                  ),
                 ],
               );
             },
