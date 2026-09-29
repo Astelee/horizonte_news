@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:onesignal_flutter/onesignal_flutter.dart';
+import '../config/premium_config.dart';
 import '../models/notification_model.dart';
 
 /// Central de notificações in-app (coleção `notifications`) + disparo
@@ -168,16 +171,22 @@ class AppNotificationService {
   /// External ID (uid do Firebase). Silencioso em caso de falha — a
   /// notificação in-app (já gravada no Firestore antes desta chamada)
   /// é a fonte de verdade; o push é só o "empurrão" imediato.
-  static Future<void> _sendPush({
+  ///
+  /// Retorna true somente quando o OneSignal confirmou o envio (HTTP
+  /// 200 com `id` preenchido). [idempotencyKey], quando informado,
+  /// faz o OneSignal ignorar pedidos repetidos com a mesma chave (vale
+  /// entre aparelhos do mesmo usuário; ver notifyPremiumExpiringSoon).
+  static Future<bool> _sendPush({
     required String recipientUserId,
     required String title,
     required String body,
     required Map<String, String> data,
+    String? idempotencyKey,
   }) async {
     if (_restApiKey.isEmpty) {
       debugPrint(
           'Push de notificação não enviado: ONESIGNAL_REST_API_KEY ausente.');
-      return;
+      return false;
     }
     try {
       final response = await http.post(
@@ -195,15 +204,135 @@ class AppNotificationService {
           'headings': {'en': title},
           'contents': {'en': body},
           'data': data,
+          if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
         }),
       );
       if (response.statusCode != 200) {
         debugPrint(
             'Falha ao enviar push de notificação (${response.statusCode}): ${response.body}');
+        return false;
+      }
+      // O OneSignal responde 200 com `id` vazio quando ninguém pôde
+      // receber (ex.: usuário sem assinatura de push ativa).
+      try {
+        final decoded = json.decode(response.body);
+        final id = decoded is Map ? decoded['id'] : null;
+        return id is String && id.isNotEmpty;
+      } catch (_) {
+        return false;
       }
     } catch (e) {
       debugPrint('Erro ao enviar push de notificação: $e');
+      return false;
     }
+  }
+
+  // ── Aviso de assinatura Premium perto de vencer ─────────────────
+
+  /// Quantos dias antes do vencimento o aviso passa a valer.
+  static const int _expiryWarningDays = 3;
+
+  static const String _expiryStoragePrefix = 'premium_expiry_warned_';
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+
+  /// Último "uid:vencimento" já avisado nesta sessão (evita ler o
+  /// storage a cada snapshot do Firestore).
+  static String? _lastExpiryWarnedKey;
+  static bool _expiryCheckRunning = false;
+
+  /// Avisa por push (uma única vez por vencimento) que a assinatura
+  /// Premium ativa está a até 3 dias de vencer.
+  ///
+  /// [tier] deve ser o plano JÁ EFETIVO (premiumTierFromData) — quem
+  /// não tem assinatura ativa é ignorado. Sem servidor agendado (plano
+  /// gratuito do Firebase), a checagem acontece quando o app está
+  /// aberto durante a janela de 3 dias; chamar aqui a cada atualização
+  /// dos dados do usuário é seguro e barato.
+  ///
+  /// Anti-repetição: (1) marca local por uid + data de vencimento;
+  /// (2) idempotency_key no OneSignal, que também evita duplicata
+  /// quando o usuário abre o app em outro aparelho. Ao renovar, o
+  /// vencimento muda e um novo aviso passa a valer para ele.
+  static Future<void> notifyPremiumExpiringSoon({
+    required String uid,
+    required PremiumTier tier,
+    required DateTime expiresAt,
+  }) async {
+    if (uid.isEmpty || !tier.isPremium) return;
+
+    final remaining = expiresAt.difference(DateTime.now());
+    if (remaining <= Duration.zero) return; // já venceu
+    if (remaining > const Duration(days: _expiryWarningDays)) return;
+
+    final millis = expiresAt.millisecondsSinceEpoch;
+    final key = '$uid:$millis';
+    if (_lastExpiryWarnedKey == key || _expiryCheckRunning) return;
+    _expiryCheckRunning = true;
+
+    try {
+      final storageKey = '$_expiryStoragePrefix$uid';
+      final stored = await _secureStorage.read(key: storageKey);
+      if (stored == '$millis') {
+        _lastExpiryWarnedKey = key;
+        return;
+      }
+
+      // Só tenta enviar se este aparelho já está apto a receber o
+      // push do próprio usuário; senão o OneSignal responderia "não
+      // enviado" e a chave de idempotência ficaria gasta à toa. Na
+      // próxima atualização dos dados a checagem roda de novo.
+      if (!(OneSignal.User.pushSubscription.optedIn ?? false)) return;
+      final externalId = await OneSignal.User.getExternalId();
+      if (externalId != uid) return;
+
+      final local = expiresAt.toLocal();
+      final dateLabel = '${local.day.toString().padLeft(2, '0')}/'
+          '${local.month.toString().padLeft(2, '0')}';
+
+      final sent = await _sendPush(
+        recipientUserId: uid,
+        title: 'Sua assinatura está perto de vencer',
+        body: 'Sua assinatura ${tier.label} vence em $dateLabel. '
+            'Renove para continuar aproveitando seus benefícios.',
+        // 'premium_promo' já abre a tela Premium ao tocar (ver
+        // NotificationService.init).
+        data: {'kind': 'premium_promo'},
+        idempotencyKey: _deterministicUuid('premium_expiry|$uid|$millis'),
+      );
+
+      if (sent) {
+        _lastExpiryWarnedKey = key;
+        await _secureStorage.write(key: storageKey, value: '$millis');
+      }
+    } catch (e) {
+      debugPrint('Erro ao avisar sobre vencimento do Premium: $e');
+    } finally {
+      _expiryCheckRunning = false;
+    }
+  }
+
+  /// Gera um identificador em formato UUID, sempre igual para a mesma
+  /// entrada (FNV-1a de 64 bits, duas vezes com sementes diferentes).
+  /// Serve de chave de idempotência igual em todos os aparelhos.
+  static String _deterministicUuid(String input) {
+    int fnv(String text, int seed) {
+      var hash = seed;
+      for (final unit in utf8.encode(text)) {
+        hash ^= unit;
+        hash = (hash * 0x100000001b3) & 0x7fffffffffffffff;
+      }
+      return hash;
+    }
+
+    final a = fnv(input, 0x2bf29ce484222325);
+    final b = fnv('$input#', 0x1a2b3c4d5e6f7081);
+    final hex = a.toRadixString(16).padLeft(16, '0') +
+        b.toRadixString(16).padLeft(16, '0');
+    // Versão 4 e variante RFC 4122 nos campos correspondentes.
+    final variant = '89ab'[int.parse(hex[16], radix: 16) & 3];
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '4${hex.substring(13, 16)}-$variant${hex.substring(17, 20)}-'
+        '${hex.substring(20, 32)}';
   }
 
   // ── Central de notificações (leitura/estado) ────────────────────
