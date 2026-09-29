@@ -111,20 +111,61 @@ class AdminUserService {
     // evita salvar um nível acima do que a UI atual permite, mesmo
     // se o valor vier de uma chamada antiga/externa.
     final clamped = level.clamp(1, XpService.maxLevel).toInt();
-    await _db.collection('users_xp').doc(uid).update({
-      'level': clamped,
-      'adminOverrideLevel': clamped,
-      'adminOverrideActive': true,
+
+    // O XP total passa a ser o mínimo do nível escolhido. Antes só o
+    // campo `level` mudava e o `totalXp` continuava alto, então a
+    // barra ficava absurda (ex.: "33083 / 1629 XP", "Faltam -31454").
+    final targetXp = XpService.xpRequiredForLevel(clamped);
+    final ref = _db.collection('users_xp').doc(uid);
+
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      final data = snap.data() ?? <String, dynamic>{};
+      final currentXp = (data['totalXp'] as num?)?.toInt() ?? 0;
+      final overrideAlreadyActive = data['adminOverrideActive'] == true;
+      final hasBackup = data['adminBackupTotalXp'] != null;
+
+      final update = <String, dynamic>{
+        'level': clamped,
+        'adminOverrideLevel': clamped,
+        'adminOverrideActive': true,
+        'totalXp': targetXp,
+      };
+      // Guarda o XP real só na PRIMEIRA vez, para "voltar ao XP real"
+      // conseguir restaurar. Trocar de nível de novo não sobrescreve.
+      if (!overrideAlreadyActive || !hasBackup) {
+        update['adminBackupTotalXp'] = currentXp;
+      }
+      tx.update(ref, update);
     });
-    await _log('level_override', uid, extra: {'level': clamped});
+
+    await _log('level_override', uid,
+        extra: {'level': clamped, 'totalXp': targetXp});
   }
 
   Future<void> resetLevelOverride(String uid, int realLevel) async {
-    await _db.collection('users_xp').doc(uid).update({
-      'level': realLevel,
-      'adminOverrideActive': false,
-      'adminOverrideLevel': FieldValue.delete(),
+    final ref = _db.collection('users_xp').doc(uid);
+
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      final data = snap.data() ?? <String, dynamic>{};
+      final backupXp = (data['adminBackupTotalXp'] as num?)?.toInt();
+      final currentXp = (data['totalXp'] as num?)?.toInt() ?? 0;
+
+      // Restaura o XP real de antes do override (se houver backup) e
+      // recalcula o nível a partir dele.
+      final restoredXp = backupXp ?? currentXp;
+      tx.update(ref, {
+        'totalXp': restoredXp,
+        'level': backupXp != null
+            ? XpService.levelFromXp(restoredXp)
+            : realLevel,
+        'adminOverrideActive': false,
+        'adminOverrideLevel': FieldValue.delete(),
+        'adminBackupTotalXp': FieldValue.delete(),
+      });
     });
+
     await _log('level_reset', uid);
   }
 
