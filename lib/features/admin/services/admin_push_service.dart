@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../../../config/premium_config.dart';
 import 'push_notification_service.dart' show PushNotificationResult;
 
 /// Envio de push feito pelo ADM a partir do painel:
@@ -36,6 +37,46 @@ class AdminPushService {
       body: body,
       data: data,
     );
+  }
+
+  /// Atualiza a tag `tier` (none / pro / ultra) do usuário no
+  /// OneSignal direto pela REST API, mirando o External ID. É a MESMA
+  /// tag que o app do usuário mantém (ver
+  /// NotificationService.syncPremiumTier); aqui só antecipamos a
+  /// mudança sem esperar o usuário abrir o app. Retorna false se não
+  /// deu (chave ausente, usuário ainda sem registro no OneSignal etc.)
+  /// — nesse caso o próprio app corrige a tag quando for aberto.
+  static Future<bool> setUserTierTag({
+    required String uid,
+    required PremiumTier tier,
+  }) async {
+    if (_restApiKey.isEmpty) return false;
+    try {
+      final response = await http.patch(
+        Uri.parse(
+          'https://api.onesignal.com/apps/$_appId/users/by/external_id/'
+          '${Uri.encodeComponent(uid)}',
+        ),
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Authorization': 'Key $_restApiKey',
+        },
+        body: json.encode({
+          'properties': {
+            'tags': {'tier': tier.id},
+          },
+        }),
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        debugPrint(
+            'Falha ao atualizar tag tier (${response.statusCode}): ${response.body}');
+        return false;
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Erro ao atualizar tag tier no OneSignal: $e');
+      return false;
+    }
   }
 
   /// Push para todos os inscritos.
