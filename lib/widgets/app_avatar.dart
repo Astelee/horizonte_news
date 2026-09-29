@@ -174,6 +174,9 @@ class AppAvatar extends StatelessWidget {
 /// `AvatarFrame(child: AppAvatar(...))`) em todo lugar que exibe o
 /// avatar de um usuário, preservando o mesmo tamanho e posição gerais.
 class UserAvatarDisplay extends StatelessWidget {
+  /// Tamanho mínimo (px) para a aura aparecer por padrão.
+  static const double _minAuraSize = 28;
+
   final String? name;
   final String? seed;
   final String? photoUrl;
@@ -209,12 +212,10 @@ class UserAvatarDisplay extends StatelessWidget {
   /// redor da foto. Uma por faixa de raridade — ver [LevelAura].
   ///
   /// Passe `true`/`false` explicitamente para forçar o comportamento;
-  /// quando não informado (`null`), a aura só aparece em avatares de
-  /// destaque (>= 48px, como perfil, pódio do ranking, comentário
-  /// principal e a prévia de níveis do admin) — em avatares bem
-  /// pequenos usados dentro de Row (respostas, linhas de ranking,
-  /// tela ADM), ela fica desligada por padrão, pois o Stack cresce
-  /// além da foto e empurraria o texto ao lado.
+  /// quando não informado (`null`), a aura aparece em avatares >= 28px.
+  /// Em avatares < 48px ela é desenhada como overlay (não altera o
+  /// tamanho do layout, então não empurra o texto ao lado); a partir
+  /// de 48px o Stack cresce para acomodá-la.
   final bool? showLevelAura;
 
   /// Reduz/aumenta o quanto a aura se estende para fora da foto.
@@ -307,15 +308,20 @@ class UserAvatarDisplay extends StatelessWidget {
       // ele sobe/sai pela esquerda, ficando fora da foto — e acima da
       // aura, que também se estende para fora nesse mesmo canto.
       final levelBadgeOffset = -levelBadgeSize * (0.12 + levelBadgeOutset);
+      // Aura ligada por padrão a partir de 28px (antes só >= 48px, o
+      // que deixava comentários, respostas e ranking sem aura).
       final showAura =
-          hasLevelBadge && (showLevelAura ?? size >= 48);
-      // Quanto a aura se estende para fora da foto, de cada lado —
-      // determina o tamanho extra do Stack para a aura não ser
-      // cortada.
+          hasLevelBadge && (showLevelAura ?? size >= _minAuraSize);
+      // Avatares grandes (>= 48px): o Stack cresce para acomodar a
+      // aura (comportamento original, já validado). Avatares pequenos:
+      // a aura é só um OVERLAY — o layout continua com exatamente
+      // `size`, então o texto ao lado não é empurrado.
+      final overlayAura = showAura && size < 48;
       final auraExtent = showAura
           ? LevelAura.extentFor(level!, size, scale: levelAuraExtentScale)
           : 0.0;
-      final stackSize = size * (1 + 2 * auraExtent);
+      final stackSize =
+          overlayAura ? size : size * (1 + 2 * auraExtent);
       content = SizedBox(
         width: stackSize,
         height: stackSize,
@@ -323,11 +329,23 @@ class UserAvatarDisplay extends StatelessWidget {
           clipBehavior: Clip.none,
           alignment: Alignment.center,
           children: [
-            if (showAura)
+            if (showAura && !overlayAura)
               LevelAura(
                 level: level!,
                 avatarSize: size,
                 extentScale: levelAuraExtentScale,
+              ),
+            if (overlayAura)
+              Positioned(
+                left: -size * auraExtent,
+                top: -size * auraExtent,
+                width: size * (1 + 2 * auraExtent),
+                height: size * (1 + 2 * auraExtent),
+                child: LevelAura(
+                  level: level!,
+                  avatarSize: size,
+                  extentScale: levelAuraExtentScale,
+                ),
               ),
             avatarContent,
             if (hasLevelBadge)
