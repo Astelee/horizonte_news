@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
+import '../../../config/name_style_config.dart';
 import '../../../widgets/app_avatar.dart';
 import '../../../widgets/app_messenger.dart';
 import '../../../widgets/frame_rarity_tag.dart';
 import '../../../widgets/badge_widgets.dart';
+import '../../../widgets/styled_user_name.dart';
 import '../services/admin_comment_service.dart';
 import '../services/admin_user_service.dart';
 import 'admin_shared_widgets.dart';
@@ -166,6 +168,7 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
                 level: level,
                 authorId: authorId,
                 isPremium: isPremium,
+                nameStyle: NameStyle.fromUserData(profile),
                 createdAt: createdAt,
                 isHidden: isHidden,
               ),
@@ -326,6 +329,7 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
     required int level,
     required String? authorId,
     required bool isPremium,
+    required NameStyle? nameStyle,
     required DateTime? createdAt,
     required bool isHidden,
   }) {
@@ -349,8 +353,9 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
               Row(
                 children: [
                   Flexible(
-                    child: Text(
+                    child: StyledUserName(
                       displayName,
+                      nameStyle: nameStyle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
