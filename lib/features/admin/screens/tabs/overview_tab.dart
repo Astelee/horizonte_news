@@ -63,9 +63,9 @@ class _OverviewTabState extends State<OverviewTab> {
 
   static const String _promoTitle = 'Seja assinante Horizonte ⭐';
   static const String _promoBody =
-      'PRO: 2x XP, sem anúncios e 6 avatares animados. '
-      'ULTRA: 8x XP, moldura dourada, matérias em primeira mão e '
-      'suporte prioritário. Toque e assine!';
+      'PRO: 2x XP, sem anúncios, 6 avatares animados e nome '
+      'personalizado. ULTRA: 8x XP, 22 avatares animados e tudo do '
+      'PRO. Toque e assine!';
 
   bool _sendingPromo = false;
 
