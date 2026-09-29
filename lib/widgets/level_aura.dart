@@ -27,10 +27,15 @@ import '../config/level_badge_config.dart';
 // 100% CustomPainter, sem imagens. Tudo se repete de forma contínua
 // e sem "pulo" a cada volta de 12s (todo movimento usa múltiplos
 // inteiros do ciclo). A aura é desenhada ATRÁS da foto e nunca a
-// cobre. Avatares pequenos (< 48px) usam uma versão mais leve.
+// cobre. Avatares pequenos (< 48px) usam uma versão mais leve, mas
+// com extensão mínima e traços reforçados para continuarem visíveis.
 // ═══════════════════════════════════════════════════════════════════
 
 const double _tau = math.pi * 2;
+
+/// Extensão mínima (fração do avatar, por lado) da aura em avatares
+/// pequenos (< 48px). ~8px em 36px, ~6.7px em 28px.
+const double _liteMinExtent = 0.24;
 
 class _AuraSpec {
   /// Quanto a aura se estende para fora da foto, em fração do tamanho
@@ -122,7 +127,12 @@ class LevelAura extends StatefulWidget {
       {double scale = 1.0}) {
     final spec = _specForLevel(level);
     final lite = avatarSize < 48;
-    return spec.ext * scale * (lite ? 0.75 : 1.0);
+    final ext = spec.ext * scale;
+    // Avatares pequenos (comentários, respostas, ranking): em vez de
+    // ENCOLHER a aura (antigo ×0.75), garante uma extensão mínima para
+    // ela continuar visível. Avatares >= 48px ficam exatamente como
+    // antes.
+    return lite ? math.max(ext, _liteMinExtent) : ext;
   }
 
   @override
@@ -213,7 +223,12 @@ class _Ctx {
   /// Raio na faixa da aura: f=0 borda da foto, f=1 borda externa.
   double at(double f) => r + band * f;
 
-  int n(int count) => lite ? math.max(1, (count * 0.6).round()) : count;
+  int n(int count) => lite ? math.max(2, (count * 0.8).round()) : count;
+
+  /// Reforço de opacidade e de espessura em avatares pequenos, para
+  /// traços finos não sumirem numa tela de celular.
+  double get aBoost => lite ? 1.25 : 1.0;
+  double get sBoost => lite ? 1.4 : 1.0;
 
   Offset pt(double rad, double ang) =>
       Offset(c.dx + math.cos(ang) * rad, c.dy + math.sin(ang) * rad);
@@ -419,8 +434,8 @@ void _halo(_Ctx x, Color color, double a) {
     Paint()
       ..shader = RadialGradient(
         colors: [
-          color.withOpacity(_op(a)),
-          color.withOpacity(_op(a * 0.55)),
+          color.withOpacity(_op(a * x.aBoost)),
+          color.withOpacity(_op(a * 0.55 * x.aBoost)),
           color.withOpacity(0),
         ],
         stops: [s1, s2, 1.0],
@@ -434,15 +449,18 @@ void _ring(_Ctx x, double rad, double stroke, Color color, double a) {
     rad,
     Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(0.8, stroke)
-      ..color = color.withOpacity(_op(a)),
+      ..strokeWidth = math.max(_minStroke(x), stroke * x.sBoost)
+      ..color = color.withOpacity(_op(a * x.aBoost)),
   );
 }
 
+double _minStroke(_Ctx x) => x.lite ? 1.1 : 0.8;
+
 /// Ponto de luz com brilho.
 void _dot(_Ctx x, Offset p, double rad, Color color, double a) {
-  final al = _op(a);
+  final al = _op(a * x.aBoost);
   if (al < 0.02 || rad <= 0) return;
+  rad = rad * (x.lite ? 1.3 : 1.0);
   if (!x.lite) {
     x.canvas.drawCircle(
       p,
@@ -463,8 +481,9 @@ void _dot(_Ctx x, Offset p, double rad, Color color, double a) {
 
 /// Brilho em cruz (4 pontas).
 void _sparkle(_Ctx x, Offset p, double size, Color color, double a) {
-  final al = _op(a);
+  final al = _op(a * x.aBoost);
   if (al < 0.03 || size <= 0) return;
+  size = size * (x.lite ? 1.3 : 1.0);
   final path = Path()
     ..moveTo(p.dx, p.dy - size)
     ..quadraticBezierTo(p.dx, p.dy, p.dx + size, p.dy)
@@ -519,8 +538,9 @@ void _rays(
   int k = 3,
 }) {
   if (outer <= inner) return;
+  halfW = halfW * x.sBoost;
   final shader = RadialGradient(
-    colors: [color.withOpacity(_op(alpha)), color.withOpacity(0)],
+    colors: [color.withOpacity(_op(alpha * x.aBoost)), color.withOpacity(0)],
     stops: [(inner / outer).clamp(0.0, 0.99).toDouble(), 1.0],
   ).createShader(Rect.fromCircle(center: x.c, radius: outer));
   final path = Path();
