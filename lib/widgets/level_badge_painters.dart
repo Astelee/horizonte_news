@@ -22,11 +22,19 @@ import '../config/level_badge_config.dart';
 /// Único ponto de entrada: dado um nível (1-30), desenha o selo.
 /// [locked] mostra a silhueta apagada. [animate] = false congela num
 /// quadro bonito (listas longas / avatares muito pequenos).
+///
+/// [dance] faz o selo "dançar" num percurso em forma de 8 (símbolo do
+/// infinito) em torno do ponto onde está, deixando um rastro de luz;
+/// raios giratórios e faíscas flutuantes acompanham o selo. Tudo é
+/// desenhado além dos limites de [size] (o layout continua com
+/// exatamente [size]). Com "reduzir animações" ligado no sistema, o
+/// selo fica parado num quadro bonito.
 class LevelBadgeArt extends StatefulWidget {
   final int level;
   final double size;
   final bool locked;
   final bool animate;
+  final bool dance;
 
   const LevelBadgeArt({
     Key? key,
@@ -34,6 +42,7 @@ class LevelBadgeArt extends StatefulWidget {
     this.size = 28,
     this.locked = false,
     this.animate = true,
+    this.dance = true,
   }) : super(key: key);
 
   @override
@@ -42,31 +51,47 @@ class LevelBadgeArt extends StatefulWidget {
 
 class _LevelBadgeArtState extends State<LevelBadgeArt>
     with SingleTickerProviderStateMixin {
+  // ~30 FPS bastam para o brilho e a dança do selo e metade do custo
+  // de desenho (há muitos selos ao mesmo tempo em ranking/comentários).
+  static const Duration _frameGap = Duration(milliseconds: 33);
+
   late final Ticker _ticker;
   double _t = 0.0;
   bool _running = false;
+  bool _reduceMotion = false;
+  Duration _lastFrame = Duration.zero;
 
   @override
   void initState() {
     super.initState();
     _ticker = createTicker((elapsed) {
       if (!mounted) return;
+      if (elapsed - _lastFrame < _frameGap) return;
+      _lastFrame = elapsed;
       setState(() {
         _t = elapsed.inMicroseconds / 6000000.0; // 6s por "volta"
       });
     });
-    if (widget.animate && !widget.locked) {
-      _running = true;
-      _ticker.start();
-    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    _syncTicker();
   }
 
   @override
   void didUpdateWidget(covariant LevelBadgeArt old) {
     super.didUpdateWidget(old);
-    final shouldRun = widget.animate && !widget.locked;
+    _syncTicker();
+  }
+
+  void _syncTicker() {
+    final shouldRun = widget.animate && !widget.locked && !_reduceMotion;
     if (shouldRun && !_running) {
       _running = true;
+      _lastFrame = Duration.zero;
       _ticker.start();
     } else if (!shouldRun && _running) {
       _running = false;
@@ -86,7 +111,7 @@ class _LevelBadgeArtState extends State<LevelBadgeArt>
     final art = RepaintBoundary(
       child: CustomPaint(
         size: Size.square(widget.size),
-        painter: _LevelBadgePainter(_t, def),
+        painter: _LevelBadgePainter(_t, def, dance: widget.dance),
       ),
     );
 
@@ -238,20 +263,169 @@ Path _polygon(Offset c, double r, int sides, double rot) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// EFEITOS DE ENERGIA DO SELO — raios, rastro do "8" e faíscas
+// ═══════════════════════════════════════════════════════════════════
+
+/// Uma camada de raios pontiagudos girando atrás do selo. Todos os
+/// raios saem num único Path com um único shader radial (que esmaece
+/// da base para a ponta): uma chamada de desenho por camada.
+void _rayLayer(
+  Canvas canvas,
+  Offset c,
+  double r, {
+  required int count,
+  required double rotation,
+  required double innerK,
+  required double outerK,
+  required Color color,
+  required double alpha,
+  required double pulse,
+  double widthK = 0.34,
+}) {
+  final path = Path();
+  final halfW = (math.pi / count) * widthK;
+  for (int i = 0; i < count; i++) {
+    final a = rotation + (i / count) * 2 * math.pi;
+    // Raios alternam longo/curto e "respiram" fora de fase.
+    final longShort = i.isEven ? 1.0 : 0.64;
+    final breathe = 0.9 + 0.1 * math.sin(pulse * 2 * math.pi + i * 1.7);
+    final tip = r * (innerK + (outerK - innerK) * longShort * breathe);
+    final inner = r * innerK;
+    path.moveTo(c.dx + math.cos(a - halfW) * inner,
+        c.dy + math.sin(a - halfW) * inner);
+    path.lineTo(c.dx + math.cos(a) * tip, c.dy + math.sin(a) * tip);
+    path.lineTo(c.dx + math.cos(a + halfW) * inner,
+        c.dy + math.sin(a + halfW) * inner);
+    path.close();
+  }
+  final reach = r * outerK;
+  final hot = Color.lerp(color, Colors.white, 0.55)!;
+  canvas.drawPath(
+    path,
+    Paint()
+      ..shader = RadialGradient(
+        colors: [
+          hot.withOpacity(alpha.clamp(0.0, 1.0)),
+          color.withOpacity((alpha * 0.55).clamp(0.0, 1.0)),
+          color.withOpacity(0.0),
+        ],
+        stops: [innerK / outerK, (innerK + (outerK - innerK) * 0.4) / outerK, 1.0],
+      ).createShader(Rect.fromCircle(center: c, radius: reach)),
+  );
+}
+
+/// Posição do selo no percurso em "8" (lemniscata de Gerono):
+/// x = sen θ, y = sen θ · cos θ. Amplitude proporcional ao tamanho.
+Offset _figureEight(double size, double theta) {
+  return Offset(
+    size * 0.16 * math.sin(theta),
+    size * 0.24 * math.sin(theta) * math.cos(theta),
+  );
+}
+
+/// Rastro luminoso: cópias esmaecidas do selo nas posições que ele
+/// acabou de ocupar no "8" (sem blur — só círculos translúcidos).
+void _figureEightTrail(Canvas canvas, Offset base, double size, double theta,
+    double r, Color color, double intensity) {
+  const steps = 9;
+  for (int k = steps; k >= 1; k--) {
+    final f = 1.0 - k / (steps + 1);
+    final p = base + _figureEight(size, theta - k * 0.17);
+    canvas.drawCircle(
+      p,
+      r * (0.25 + 0.6 * f),
+      Paint()..color = color.withOpacity((0.26 * f * intensity).clamp(0.0, 1.0)),
+    );
+  }
+}
+
+/// Faíscas em forma de estrelinha de 4 pontas que nascem junto ao selo,
+/// se afastam e se apagam.
+void _floatSparks(Canvas canvas, Offset c, double r, double t, Color color,
+    int count) {
+  for (int i = 0; i < count; i++) {
+    final phase = (t * 2.4 + _rnd(i * 7 + 3)) % 1.0;
+    final a = _rnd(i * 5 + 11) * 2 * math.pi + t * 0.9;
+    final dist = r * (1.02 + 0.85 * phase);
+    final pos = Offset(c.dx + math.cos(a) * dist, c.dy + math.sin(a) * dist);
+    final fade = math.sin(phase * math.pi);
+    final sz = r * (0.10 + 0.08 * _rnd(i * 3 + 5)) * fade;
+    if (sz < 0.25) continue;
+    canvas.drawPath(
+      _star(pos, sz * 1.6, sz * 0.45, 4, math.pi / 4),
+      Paint()
+        ..color = (i.isEven ? Colors.white : color)
+            .withOpacity((0.95 * fade).clamp(0.0, 1.0)),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // DESPACHANTE — escolhe o desenho central conforme o arquétipo
 // ═══════════════════════════════════════════════════════════════════
 class _LevelBadgePainter extends CustomPainter {
   final double t;
   final LevelBadgeDef def;
-  _LevelBadgePainter(this.t, this.def);
+  final bool dance;
+  _LevelBadgePainter(this.t, this.def, {this.dance = true});
+
+  // Voltas do "8" por unidade de t (t = 6 s) → uma volta a cada ~3,6 s.
+  static const double _danceTurns = 1.6667;
 
   @override
   void paint(Canvas canvas, Size s) {
-    final c = Offset(s.width / 2, s.height / 2);
+    final base = Offset(s.width / 2, s.height / 2);
     final r = s.width * 0.42;
     final rarity = def.rarity;
     final glow = 0.6 + 0.4 * rarity.glowIntensity;
     final rotation = t * 0.12; // fração de volta por "tick" de 6s
+    // Efeitos completos só em selos que têm tamanho para mostrá-los.
+    final rich = s.width >= 24;
+
+    // Dança em "8": o selo inteiro se desloca; o rastro fica atrás.
+    final theta = t * 2 * math.pi * _danceTurns;
+    final off = dance ? _figureEight(s.width, theta) : Offset.zero;
+    final c = base + off;
+
+    if (dance && rich) {
+      _figureEightTrail(canvas, base, s.width, theta, r, def.accentColor,
+          0.55 + 0.45 * rarity.glowIntensity);
+    }
+
+    // Raios de energia atrás do selo (mesma linguagem da aura do avatar).
+    final gi = rarity.glowIntensity;
+    _rayLayer(
+      canvas,
+      c,
+      r,
+      count: rich ? 6 + rarity.index : 6,
+      rotation: t * 2 * math.pi * 0.5,
+      innerK: 0.86,
+      outerK: 1.5 + 0.06 * rarity.index,
+      color: def.accentColor,
+      alpha: 0.55 + 0.35 * gi,
+      pulse: t * 2,
+    );
+    if (rich && rarity.hasSecondRing) {
+      // Raios duplos nas faixas mais altas: camada branca, contra-giro.
+      _rayLayer(
+        canvas,
+        c,
+        r,
+        count: 8,
+        rotation: -t * 2 * math.pi * 0.8 + 0.3,
+        innerK: 0.9,
+        outerK: 1.32 + 0.04 * rarity.index,
+        color: Colors.white,
+        alpha: 0.32 + 0.2 * gi,
+        pulse: t * 3 + 0.5,
+        widthK: 0.22,
+      );
+    }
+
+    // Anel escuro separando o selo da foto (antes era um Container
+    // fixo no app_avatar; agora acompanha a dança).
+    canvas.drawCircle(c, r * 1.06, Paint()..color = const Color(0xFF0A0A0A));
 
     _badgeBase(canvas, c, r, def, glow);
 
@@ -272,6 +446,12 @@ class _LevelBadgePainter extends CustomPainter {
     }
 
     _paintArchetype(canvas, c, r * 0.66, t, def);
+
+    // Faíscas por cima de tudo, escapando do selo.
+    if (rich) {
+      _floatSparks(canvas, c, r, t, def.accentColor,
+          (3 + rarity.index).clamp(3, 10).toInt());
+    }
   }
 
   void _paintArchetype(
@@ -372,7 +552,7 @@ class _LevelBadgePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _LevelBadgePainter old) =>
-      old.t != t || old.def.level != def.level;
+      old.t != t || old.def.level != def.level || old.dance != dance;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1291,16 +1471,23 @@ class LevelBadge extends StatelessWidget {
   final int level;
   final double size;
   final bool animate;
+  final bool dance;
 
   const LevelBadge({
     Key? key,
     required this.level,
     this.size = 22,
     this.animate = true,
+    this.dance = true,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return LevelBadgeArt(level: level, size: size, animate: animate);
+    return LevelBadgeArt(
+      level: level,
+      size: size,
+      animate: animate,
+      dance: dance,
+    );
   }
 }
