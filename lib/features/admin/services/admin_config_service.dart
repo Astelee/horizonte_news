@@ -41,6 +41,44 @@ class AdminConfigService {
     await _log(enabled ? 'comments_enabled' : 'comments_disabled', 'global');
   }
 
+  // ── Evento de XP em dobro/triplo ────────────────────────────────
+  // Campos em app_config/global (ver XpEventService, que é quem lê):
+  // xpEventEnabled, xpEventMultiplier (2 ou 3), xpEventStartsAt e
+  // xpEventEndsAt (ausente = sem data de fim). Toda ação é gravada no
+  // log de admin.
+  Future<void> setXpEvent({
+    required int multiplier,
+    required DateTime startsAt,
+    DateTime? endsAt,
+    required String mode,
+  }) async {
+    assert(multiplier == 2 || multiplier == 3);
+    await _configDoc.set(
+      {
+        'xpEventEnabled': true,
+        'xpEventMultiplier': multiplier,
+        'xpEventStartsAt': Timestamp.fromDate(startsAt),
+        'xpEventEndsAt':
+            endsAt == null ? FieldValue.delete() : Timestamp.fromDate(endsAt),
+      },
+      SetOptions(merge: true),
+    );
+    await _log('xp_event_on', 'global', extra: {
+      'multiplier': multiplier,
+      'mode': mode,
+      'startsAt': startsAt.toIso8601String(),
+      'endsAt': endsAt?.toIso8601String(),
+    });
+  }
+
+  Future<void> clearXpEvent() async {
+    await _configDoc.set(
+      {'xpEventEnabled': false},
+      SetOptions(merge: true),
+    );
+    await _log('xp_event_off', 'global');
+  }
+
   // ── Barra de anúncios (Home) ────────────────────────────────────
   // adsBarMode: 'admob' | 'partner' | 'off'.
   // Quando 'partner', usa adsPartnerName/adsPartnerImageUrl/adsPartnerLinkUrl.
