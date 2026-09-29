@@ -277,6 +277,17 @@ class AppNotificationService {
         return;
       }
 
+      // Cortesia de teste dada pelo admin (premiumTrial): o usuário
+      // acabou de ganhar o período e já recebeu o push de presente,
+      // então não faz sentido avisar "vai vencer, renove" logo em
+      // seguida. Assinaturas normais não têm essa marca.
+      final userDoc = await _db.collection('users_xp').doc(uid).get();
+      if (userDoc.data()?['premiumTrial'] == true) {
+        _lastExpiryWarnedKey = key;
+        await _secureStorage.write(key: storageKey, value: '$millis');
+        return;
+      }
+
       // Só tenta enviar se este aparelho já está apto a receber o
       // push do próprio usuário; senão o OneSignal responderia "não
       // enviado" e a chave de idempotência ficaria gasta à toa. Na
