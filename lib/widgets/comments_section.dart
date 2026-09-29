@@ -1898,7 +1898,7 @@ class _CommentTileState extends State<_CommentTile>
                                 // "EU" e do nível.
                                 if (info.isPremium) ...[
                                   const SizedBox(width: 5),
-                                  SubscriberBadge(size: 13),
+                                  SubscriberBadge(size: 13, compact: true),
                                 ],
                                 if (_isOwner) ...[
                                   const SizedBox(width: 5),
@@ -1922,15 +1922,9 @@ class _CommentTileState extends State<_CommentTile>
                                     ),
                                   ),
                                 ],
-                                const SizedBox(width: 5),
-                                LevelBadgeInline(level: info.level),
-                                if (info.achievements.isNotEmpty)
-                                  UnlockedBadgesRow(
-                                    unlockedAchievements:
-                                        info.achievements,
-                                    maxVisible: 3,
-                                    badgeSize: 9,
-                                  ),
+                                // Tag de nível e conquistas ficam só no
+                                // perfil (ao tocar no nome/avatar), para
+                                // não poluir a linha do comentário.
                               ],
                             ),
                           ),
@@ -2716,10 +2710,8 @@ class _ReplyTileState extends State<_ReplyTile> {
                             // após o nome, antes do nível.
                             if (info.isPremium) ...[
                               const SizedBox(width: 5),
-                              SubscriberBadge(size: 12),
+                              SubscriberBadge(size: 12, compact: true),
                             ],
-                            const SizedBox(width: 5),
-                            LevelBadgeInline(level: info.level),
                           ],
                         ),
                       ),
