@@ -2,9 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
 import '../../../config/badge_config.dart';
+import '../../../config/name_style_config.dart';
 import '../../../config/premium_config.dart';
 import '../../../services/xp_service.dart';
 import '../../../widgets/app_avatar.dart';
+import '../../../widgets/styled_user_name.dart';
 import '../services/admin_user_service.dart';
 import 'admin_shared_widgets.dart';
 import 'user_profile_sheet.dart';
@@ -158,8 +160,11 @@ class AdminUserTile extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Text(
+                          child: StyledUserName(
                             name,
+                            nameStyle: NameStyle.fromUserData(d),
+                            maxLines: null,
+                            overflow: TextOverflow.clip,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
