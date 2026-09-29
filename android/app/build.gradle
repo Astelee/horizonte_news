@@ -18,6 +18,9 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+        // Exigido pelo flutter_local_notifications (recursos de
+        // java.time em versões antigas do Android).
+        coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
@@ -28,7 +31,7 @@ android {
         applicationId "com.astelee.horizonte_news"
         minSdkVersion 23
         targetSdkVersion 36
-        versionCode 23
+        versionCode 24
         versionName "1.0.0"
     }
 
@@ -67,6 +70,10 @@ android {
 
 flutter {
     source '../..'
+}
+
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
 }
 
 apply plugin: 'com.google.gms.google-services'
