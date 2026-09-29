@@ -10,6 +10,8 @@ import '../../services/admin_dashboard_service.dart';
 import '../../services/admin_user_service.dart';
 import '../../services/admin_news_service.dart';
 import '../../services/admin_comment_service.dart';
+import '../../services/admin_push_service.dart';
+import '../../widgets/admin_push_dialog.dart';
 import '../../widgets/dashboard_widgets.dart';
 
 class OverviewTab extends StatefulWidget {
@@ -58,6 +60,44 @@ class _OverviewTabState extends State<OverviewTab> {
   bool _syncing = false;
   DashboardSnapshot? _data;
   bool _loading = true;
+
+  static const String _promoTitle = 'Seja assinante Horizonte ⭐';
+  static const String _promoBody =
+      'PRO: 2x XP, sem anúncios e 6 avatares animados. '
+      'ULTRA: 8x XP, moldura dourada, matérias em primeira mão e '
+      'suporte prioritário. Toque e assine!';
+
+  bool _sendingPromo = false;
+
+  Future<void> _sendPremiumPromo() async {
+    final msg = await showDialog<AdminPushMessage>(
+      context: context,
+      builder: (_) => const AdminPushDialog(
+        dialogTitle: 'Divulgar assinatura',
+        targetInfo: 'Vai para TODOS os inscritos, inclusive quem já é '
+            'assinante. Revise o texto antes de enviar.',
+        initialTitle: _promoTitle,
+        initialBody: _promoBody,
+        confirmLabel: 'Enviar para todos',
+      ),
+    );
+    if (msg == null || !mounted) return;
+
+    setState(() => _sendingPromo = true);
+    final result = await AdminPushService.sendToAll(
+      title: msg.title,
+      body: msg.body,
+      data: const {'kind': 'premium_promo'},
+    );
+    if (!mounted) return;
+    setState(() => _sendingPromo = false);
+
+    if (result.success) {
+      AppMessenger.success(result.message ?? 'Divulgação enviada.');
+    } else {
+      AppMessenger.error(result.message ?? 'Não foi possível enviar.');
+    }
+  }
 
   @override
   void initState() {
@@ -281,12 +321,56 @@ class _OverviewTabState extends State<OverviewTab> {
           },
         ),
         const SizedBox(height: 4),
-        // Sincronizar níveis — ação de manutenção, mantida discreta
+        // Ações de manutenção (Divulgar assinatura e Sincronizar níveis)
         Align(
           alignment: Alignment.centerRight,
-          child: _SyncLevelsButton(
-            syncing: _syncing,
-            onTap: _syncing ? null : _syncLevels,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.end,
+            children: [
+              GestureDetector(
+                onTap: _sendingPromo ? null : _sendPremiumPromo,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    color: const Color(0xFFF2B705).withOpacity(0.1),
+                    border: Border.all(
+                        color: const Color(0xFFF2B705).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_sendingPromo)
+                        const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Color(0xFFF2B705)),
+                        )
+                      else
+                        const Icon(Icons.workspace_premium_rounded,
+                            size: 13, color: Color(0xFFF2B705)),
+                      const SizedBox(width: 6),
+                      Text(
+                        _sendingPromo ? 'Enviando...' : 'Divulgar assinatura',
+                        style: const TextStyle(
+                          color: Color(0xFFF2B705),
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              _SyncLevelsButton(
+                syncing: _syncing,
+                onTap: _syncing ? null : _syncLevels,
+              ),
+            ],
           ),
         ),
       ],
@@ -427,7 +511,6 @@ class _OverviewTabState extends State<OverviewTab> {
       ),
     );
   }
-
 }
 
 // ═══════════════════════════════════════════════════════════════════
