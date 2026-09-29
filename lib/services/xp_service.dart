@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/premium_config.dart';
+import 'xp_event_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // MODELO DE DADOS DO USUÁRIO XP
@@ -541,27 +542,38 @@ class XpService {
   // silenciosamente (catch vazio), o usuário simplesmente parava de
   // ganhar XP dali em diante, sem nenhum aviso.
   //
-  // ── Multiplicador Premium (PRO 2x / ULTRA 8x) ───────────────────────
-  // Aplicado aqui, no ponto único por onde passa todo ganho "normal"
+  // ── Multiplicadores de XP (Premium PRO 2x / ULTRA 8x + Evento) ──────
+  // Aplicados aqui, no ponto único por onde passa todo ganho "normal"
   // de XP (tempo online, leitura, comentário, compartilhamento e
-  // recompensas de missão diária). NÃO se aplica a likeComment (XP
+  // recompensas de missão diária). NÃO se aplicam a likeComment (XP
   // fixo creditado ao autor curtido, validado à parte por regra
   // própria) nem ao check-in diário (CheckinService tem sua própria
   // trava exata no Firestore) — esses dois precisam da regra do
   // Console atualizada antes de multiplicar, para não serem
   // rejeitados pelo servidor.
+  //
+  // Evento de XP em dobro/triplo (XpEventService, ligado pelo admin
+  // em Configurações): multiplica por cima do plano Premium. Vale só
+  // para as ações diretas do usuário (tempo online, leitura,
+  // comentário e compartilhamento). As recompensas de missão diária
+  // passam `applyEvent: false` e ficam só com o multiplicador do
+  // plano. Para o evento também valer nas missões, basta remover esse
+  // parâmetro nas quatro chamadas de _checkMissionRewards.
   Future<void> _applyXpGain(
     DocumentReference<Map<String, dynamic>> doc,
     int xpGained,
-    Map<String, dynamic> extraUpdate,
-  ) async {
+    Map<String, dynamic> extraUpdate, {
+    bool applyEvent = true,
+  }) async {
     final snap = await doc.get();
     final data = snap.data() ?? {};
     final overrideActive = data['adminOverrideActive'] == true;
     final currentTotalXp = (data['totalXp'] as num?)?.toInt() ?? 0;
 
     final tier = premiumTierFromData(data);
-    final multipliedGain = xpGained * tier.xpMultiplier;
+    final eventMultiplier =
+        applyEvent ? await XpEventService().currentMultiplier() : 1;
+    final multipliedGain = xpGained * tier.xpMultiplier * eventMultiplier;
     final newTotalXp = currentTotalXp + multipliedGain;
 
     final update = <String, dynamic>{
@@ -823,28 +835,28 @@ class XpService {
       await _applyXpGain(doc, 25, {
         'dailyMissions.rewardsCollected':
             FieldValue.arrayUnion(['articles']),
-      });
+      }, applyEvent: false);
     }
     if (data.dailyComments >= missionCommentsTarget &&
         !collected.contains('comments')) {
       await _applyXpGain(doc, 40, {
         'dailyMissions.rewardsCollected':
             FieldValue.arrayUnion(['comments']),
-      });
+      }, applyEvent: false);
     }
     if (data.dailyShares >= missionSharesTarget &&
         !collected.contains('shares')) {
       await _applyXpGain(doc, 15, {
         'dailyMissions.rewardsCollected':
             FieldValue.arrayUnion(['shares']),
-      });
+      }, applyEvent: false);
     }
     if (data.dailyMinutes >= missionMinutesTarget &&
         !collected.contains('time')) {
       await _applyXpGain(doc, 20, {
         'dailyMissions.rewardsCollected':
             FieldValue.arrayUnion(['time']),
-      });
+      }, applyEvent: false);
     }
   }
 
