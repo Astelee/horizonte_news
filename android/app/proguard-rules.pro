@@ -50,3 +50,11 @@
 -keepclassmembers class kotlin.Metadata {
     public <methods>;
 }
+
+# ── flutter_local_notifications (lembrete de check-in) ──────────
+# O plugin guarda as notificações agendadas com Gson; sem estas
+# regras o R8 do build release pode quebrar a leitura delas.
+-keep class com.dexterous.** { *; }
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+-dontwarn com.google.gson.**
