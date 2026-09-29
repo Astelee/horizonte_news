@@ -23,6 +23,7 @@ import '../widgets/app_messenger.dart';
 import '../widgets/app_confirm_dialog.dart';
 import '../widgets/frame_rarity_tag.dart';
 import '../widgets/badge_widgets.dart';
+import '../widgets/styled_user_name.dart';
 import '../widgets/subscriber_badge.dart';
 import '../widgets/profile_edit_sheets.dart' show showEditDisplayNameSheet, showEditUsernameSheet, showAvatarOptionsSheet;
 
@@ -1165,8 +1166,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Flexible(
-                  child: Text(
+                  child: StyledUserName(
                     displayName,
+                    nameStyle: data.nameStyle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
