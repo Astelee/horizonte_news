@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../config/premium_config.dart';
 import '../services/app_notification_service.dart';
+import '../services/checkin_reminder_service.dart';
 import '../services/notification_service.dart';
 import '../services/xp_service.dart';
 
@@ -43,6 +44,10 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     _startWatching();
     _updateLastSeen();
     _startTimer();
+
+    // Lembrete local da sequência de check-in: alinha com o resumo
+    // atual ao entrar (não altera XP nem check-in).
+    CheckinReminderService.instance.syncFromFirestore(force: true);
   }
 
   // ── Liga o listener em tempo real e mantém _data sempre em dia ───
@@ -90,6 +95,9 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
         _syncPremiumTag();
         _updateLastSeen();
         _startTimer();
+        // Ao voltar do segundo plano (no máximo a cada 15 min, ver
+        // o serviço), reconfere se o lembrete de sequência segue certo.
+        CheckinReminderService.instance.syncFromFirestore();
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
