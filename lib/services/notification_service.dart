@@ -21,6 +21,11 @@ class NotificationService {
 
     OneSignal.Notifications.addClickListener((event) {
       final data = event.notification.additionalData;
+      final kind = data?['kind'] as String?;
+      if (kind == 'premium_promo') {
+        navigatorKey.currentState?.pushNamed('/premium');
+        return;
+      }
       final postId = data?['postId'] as String?;
       final commentId = data?['commentId'] as String?;
       final replyId = data?['replyId'] as String?;
