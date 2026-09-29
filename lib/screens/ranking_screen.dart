@@ -5,10 +5,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../config/app_colors.dart';
+import '../config/name_style_config.dart';
 import '../config/premium_config.dart';
 import '../widgets/frame_rarity_tag.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/badge_widgets.dart';
+import '../widgets/styled_user_name.dart';
 import '../widgets/subscriber_badge.dart';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -27,6 +29,10 @@ class _RankUser {
   // que já zera o tier se premiumExpiresAt passou).
   final PremiumTier premiumTier;
   final DateTime? premiumExpiresAt;
+  // Personalização do nome (cor/efeitos) do próprio usuário listado —
+  // igual para quem quer que esteja vendo o ranking. Já vem null
+  // quando a assinatura não está vigente (NameStyle.fromUserData).
+  final NameStyle? nameStyle;
 
   _RankUser({
     required this.uid,
@@ -39,6 +45,7 @@ class _RankUser {
     this.equippedCheckinRewardId,
     this.premiumTier = PremiumTier.none,
     this.premiumExpiresAt,
+    this.nameStyle,
   });
 
   // Mostra o SubscriberBadge só para assinante com plano vigente. A
@@ -76,6 +83,7 @@ class _RankUser {
       premiumExpiresAt: (data['premiumExpiresAt'] is Timestamp)
           ? (data['premiumExpiresAt'] as Timestamp).toDate()
           : null,
+      nameStyle: NameStyle.fromUserData(data),
     );
   }
 }
@@ -732,8 +740,9 @@ class _PodiumSpotState extends State<_PodiumSpot>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Flexible(
-                  child: Text(
+                  child: StyledUserName(
                     widget.user.name,
+                    nameStyle: widget.user.nameStyle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
@@ -901,8 +910,9 @@ class _RankTileState extends State<_RankTile>
                     Row(
                       children: [
                         Flexible(
-                          child: Text(
+                          child: StyledUserName(
                             widget.user.name,
+                            nameStyle: widget.user.nameStyle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -1050,8 +1060,9 @@ class _MyPositionBar extends StatelessWidget {
                   Row(
                     children: [
                       Flexible(
-                        child: Text(
+                        child: StyledUserName(
                           user.name,
+                          nameStyle: user.nameStyle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
