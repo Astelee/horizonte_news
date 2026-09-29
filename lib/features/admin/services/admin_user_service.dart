@@ -3,6 +3,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../config/premium_config.dart';
 import '../../../services/xp_service.dart';
 
+/// Resultado de AdminUserService.grantTrialPro: [granted] é false
+/// quando nada foi alterado (ex.: o usuário já tem plano ativo) e
+/// [message] explica o motivo ou confirma a concessão.
+class TrialGrantResult {
+  final bool granted;
+  final String message;
+  final DateTime? expiresAt;
+
+  const TrialGrantResult({
+    required this.granted,
+    required this.message,
+    this.expiresAt,
+  });
+}
+
 class AdminUserService {
   final _db = FirebaseFirestore.instance;
 
@@ -203,21 +218,77 @@ class AdminUserService {
     String uid,
     PremiumTier tier, {
     required DateTime expiresAt,
+    bool trial = false,
   }) async {
     await _db.collection('users_xp').doc(uid).update({
       'premiumTier': tier.id,
       'premiumExpiresAt': Timestamp.fromDate(expiresAt),
+      // Marca cortesias de teste (ver grantTrialPro). Qualquer outra
+      // concessão (compra aprovada, cortesia manual) limpa a marca,
+      // então uma assinatura paga nunca herda o status de "teste".
+      'premiumTrial': trial ? true : FieldValue.delete(),
     });
     await _log('premium_granted', uid, extra: {
       'tier': tier.id,
       'expiresAt': expiresAt.toIso8601String(),
+      if (trial) 'trial': true,
     });
+  }
+
+  /// Cortesia de teste: concede PRO por [days] dias (padrão 3) usando
+  /// o MESMO grantPremium.
+  ///
+  /// Proteção: só concede se o usuário NÃO tem plano ativo. Lê o
+  /// documento direto do servidor e usa premiumTierFromData (que já
+  /// trata premiumExpiresAt vencido como "none"), então uma assinatura
+  /// paga em vigor — PRO ou ULTRA — nunca é sobrescrita nem encurtada.
+  /// Se o plano anterior já venceu, a concessão pode ser feita.
+  Future<TrialGrantResult> grantTrialPro(String uid, {int days = 3}) async {
+    final snap = await _db
+        .collection('users_xp')
+        .doc(uid)
+        .get(const GetOptions(source: Source.server));
+    if (!snap.exists) {
+      return const TrialGrantResult(
+        granted: false,
+        message: 'Usuário não encontrado.',
+      );
+    }
+
+    final data = snap.data() ?? <String, dynamic>{};
+    final current = premiumTierFromData(data);
+    if (current.isPremium) {
+      final until = (data['premiumExpiresAt'] as Timestamp?)?.toDate();
+      final untilLabel = until == null
+          ? ''
+          : ' até ${until.day.toString().padLeft(2, '0')}/'
+              '${until.month.toString().padLeft(2, '0')}/${until.year}';
+      return TrialGrantResult(
+        granted: false,
+        message: 'Este usuário já tem ${current.label} ativo$untilLabel. '
+            'Nada foi alterado.',
+      );
+    }
+
+    final expiresAt = DateTime.now().add(Duration(days: days));
+    await grantPremium(
+      uid,
+      PremiumTier.pro,
+      expiresAt: expiresAt,
+      trial: true,
+    );
+    return TrialGrantResult(
+      granted: true,
+      message: 'PRO concedido por $days dias.',
+      expiresAt: expiresAt,
+    );
   }
 
   Future<void> revokePremium(String uid) async {
     await _db.collection('users_xp').doc(uid).update({
       'premiumTier': FieldValue.delete(),
       'premiumExpiresAt': FieldValue.delete(),
+      'premiumTrial': FieldValue.delete(),
     });
     await _log('premium_revoked', uid);
   }
