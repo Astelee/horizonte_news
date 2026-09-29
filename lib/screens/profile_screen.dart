@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../config/badge_config.dart';
+import '../config/premium_config.dart';
 import '../providers/user_xp_provider.dart';
 import '../services/xp_service.dart';
 import '../widgets/app_avatar.dart';
@@ -15,6 +16,7 @@ import '../widgets/level_up_overlay.dart';
 import '../widgets/profile_edit_sheets.dart';
 import '../widgets/styled_user_name.dart';
 import '../widgets/subscriber_badge.dart';
+import 'name_style_screen.dart';
 import 'premium_avatar_gallery_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -305,6 +307,53 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  // Assinatura vigente: tier diferente de none E premiumExpiresAt ainda
+  // não vencido (mesma regra de premiumTierFromData). Só decide o destino
+  // do botão de personalizar o nome — não altera UserXpData.isPremium.
+  bool _hasActivePremium(UserXpData data) {
+    if (!data.premiumTier.isPremium) return false;
+    final expires = data.premiumExpiresAt;
+    return expires == null || DateTime.now().isBefore(expires);
+  }
+
+  // Assinante ativo → seletor do nome. Não assinante → tela Premium.
+  void _handleNameStyleTap(BuildContext context, UserXpData data) {
+    if (_hasActivePremium(data)) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const NameStyleScreen()),
+      );
+    } else {
+      Navigator.of(context).pushNamed(AppRoutes.premium);
+    }
+  }
+
+  // Botão redondo ao lado do nome (mesmo formato do atalho de avatares
+  // animados). Laranja para assinante; dourado para quem ainda não é,
+  // sinalizando que leva ao Premium.
+  Widget _buildNameStyleButton(UserXpData data) {
+    final active = _hasActivePremium(data);
+    final color = active ? AppColors.primaryOrange : const Color(0xFFF2B705);
+
+    return Tooltip(
+      message: 'Personalizar nome',
+      child: GestureDetector(
+        onTap: () => _handleNameStyleTap(context, data),
+        child: Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: const Color(0xFF141414),
+            border: Border.all(color: color.withOpacity(0.7), width: 1.4),
+            boxShadow: [
+              BoxShadow(color: color.withOpacity(0.35), blurRadius: 8),
+            ],
+          ),
+          child: Icon(FontAwesomeIcons.palette, size: 12, color: color),
+        ),
+      ),
+    );
+  }
+
   void _handleUsernameTap(BuildContext context, String? currentUsername) {
     showEditUsernameSheet(
       context,
@@ -450,33 +499,44 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ],
                   ),
                   const SizedBox(height: 12),
-                  GestureDetector(
-                    onTap: () => _handleNameTap(context),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: StyledUserName(
-                            user?.displayName ??
-                                user?.email?.split('@').first ??
-                                'Usuário',
-                            nameStyle: data.nameStyle,
-                            maxLines: null,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.5,
-                            ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        // Tocar no nome continua abrindo a edição do texto.
+                        child: GestureDetector(
+                          onTap: () => _handleNameTap(context),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: StyledUserName(
+                                  user?.displayName ??
+                                      user?.email?.split('@').first ??
+                                      'Usuário',
+                                  nameStyle: data.nameStyle,
+                                  maxLines: null,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                              if (data.isPremium) ...[
+                                const SizedBox(width: 8),
+                                const SubscriberBadge(size: 18),
+                              ],
+                            ],
                           ),
                         ),
-                        if (data.isPremium) ...[
-                          const SizedBox(width: 8),
-                          const SubscriberBadge(size: 18),
-                        ],
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Botão separado: personalizar o nome (cor/efeitos).
+                      _buildNameStyleButton(data),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   GestureDetector(
