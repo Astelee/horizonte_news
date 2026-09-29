@@ -15,6 +15,7 @@ import 'providers/favorites_provider.dart';
 import 'providers/user_xp_provider.dart';
 import 'features/admin/providers/admin_provider.dart';
 import 'services/notification_service.dart';
+import 'services/checkin_reminder_service.dart';
 import 'services/sound_service.dart';
 import 'services/auth_service.dart';
 import 'services/app_config_service.dart';
@@ -57,6 +58,15 @@ void main() async {
   // paralelo, em segundo plano, enquanto a tela já aparece.
   MobileAds.instance.initialize();
   NotificationService.init();
+  // Lembrete local (20h) para proteger a sequência do check-in.
+  // Tocar no aviso abre a tela de Check-in.
+  CheckinReminderService.instance.attachNavigator(() {
+    final nav = navigatorKey.currentState;
+    if (nav == null) return false;
+    nav.pushNamed(AppRoutes.checkin);
+    return true;
+  });
+  CheckinReminderService.instance.init();
   SoundService.instance.init();
 
   runApp(
@@ -260,6 +270,9 @@ class _AuthenticatedGate extends StatelessWidget {
             // então cobre tanto login manual quanto sessão retomada
             // via "Lembrar login".
             NotificationService.loginExternalUser(user.uid);
+            // App aberto pelo toque no lembrete de sequência: leva
+            // direto ao Check-in (só acontece uma vez).
+            CheckinReminderService.instance.openPendingCheckinIfAny();
           });
           return AppRoutes.routes[AppRoutes.home]!(context);
         }
@@ -271,6 +284,8 @@ class _AuthenticatedGate extends StatelessWidget {
           // parem de chegar aqui (ex.: usuário deslogou ou trocou de
           // conta no mesmo aparelho).
           NotificationService.logoutExternalUser();
+          // Sem usuário: remove o lembrete de sequência pendente.
+          CheckinReminderService.instance.cancel();
         });
 
         return AppRoutes.routes[AppRoutes.login]!(context);
