@@ -352,16 +352,12 @@ class UserAvatarDisplay extends StatelessWidget {
               Positioned(
                 left: stackSize / 2 - size / 2 + levelBadgeOffset,
                 top: stackSize / 2 - size / 2 + levelBadgeOffset,
-                child: Container(
-                  padding: const EdgeInsets.all(1.5),
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(0xFF0A0A0A),
-                  ),
-                  child: LevelBadge(
-                    level: level!,
-                    size: levelBadgeSize,
-                  ),
+                // Sem Container de fundo: o próprio selo desenha o disco
+                // escuro (ele se move na "dança", um fundo fixo ficaria
+                // para trás).
+                child: LevelBadge(
+                  level: level!,
+                  size: levelBadgeSize,
                 ),
               ),
             if (hasCheckinReward)
