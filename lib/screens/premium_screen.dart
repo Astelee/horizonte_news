@@ -110,6 +110,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
         PremiumFeature(
           icon: FontAwesomeIcons.wandMagicSparkles,
           label: '6 avatares animados exclusivos',
+        ),
+        PremiumFeature(
+          icon: FontAwesomeIcons.palette,
+          label: 'Nome personalizado: cor, efeitos e intensidade',
           tag: 'Novo',
         ),
         PremiumFeature(
@@ -147,48 +151,18 @@ class _PremiumScreenState extends State<PremiumScreen> {
         ),
         PremiumFeature(
           icon: FontAwesomeIcons.wandMagicSparkles,
-          label: '6 avatares animados exclusivos',
+          label: '22 avatares animados (16 só do Ultra)',
+          tag: 'Novo',
+          animated: true,
+        ),
+        PremiumFeature(
+          icon: FontAwesomeIcons.palette,
+          label: 'Nome personalizado: cor, efeitos e intensidade',
           tag: 'Novo',
         ),
         PremiumFeature(
           icon: FontAwesomeIcons.gem,
           label: 'Distintivo exclusivo de assinante',
-        ),
-        PremiumFeature(
-          icon: FontAwesomeIcons.medal,
-          label: 'Moldura de perfil dourada exclusiva',
-          tag: 'Novo',
-          animated: true,
-        ),
-        PremiumFeature(
-          icon: FontAwesomeIcons.meteor,
-          label: 'Efeito de entrada exclusivo no perfil',
-          tag: 'Novo',
-          animated: true,
-        ),
-        PremiumFeature(
-          icon: FontAwesomeIcons.certificate,
-          label: 'Selo animado de destaque nos comentários',
-          tag: 'Novo',
-          animated: true,
-        ),
-        PremiumFeature(
-          icon: FontAwesomeIcons.bookOpen,
-          label: 'Acesso antecipado às matérias',
-          tag: 'Novo',
-          animated: true,
-        ),
-        PremiumFeature(
-          icon: FontAwesomeIcons.masksTheater,
-          label: 'Reações exclusivas premium',
-          tag: 'Novo',
-          animated: true,
-        ),
-        PremiumFeature(
-          icon: FontAwesomeIcons.infinity,
-          label: 'Prioridade máxima no suporte',
-          tag: 'Novo',
-          animated: true,
         ),
       ],
     ),
