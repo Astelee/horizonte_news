@@ -502,6 +502,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Espaçador espelhado: compensa a largura do selo e do
+                      // botão de estilo (à direita) para o NOME ficar
+                      // realmente centralizado na tela.
+                      SizedBox(
+                        width: (data.isPremium ? 8 + 18 * 1.8 : 0) + 8 + 29,
+                      ),
                       Flexible(
                         // Tocar no nome continua abrindo a edição do texto.
                         child: GestureDetector(
