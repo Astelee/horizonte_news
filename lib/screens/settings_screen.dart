@@ -1165,6 +1165,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Espaçador espelhado: compensa o selo à direita para o
+                // nome ficar centralizado.
+                if (isSubscriber) SizedBox(width: 6 + 16 * 1.8),
                 Flexible(
                   child: StyledUserName(
                     displayName,
