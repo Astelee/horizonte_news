@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/app_navigator.dart';
+import '../config/premium_config.dart';
 import '../screens/post_detail_screen.dart';
 import 'news_service.dart';
 
@@ -11,6 +12,11 @@ class NotificationService {
 
   static final _storage = const FlutterSecureStorage();
   static final _newsService = NewsService();
+
+  /// Última combinação "uid:tier" enviada ao OneSignal. Evita reenviar
+  /// a mesma tag a cada snapshot do Firestore (que chega a cada ganho
+  /// de XP). É zerada ao deslogar, já que o usuário do OneSignal muda.
+  static String? _lastSyncedTierKey;
 
   static Future<void> init() async {
     OneSignal.initialize(_oneSignalAppId);
@@ -55,8 +61,35 @@ class NotificationService {
   static Future<void> logoutExternalUser() async {
     try {
       await OneSignal.logout();
+      // Após o logout o dispositivo vira um usuário anônimo no
+      // OneSignal, sem assinatura ativa: marca como "none" para que
+      // divulgações filtradas por tier = none também o alcancem.
+      await OneSignal.User.addTagWithKey(_tierTagKey, PremiumTier.none.id);
+      _lastSyncedTierKey = 'anon:${PremiumTier.none.id}';
     } catch (e) {
+      _lastSyncedTierKey = null;
       debugPrint('Erro ao remover external_id do OneSignal: $e');
+    }
+  }
+
+  /// Nome da tag do OneSignal que guarda o plano do usuário
+  /// ("none", "pro" ou "ultra"), usada em filtros de segmentação.
+  static const String _tierTagKey = 'tier';
+
+  /// Grava no OneSignal a tag `tier` do usuário logado. O [tier]
+  /// deve ser o plano JÁ EFETIVO (ver premiumTierFromData, que devolve
+  /// none quando premiumExpiresAt já passou). Só envia quando o valor
+  /// muda para o mesmo uid, então é seguro chamar a cada atualização
+  /// dos dados do usuário.
+  static Future<void> syncPremiumTier(String uid, PremiumTier tier) async {
+    final key = '$uid:${tier.id}';
+    if (_lastSyncedTierKey == key) return;
+
+    try {
+      await OneSignal.User.addTagWithKey(_tierTagKey, tier.id);
+      _lastSyncedTierKey = key;
+    } catch (e) {
+      debugPrint('Erro ao atualizar tag tier no OneSignal: $e');
     }
   }
 
