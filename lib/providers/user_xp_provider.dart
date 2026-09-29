@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../config/premium_config.dart';
+import '../services/app_notification_service.dart';
 import '../services/notification_service.dart';
 import '../services/xp_service.dart';
 
@@ -126,6 +127,16 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     });
 
     NotificationService.syncPremiumTier(uid, tier);
+
+    // Aviso de "assinatura perto de vencer" (até 3 dias antes). O
+    // serviço só age dentro da janela e uma vez por vencimento.
+    if (tier.isPremium && expiresAt != null) {
+      AppNotificationService.notifyPremiumExpiringSoon(
+        uid: uid,
+        tier: tier,
+        expiresAt: expiresAt,
+      );
+    }
 
     _tierExpiryTimer?.cancel();
     _tierExpiryTimer = null;
