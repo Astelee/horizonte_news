@@ -5,9 +5,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../config/app_colors.dart';
+import '../config/premium_config.dart';
 import '../widgets/frame_rarity_tag.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/badge_widgets.dart';
+import '../widgets/subscriber_badge.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // MODELO
@@ -21,6 +23,10 @@ class _RankUser {
   final String? photoUrl;
   final String? equippedPremiumAvatarId;
   final String? equippedCheckinRewardId;
+  // Plano Premium (mesma leitura do resto do app: premiumTierFromData,
+  // que já zera o tier se premiumExpiresAt passou).
+  final PremiumTier premiumTier;
+  final DateTime? premiumExpiresAt;
 
   _RankUser({
     required this.uid,
@@ -31,7 +37,16 @@ class _RankUser {
     this.photoUrl,
     this.equippedPremiumAvatarId,
     this.equippedCheckinRewardId,
+    this.premiumTier = PremiumTier.none,
+    this.premiumExpiresAt,
   });
+
+  // Mostra o SubscriberBadge só para assinante com plano vigente. A
+  // expiração é conferida de novo a cada build, para o selo sumir
+  // mesmo que o plano expire com o ranking já aberto.
+  bool get isSubscriber =>
+      premiumTier.isPremium &&
+      (premiumExpiresAt == null || DateTime.now().isBefore(premiumExpiresAt!));
 
   factory _RankUser.fromDoc(QueryDocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -57,6 +72,10 @@ class _RankUser {
       photoUrl: (data['photoUrl'] as String?),
       equippedPremiumAvatarId: data['equippedPremiumAvatarId'] as String?,
       equippedCheckinRewardId: data['equippedCheckinRewardId'] as String?,
+      premiumTier: premiumTierFromData(data),
+      premiumExpiresAt: (data['premiumExpiresAt'] is Timestamp)
+          ? (data['premiumExpiresAt'] as Timestamp).toDate()
+          : null,
     );
   }
 }
@@ -708,16 +727,30 @@ class _PodiumSpotState extends State<_PodiumSpot>
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              widget.user.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: widget.isMe ? AppColors.primaryOrange : Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    widget.user.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color:
+                          widget.isMe ? AppColors.primaryOrange : Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                // Selo de assinante logo após o nome.
+                if (widget.user.isSubscriber) ...[
+                  const SizedBox(width: 4),
+                  const SubscriberBadge(size: 12),
+                ],
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -881,6 +914,12 @@ class _RankTileState extends State<_RankTile>
                             ),
                           ),
                         ),
+                        // Selo de assinante logo após o nome, antes da
+                        // tag "VOCÊ".
+                        if (widget.user.isSubscriber) ...[
+                          const SizedBox(width: 5),
+                          const SubscriberBadge(size: 13),
+                        ],
                         if (widget.isMe) ...[
                           const SizedBox(width: 6),
                           Container(
@@ -1008,15 +1047,26 @@ class _MyPositionBar extends StatelessWidget {
                       letterSpacing: 1,
                     ),
                   ),
-                  Text(
-                    user.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          user.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      // Selo de assinante logo após o nome.
+                      if (user.isSubscriber) ...[
+                        const SizedBox(width: 5),
+                        const SubscriberBadge(size: 13),
+                      ],
+                    ],
                   ),
                 ],
               ),
