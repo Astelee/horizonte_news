@@ -95,13 +95,13 @@ class _CheckinCalendarState extends State<CheckinCalendar>
     });
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(20),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(20),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -116,7 +116,7 @@ class _CheckinCalendarState extends State<CheckinCalendar>
             boxShadow: [
               BoxShadow(
                 color: AppColors.primaryOrange.withOpacity(0.10),
-                blurRadius: 28,
+                blurRadius: 22,
                 spreadRadius: -4,
               ),
             ],
@@ -142,7 +142,7 @@ class _CheckinCalendarState extends State<CheckinCalendar>
                           letterSpacing: 1.6,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 1),
                       Text(
                         '$doneCount ${doneCount == 1 ? 'dia' : 'dias'} no mês',
                         style: TextStyle(
@@ -160,7 +160,7 @@ class _CheckinCalendarState extends State<CheckinCalendar>
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 6),
               Row(
                 children: _weekdayLabels
                     .map((w) => Expanded(
@@ -169,7 +169,7 @@ class _CheckinCalendarState extends State<CheckinCalendar>
                               w,
                               style: TextStyle(
                                 color: Colors.white.withOpacity(0.32),
-                                fontSize: 11,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -177,14 +177,18 @@ class _CheckinCalendarState extends State<CheckinCalendar>
                         ))
                     .toList(),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 2),
               GridView.builder(
+                padding: EdgeInsets.zero,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
+                // Células mais largas que altas (1.3): o mês fica bem
+                // mais baixo que com células quadradas.
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 7,
-                  mainAxisSpacing: 6,
+                  mainAxisSpacing: 2,
                   crossAxisSpacing: 0,
+                  childAspectRatio: 1.3,
                 ),
                 itemCount: leadingBlanks + daysInMonth,
                 itemBuilder: (context, index) {
@@ -214,7 +218,7 @@ class _CheckinCalendarState extends State<CheckinCalendar>
                   );
                 },
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 6),
               _buildLegend(),
             ],
           ),
@@ -225,8 +229,8 @@ class _CheckinCalendarState extends State<CheckinCalendar>
 
   Widget _buildLegend() {
     return Wrap(
-      spacing: 14,
-      runSpacing: 6,
+      spacing: 12,
+      runSpacing: 4,
       children: const [
         _LegendItem(color: Color(0xFFFF9100), label: 'Feito'),
         _LegendItem(color: Color(0xFFFF6B00), label: 'Hoje'),
@@ -249,11 +253,11 @@ class _NavArrow extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(6),
+        padding: const EdgeInsets.all(4),
         child: Icon(
           icon,
           color: enabled ? Colors.white70 : Colors.white24,
-          size: 22,
+          size: 20,
         ),
       ),
     );
@@ -290,7 +294,7 @@ class _DayCell extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, box) {
           final d = box.maxWidth < box.maxHeight ? box.maxWidth : box.maxHeight;
-          final circle = d - 4;
+          final circle = d - 3;
 
           return Stack(
             alignment: Alignment.center,
@@ -373,13 +377,13 @@ class _DayCell extends StatelessWidget {
 
   Widget _label(_DayVisual v) {
     if (v.icon != null) {
-      return Icon(v.icon, size: 14, color: v.fg);
+      return Icon(v.icon, size: 13, color: v.fg);
     }
     return Text(
       '$day',
       style: TextStyle(
         color: v.fg,
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: FontWeight.w800,
       ),
     );
