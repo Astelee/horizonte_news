@@ -20,7 +20,14 @@ import 'package:flutter/scheduler.dart' show Ticker;
 class SubscriberBadge extends StatefulWidget {
   final double size;
 
-  const SubscriberBadge({Key? key, this.size = 20}) : super(key: key);
+  /// Quando true, o selo ocupa no layout só `size` x `size` (o brilho e a
+  /// aura continuam sendo desenhados para fora, sem clip). Evita que a
+  /// área invisível de 1.8x aumente a altura da linha e empurre o nome
+  /// para baixo — usado em comentários e respostas.
+  final bool compact;
+
+  const SubscriberBadge({Key? key, this.size = 20, this.compact = false})
+      : super(key: key);
 
   @override
   State<SubscriberBadge> createState() => _SubscriberBadgeState();
@@ -69,15 +76,27 @@ class _SubscriberBadgeState extends State<SubscriberBadge>
   Widget build(BuildContext context) {
     // `_sweepValue` já dispara rebuild via setState no próprio
     // ticker; o AnimatedBuilder só precisa escutar o _auraCtrl.
-    return AnimatedBuilder(
+    final full = widget.size * 1.8;
+    final badge = AnimatedBuilder(
       animation: _auraCtrl,
       builder: (context, _) => CustomPaint(
-        size: Size.square(widget.size * 1.8),
+        size: Size.square(full),
         painter: _SubscriberBadgePainter(
           aura: _auraCtrl.value,
           sweep: _sweepValue,
           coreSize: widget.size,
         ),
+      ),
+    );
+    if (!widget.compact) return badge;
+    return SizedBox.square(
+      dimension: widget.size,
+      child: OverflowBox(
+        minWidth: full,
+        maxWidth: full,
+        minHeight: full,
+        maxHeight: full,
+        child: badge,
       ),
     );
   }
