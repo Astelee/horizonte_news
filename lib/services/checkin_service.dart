@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/checkin_rewards_config.dart';
+import 'checkin_reminder_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // STATUS DE UM DIA NO CALENDÁRIO
@@ -509,6 +512,13 @@ class CheckinService {
         await doc.update(update);
       }
 
+      // Mantém o lembrete local de sequência alinhado com o resumo
+      // recém-calculado (não altera nada do check-in).
+      unawaited(CheckinReminderService.instance.syncFromValues(
+        streak: newStreak,
+        lastCheckinDate: newLast ?? oldLast,
+      ));
+
       return RebuildReport(
         ran: true,
         changed: changed,
@@ -648,6 +658,13 @@ class CheckinService {
         });
       });
 
+      // Check-in feito: cancela o aviso de hoje e agenda o de amanhã
+      // (lembrete local de sequência).
+      unawaited(CheckinReminderService.instance.syncFromValues(
+        streak: newStreak,
+        lastCheckinDate: todayKey,
+      ));
+
       // A recompensa é "nova" se este marco não estava desbloqueado
       // pelo recorde anterior.
       final reward = CheckinRewardsConfig.forStreak(newStreak);
@@ -751,6 +768,12 @@ class CheckinService {
         'lastCheckinDate': newLast,
         if (calc.firstDate != null) 'checkinFirstDate': calc.firstDate,
       });
+
+      // Recuperar um dia muda a sequência: realinha o lembrete local.
+      unawaited(CheckinReminderService.instance.syncFromValues(
+        streak: calc.current,
+        lastCheckinDate: newLast,
+      ));
 
       // Recuperar pode empurrar o recorde por cima de um marco.
       CheckinRewardDef? newlyUnlocked;
