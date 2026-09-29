@@ -419,14 +419,14 @@ class _CheckinScreenState extends State<CheckinScreen>
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
               children: [
                 _buildStreakHero(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 if (_recoverableDays > 0) _buildRecoverableBanner(),
-                if (_recoverableDays > 0) const SizedBox(height: 16),
+                if (_recoverableDays > 0) const SizedBox(height: 12),
                 _buildCheckInButton(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 _loadingMonth
                     ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 60),
+                        padding: EdgeInsets.symmetric(vertical: 40),
                         child: Center(
                           child: CircularProgressIndicator(
                             color: AppColors.primaryOrange,
@@ -443,9 +443,9 @@ class _CheckinScreenState extends State<CheckinScreen>
                         onNextMonth: () => _goToMonth(1),
                         onDayTap: _handleDayTap,
                       ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 _buildProgressTrack(),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
                 _buildRewardVault(),
               ],
             ),
@@ -459,18 +459,19 @@ class _CheckinScreenState extends State<CheckinScreen>
   // HERÓI DA SEQUÊNCIA — número gigante + chama + recompensa equipada
   // ═════════════════════════════════════════════════════════════════
   Widget _buildStreakHero() {
+    const double core = 64;
     return AnimatedBuilder(
       animation: _glowAnim,
       builder: (_, __) {
         final g = _glowAnim.value;
         return ClipRRect(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(22),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
             child: Container(
-              padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(22),
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
@@ -486,31 +487,34 @@ class _CheckinScreenState extends State<CheckinScreen>
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.primaryOrange.withOpacity(0.14 * g),
-                    blurRadius: 34,
-                    spreadRadius: 2,
+                    blurRadius: 26,
+                    spreadRadius: 1,
                   ),
                 ],
               ),
-              child: Column(
+              // Layout horizontal: chama/recompensa à esquerda; número,
+              // rótulo e selos à direita (bem mais baixo que o antigo
+              // layout vertical).
+              child: Row(
                 children: [
-                  // Núcleo: chama grande (ou recompensa equipada).
+                  // Núcleo: chama (ou recompensa equipada).
                   SizedBox(
-                    width: 92,
-                    height: 92,
+                    width: core,
+                    height: core,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
                         Container(
-                          width: 82,
-                          height: 82,
+                          width: 56,
+                          height: 56,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
                                 color: AppColors.primaryOrange
                                     .withOpacity(0.35 * g),
-                                blurRadius: 34,
-                                spreadRadius: 4,
+                                blurRadius: 24,
+                                spreadRadius: 3,
                               ),
                             ],
                           ),
@@ -520,11 +524,11 @@ class _CheckinScreenState extends State<CheckinScreen>
                                     _equippedRewardKey) !=
                                 null)
                           CheckinRewardBadge(
-                              storageKey: _equippedRewardKey, size: 92)
+                              storageKey: _equippedRewardKey, size: core)
                         else
                           Container(
-                            width: 64,
-                            height: 64,
+                            width: 46,
+                            height: 46,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               gradient: const LinearGradient(
@@ -536,62 +540,80 @@ class _CheckinScreenState extends State<CheckinScreen>
                                 ],
                               ),
                               border: Border.all(
-                                  color: const Color(0xFFFFB74D), width: 1.4),
+                                  color: const Color(0xFFFFB74D), width: 1.3),
                             ),
                             child: const Center(
                               child: FaIcon(FontAwesomeIcons.fire,
-                                  color: Colors.white, size: 28),
+                                  color: Colors.white, size: 20),
                             ),
                           ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  // Número gigante da sequência.
-                  ShaderMask(
-                    shaderCallback: (r) => const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.white, Color(0xFFFFB74D)],
-                    ).createShader(r),
-                    child: Text(
-                      '$_streak',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 52,
-                        height: 1.0,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -1,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _streak == 1 ? 'DIA SEGUIDO' : 'DIAS SEGUIDOS',
-                    style: TextStyle(
-                      color: AppColors.primaryOrange.withOpacity(0.95),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2.4,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _HeroPill(
-                        icon: FontAwesomeIcons.trophy,
-                        text: 'Recorde $_longestStreak',
-                      ),
-                      if (_isTodayDone) ...[
-                        const SizedBox(width: 8),
-                        const _HeroPill(
-                          icon: FontAwesomeIcons.check,
-                          text: 'FEITO HOJE',
-                          highlight: true,
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            // Número da sequência.
+                            ShaderMask(
+                              shaderCallback: (r) => const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Colors.white, Color(0xFFFFB74D)],
+                              ).createShader(r),
+                              child: Text(
+                                '$_streak',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 34,
+                                  height: 1.0,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -1,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                _streak == 1 ? 'DIA SEGUIDO' : 'DIAS SEGUIDOS',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color:
+                                      AppColors.primaryOrange.withOpacity(0.95),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.6,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _HeroPill(
+                              icon: FontAwesomeIcons.trophy,
+                              text: 'Recorde $_longestStreak',
+                            ),
+                            if (_isTodayDone)
+                              const _HeroPill(
+                                icon: FontAwesomeIcons.check,
+                                text: 'FEITO HOJE',
+                                highlight: true,
+                              ),
+                          ],
                         ),
                       ],
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -613,9 +635,9 @@ class _CheckinScreenState extends State<CheckinScreen>
         next == null ? 0 : (next.requiredStreak - _streak).clamp(0, 9999);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         color: const Color(0xFF080808).withOpacity(0.85),
         border: Border.all(color: AppColors.primaryOrange.withOpacity(0.20)),
       ),
@@ -626,7 +648,7 @@ class _CheckinScreenState extends State<CheckinScreen>
             children: [
               if (next != null) ...[
                 CheckinRewardArt(
-                    id: next.id, size: 36, locked: true, animate: false),
+                    id: next.id, size: 32, locked: true, animate: false),
                 const SizedBox(width: 12),
               ],
               Expanded(
@@ -670,7 +692,7 @@ class _CheckinScreenState extends State<CheckinScreen>
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           // Barra de progresso luminosa.
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
@@ -730,11 +752,13 @@ class _CheckinScreenState extends State<CheckinScreen>
   Widget _buildRewardVault() {
     final all = CheckinRewardsConfig.currentMonthList;
     final unlockedCount = CheckinRewardsConfig.unlockedFor(_longestStreak).length;
+    // Sempre no máximo 2 fileiras: 8 recompensas → 4 colunas.
+    final columns = ((all.length + 1) ~/ 2).clamp(2, 6).toInt();
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         color: const Color(0xFF080808).withOpacity(0.85),
         border: Border.all(color: AppColors.primaryOrange.withOpacity(0.20)),
       ),
@@ -744,7 +768,7 @@ class _CheckinScreenState extends State<CheckinScreen>
           Row(
             children: [
               const FaIcon(FontAwesomeIcons.gem,
-                  color: AppColors.primaryOrange, size: 13),
+                  color: AppColors.primaryOrange, size: 12),
               const SizedBox(width: 8),
               const Text(
                 'COFRE DE RECOMPENSAS',
@@ -766,15 +790,15 @@ class _CheckinScreenState extends State<CheckinScreen>
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 0.86,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 0.72,
             ),
             itemCount: all.length,
             itemBuilder: (_, i) => _RewardTile(
@@ -921,7 +945,7 @@ class _HeroPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = highlight ? const Color(0xFF43B581) : AppColors.primaryOrange;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         color: color.withOpacity(0.12),
@@ -930,15 +954,15 @@ class _HeroPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FaIcon(icon, size: 11, color: color),
-          const SizedBox(width: 7),
+          FaIcon(icon, size: 10, color: color),
+          const SizedBox(width: 6),
           Text(
             text,
             style: TextStyle(
               color: color,
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w900,
-              letterSpacing: 0.8,
+              letterSpacing: 0.6,
             ),
           ),
         ],
@@ -969,9 +993,9 @@ class _RewardTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(14),
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -985,68 +1009,87 @@ class _RewardTile extends StatelessWidget {
                 : unlocked
                     ? accent.withOpacity(0.45)
                     : const Color(0xFF232323),
-            width: equipped ? 1.8 : 1.1,
+            width: equipped ? 1.6 : 1.0,
           ),
           boxShadow: unlocked
               ? [
                   BoxShadow(
-                    color: accent.withOpacity(equipped ? 0.30 : 0.12),
-                    blurRadius: equipped ? 18 : 10,
+                    color: accent.withOpacity(equipped ? 0.28 : 0.10),
+                    blurRadius: equipped ? 12 : 6,
                   ),
                 ]
               : null,
         ),
-        child: Column(
+        child: Stack(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Column(
               children: [
-                Text(
-                  reward.kind.label,
-                  style: TextStyle(
-                    color: unlocked ? accent : Colors.white24,
-                    fontSize: 8.5,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
+                Expanded(
+                  child: Center(
+                    // FittedBox: a arte encolhe sozinha se a carta ficar
+                    // mais estreita (telas pequenas).
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: CheckinRewardArt(
+                        id: reward.id,
+                        size: 42,
+                        locked: !unlocked,
+                        // Só anima o que está desbloqueado (poupa bateria).
+                        animate: unlocked,
+                      ),
+                    ),
                   ),
                 ),
-                if (equipped)
-                  Icon(Icons.check_circle_rounded, color: accent, size: 14)
-                else if (!unlocked)
-                  const Icon(Icons.lock_rounded,
-                      color: Colors.white24, size: 13),
+                const SizedBox(height: 2),
+                SizedBox(
+                  width: double.infinity,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      unlocked ? reward.name : '${reward.requiredStreak} dias',
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: unlocked ? Colors.white : Colors.white38,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 1),
+                SizedBox(
+                  width: double.infinity,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      unlocked ? reward.rarityLabel : 'Bloqueado',
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: unlocked
+                            ? accent.withOpacity(0.9)
+                            : Colors.white24,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
-            Expanded(
-              child: Center(
-                child: CheckinRewardArt(
-                  id: reward.id,
-                  size: 64,
-                  locked: !unlocked,
-                  // Só anima o que está desbloqueado (poupa bateria).
-                  animate: unlocked,
-                ),
+            // Estado no canto (equipada / bloqueada). O tipo da
+            // recompensa (emblema, moldura...) aparece ao tocar.
+            if (equipped)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Icon(Icons.check_circle_rounded, color: accent, size: 13),
+              )
+            else if (!unlocked)
+              const Positioned(
+                top: 0,
+                right: 0,
+                child: Icon(Icons.lock_rounded, color: Colors.white24, size: 12),
               ),
-            ),
-            Text(
-              unlocked ? reward.name : '${reward.requiredStreak} dias',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: unlocked ? Colors.white : Colors.white38,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              unlocked ? reward.rarityLabel : 'Bloqueado',
-              style: TextStyle(
-                color: unlocked ? accent.withOpacity(0.9) : Colors.white24,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
           ],
         ),
       ),
