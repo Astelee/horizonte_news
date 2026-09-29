@@ -141,6 +141,7 @@ app_routes.dart
 app_theme.dart
 badge_config.dart
 blogger_config.dart
+name_style_config.dart
 premium_avatars_config.dart
 premium_config.dart
 ```
@@ -154,6 +155,7 @@ premium_config.dart
 - `badge_config.dart` — níveis, títulos/emblemas e configurações relacionadas.
 - `blogger_config.dart` — configuração da integração legada com Blogger.
 - `premium_config.dart` — tiers `none`, `pro` e `ultra`, multiplicadores de XP, selo e regras de leitura do Premium.
+- `name_style_config.dart` — modelo `NameStyle` (cor, efeitos combináveis e intensidade), enums `NameEffect`/`NameIntensity`, catálogo de cores `NameColors` e leitura segura do estilo a partir de `users_xp/{uid}` (`NameStyle.fromUserData`).
 - `premium_avatars_config.dart` — catálogo de avatares animados Premium.
 
 ### Premium atual
@@ -221,6 +223,7 @@ home_screen.dart
 horizon_now_screen.dart
 login_screen.dart
 most_read_screen.dart
+name_style_screen.dart
 notifications_screen.dart
 post_detail_screen.dart
 premium_avatar_gallery_screen.dart
@@ -251,6 +254,7 @@ splash_screen.dart
 - Login/cadastro/recuperação de senha.
 - Premium.
 - Galeria de avatares Premium.
+- Personalização do nome para assinantes (`name_style_screen.dart`).
 - Splash.
 
 ---
@@ -268,6 +272,7 @@ checkin_service.dart
 cloudinary_upload_service.dart
 deep_link_service.dart
 favorites_service.dart
+name_style_service.dart
 news_service.dart
 notification_service.dart
 purchase_service.dart
@@ -280,6 +285,7 @@ xp_service.dart
 ### Pontos importantes
 
 - `auth_service.dart` — Firebase Auth, login/logout e preferência de lembrar login.
+- `name_style_service.dart` — grava/remove `users_xp/{uid}.nameStyle` (personalização do nome); recusa salvar sem assinatura vigente.
 - `news_service.dart` — fonte atual de notícias publicadas no Firestore (`noticias`).
 - `blogger_service.dart` — integração antiga/compatibilidade com Blogger; não assumir que ele seja a fonte atual do feed.
 - `notification_service.dart` — OneSignal, permissão de push, External ID e preferências de push.
@@ -580,6 +586,30 @@ Atualmente existem 6 avatares configurados:
 - Águia Solar
 - Serpente Aurora
 
+### Nome personalizado de assinante
+
+```text
+name_style_config.dart      (lib/config)   modelo, cores e leitura do estilo
+name_effects.dart           (lib/widgets)  relógio compartilhado + 4 efeitos
+styled_user_name.dart       (lib/widgets)  widget central que desenha o nome
+name_style_service.dart     (lib/services) salvar / remover nameStyle
+name_style_screen.dart      (lib/screens)  seletor de personalização
+```
+
+- **Onde fica salvo:** `users_xp/{uid}.nameStyle` = `{ color, effects[], intensity }`. Pertence ao dono do nome, então todo mundo vê o mesmo visual (comentários, respostas, Ranking, Perfil, Configurações e painel administrativo).
+- **Quem desenha o nome:** sempre `StyledUserName`. Sem estilo, sem assinatura vigente ou plano vencido → é um `Text` comum (visual padrão). O selo (`SubscriberBadge`) fica ao lado, fora deste widget.
+- **Efeitos atuais:** brilho pulsante, gradiente animado, partículas e raios de energia; podem ser combinados. Intensidade: discreta, normal ou intensa.
+- **Desempenho:** um único `Ticker` (`NameEffectClock`) para o app inteiro, limitado a ~30 FPS, que só roda enquanto há nome animado na tela; texto medido uma vez; respeita "reduzir animações" do sistema e pausa quando a tela está coberta.
+- **Efeito novo:** adicionar em `NameEffect` (`name_style_config.dart`), criar a camada em `name_effects.dart` e registrar em `NameEffectRegistry.layers`. O seletor lista o efeito automaticamente (ícone/descrição opcionais em `name_style_screen.dart`).
+
+**Seletor — `NameStyleScreen` (`lib/screens/name_style_screen.dart`):**
+
+- Aberto pelo botão (ícone de paleta) ao lado do nome em `profile_screen.dart`. Assinante ativo (`tier != none` e `premiumExpiresAt` não vencido) → abre o seletor; não assinante → `AppRoutes.premium`. Tocar no próprio nome continua abrindo a edição do texto.
+- Prévia fixa no topo usando `StyledUserName` (tamanho do perfil e tamanho de comentários/ranking), atualizada a cada toque.
+- Seções: cor (`NameColors.all`), efeitos combináveis (`NameEffect.values`) e intensidade (`NameIntensity.values`, ativa só com pelo menos um efeito).
+- **Salvar** → `NameStyleService.save`; **Restaurar padrão** → confirmação + `NameStyleService.reset`. Nada é gravado antes disso.
+- Não usa rota nomeada: é aberta com `MaterialPageRoute` a partir do Perfil.
+
 ---
 
 # 15. Widgets reutilizáveis — `lib/widgets/`
@@ -595,12 +625,14 @@ checkin_calendar.dart
 comments_section.dart
 featured_carousel.dart
 level_up_overlay.dart
+name_effects.dart
 news_card.dart
 notification_bell.dart
 post_video_player.dart
 premium_avatars.dart
 profile_edit_sheets.dart
 relative_time_text.dart
+styled_user_name.dart
 subscriber_badge.dart
 ```
 
