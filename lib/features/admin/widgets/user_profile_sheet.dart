@@ -147,6 +147,56 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
     );
   }
 
+  Future<void> _handleTrialPro(String name) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AdminConfirmDialog(
+        title: 'Dar 3 dias de PRO?',
+        message: '$name receberá PRO por 3 dias e um push avisando. '
+            'Se ele já tiver um plano ativo, nada será alterado.',
+        confirmLabel: 'Conceder',
+        confirmColor: const Color(0xFF4C8DFF),
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      final grant = await widget.userService.grantTrialPro(widget.userId);
+      if (!grant.granted) {
+        if (mounted) AppMessenger.error(grant.message);
+        return;
+      }
+
+      // Tag do OneSignal e push são "melhor esforço": o PRO já foi
+      // concedido, e o app do usuário também corrige a tag ao abrir.
+      await AdminPushService.setUserTierTag(
+        uid: widget.userId,
+        tier: PremiumTier.pro,
+      );
+      final push = await AdminPushService.sendToUser(
+        uid: widget.userId,
+        title: '🎁 Você ganhou 3 dias de PRO!',
+        body: 'Aproveite os benefícios durante o período de teste.',
+        data: const {'kind': 'premium_promo'},
+      );
+
+      if (!mounted) return;
+      if (push.success) {
+        AppMessenger.success('PRO concedido por 3 dias e usuário avisado.');
+      } else {
+        AppMessenger.success(
+          'PRO concedido por 3 dias, mas o push não foi enviado: '
+          '${push.message ?? 'motivo desconhecido'}',
+        );
+      }
+    } catch (e) {
+      if (mounted) AppMessenger.error('Não foi possível concluir: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _handleSuspend(String name) async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -947,6 +997,13 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
             color: const Color(0xFFF2B705),
             onTap: () => _handlePremium(name, premiumTier),
           ),
+          if (!premiumTier.isPremium)
+            _actionButton(
+              icon: Icons.card_giftcard_rounded,
+              label: 'Dar 3 dias de PRO',
+              color: const Color(0xFF4C8DFF),
+              onTap: () => _handleTrialPro(name),
+            ),
           isSuspended
               ? _actionButton(
                   icon: Icons.lock_open_rounded,
