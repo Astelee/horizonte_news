@@ -13,6 +13,7 @@ import '../widgets/frame_rarity_tag.dart';
 import '../widgets/badge_widgets.dart';
 import '../widgets/level_up_overlay.dart';
 import '../widgets/profile_edit_sheets.dart';
+import '../widgets/styled_user_name.dart';
 import '../widgets/subscriber_badge.dart';
 import 'premium_avatar_gallery_screen.dart';
 
@@ -455,10 +456,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Flexible(
-                          child: Text(
+                          child: StyledUserName(
                             user?.displayName ??
                                 user?.email?.split('@').first ??
                                 'Usuário',
+                            nameStyle: data.nameStyle,
+                            maxLines: null,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.white,
