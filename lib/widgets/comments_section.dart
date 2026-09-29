@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
+import '../config/name_style_config.dart';
 import '../config/premium_config.dart';
 import '../providers/user_xp_provider.dart';
 import '../features/admin/providers/admin_provider.dart';
@@ -13,6 +14,7 @@ import '../services/app_notification_service.dart';
 import 'badge_widgets.dart';
 import 'frame_rarity_tag.dart';
 import 'app_avatar.dart';
+import 'styled_user_name.dart';
 import 'subscriber_badge.dart';
 import '../services/app_config_service.dart';
 import 'app_messenger.dart';
@@ -87,6 +89,10 @@ class LiveAuthorInfo {
   final String? equippedPremiumAvatarId;
   final String? equippedCheckinRewardId;
   final bool isPremium;
+  // Personalização do nome (cor/efeitos) do AUTOR — vem do perfil dele,
+  // então todo mundo vê o mesmo visual. null = nome padrão (sem plano
+  // vigente, sem escolha ou perfil ainda carregando).
+  final NameStyle? nameStyle;
 
   const LiveAuthorInfo({
     required this.level,
@@ -95,6 +101,7 @@ class LiveAuthorInfo {
     required this.equippedPremiumAvatarId,
     this.equippedCheckinRewardId,
     this.isPremium = false,
+    this.nameStyle,
   });
 }
 
@@ -165,9 +172,10 @@ class _LiveAuthorData extends StatelessWidget {
                         fallback.userEquippedPremiumAvatarId,
                 equippedCheckinRewardId:
                     data['equippedCheckinRewardId'] as String?,
-                isPremium: PremiumTierX.fromId(
-                        data['premiumTier'] as String?)
-                    .isPremium,
+                // premiumTierFromData já considera premiumExpiresAt:
+                // plano vencido não mostra selo nem efeito no nome.
+                isPremium: premiumTierFromData(data).isPremium,
+                nameStyle: NameStyle.fromUserData(data),
               );
         return builder(context, info);
       },
@@ -258,8 +266,8 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
             ?.map((e) => e.toString())
             .toList() ??
         widget.userAchievements;
-    final isPremium =
-        PremiumTierX.fromId(_userData?['premiumTier'] as String?).isPremium;
+    final isPremium = _userData != null &&
+        premiumTierFromData(_userData!).isPremium;
 
     return Container(
       decoration: const BoxDecoration(
@@ -311,8 +319,10 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                     Row(
                       children: [
                         Flexible(
-                          child: Text(
+                          child: StyledUserName(
                             widget.userName,
+                            nameStyle: NameStyle.fromUserData(_userData),
+                            maxLines: null,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.white,
@@ -1859,8 +1869,10 @@ class _CommentTileState extends State<_CommentTile>
                                 Flexible(
                                   child: GestureDetector(
                                     onTap: widget.onTapUser,
-                                    child: Text(
+                                    child: StyledUserName(
                                       widget.comment.userName,
+                                      nameStyle: info.nameStyle,
+                                      maxLines: null,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         color: _isOwner
@@ -2686,8 +2698,10 @@ class _ReplyTileState extends State<_ReplyTile> {
                         child: Row(
                           children: [
                             Flexible(
-                              child: Text(
+                              child: StyledUserName(
                                 reply.userName,
+                                nameStyle: info.nameStyle,
+                                maxLines: null,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: _isOwner
