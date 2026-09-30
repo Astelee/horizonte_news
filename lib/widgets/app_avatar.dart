@@ -6,8 +6,9 @@ import '../config/premium_avatars_config.dart';
 import '../config/checkin_rewards_config.dart';
 import 'premium_avatars.dart';
 import 'checkin_reward_painters.dart';
-import 'level_badge_painters.dart';
 import 'level_aura.dart';
+import 'pet_painters.dart';
+import '../config/pet_config.dart';
 
 /// Avatar circular do app. Quando [photoUrl] é informado, exibe a foto
 /// de perfil do usuário; caso contrário, gera as iniciais do nome em
@@ -196,6 +197,10 @@ class UserAvatarDisplay extends StatelessWidget {
   /// pelas telas que ainda não têm esse dado à mão.
   final int? level;
 
+  /// Pet equipado. Quando omitido, usa automaticamente o pet do nível
+  /// atual como fallback.
+  final String? equippedPetId;
+
   /// Multiplicador do tamanho do selo de nível. Padrão 1.5 = 50% maior
   /// que o tamanho original, em TODO o app (ranking, perfil,
   /// configurações, comentários, respostas e painel ADM).
@@ -234,6 +239,7 @@ class UserAvatarDisplay extends StatelessWidget {
     this.equippedPremiumAvatarId,
     this.equippedCheckinRewardId,
     this.level,
+    this.equippedPetId,
     this.levelBadgeScale = 1.5,
     this.levelBadgeOutset = 0.75,
     this.showLevelAura,
@@ -291,6 +297,12 @@ class UserAvatarDisplay extends StatelessWidget {
         ) !=
         null;
     final hasLevelBadge = level != null && level! > 0;
+    final candidatePet = PetCatalog.byId(equippedPetId);
+    final resolvedPet = hasLevelBadge
+        ? (candidatePet != null && candidatePet.levelRequired <= level!
+            ? candidatePet
+            : PetCatalog.fallbackForLevel(level!))
+        : null;
 
     Widget content = avatarContent;
     if (hasCheckinReward || hasLevelBadge) {
@@ -348,16 +360,13 @@ class UserAvatarDisplay extends StatelessWidget {
                 ),
               ),
             avatarContent,
-            if (hasLevelBadge)
+            if (hasLevelBadge && resolvedPet != null)
               Positioned(
                 left: stackSize / 2 - size / 2 + levelBadgeOffset,
                 top: stackSize / 2 - size / 2 + levelBadgeOffset,
-                // Sem Container de fundo: o próprio selo desenha o disco
-                // escuro (ele se move na "dança", um fundo fixo ficaria
-                // para trás).
-                child: LevelBadge(
-                  level: level!,
-                  size: levelBadgeSize,
+                child: PetDisplay(
+                  pet: resolvedPet,
+                  size: levelBadgeSize * 1.18,
                 ),
               ),
             if (hasCheckinReward)
