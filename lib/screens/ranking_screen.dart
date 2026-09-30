@@ -26,6 +26,7 @@ class _RankUser {
   final String? photoUrl;
   final String? equippedPremiumAvatarId;
   final String? equippedCheckinRewardId;
+  final String? equippedPetId;
   // Plano Premium (mesma leitura do resto do app: premiumTierFromData,
   // que já zera o tier se premiumExpiresAt passou).
   final PremiumTier premiumTier;
@@ -44,6 +45,7 @@ class _RankUser {
     this.photoUrl,
     this.equippedPremiumAvatarId,
     this.equippedCheckinRewardId,
+    this.equippedPetId,
     this.premiumTier = PremiumTier.none,
     this.premiumExpiresAt,
     this.nameStyle,
@@ -80,6 +82,7 @@ class _RankUser {
       photoUrl: (data['photoUrl'] as String?),
       equippedPremiumAvatarId: data['equippedPremiumAvatarId'] as String?,
       equippedCheckinRewardId: data['equippedCheckinRewardId'] as String?,
+      equippedPetId: data['equippedPetId'] as String?,
       premiumTier: premiumTierFromData(data),
       premiumExpiresAt: (data['premiumExpiresAt'] is Timestamp)
           ? (data['premiumExpiresAt'] as Timestamp).toDate()
@@ -700,6 +703,7 @@ class _PodiumSpotState extends State<_PodiumSpot>
                       widget.user.equippedPremiumAvatarId,
                   equippedCheckinRewardId:
                       widget.user.equippedCheckinRewardId,
+                  equippedPetId: widget.user.equippedPetId,
                   level: widget.user.level,
                   size: widget.avatarSize,
                 ),
@@ -895,6 +899,7 @@ class _RankTileState extends State<_RankTile>
                 photoUrl: widget.user.photoUrl,
                 equippedPremiumAvatarId: widget.user.equippedPremiumAvatarId,
                 equippedCheckinRewardId: widget.user.equippedCheckinRewardId,
+                equippedPetId: widget.user.equippedPetId,
                 level: widget.user.level,
                 size: 40,
               ),
@@ -1035,6 +1040,7 @@ class _MyPositionBar extends StatelessWidget {
               photoUrl: user.photoUrl,
               equippedPremiumAvatarId: user.equippedPremiumAvatarId,
               equippedCheckinRewardId: user.equippedCheckinRewardId,
+              equippedPetId: user.equippedPetId,
               level: user.level,
               size: 36,
             ),
