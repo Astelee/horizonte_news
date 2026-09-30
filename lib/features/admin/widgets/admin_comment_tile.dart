@@ -392,8 +392,8 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
                 runSpacing: 4,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  PetInline(level: level, petId: equippedPet),
-                  PetTag(level: level, petId: equippedPet, fontSize: 8),
+                  PetInline(level: level, petId: equippedPetId),
+                  PetTag(level: level, petId: equippedPetId, fontSize: 8),
                   if (isPremium)
                     const AdminBadge(label: 'PREMIUM', color: _amber),
                 ],
@@ -509,13 +509,13 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
       children: [
         chip(
           Icons.favorite_rounded,
-          '$likes ${likes == 1 ? 'curtida' : 'curtidas'}',
+          '$likes${likes == 1 ? 'curtida' : 'curtidas'}',
           likes > 0 ? _red : AppColors.textMuted,
         ),
         if (!_item.isReply)
           chip(
             Icons.chat_bubble_outline_rounded,
-            '$repliesCount ${repliesCount == 1 ? 'resposta' : 'respostas'}',
+            '$repliesCount${repliesCount == 1 ? 'resposta' : 'respostas'}',
             repliesCount > 0 ? _violet : AppColors.textMuted,
           ),
         if (edited)
@@ -628,7 +628,7 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
       final plural = replies == 1
           ? 'resposta, que também será excluída'
           : 'respostas, que também serão excluídas';
-      message = 'Este comentário tem $replies $plural. '
+      message = 'Este comentário tem $replies$plural. '
           'Esta ação não pode ser desfeita.';
     } else {
       message = 'Esta ação não pode ser desfeita.';
@@ -655,5 +655,4 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
       okMessage: isReply ? 'Resposta excluída.' : 'Comentário excluído.',
     );
   }
-
 }
