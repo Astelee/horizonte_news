@@ -31,6 +31,7 @@ class _AppDrawerState extends State<AppDrawer>
   static const List<_NavItem> _mainItems = [
     _NavItem(icon: Icons.home_rounded, label: 'Início', route: AppRoutes.home),
     _NavItem(icon: Icons.person_rounded, label: 'Meu Perfil', route: AppRoutes.profile),
+    _NavItem(icon: Icons.pets_rounded, label: 'Pet', route: AppRoutes.pet),
     _NavItem(icon: Icons.calendar_month_rounded, label: 'Check-in Diário', route: AppRoutes.checkin),
     _NavItem(icon: Icons.emoji_events_rounded, label: 'Ranking', route: AppRoutes.ranking),
     _NavItem(icon: Icons.bookmark_rounded, label: 'Notícias Salvas', route: AppRoutes.favorites),
