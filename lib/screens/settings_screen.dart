@@ -1104,6 +1104,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             data.equippedPremiumAvatarId,
                         equippedCheckinRewardId:
                             data.equippedCheckinRewardId,
+                        equippedPetId: data.equippedPetId,
                         level: data.level,
                         size: 88,
                       ),
