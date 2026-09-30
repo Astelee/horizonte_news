@@ -32,6 +32,7 @@ class CommentModel {
   final String userAvatarId;
   final String? userPhotoUrl;
   final String? userEquippedPremiumAvatarId;
+  final String? userEquippedPetId;
   final int likesCount;
   final int repliesCount;
   final String? replyToUsername;
@@ -49,6 +50,7 @@ class CommentModel {
     this.userAvatarId = 'animais_01',
     this.userPhotoUrl,
     this.userEquippedPremiumAvatarId,
+    this.userEquippedPetId,
     this.likesCount = 0,
     this.repliesCount = 0,
     this.replyToUsername,
@@ -70,6 +72,7 @@ class CommentModel {
       userPhotoUrl: data['userPhotoUrl'] as String?,
       userEquippedPremiumAvatarId:
           data['userEquippedPremiumAvatarId'] as String?,
+      userEquippedPetId: data['userEquippedPetId'] as String?,
       likesCount: (data['likesCount'] as num?)?.toInt() ?? 0,
       repliesCount: (data['repliesCount'] as num?)?.toInt() ?? 0,
       replyToUsername: data['replyToUsername'] as String?,
@@ -87,6 +90,7 @@ class LiveAuthorInfo {
   final List<String> achievements;
   final String? photoUrl;
   final String? equippedPremiumAvatarId;
+  final String? equippedPetId;
   final String? equippedCheckinRewardId;
   final bool isPremium;
   // Personalização do nome (cor/efeitos) do AUTOR — vem do perfil dele,
@@ -99,6 +103,7 @@ class LiveAuthorInfo {
     required this.achievements,
     required this.photoUrl,
     required this.equippedPremiumAvatarId,
+    this.equippedPetId,
     this.equippedCheckinRewardId,
     this.isPremium = false,
     this.nameStyle,
@@ -145,6 +150,7 @@ class _LiveAuthorData extends StatelessWidget {
                 photoUrl: fallback.userPhotoUrl,
                 equippedPremiumAvatarId:
                     fallback.userEquippedPremiumAvatarId,
+                equippedPetId: fallback.userEquippedPetId,
                 // Sem doc carregado ainda: recompensa de check-in não
                 // é congelada no comentário, então fica ausente até o
                 // stream trazer o dado real (melhor não mostrar por
@@ -170,6 +176,8 @@ class _LiveAuthorData extends StatelessWidget {
                 equippedPremiumAvatarId:
                     (data['equippedPremiumAvatarId'] as String?) ??
                         fallback.userEquippedPremiumAvatarId,
+                equippedPetId: (data['equippedPetId'] as String?) ??
+                    fallback.userEquippedPetId,
                 equippedCheckinRewardId:
                     data['equippedCheckinRewardId'] as String?,
                 // premiumTierFromData já considera premiumExpiresAt:
@@ -307,6 +315,7 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                 seed: widget.userId,
                 photoUrl: photoUrl,
                 equippedPremiumAvatarId: equippedPremiumAvatarId,
+                equippedPetId: _userData?['equippedPetId'] as String?,
                 equippedCheckinRewardId: equippedCheckinRewardId,
                 level: level,
                 size: 60,
@@ -815,6 +824,7 @@ class CommentsSectionState extends State<CommentsSection>
       final userPhotoUrl = xpProvider.data.photoUrl;
       final userEquippedPremiumAvatarId =
           xpProvider.data.equippedPremiumAvatarId;
+      final userEquippedPetId = xpProvider.data.equippedPetId;
       final username = xpProvider.data.username;
 
       final payload = {
@@ -828,6 +838,7 @@ class CommentsSectionState extends State<CommentsSection>
         'userAvatarId': userAvatarId,
         'userPhotoUrl': userPhotoUrl,
         'userEquippedPremiumAvatarId': userEquippedPremiumAvatarId,
+        'userEquippedPetId': userEquippedPetId,
         'likesCount': 0,
       };
 
@@ -1416,6 +1427,7 @@ class CommentsSectionState extends State<CommentsSection>
           photoUrl: xpProvider.data.photoUrl,
           equippedPremiumAvatarId: xpProvider.data.equippedPremiumAvatarId,
           equippedCheckinRewardId: xpProvider.data.equippedCheckinRewardId,
+          equippedPetId: xpProvider.data.equippedPetId,
           level: xpProvider.data.level,
           size: 36,
         );
@@ -1748,6 +1760,7 @@ class _CommentTileState extends State<_CommentTile>
         seed: widget.comment.userId,
         photoUrl: info.photoUrl,
         equippedPremiumAvatarId: info.equippedPremiumAvatarId,
+        equippedPetId: info.equippedPetId,
         equippedCheckinRewardId: info.equippedCheckinRewardId,
         level: info.level,
         size: 36,
@@ -2688,6 +2701,7 @@ class _ReplyTileState extends State<_ReplyTile> {
               seed: reply.userId,
               photoUrl: info.photoUrl,
               equippedPremiumAvatarId: info.equippedPremiumAvatarId,
+              equippedPetId: info.equippedPetId,
               equippedCheckinRewardId: info.equippedCheckinRewardId,
               level: info.level,
               size: 28,
