@@ -520,6 +520,7 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
                     d['equippedPremiumAvatarId'] as String?,
                 equippedCheckinRewardId:
                     d['equippedCheckinRewardId'] as String?,
+                equippedPetId: d['equippedPetId'] as String?,
                 level: level,
                 size: 72,
               ),
