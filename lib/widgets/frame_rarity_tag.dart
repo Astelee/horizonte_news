@@ -1,49 +1,52 @@
 import 'package:flutter/material.dart';
-import '../config/badge_config.dart';
-import '../config/level_badge_config.dart';
+import '../config/pet_config.dart';
 
-// ═══════════════════════════════════════════════════════════════════
-// TAG DE RARIDADE
-// ═══════════════════════════════════════════════════════════════════
-// Antes vivia em avatar_frame.dart, junto da moldura animada
-// (AvatarFrame). A moldura foi removida por completo — o nível agora
-// aparece como LevelBadge (lib/widgets/level_badge_painters.dart),
-// flutuando no canto superior esquerdo do avatar — mas esta tag de
-// texto (ex.: "LENDÁRIO", "SUPREMO") continua em uso em várias telas
-// (ranking, comentários, perfil, configurações) para rotular a
-// raridade do nível ao lado do nome, então foi preservada aqui,
-// isolada do que era a moldura.
-class FrameRarityTag extends StatelessWidget {
+/// Tag visual do pet equipado.
+///
+/// O nome antigo FrameRarityTag é mantido apenas para compatibilidade com
+/// telas legadas; não exibe mais raridade de nível.
+class PetTag extends StatelessWidget {
   final int level;
+  final String? petId;
   final double fontSize;
 
-  const FrameRarityTag({
+  const PetTag({
     Key? key,
     required this.level,
+    this.petId,
     this.fontSize = 9,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final rarity = LevelBadgeRarityX.fromLevel(level);
-    final color = BadgeConfig.levelColor(level);
-
+    final pet = PetCatalog.byId(petId) ?? PetCatalog.fallbackForLevel(level);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        color: color.withOpacity(0.15),
-        border: Border.all(color: color.withOpacity(0.5)),
+        color: pet.primary.withOpacity(.10),
+        border: Border.all(color: pet.primary.withOpacity(.45)),
       ),
       child: Text(
-        rarity.label.toUpperCase(),
+        pet.name.toUpperCase(),
         style: TextStyle(
-          color: color,
+          color: pet.primary,
           fontSize: fontSize,
           fontWeight: FontWeight.w800,
-          letterSpacing: 1.2,
+          letterSpacing: .7,
         ),
       ),
     );
   }
+}
+
+/// Compatibilidade com chamadas existentes.
+@Deprecated('Use PetTag')
+class FrameRarityTag extends PetTag {
+  const FrameRarityTag({
+    Key? key,
+    required int level,
+    String? petId,
+    double fontSize = 9,
+  }) : super(key: key, level: level, petId: petId, fontSize: fontSize);
 }
