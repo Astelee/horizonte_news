@@ -392,8 +392,8 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
                 runSpacing: 4,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  LevelBadgeInline(level: level),
-                  FrameRarityTag(level: level, fontSize: 8),
+                  PetInline(level: level, petId: equippedPet),
+                  PetTag(level: level, petId: equippedPet, fontSize: 8),
                   if (isPremium)
                     const AdminBadge(label: 'PREMIUM', color: _amber),
                 ],
