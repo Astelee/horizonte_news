@@ -371,9 +371,16 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        LevelBadgeInline(level: level),
+                        PetInline(
+                          level: level,
+                          petId: _userData?['equippedPetId'] as String?,
+                        ),
                         const SizedBox(width: 6),
-                        FrameRarityTag(level: level, fontSize: 8),
+                        PetTag(
+                          level: level,
+                          petId: _userData?['equippedPetId'] as String?,
+                          fontSize: 8,
+                        ),
                         if (totalXp > 0) ...[
                           const SizedBox(width: 8),
                           Text(
