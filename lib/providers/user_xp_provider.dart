@@ -282,6 +282,15 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     await _service.setEquippedPremiumAvatar(avatarStorageKeyOrNull);
   }
 
+  Future<void> setEquippedPet(String? petId) async {
+    _data = _data.copyWith(
+      equippedPetId: petId,
+      clearEquippedPet: petId == null,
+    );
+    notifyListeners();
+    await _service.setEquippedPet(petId);
+  }
+
   Future<void> reload() async {
     _isLoading = true;
     notifyListeners();
