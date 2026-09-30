@@ -19,6 +19,7 @@ import '../screens/checkin_screen.dart';
 import '../screens/premium_screen.dart';
 import '../screens/premium_avatar_gallery_screen.dart';
 import '../screens/notifications_screen.dart';
+import '../screens/pet_screen.dart';
 
 class AppRoutes {
   static const String home           = '/';
@@ -41,6 +42,7 @@ class AppRoutes {
   static const String premium        = '/premium';
   static const String premiumAvatars = '/premium-avatars';
   static const String notifications  = '/notifications';
+  static const String pet             = '/pet';
 
   static Map<String, WidgetBuilder> get routes => {
     home:           (context) => const HomeScreen(),
@@ -63,5 +65,6 @@ class AppRoutes {
     premium:        (context) => const PremiumScreen(),
     premiumAvatars: (context) => const PremiumAvatarGalleryScreen(),
     notifications:  (context) => const NotificationsScreen(),
+    pet:            (context) => const PetScreen(),
   };
 }
