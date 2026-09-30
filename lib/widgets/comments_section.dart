@@ -1760,8 +1760,13 @@ class _CommentTileState extends State<_CommentTile>
     // editar (só o dono) ou excluir (dono ou admin). Substitui o
     // ícone de lixeira solto por um menu, deixando espaço visual
     // para a nova opção "Editar" sem poluir a linha de metadados.
-    if (!_isOwner && !_canDelete) return const SizedBox.shrink();
-    return PopupMenuButton<String>(
+    if (!_isOwner && !_canDelete) return const SizedBox(height: 28);
+    // Caixa compacta: sem isso o PopupMenuButton ocupa 48px de altura e
+    // empurra o nome para baixo, longe da primeira linha do comentário.
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: PopupMenuButton<String>(
       padding: EdgeInsets.zero,
       icon: const Icon(Icons.more_vert_rounded,
           size: 16, color: AppColors.textMuted),
@@ -1806,7 +1811,7 @@ class _CommentTileState extends State<_CommentTile>
             ),
           ),
       ],
-    );
+    ));
   }
 
   @override
@@ -1855,7 +1860,9 @@ class _CommentTileState extends State<_CommentTile>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildAvatar(info),
-                const SizedBox(width: 12),
+                // Espaço extra: a aura/moldura do avatar se estende para
+                // fora dos 36px e encostava no nome.
+                const SizedBox(width: 22),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2599,8 +2606,13 @@ class _ReplyTileState extends State<_ReplyTile> {
   }
 
   Widget _buildMenuButton(BuildContext context) {
-    if (!_isOwner && !_canDelete) return const SizedBox.shrink();
-    return PopupMenuButton<String>(
+    if (!_isOwner && !_canDelete) return const SizedBox(height: 24);
+    // Caixa compacta: sem isso o PopupMenuButton ocupa 48px de altura e
+    // empurra o nome para baixo, longe da primeira linha do comentário.
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: PopupMenuButton<String>(
       padding: EdgeInsets.zero,
       icon: const Icon(Icons.more_vert_rounded,
           size: 13, color: AppColors.textMuted),
@@ -2642,7 +2654,7 @@ class _ReplyTileState extends State<_ReplyTile> {
             ),
           ),
       ],
-    );
+    ));
   }
 
   @override
@@ -2680,7 +2692,7 @@ class _ReplyTileState extends State<_ReplyTile> {
               level: info.level,
               size: 28,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 18),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
