@@ -1,6 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../widgets/centered_name_row.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../config/app_colors.dart';
@@ -499,50 +500,39 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Espaçador espelhado: compensa a largura do selo e do
-                      // botão de estilo (à direita) para o NOME ficar
-                      // realmente centralizado na tela.
-                      SizedBox(
-                        width: (data.isPremium ? 8 + 18 * 1.8 : 0) + 8 + 29,
-                      ),
-                      Flexible(
-                        // Tocar no nome continua abrindo a edição do texto.
-                        child: GestureDetector(
-                          onTap: () => _handleNameTap(context),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: StyledUserName(
-                                  user?.displayName ??
-                                      user?.email?.split('@').first ??
-                                      'Usuário',
-                                  nameStyle: data.nameStyle,
-                                  maxLines: null,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ),
-                              if (data.isPremium) ...[
-                                const SizedBox(width: 8),
-                                const SubscriberBadge(size: 18),
-                              ],
-                            ],
-                          ),
+                  CenteredNameRow(
+                    gap: 8,
+                    trailingWidth: (data.isPremium ? 18 + 8 : 0) + 30,
+                    // Tocar no nome continua abrindo a edição do texto.
+                    name: GestureDetector(
+                      onTap: () => _handleNameTap(context),
+                      child: StyledUserName(
+                        user?.displayName ??
+                            user?.email?.split('@').first ??
+                            'Usuário',
+                        nameStyle: data.nameStyle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      // Botão separado: personalizar o nome (cor/efeitos).
-                      _buildNameStyleButton(data),
-                    ],
+                    ),
+                    // Selo + botão de personalizar ficam à direita do nome.
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (data.isPremium) ...[
+                          const SubscriberBadge(size: 18, compact: true),
+                          const SizedBox(width: 8),
+                        ],
+                        _buildNameStyleButton(data),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 4),
                   GestureDetector(
