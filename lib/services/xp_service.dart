@@ -33,6 +33,8 @@ class UserXpData {
   // CheckinRewardId.storageKey). Independente do avatar VIP acima:
   // o usuário pode ter os dois equipados ao mesmo tempo.
   final String? equippedCheckinRewardId;
+  // Pet visual equipado pelo usuário (pet_01 ... pet_30).
+  final String? equippedPetId;
   // Personalização do NOME do assinante (cor/efeitos/intensidade).
   // Já vem filtrada pela assinatura (NameStyle.fromUserData usa
   // premiumTierFromData): sem plano vigente é sempre null.
@@ -58,6 +60,7 @@ class UserXpData {
     this.premiumExpiresAt,
     this.equippedPremiumAvatarId,
     this.equippedCheckinRewardId,
+    this.equippedPetId,
     this.nameStyle,
   });
 
@@ -88,6 +91,8 @@ class UserXpData {
     bool clearEquippedPremiumAvatar = false,
     String? equippedCheckinRewardId,
     bool clearEquippedCheckinReward = false,
+    String? equippedPetId,
+    bool clearEquippedPet = false,
     NameStyle? nameStyle,
     bool clearNameStyle = false,
   }) {
@@ -115,6 +120,7 @@ class UserXpData {
       equippedCheckinRewardId: clearEquippedCheckinReward
           ? null
           : (equippedCheckinRewardId ?? this.equippedCheckinRewardId),
+      equippedPetId: clearEquippedPet ? null : (equippedPetId ?? this.equippedPetId),
       nameStyle: clearNameStyle ? null : (nameStyle ?? this.nameStyle),
     );
   }
@@ -221,6 +227,7 @@ class XpService {
     DateTime? premiumExpiresAt,
     String? equippedPremiumAvatarId,
     String? equippedCheckinRewardId,
+    String? equippedPetId,
     NameStyle? nameStyle,
   }) {
     final calculatedLevel = levelFromXp(totalXp);
@@ -254,6 +261,7 @@ class XpService {
       premiumExpiresAt: premiumExpiresAt,
       equippedPremiumAvatarId: equippedPremiumAvatarId,
       equippedCheckinRewardId: equippedCheckinRewardId,
+      equippedPetId: equippedPetId,
       nameStyle: nameStyle,
     );
   }
@@ -328,6 +336,7 @@ class XpService {
           dataUpdated['equippedPremiumAvatarId'] as String?;
       final equippedCheckinRewardId =
           dataUpdated['equippedCheckinRewardId'] as String?;
+      final equippedPetId = dataUpdated['equippedPetId'] as String?;
 
       final xpData = buildXpData(
         totalXp: totalXp,
@@ -346,6 +355,7 @@ class XpService {
         premiumExpiresAt: premiumExpiresAt,
         equippedPremiumAvatarId: equippedPremiumAvatarId,
         equippedCheckinRewardId: equippedCheckinRewardId,
+        equippedPetId: equippedPetId,
         nameStyle: NameStyle.fromUserData(dataUpdated),
       );
 
@@ -398,6 +408,7 @@ class XpService {
         data['equippedPremiumAvatarId'] as String?;
     final equippedCheckinRewardId =
         data['equippedCheckinRewardId'] as String?;
+    final equippedPetId = data['equippedPetId'] as String?;
 
     return buildXpData(
       totalXp: totalXp,
@@ -416,6 +427,7 @@ class XpService {
       premiumExpiresAt: premiumExpiresAt,
       equippedPremiumAvatarId: equippedPremiumAvatarId,
       equippedCheckinRewardId: equippedCheckinRewardId,
+      equippedPetId: equippedPetId,
       nameStyle: NameStyle.fromUserData(data),
     );
   }
@@ -831,6 +843,26 @@ class XpService {
     } else {
       await doc.set(
         {'equippedPremiumAvatarId': avatarStorageKeyOrNull},
+        SetOptions(merge: true),
+      );
+    }
+  }
+
+  /// Grava o pet visual escolhido pelo usuário. O nível continua sendo
+  /// controlado exclusivamente pelo sistema de XP; este campo guarda
+  /// apenas a preferência visual.
+  Future<void> setEquippedPet(String? petId) async {
+    final doc = _userDoc;
+    if (doc == null) return;
+
+    if (petId == null) {
+      await doc.set(
+        {'equippedPetId': FieldValue.delete()},
+        SetOptions(merge: true),
+      );
+    } else {
+      await doc.set(
+        {'equippedPetId': petId},
         SetOptions(merge: true),
       );
     }
