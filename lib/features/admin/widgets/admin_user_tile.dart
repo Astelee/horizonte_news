@@ -5,6 +5,7 @@ import '../../../config/name_style_config.dart';
 import '../../../config/premium_config.dart';
 import '../../../services/xp_service.dart';
 import '../../../config/pet_config.dart';
+import '../../../widgets/app_avatar.dart';
 import '../../../widgets/styled_user_name.dart';
 import '../services/admin_user_service.dart';
 import 'admin_shared_widgets.dart';
