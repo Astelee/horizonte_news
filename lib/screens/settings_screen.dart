@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../widgets/centered_name_row.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1162,30 +1163,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 12),
 
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Espaçador espelhado: compensa o selo à direita para o
-                // nome ficar centralizado.
-                if (isSubscriber) SizedBox(width: 6 + 16 * 1.8),
-                Flexible(
-                  child: StyledUserName(
-                    displayName,
-                    nameStyle: data.nameStyle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+            CenteredNameRow(
+              gap: 6,
+              trailingWidth: isSubscriber ? 16 : 0,
+              name: StyledUserName(
+                displayName,
+                nameStyle: data.nameStyle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
                 ),
-                if (isSubscriber) ...[
-                  const SizedBox(width: 6),
-                  const SubscriberBadge(size: 16),
-                ],
-              ],
+              ),
+              trailing: isSubscriber
+                  ? const SubscriberBadge(size: 16, compact: true)
+                  : null,
             ),
 
             const SizedBox(height: 10),
