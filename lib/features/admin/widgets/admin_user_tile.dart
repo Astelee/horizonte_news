@@ -1,11 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
-import '../../../config/badge_config.dart';
 import '../../../config/name_style_config.dart';
 import '../../../config/premium_config.dart';
 import '../../../services/xp_service.dart';
-import '../../../widgets/app_avatar.dart';
+import '../../../config/pet_config.dart';
 import '../../../widgets/styled_user_name.dart';
 import '../services/admin_user_service.dart';
 import 'admin_shared_widgets.dart';
@@ -86,8 +85,9 @@ class AdminUserTile extends StatelessWidget {
             '${createdAt.month.toString().padLeft(2, '0')}/'
             '${createdAt.year}'
         : '';
-    final lvlTitle = BadgeConfig.levelTitle(level);
-    final lvlIcon = BadgeConfig.levelIcon(level);
+    final equippedPetId = d['equippedPetId'] as String?;
+    final equippedPet = PetCatalog.byId(equippedPetId);
+    final displayPet = equippedPet ?? PetCatalog.fallbackForLevel(level);
 
     final hasOverride = d['adminOverrideActive'] == true;
     final hasTitleOverride = d['adminOverrideTitleActive'] == true;
@@ -127,12 +127,14 @@ class AdminUserTile extends StatelessWidget {
             children: [
               Stack(
                 children: [
-                  AppAvatar(
+                  UserAvatarDisplay(
                     name: name,
                     seed: userId,
                     photoUrl: photoUrl,
+                    level: level,
+                    equippedPetId: equippedPetId,
                     size: 46,
-                    showBorder: false,
+                    showLevelAura: true,
                   ),
                   if (isOnline)
                     Positioned(
@@ -219,15 +221,21 @@ class AdminUserTile extends StatelessWidget {
                       runSpacing: 6,
                       children: [
                         AdminStatChip(
-                          icon: lvlIcon,
-                          label: 'Nv $level · $lvlTitle',
-                          color: AppColors.primaryOrange,
+                          icon: Icons.pets_rounded,
+                          label: 'Nv $level · ${displayPet.name}',
+                          color: displayPet.primary,
                         ),
                         if (hasOverride || hasTitleOverride)
                           const AdminStatChip(
                             icon: Icons.auto_awesome_rounded,
                             label: 'CUSTOM',
                             color: Color(0xFFFFD700),
+                          ),
+                        if (equippedPet != null)
+                          AdminStatChip(
+                            icon: Icons.pets_rounded,
+                            label: equippedPet.name,
+                            color: equippedPet.primary,
                           ),
                         if (premiumTier.isPremium)
                           AdminStatChip(
