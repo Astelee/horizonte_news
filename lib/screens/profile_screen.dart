@@ -433,6 +433,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   data.equippedPremiumAvatarId,
                               equippedCheckinRewardId:
                                   data.equippedCheckinRewardId,
+                              equippedPetId: data.equippedPetId,
                               level: data.level,
                               size: 84,
                             ),
