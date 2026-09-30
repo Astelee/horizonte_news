@@ -1,68 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../config/badge_config.dart';
+import '../config/pet_config.dart';
+import 'pet_painters.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // BADGE WIDGETS — PREMIUM COM GLOW E GRADIENTES
 // ═══════════════════════════════════════════════════════════════════
 
-// ── Tag de Nível inline (comentários, feed, ranking) ──────────────
-class LevelBadgeInline extends StatelessWidget {
+// ── Pet inline (comentários, feed, ranking) ──────────────────────
+class PetInline extends StatelessWidget {
   final int level;
+  final String? petId;
   final double iconSize;
   final double fontSize;
 
-  const LevelBadgeInline({
+  const PetInline({
     Key? key,
     required this.level,
-    this.iconSize = 9,
+    this.petId,
+    this.iconSize = 22,
     this.fontSize = 10,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final gradient = BadgeConfig.levelGradient(level);
-    final color    = BadgeConfig.levelColor(level);
-    // Realinhado ao sistema de 30 níveis: mesmo ponto de destaque
-    // (raridade Épico) usado em profile_screen._buildLevelTag.
-    final isEpic   = level >= 13;
-
+    final pet = PetCatalog.byId(petId) ?? PetCatalog.fallbackForLevel(level);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: [gradient[0].withOpacity(0.85), gradient[1].withOpacity(0.85)],
-        ),
-        border: Border.all(
-          color: color.withOpacity(isEpic ? 0.8 : 0.5),
-          width: isEpic ? 1.2 : 0.8,
-        ),
-        boxShadow: isEpic
-            ? [BoxShadow(color: color.withOpacity(0.4), blurRadius: 8, spreadRadius: 0)]
-            : null,
+        color: pet.primary.withOpacity(.10),
+        border: Border.all(color: pet.primary.withOpacity(.45)),
+        boxShadow: [BoxShadow(color: pet.primary.withOpacity(.10), blurRadius: 8)],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FaIcon(BadgeConfig.levelIcon(level), size: iconSize, color: Colors.white),
+          PetDisplay(pet: pet, size: iconSize, animate: true),
           const SizedBox(width: 4),
           Text(
-            BadgeConfig.levelTitle(level),
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: fontSize,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
-              shadows: isEpic
-                  ? [Shadow(color: color.withOpacity(0.8), blurRadius: 6)]
-                  : null,
-            ),
+            pet.name,
+            style: TextStyle(color: pet.primary, fontSize: fontSize, fontWeight: FontWeight.w800),
           ),
         ],
       ),
     );
   }
+}
+
+/// Compatibilidade com chamadas antigas. Visualmente já usa o pet,
+/// não o antigo emblema de nível.
+@Deprecated('Use PetInline')
+class LevelBadgeInline extends PetInline {
+  const LevelBadgeInline({
+    Key? key,
+    required int level,
+    String? petId,
+    double iconSize = 22,
+    double fontSize = 10,
+  }) : super(key: key, level: level, petId: petId, iconSize: iconSize, fontSize: fontSize);
 }
 
 // ── Card de conquista na grade do perfil ──────────────────────────
