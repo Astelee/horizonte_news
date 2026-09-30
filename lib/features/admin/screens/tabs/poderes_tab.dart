@@ -1,19 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../config/app_colors.dart';
-import '../../../../config/badge_config.dart';
-import '../../../../widgets/app_avatar.dart';
-import '../../../../widgets/level_badge_painters.dart';
+import '../../../../config/pet_config.dart';
 import '../../../../providers/user_xp_provider.dart';
+import '../../../../widgets/app_avatar.dart';
+import '../../../../widgets/pet_painters.dart';
 
-/// Tela somente-visualização: mostra como cada nível/selo fica, sem
-/// aplicar nada em usuário nenhum. Útil como referência rápida para
-/// decisões de design (cores, raridades, selos) sem risco de mexer
-/// em dados reais.
-///
-/// Antes esta aba aplicava overrides de nível diretamente no perfil
-/// do admin logado (via AdminUserService.applyLevelOverride). Essa
-/// escrita foi removida de propósito — a aba é só uma vitrine.
+/// Vitrine administrativa dos 30 pets e das auras do sistema.
+/// Esta aba é somente visualização: selecionar um pet aqui não altera
+/// o pet equipado do administrador nem de nenhum usuário.
 class PoderesTab extends StatefulWidget {
   const PoderesTab({Key? key}) : super(key: key);
 
@@ -23,22 +18,16 @@ class PoderesTab extends StatefulWidget {
 
 class _PoderesTabState extends State<PoderesTab> {
   int _previewLevel = 1;
+  String _previewPetId = PetCatalog.all.first.id;
 
   @override
   Widget build(BuildContext context) {
-    final color = BadgeConfig.levelColor(_previewLevel);
-    final gradient = BadgeConfig.levelGradient(_previewLevel);
-    final title = BadgeConfig.levelTitle(_previewLevel);
-    final rarity = BadgeConfig.levelRarity(_previewLevel);
-
-    // Foto/nome do admin logado, para o preview refletir o usuário
-    // real em vez de um placeholder genérico ("P" de "Preview").
     final xpData = context.watch<UserXpProvider>().data;
-    final displayName = (xpData.username != null &&
-            xpData.username!.trim().isNotEmpty)
+    final displayName = (xpData.username != null && xpData.username!.trim().isNotEmpty)
         ? xpData.username!
         : 'Você';
     final photoUrl = xpData.photoUrl;
+    final previewPet = PetCatalog.byId(_previewPetId) ?? PetCatalog.all.first;
 
     return Container(
       color: AppColors.backgroundDark,
@@ -47,463 +36,186 @@ class _PoderesTabState extends State<PoderesTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Aviso: tela só de visualização ────────────────────
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                color: AppColors.primaryOrange.withOpacity(0.06),
-                border: Border.all(
-                  color: AppColors.primaryOrange.withOpacity(0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.visibility_rounded,
-                    color: AppColors.primaryOrange,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Apenas visualização — nada aqui é aplicado a usuários.',
-                      style: TextStyle(
-                        color: AppColors.primaryOrange,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ── Preview do selo de nível ──────────────────────────
-            _SectionLabel(
-                label: 'PREVIEW DO SELO DE NÍVEL',
-                icon: Icons.preview_rounded),
-            const SizedBox(height: 16),
-
-            Center(
-              child: Column(
-                children: [
-                  UserAvatarDisplay(
-                    name: displayName,
-                    photoUrl: photoUrl,
-                    level: _previewLevel,
-                    size: 90,
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 8),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(30),
-                      gradient: LinearGradient(colors: gradient),
-                      boxShadow: [
-                        BoxShadow(
-                          color: color.withOpacity(0.5),
-                          blurRadius: 16,
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      'Nível $_previewLevel · $title',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      color: color.withOpacity(0.12),
-                      border: Border.all(
-                          color: color.withOpacity(0.4)),
-                    ),
-                    child: Text(
-                      rarity,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            // ── Seletor de nível (só muda o preview acima) ────────
-            _SectionLabel(
-                label: 'SELECIONAR NÍVEL PARA VISUALIZAR',
-                icon: Icons.tune_rounded),
+            _notice(),
+            const SizedBox(height: 22),
+            const _SectionLabel(label: 'PREVIEW DO PET', icon: Icons.pets_rounded),
             const SizedBox(height: 12),
-
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0A0A0A),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: color.withOpacity(0.3)),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Nível $_previewLevel',
-                        style: TextStyle(
-                          color: color,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: color,
-                      inactiveTrackColor:
-                          color.withOpacity(0.15),
-                      thumbColor: color,
-                      overlayColor: color.withOpacity(0.15),
-                      trackHeight: 4,
-                      thumbShape: const RoundSliderThumbShape(
-                          enabledThumbRadius: 10),
-                    ),
-                    child: Slider(
-                      value: _previewLevel.toDouble(),
-                      min: 1,
-                      max: 30,
-                      divisions: 29,
-                      onChanged: (v) => setState(
-                          () => _previewLevel = v.round()),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 30]
-                        .map((lvl) {
-                      final selected = _previewLevel == lvl;
-                      final c = BadgeConfig.levelColor(lvl);
-                      return GestureDetector(
-                        onTap: () =>
-                            setState(() => _previewLevel = lvl),
-                        child: AnimatedContainer(
-                          duration:
-                              const Duration(milliseconds: 180),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            borderRadius:
-                                BorderRadius.circular(20),
-                            color: selected
-                                ? c.withOpacity(0.2)
-                                : Colors.transparent,
-                            border: Border.all(
-                              color: selected
-                                  ? c
-                                  : const Color(0xFF2A2A2A),
-                              width: selected ? 1.5 : 1,
-                            ),
-                          ),
-                          child: Text(
-                            'Nv.$lvl',
-                            style: TextStyle(
-                              color: selected
-                                  ? c
-                                  : const Color(0xFF666666),
-                              fontSize: 11,
-                              fontWeight: selected
-                                  ? FontWeight.w800
-                                  : FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
-            ),
-
+            _previewCard(displayName, photoUrl, previewPet),
             const SizedBox(height: 24),
-
-            // ── Lista de teste das 10 auras de nível ──────────────
-            _SectionLabel(
-                label: 'TESTE DAS AURAS DE NÍVEL',
-                icon: Icons.auto_awesome_rounded),
+            const _SectionLabel(label: 'SELECIONAR PET', icon: Icons.grid_view_rounded),
             const SizedBox(height: 12),
-
+            _levelSelector(),
+            const SizedBox(height: 14),
+            _petGrid(),
+            const SizedBox(height: 26),
+            const _SectionLabel(label: 'AURAS DE NÍVEL', icon: Icons.auto_awesome_rounded),
+            const SizedBox(height: 12),
             const _AurasTestList(),
-
-            const SizedBox(height: 24),
-
-            // ── Grade de molduras ────────────────────────────────
-            _SectionLabel(
-                label: 'TODAS AS MOLDURAS',
-                icon: Icons.grid_view_rounded),
-            const SizedBox(height: 12),
-
-            _MoldurasGrid(
-              selectedLevel: _previewLevel,
-              onSelect: (lvl) =>
-                  setState(() => _previewLevel = lvl),
-            ),
-
-            const SizedBox(height: 40),
+            const SizedBox(height: 30),
           ],
         ),
       ),
     );
   }
-}
 
-// ── Grade de selos de nível ───────────────────────────────────────
-class _MoldurasGrid extends StatelessWidget {
-  final int selectedLevel;
-  final ValueChanged<int> onSelect;
-
-  const _MoldurasGrid({
-    required this.selectedLevel,
-    required this.onSelect,
-  });
-
-  // Ajustado para o teto de 30 níveis e as 10 faixas de raridade do
-  // sistema atual (era desenhado para 100 níveis / 8 faixas).
-  static const _raridades = [
-    {'label': 'Comum', 'levels': [1, 2, 3]},
-    {'label': 'Incomum', 'levels': [4, 5, 6]},
-    {'label': 'Raro', 'levels': [7, 8, 9]},
-    {'label': 'Especial', 'levels': [10, 11, 12]},
-    {'label': 'Épico', 'levels': [13, 14, 15]},
-    {'label': 'Heroico', 'levels': [16, 17, 18]},
-    {'label': 'Lendário', 'levels': [19, 20, 21]},
-    {'label': 'Mítico', 'levels': [22, 23, 24]},
-    {'label': 'Supremo', 'levels': [25, 26, 27]},
-    {'label': 'Horizonte Elite', 'levels': [28, 29, 30]},
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: _raridades.map((r) {
-        final label = r['label'] as String;
-        final levels = r['levels'] as List<int>;
-        final color = BadgeConfig.levelColor(levels.first);
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _notice() => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: AppColors.primaryOrange.withOpacity(.06),
+          border: Border.all(color: AppColors.primaryOrange.withOpacity(.3)),
+        ),
+        child: const Row(
           children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10, top: 4),
-              child: Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: color,
-                      boxShadow: [
-                        BoxShadow(
-                            color: color.withOpacity(0.6),
-                            blurRadius: 6)
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    label.toUpperCase(),
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ],
+            Icon(Icons.visibility_rounded, color: AppColors.primaryOrange, size: 18),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Apenas visualização — os 30 pets podem ser conferidos aqui sem alterar dados.',
+                style: TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.w600),
               ),
             ),
-            Row(
-              children: levels.map((lvl) {
-                final selected = selectedLevel == lvl;
-                final c = BadgeConfig.levelColor(lvl);
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () => onSelect(lvl),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.only(
-                          right: 8, bottom: 8),
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 12),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        color: selected
-                            ? c.withOpacity(0.12)
-                            : const Color(0xFF0A0A0A),
-                        border: Border.all(
-                          color: selected
-                              ? c
-                              : const Color(0xFF1A1A1A),
-                          width: selected ? 1.5 : 1,
-                        ),
-                        boxShadow: selected
-                            ? [
-                                BoxShadow(
-                                  color: c.withOpacity(0.3),
-                                  blurRadius: 10,
-                                )
-                              ]
-                            : null,
-                      ),
-                      child: Column(
-                        children: [
-                          // Selo real do nível — o mesmo LevelBadgeArt
-                          // usado nos avatares, não uma antiga
-                          // moldura com o número dentro.
-                          LevelBadgeArt(
-                            level: lvl,
-                            size: 36,
-                            animate: selected,
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Nv.$lvl',
-                            style: TextStyle(
-                              color: selected
-                                  ? c
-                                  : const Color(0xFF666666),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          if (selected)
-                            Container(
-                              margin: const EdgeInsets.only(top: 3),
-                              width: 4,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: c,
-                                boxShadow: [
-                                  BoxShadow(
-                                      color: c.withOpacity(0.8),
-                                      blurRadius: 4)
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
           ],
+        ),
+      );
+
+  Widget _previewCard(String name, String? photoUrl, PetDef pet) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          colors: [pet.primary.withOpacity(.14), const Color(0xFF090909)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: pet.primary.withOpacity(.35)),
+        boxShadow: [BoxShadow(color: pet.primary.withOpacity(.10), blurRadius: 22)],
+      ),
+      child: Column(
+        children: [
+          UserAvatarDisplay(
+            name: name,
+            photoUrl: photoUrl,
+            level: _previewLevel,
+            equippedPetId: pet.id,
+            size: 92,
+            showLevelAura: true,
+          ),
+          const SizedBox(height: 12),
+          Text(pet.name, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text('Desbloqueia no nível ${pet.levelRequired}', style: TextStyle(color: pet.primary, fontSize: 11, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 5),
+          Text(pet.description, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 11, height: 1.3)),
+        ],
+      ),
+    );
+  }
+
+  Widget _levelSelector() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0A0A),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF202020)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Nível de preview: $_previewLevel', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+              Text('${PetCatalog.all.where((p) => p.levelRequired <= _previewLevel).length}/30 desbloqueados', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            ],
+          ),
+          Slider(
+            value: _previewLevel.toDouble(),
+            min: 1,
+            max: 30,
+            divisions: 29,
+            activeColor: AppColors.primaryOrange,
+            onChanged: (v) => setState(() => _previewLevel = v.round()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _petGrid() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: PetCatalog.all.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: .82,
+      ),
+      itemBuilder: (_, index) {
+        final pet = PetCatalog.all[index];
+        final unlocked = pet.levelRequired <= _previewLevel;
+        final selected = pet.id == _previewPetId;
+        return GestureDetector(
+          onTap: unlocked ? () => setState(() => _previewPetId = pet.id) : null,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: const Color(0xFF090909),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: selected ? pet.primary : const Color(0xFF1B1B1B),
+                width: selected ? 1.5 : 1,
+              ),
+              boxShadow: selected ? [BoxShadow(color: pet.primary.withOpacity(.18), blurRadius: 12)] : null,
+            ),
+            child: Column(
+              children: [
+                Expanded(child: Stack(alignment: Alignment.center, children: [
+                  PetDisplay(pet: pet, size: 70, dimmed: !unlocked),
+                  if (!unlocked)
+                    Container(
+                      width: 25,
+                      height: 25,
+                      decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xCC000000)),
+                      child: const Icon(Icons.lock_rounded, color: Colors.white70, size: 14),
+                    ),
+                ])),
+                Text(pet.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: unlocked ? Colors.white : Colors.white30, fontSize: 9.5, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 3),
+                Text('Nível ${pet.levelRequired}', style: TextStyle(color: unlocked ? pet.primary : Colors.white24, fontSize: 8, fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
         );
-      }).toList(),
+      },
     );
   }
 }
 
-// ── Lista de teste das 30 auras de nível ───────────────────────────
-/// Lista simples e não-interativa: uma linha por nível (1 a 30), cada
-/// uma com um avatar de tamanho real (grande o bastante para a aura
-/// aparecer) exibindo a aura daquele nível em loop. Só para conferir
-/// visualmente as 30 auras, do mais discreto ao mais espetacular —
-/// não seleciona nível nem afeta o preview do topo.
 class _AurasTestList extends StatelessWidget {
   const _AurasTestList();
 
   @override
   Widget build(BuildContext context) {
     final xpData = context.watch<UserXpProvider>().data;
-    final displayName = (xpData.username != null &&
-            xpData.username!.trim().isNotEmpty)
-        ? xpData.username!
-        : 'Você';
-    final photoUrl = xpData.photoUrl;
-
+    final displayName = (xpData.username != null && xpData.username!.trim().isNotEmpty) ? xpData.username! : 'Você';
     return Column(
-      children: List.generate(30, (i) => i + 1).map((lvl) {
-        final title = BadgeConfig.levelTitle(lvl);
-        final rarity = BadgeConfig.levelRarity(lvl);
-        final color = BadgeConfig.levelColor(lvl);
-
+      children: List.generate(30, (i) => i + 1).map((level) {
         return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: const Color(0xFF0A0A0A),
-            border: Border.all(color: const Color(0xFF1A1A1A)),
-          ),
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+          decoration: BoxDecoration(color: const Color(0xFF0A0A0A), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF1A1A1A))),
           child: Row(
             children: [
-              UserAvatarDisplay(
-                name: displayName,
-                photoUrl: photoUrl,
-                level: lvl,
-                size: 64,
-                showLevelAura: true,
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'NÍVEL $lvl · ${title.toUpperCase()}',
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      rarity,
-                      style: const TextStyle(
-                        color: Color(0xFF888888),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              UserAvatarDisplay(name: displayName, level: level, size: 58, showLevelAura: true),
+              const SizedBox(width: 14),
+              Text('NÍVEL $level', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
             ],
           ),
         );
@@ -512,11 +224,9 @@ class _AurasTestList extends StatelessWidget {
   }
 }
 
-// ── Label de seção ───────────────────────────────────────────────
 class _SectionLabel extends StatelessWidget {
   final String label;
   final IconData icon;
-
   const _SectionLabel({required this.label, required this.icon});
 
   @override
@@ -525,27 +235,9 @@ class _SectionLabel extends StatelessWidget {
       children: [
         Icon(icon, color: AppColors.primaryOrange, size: 14),
         const SizedBox(width: 8),
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.primaryOrange,
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 2,
-          ),
-        ),
+        Text(label, style: const TextStyle(color: AppColors.primaryOrange, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 2)),
         const SizedBox(width: 12),
-        Expanded(
-          child: Container(
-            height: 1,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [
-                AppColors.primaryOrange.withOpacity(0.4),
-                Colors.transparent,
-              ]),
-            ),
-          ),
-        ),
+        Expanded(child: Container(height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [AppColors.primaryOrange.withOpacity(.4), Colors.transparent])))),
       ],
     );
   }
