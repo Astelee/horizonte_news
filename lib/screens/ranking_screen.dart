@@ -3,6 +3,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../widgets/centered_name_row.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../config/app_colors.dart';
 import '../config/name_style_config.dart';
@@ -735,31 +736,26 @@ class _PodiumSpotState extends State<_PodiumSpot>
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Flexible(
-                  child: StyledUserName(
-                    widget.user.name,
-                    nameStyle: widget.user.nameStyle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color:
-                          widget.isMe ? AppColors.primaryOrange : Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
+            CenteredNameRow(
+              gap: 4,
+              trailingWidth: 12,
+              name: StyledUserName(
+                widget.user.name,
+                nameStyle: widget.user.nameStyle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: widget.isMe ? AppColors.primaryOrange : Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
                 ),
-                // Selo de assinante logo após o nome.
-                if (widget.user.isSubscriber) ...[
-                  const SizedBox(width: 4),
-                  const SubscriberBadge(size: 12),
-                ],
-              ],
+              ),
+              // Selo de assinante pendurado à direita: o nome fica no
+              // centro exato do avatar/pódio.
+              trailing: widget.user.isSubscriber
+                  ? const SubscriberBadge(size: 12, compact: true)
+                  : null,
             ),
             const SizedBox(height: 4),
             Text(
