@@ -34,6 +34,7 @@ class _CheckinScreenState extends State<CheckinScreen>
 
   int _streak = 0;
   int _longestStreak = 0;
+  bool _completedMonth = false;
   String? _lastCheckinDate;
   DateTime? _firstPossibleDate;
   String? _equippedRewardKey;
@@ -107,6 +108,7 @@ class _CheckinScreenState extends State<CheckinScreen>
       setState(() {
         _streak = (data['checkinStreak'] as num?)?.toInt() ?? 0;
         _longestStreak = (data['longestCheckinStreak'] as num?)?.toInt() ?? 0;
+        _completedMonth = CheckinRewardsConfig.hasCompletedMonth(data);
         _lastCheckinDate = newLast;
         _equippedRewardKey = data['equippedCheckinRewardId'] as String?;
         final firstStr = data['checkinFirstDate'] as String?;
@@ -628,9 +630,11 @@ class _CheckinScreenState extends State<CheckinScreen>
   // TRILHA DE PROGRESSÃO — caminho horizontal entre os marcos
   // ═════════════════════════════════════════════════════════════════
   Widget _buildProgressTrack() {
-    final next = CheckinRewardsConfig.nextLocked(_longestStreak);
+    final next = CheckinRewardsConfig.nextLocked(_longestStreak,
+        completedMonth: _completedMonth);
     final progress =
-        CheckinRewardsConfig.progressToNext(_streak, _longestStreak);
+        CheckinRewardsConfig.progressToNext(_streak, _longestStreak,
+            completedMonth: _completedMonth);
     final remaining =
         next == null ? 0 : (next.requiredStreak - _streak).clamp(0, 9999);
 
@@ -751,7 +755,8 @@ class _CheckinScreenState extends State<CheckinScreen>
   // ═════════════════════════════════════════════════════════════════
   Widget _buildRewardVault() {
     final all = CheckinRewardsConfig.currentMonthList;
-    final unlockedCount = CheckinRewardsConfig.unlockedFor(_longestStreak).length;
+    final unlockedCount = CheckinRewardsConfig.unlockedFor(_longestStreak,
+        completedMonth: _completedMonth).length;
     // Sempre no máximo 2 fileiras: 8 recompensas → 4 colunas.
     final columns = ((all.length + 1) ~/ 2).clamp(2, 6).toInt();
 
@@ -804,7 +809,8 @@ class _CheckinScreenState extends State<CheckinScreen>
             itemBuilder: (_, i) => _RewardTile(
               reward: all[i],
               unlocked:
-                  CheckinRewardsConfig.isUnlocked(all[i], _longestStreak),
+                  CheckinRewardsConfig.isUnlocked(all[i], _longestStreak,
+                      completedMonth: _completedMonth),
               equipped: _equippedRewardKey == all[i].id.storageKey,
               onTap: () => _onRewardTap(all[i]),
             ),
@@ -815,7 +821,8 @@ class _CheckinScreenState extends State<CheckinScreen>
   }
 
   void _onRewardTap(CheckinRewardDef reward) {
-    final unlocked = CheckinRewardsConfig.isUnlocked(reward, _longestStreak);
+    final unlocked = CheckinRewardsConfig.isUnlocked(reward, _longestStreak,
+        completedMonth: _completedMonth);
     // Mesmo padrão do modal de check-in (_CheckinSuccessSheet):
     // showDialog centralizado, compacto, em vez de bottom sheet de
     // largura total.
