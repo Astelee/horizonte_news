@@ -985,11 +985,12 @@ class XpService {
         unlocked: unlocked.contains('10h_online'),
       ),
       Achievement(
-        id: '100_articles',
+        id: 'articles_100',
         title: 'Leitor Dedicado',
         description: 'Leu 100 notícias no aplicativo',
-        icon: '100_articles',
-        unlocked: unlocked.contains('100_articles'),
+        icon: 'articles_100',
+        unlocked: unlocked.contains('articles_100') ||
+            unlocked.contains('100_articles'),
       ),
       Achievement(
         id: 'first_share',
