@@ -343,10 +343,11 @@ class UserAvatarDisplay extends StatelessWidget {
           overlayAura ? size : size * (1 + 2 * auraExtent);
       final petSize = levelBadgeSize * 1.18;
       final motionRadius = petSize * math.sqrt(0.16 * 0.16 + 0.07 * 0.07);
-      // Usa o limite externo da aura e a diagonal do pet, incluindo
-      // toda a trajetória. A folga permanece em qualquer fase do loop.
+      // Aproxima a criatura do limite da aura. O desenho ocupa a
+      // região central do canvas; usar a diagonal inteira do canvas
+      // criava uma folga visual exagerada. Mantém a amplitude do ∞.
       final petDistance = (size * (0.5 + auraExtent) +
-              petSize / math.sqrt2 + motionRadius + size * 0.08) /
+              petSize * 0.34 + motionRadius + size * 0.025) /
           math.sqrt2;
       final petOrigin = orbitPet
           ? math.min(
