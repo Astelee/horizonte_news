@@ -202,8 +202,9 @@ class UserAvatarDisplay extends StatelessWidget {
   /// atual como fallback.
   final String? equippedPetId;
 
-  /// Reserva os limites da trajetória e afasta o pet da aura no perfil.
-  /// Desligado em listas compactas, comentários e ranking.
+  /// Reserva espaço extra e afasta o pet da aura no cabeçalho do perfil.
+  /// O movimento em infinito é ativo também nos avatares compactos;
+  /// esta opção controla apenas a reserva de espaço e o afastamento.
   final bool orbitPet;
 
   /// Multiplicador do tamanho do selo de nível. Padrão 1.5 = 50% maior
@@ -393,7 +394,9 @@ class UserAvatarDisplay extends StatelessWidget {
                 child: PetDisplay(
                   pet: resolvedPet,
                   size: petSize,
-                  orbit: orbitPet,
+                  // Todos os avatares compartilham a mesma trajetória.
+                  // orbitPet controla só o espaço extra do perfil.
+                  orbit: true,
                 ),
               ),
               if (hasCheckinReward)
