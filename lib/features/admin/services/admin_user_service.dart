@@ -204,6 +204,80 @@ class AdminUserService {
     await _log('title_reset', uid);
   }
 
+  // ── RESET GERAL DE XP (começar tudo do zero) ─────────────────────
+  // Zera, para TODOS os usuários de users_xp: XP, nível, tempo online,
+  // missões diárias, estatísticas, overrides de nível/título do admin
+  // e o pet equipado (volta para o pet 1, Raposa Aurora, já que o
+  // nível volta a 1).
+  //
+  // NÃO mexe em: conquistas, check-in (sequência, recorde, recompensas
+  // e histórico dos dias), conta/login, nome, @usuário, foto, estilo
+  // de nome, plano Premium (premiumTier/premiumExpiresAt), avatar VIP
+  // equipado, data de cadastro, suspensões nem notícias/comentários.
+  //
+  // Funciona no plano gratuito (Spark): roda direto do app, em lotes
+  // pequenos, usando a permissão de admin das regras do Firestore.
+  // Retorna quantos usuários foram zerados.
+  Future<int> resetAllXp({void Function(int done, int total)? onProgress}) async {
+    final now = DateTime.now();
+    final today = '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+
+    final users = await _db.collection('users_xp').get();
+    final total = users.docs.length;
+    var done = 0;
+
+    WriteBatch batch = _db.batch();
+    var ops = 0;
+
+    Future<void> flush() async {
+      if (ops == 0) return;
+      await batch.commit();
+      batch = _db.batch();
+      ops = 0;
+    }
+
+    for (final u in users.docs) {
+      batch.update(u.reference, {
+        'totalXp': 0,
+        'level': 1,
+        'totalSecondsOnline': 0,
+        'lastMissionReset': today,
+        'dailyMissions': {
+          'articlesRead': 0,
+          'commentsPosted': 0,
+          'articlesShared': 0,
+          'minutesOnline': 0,
+          'rewardsCollected': <String>[],
+        },
+        'stats': {
+          'articlesRead': 0,
+          'articlesShared': 0,
+          'commentsPosted': 0,
+          'consecutiveDays': 1,
+          'lastLoginDate': today,
+        },
+        // Pet equipado volta para o pet 1 (nível 1).
+        'equippedPetId': 'pet_01',
+        // Overrides manuais do admin (nível e título).
+        'adminOverrideActive': false,
+        'adminOverrideLevel': FieldValue.delete(),
+        'adminOverrideTitleActive': false,
+        'adminOverrideTitleLevel': FieldValue.delete(),
+      });
+      ops++;
+      if (ops >= 400) await flush();
+
+      done++;
+      onProgress?.call(done, total);
+    }
+    await flush();
+
+    await _log('reset_all_xp', 'all', extra: {'usersReset': done});
+    return done;
+  }
+
   // ── Plano Premium (PRO/ULTRA) — concessão manual pelo admin ───────
   // Enquanto a compra real (Google Play Billing) não está integrada,
   // esta é a única forma de um usuário virar Premium: usada tanto
