@@ -4,7 +4,6 @@ import '../../../config/app_colors.dart';
 import '../../../config/name_style_config.dart';
 import '../../../widgets/app_avatar.dart';
 import '../../../widgets/app_messenger.dart';
-import '../../../widgets/frame_rarity_tag.dart';
 import '../../../widgets/badge_widgets.dart';
 import '../../../widgets/styled_user_name.dart';
 import '../services/admin_comment_service.dart';
@@ -393,7 +392,6 @@ class _AdminCommentTileState extends State<AdminCommentTile> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   PetInline(level: level, petId: equippedPetId),
-                  PetTag(level: level, petId: equippedPetId, fontSize: 8),
                   if (isPremium)
                     const AdminBadge(label: 'PREMIUM', color: _amber),
                 ],
