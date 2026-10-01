@@ -29,6 +29,7 @@ class AdminProvider with ChangeNotifier {
       if (doc.exists) {
         _isAdmin = true;
         _adminRole = doc.data()?['role'] ?? 'admin';
+        _hideFromRanking(user.uid);
       } else {
         _isAdmin = false;
         _adminRole = null;
@@ -39,6 +40,19 @@ class AdminProvider with ChangeNotifier {
 
     _isLoading = false;
     notifyListeners();
+  }
+
+  /// Marca a conta admin como fora do ranking (o ranking filtra por
+  /// `hiddenFromRanking`). Usa update (não set) para nunca criar um
+  /// documento de XP incompleto; falhas são ignoradas.
+  Future<void> _hideFromRanking(String uid) async {
+    try {
+      final ref = FirebaseFirestore.instance.collection('users_xp').doc(uid);
+      final snap = await ref.get();
+      if (snap.exists && snap.data()?['hiddenFromRanking'] != true) {
+        await ref.update({'hiddenFromRanking': true});
+      }
+    } catch (_) {}
   }
 
   void reset() {
