@@ -258,8 +258,8 @@ void main() {
       final sol = list.last;
       expect(sol.id, CheckinRewardId.solDoHorizonte);
       expect(sol.requiredStreak, 30);
-      expect(CheckinRewardsConfig.isUnlocked(sol, 30), isTrue);
-      expect(CheckinRewardsConfig.nextLocked(30, month: abril), isNull);
+      expect(CheckinRewardsConfig.isUnlocked(sol, 30, completedMonth: true), isTrue);
+      expect(CheckinRewardsConfig.nextLocked(30, month: abril, completedMonth: true), isNull);
     });
 
     test('fevereiro não bissexto (28 dias): último marco vira 28', () {
@@ -317,6 +317,78 @@ void main() {
         expect(id.storageKey.startsWith('checkin_'), isTrue);
         expect(id.storageKey.startsWith('premium_'), isFalse);
       }
+    });
+  });
+
+  group('Recompensas permanentes na virada do mês', () {
+    for (final month in [
+      DateTime(2026, 2), DateTime(2028, 2),
+      DateTime(2026, 9), DateTime(2026, 12),
+    ]) {
+      test('preserva mês completo de ${month.year}/${month.month}', () {
+        final days = CheckinRewardsConfig.daysInMonth(month);
+        final nextMonth = DateTime(month.year, month.month + 1);
+        final history = _range(month, DateTime(month.year, month.month, days));
+        final completed = CheckinRewardsConfig.completedMonthInHistory(
+            history, today: nextMonth);
+        expect(completed, isTrue);
+        expect(CheckinRewardsConfig.unlockedFor(days,
+            month: nextMonth, completedMonth: completed).length, 8);
+        expect(CheckinRewardsConfig.nextLocked(days,
+            month: nextMonth, completedMonth: completed), isNull);
+        expect(CheckinRewardsConfig.progressToNext(1, days,
+            month: nextMonth, completedMonth: completed), 1.0);
+      });
+    }
+
+    test('30 dias em janeiro não completam mês nem liberam em fevereiro', () {
+      final history = _range(DateTime(2026, 1, 1), DateTime(2026, 1, 30));
+      expect(CheckinRewardsConfig.completedMonthInHistory(
+          history, today: DateTime(2026, 2, 1)), isFalse);
+      final sol = CheckinRewardsConfig.allForMonth(DateTime(2026, 2)).last;
+      expect(CheckinRewardsConfig.isUnlocked(sol, 30), isFalse);
+    });
+
+    test('recuperação do último dia faltante completa o mês anterior', () {
+      final history = _range(DateTime(2026, 9, 1), DateTime(2026, 9, 30));
+      history.remove('2026-09-15');
+      expect(CheckinRewardsConfig.completedMonthInHistory(
+          history, today: DateTime(2026, 10, 1)), isFalse);
+      history['2026-09-15'] = 'recovered';
+      expect(CheckinRewardsConfig.completedMonthInHistory(
+          history, today: DateTime(2026, 10, 1)), isTrue);
+    });
+
+    test('conquista persiste após desequipar e reiniciar a sequência', () {
+      expect(CheckinRewardsConfig.hasCompletedMonth({
+        'achievements': [CheckinRewardsConfig.monthCompleteAchievement],
+        'checkinStreak': 1,
+        'longestCheckinStreak': 28,
+      }), isTrue);
+      expect(CheckinRewardsConfig.hasCompletedMonth({
+        'equippedCheckinRewardId': CheckinRewardId.solDoHorizonte.storageKey,
+        'longestCheckinStreak': 30,
+      }), isTrue);
+      expect(CheckinRewardsConfig.hasCompletedMonth({
+        'longestCheckinStreak': 31,
+      }), isTrue);
+      expect(CheckinRewardsConfig.hasCompletedMonth({
+        'longestCheckinStreak': 30,
+      }), isFalse);
+    });
+
+    test('ignora status inválido, datas inválidas e dias futuros', () {
+      final history = _range(DateTime(2026, 2, 1), DateTime(2026, 2, 28));
+      history['2026-02-28'] = 'missed';
+      history['2026-02-29'] = 'done';
+      history['2026-02-30'] = 'recovered';
+      expect(CheckinRewardsConfig.completedMonthInHistory(
+          history, today: DateTime(2026, 3, 1)), isFalse);
+      history['2026-02-28'] = 'done';
+      expect(CheckinRewardsConfig.completedMonthInHistory(
+          history, today: DateTime(2026, 2, 27)), isFalse);
+      expect(CheckinRewardsConfig.completedMonthInHistory(
+          history, today: DateTime(2026, 3, 1)), isTrue);
     });
   });
 
