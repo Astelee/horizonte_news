@@ -953,12 +953,12 @@ class _RankTileState extends State<_RankTile>
                       ],
                     ),
                     const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        LevelBadgeInline(level: widget.user.level),
-                        const SizedBox(width: 6),
-                        FrameRarityTag(level: widget.user.level, fontSize: 8),
-                      ],
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: PetInline(
+                        level: widget.user.level,
+                        petId: widget.user.equippedPetId,
+                      ),
                     ),
                   ],
                 ),
