@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/initials_helper.dart';
@@ -201,6 +202,10 @@ class UserAvatarDisplay extends StatelessWidget {
   /// atual como fallback.
   final String? equippedPetId;
 
+  /// Reserva os limites da trajetória e afasta o pet da aura no perfil.
+  /// Desligado em listas compactas, comentários e ranking.
+  final bool orbitPet;
+
   /// Multiplicador do tamanho do selo de nível. Padrão 1.5 = 50% maior
   /// que o tamanho original, em TODO o app (ranking, perfil,
   /// configurações, comentários, respostas e painel ADM).
@@ -240,6 +245,7 @@ class UserAvatarDisplay extends StatelessWidget {
     this.equippedCheckinRewardId,
     this.level,
     this.equippedPetId,
+    this.orbitPet = false,
     this.levelBadgeScale = 1.5,
     this.levelBadgeOutset = 0.75,
     this.showLevelAura,
@@ -334,20 +340,40 @@ class UserAvatarDisplay extends StatelessWidget {
           : 0.0;
       final stackSize =
           overlayAura ? size : size * (1 + 2 * auraExtent);
-      content = SizedBox(
-        width: stackSize,
-        height: stackSize,
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: [
-            if (showAura && !overlayAura)
+      final petSize = levelBadgeSize * 1.18;
+      final motionRadius = petSize * math.sqrt(0.16 * 0.16 + 0.07 * 0.07);
+      // Usa o limite externo da aura e a diagonal do pet, incluindo
+      // toda a trajetória. A folga permanece em qualquer fase do loop.
+      final petDistance = (size * (0.5 + auraExtent) +
+              petSize / math.sqrt2 + motionRadius + size * 0.08) /
+          math.sqrt2;
+      final petOrigin = orbitPet
+          ? math.min(
+              stackSize / 2 - size / 2 + levelBadgeOffset,
+              stackSize / 2 - petDistance - petSize / 2,
+            )
+          : stackSize / 2 - size / 2 + levelBadgeOffset;
+      final petInset = orbitPet && resolvedPet != null
+          ? math.max(0.0, -petOrigin + petSize * 0.16)
+          : 0.0;
+      content = Padding(
+        // Simétrico para manter a foto centralizada e contabilizar o
+        // desenho que antes escapava do Stack sem ocupar espaço.
+        padding: EdgeInsets.all(petInset),
+        child: SizedBox(
+          width: stackSize,
+          height: stackSize,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              if (showAura && !overlayAura)
               LevelAura(
                 level: level!,
                 avatarSize: size,
                 extentScale: levelAuraExtentScale,
               ),
-            if (overlayAura)
+              if (overlayAura)
               Positioned(
                 left: -size * auraExtent,
                 top: -size * auraExtent,
@@ -359,17 +385,18 @@ class UserAvatarDisplay extends StatelessWidget {
                   extentScale: levelAuraExtentScale,
                 ),
               ),
-            avatarContent,
-            if (hasLevelBadge && resolvedPet != null)
+              avatarContent,
+              if (hasLevelBadge && resolvedPet != null)
               Positioned(
-                left: stackSize / 2 - size / 2 + levelBadgeOffset,
-                top: stackSize / 2 - size / 2 + levelBadgeOffset,
+                left: petOrigin,
+                top: petOrigin,
                 child: PetDisplay(
                   pet: resolvedPet,
-                  size: levelBadgeSize * 1.18,
+                  size: petSize,
+                  orbit: orbitPet,
                 ),
               ),
-            if (hasCheckinReward)
+              if (hasCheckinReward)
               Positioned(
                 right: stackSize / 2 - size / 2 - checkinBadgeSize * 0.12,
                 bottom: stackSize / 2 - size / 2 - checkinBadgeSize * 0.12,
@@ -385,7 +412,8 @@ class UserAvatarDisplay extends StatelessWidget {
                   ),
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       );
     }
