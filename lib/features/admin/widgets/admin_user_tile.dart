@@ -126,7 +126,9 @@ class AdminUserTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Stack(
+              Padding(
+                padding: const EdgeInsets.only(left: 6, top: 4),
+                child: Stack(
                 children: [
                   UserAvatarDisplay(
                     name: name,
@@ -134,27 +136,39 @@ class AdminUserTile extends StatelessWidget {
                     photoUrl: photoUrl,
                     level: level,
                     equippedPetId: equippedPetId,
-                    size: 46,
+                    // 48+ faz o Stack crescer e reservar o espaço da aura,
+                    // então ela não invade mais o nome ao lado.
+                    size: 48,
                     showLevelAura: true,
                   ),
                   if (isOnline)
-                    Positioned(
-                      bottom: 1,
-                      right: 1,
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFF43B581),
-                          border: Border.all(
-                              color: const Color(0xFF0A0A0A), width: 2),
+                    // Centraliza numa caixa de 48px (tamanho da foto) para o
+                    // ponto verde continuar no canto da foto, não da aura.
+                    Positioned.fill(
+                      child: Center(
+                        child: SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Align(
+                            alignment: Alignment.bottomRight,
+                            child: Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xFF43B581),
+                                border: Border.all(
+                                    color: const Color(0xFF0A0A0A), width: 2),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
                 ],
               ),
-              const SizedBox(width: 12),
+              ),
+              const SizedBox(width: 18),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
