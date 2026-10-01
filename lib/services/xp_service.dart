@@ -174,7 +174,10 @@ class XpService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  static const int _xpPerInterval = 10;
+  // Tempo online: 2 XP por minuto completo (60 s), sem limite diário e
+  // sem pausa por inatividade. O multiplicador VIP e o de evento são
+  // aplicados por cima em _applyXpGain.
+  static const int _xpPerInterval = 2;
   static const int _intervalSeconds = 60;
 
   // ── Metas das missões diárias (usadas aqui e na tela de perfil) ────
@@ -568,37 +571,36 @@ class XpService {
   // ganhar XP dali em diante, sem nenhum aviso.
   //
   // ── Multiplicadores de XP (Premium PRO 2x / ULTRA 8x + Evento) ──────
-  // Aplicados aqui, no ponto único por onde passa todo ganho "normal"
-  // de XP (tempo online, leitura, comentário, compartilhamento e
-  // recompensas de missão diária). NÃO se aplicam a likeComment (XP
-  // fixo creditado ao autor curtido, validado à parte por regra
-  // própria) nem ao check-in diário (CheckinService tem sua própria
-  // trava exata no Firestore) — esses dois precisam da regra do
-  // Console atualizada antes de multiplicar, para não serem
-  // rejeitados pelo servidor.
+  // Aplicados aqui, no ponto único por onde passa todo ganho de XP
+  // feito pelo usuário: tempo online, leitura, comentário e
+  // compartilhamento. Multiplicam juntos: XP base x plano x evento.
   //
-  // Evento de XP em dobro/triplo (XpEventService, ligado pelo admin
-  // em Configurações): multiplica por cima do plano Premium. Vale só
-  // para as ações diretas do usuário (tempo online, leitura,
-  // comentário e compartilhamento). As recompensas de missão diária
-  // passam `applyEvent: false` e ficam só com o multiplicador do
-  // plano. Para o evento também valer nas missões, basta remover esse
-  // parâmetro nas quatro chamadas de _checkMissionRewards.
+  // NÃO se aplicam a:
+  //   - Missões diárias: a recompensa é sempre o valor fixo original
+  //     (25 / 40 / 15 / 20), sem VIP e sem evento. Elas usam
+  //     `applyMultipliers: false`.
+  //   - likeComment (XP fixo ao autor curtido, validado à parte).
+  //   - Check-in diário (CheckinService tem sua própria regra).
+  //
+  // O evento de XP em dobro/triplo (XpEventService) continua com a
+  // regra atual, ligado pelo admin em Configurações.
   Future<void> _applyXpGain(
     DocumentReference<Map<String, dynamic>> doc,
     int xpGained,
     Map<String, dynamic> extraUpdate, {
-    bool applyEvent = true,
+    bool applyMultipliers = true,
   }) async {
     final snap = await doc.get();
     final data = snap.data() ?? {};
     final overrideActive = data['adminOverrideActive'] == true;
     final currentTotalXp = (data['totalXp'] as num?)?.toInt() ?? 0;
 
-    final tier = premiumTierFromData(data);
-    final eventMultiplier =
-        applyEvent ? await XpEventService().currentMultiplier() : 1;
-    final multipliedGain = xpGained * tier.xpMultiplier * eventMultiplier;
+    int multipliedGain = xpGained;
+    if (applyMultipliers) {
+      final tier = premiumTierFromData(data);
+      final eventMultiplier = await XpEventService().currentMultiplier();
+      multipliedGain = xpGained * tier.xpMultiplier * eventMultiplier;
+    }
     final newTotalXp = currentTotalXp + multipliedGain;
 
     final update = <String, dynamic>{
@@ -868,41 +870,65 @@ class XpService {
     }
   }
 
-  Future<void> _checkMissionRewards(UserXpData data) async {
+  // ── Recompensas das missões diárias ───────────────────────────────
+  // Valores fixos (25 / 40 / 15 / 20), SEM multiplicador de VIP e SEM
+  // multiplicador de evento. Cada recompensa é resgatada uma única vez
+  // por dia: a conferência de "meta batida" e "já resgatada" e o
+  // pagamento acontecem na MESMA transação, então chamadas
+  // simultâneas (ex.: tempo online + leitura ao mesmo tempo) nunca
+  // pagam a mesma missão duas vezes.
+  Future<void> _checkMissionRewards(UserXpData _) async {
     final doc = _userDoc;
     if (doc == null) return;
 
-    final collected =
-        List<String>.from(data.dailyMissions['rewardsCollected'] ?? []);
+    await _claimMissionReward(doc, 'articles', 25,
+        (m) => _missionCount(m, 'articlesRead') >= missionArticlesTarget);
+    await _claimMissionReward(doc, 'comments', 40,
+        (m) => _missionCount(m, 'commentsPosted') >= missionCommentsTarget);
+    await _claimMissionReward(doc, 'shares', 15,
+        (m) => _missionCount(m, 'articlesShared') >= missionSharesTarget);
+    await _claimMissionReward(doc, 'time', 20,
+        (m) => _missionCount(m, 'minutesOnline') >= missionMinutesTarget);
+  }
 
-    if (data.dailyArticles >= missionArticlesTarget &&
-        !collected.contains('articles')) {
-      await _applyXpGain(doc, 25, {
-        'dailyMissions.rewardsCollected':
-            FieldValue.arrayUnion(['articles']),
-      }, applyEvent: false);
-    }
-    if (data.dailyComments >= missionCommentsTarget &&
-        !collected.contains('comments')) {
-      await _applyXpGain(doc, 40, {
-        'dailyMissions.rewardsCollected':
-            FieldValue.arrayUnion(['comments']),
-      }, applyEvent: false);
-    }
-    if (data.dailyShares >= missionSharesTarget &&
-        !collected.contains('shares')) {
-      await _applyXpGain(doc, 15, {
-        'dailyMissions.rewardsCollected':
-            FieldValue.arrayUnion(['shares']),
-      }, applyEvent: false);
-    }
-    if (data.dailyMinutes >= missionMinutesTarget &&
-        !collected.contains('time')) {
-      await _applyXpGain(doc, 20, {
-        'dailyMissions.rewardsCollected':
-            FieldValue.arrayUnion(['time']),
-      }, applyEvent: false);
-    }
+  int _missionCount(Map<String, dynamic> missions, String key) =>
+      (missions[key] as num?)?.toInt() ?? 0;
+
+  Future<void> _claimMissionReward(
+    DocumentReference<Map<String, dynamic>> doc,
+    String rewardKey,
+    int xp,
+    bool Function(Map<String, dynamic> missions) isComplete,
+  ) async {
+    try {
+      await _db.runTransaction((tx) async {
+        final snap = await tx.get(doc);
+        final data = snap.data();
+        if (data == null) return;
+
+        final missions =
+            Map<String, dynamic>.from(data['dailyMissions'] ?? {});
+        final collected =
+            List<String>.from(missions['rewardsCollected'] ?? []);
+
+        if (collected.contains(rewardKey)) return; // já resgatada hoje
+        if (!isComplete(missions)) return; // meta ainda não batida
+
+        final overrideActive = data['adminOverrideActive'] == true;
+        final currentTotalXp = (data['totalXp'] as num?)?.toInt() ?? 0;
+
+        final update = <String, dynamic>{
+          'totalXp': FieldValue.increment(xp),
+          'lastActivity': FieldValue.serverTimestamp(),
+          'dailyMissions.rewardsCollected':
+              FieldValue.arrayUnion([rewardKey]),
+        };
+        if (!overrideActive) {
+          update['level'] = levelFromXp(currentTotalXp + xp);
+        }
+        tx.update(doc, update);
+      });
+    } catch (_) {}
   }
 
   Future<void> _checkAchievements(UserXpData data) async {
