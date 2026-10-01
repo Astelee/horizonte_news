@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../config/badge_config.dart';
 import '../config/name_style_config.dart';
 import '../config/premium_config.dart';
 import 'xp_event_service.dart';
@@ -327,7 +328,7 @@ class XpService {
       final titleOverrideActive =
           dataUpdated['adminOverrideTitleActive'] == true;
       final customTitle = titleOverrideActive
-          ? (dataUpdated['adminOverrideTitleLevel'] as String?)
+          ? _parseCustomTitle(dataUpdated['adminOverrideTitleLevel'])
           : null;
 
       // ── Lê plano Premium (PRO/ULTRA) e sua expiração ─────────────
@@ -376,6 +377,23 @@ class XpService {
     }
   }
 
+  // ── Título customizado pelo admin ────────────────────────────────
+  // O painel ADM grava `adminOverrideTitleLevel` como NÚMERO (nível de
+  // referência cujo título será exibido). Aqui convertemos para o texto
+  // do título. Também aceita String (formato legado) e nunca lança
+  // exceção — um valor inesperado só faz o app usar o título padrão do
+  // nível, em vez de zerar o perfil inteiro.
+  static String? _parseCustomTitle(dynamic raw) {
+    if (raw is num) return BadgeConfig.levelTitle(raw.toInt());
+    if (raw is String) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) return null;
+      final asInt = int.tryParse(trimmed);
+      return asInt != null ? BadgeConfig.levelTitle(asInt) : trimmed;
+    }
+    return null;
+  }
+
   // ── Converte um snapshot puro do Firestore em UserXpData ─────────
   // Mesma lógica de parsing do loadUserXpData, extraída para ser
   // reaproveitada pelo stream em tempo real (watchUserXpData).
@@ -401,7 +419,7 @@ class XpService {
 
     final titleOverrideActive = data['adminOverrideTitleActive'] == true;
     final customTitle = titleOverrideActive
-        ? (data['adminOverrideTitleLevel'] as String?)
+        ? _parseCustomTitle(data['adminOverrideTitleLevel'])
         : null;
 
     final premiumTier = PremiumTierX.fromId(data['premiumTier'] as String?);
