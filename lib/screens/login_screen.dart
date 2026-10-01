@@ -318,7 +318,7 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         const SizedBox(height: 6),
         const Text(
-          'ACESSO AO SISTEMA',
+          'BEM-VINDO',
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
@@ -387,7 +387,7 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Entre com suas credenciais',
+                  'Entre com seus dados',
                   style: TextStyle(fontSize: 15, color: Color(0xFF9E9E9E)),
                 ),
                 const SizedBox(height: 28),
@@ -1005,7 +1005,7 @@ class _CyberLoaderState extends State<_CyberLoader>
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'AUTENTICANDO',
+            'ENTRANDO',
             style: TextStyle(
               color: Colors.white,
               fontSize: 13,
