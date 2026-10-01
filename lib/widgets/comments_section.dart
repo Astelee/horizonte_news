@@ -12,7 +12,6 @@ import '../providers/user_xp_provider.dart';
 import '../features/admin/providers/admin_provider.dart';
 import '../services/app_notification_service.dart';
 import 'badge_widgets.dart';
-import 'frame_rarity_tag.dart';
 import 'app_avatar.dart';
 import 'styled_user_name.dart';
 import 'subscriber_badge.dart';
@@ -374,12 +373,6 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
                         PetInline(
                           level: level,
                           petId: _userData?['equippedPetId'] as String?,
-                        ),
-                        const SizedBox(width: 6),
-                        PetTag(
-                          level: level,
-                          petId: _userData?['equippedPetId'] as String?,
-                          fontSize: 8,
                         ),
                         if (totalXp > 0) ...[
                           const SizedBox(width: 8),
