@@ -28,12 +28,16 @@ class PetDisplay extends StatefulWidget {
   final bool animate;
   final bool dimmed;
 
+  /// Trajetória local em infinito, ativada apenas no avatar do perfil.
+  final bool orbit;
+
   const PetDisplay({
     Key? key,
     required this.pet,
     this.size = 58,
     this.animate = true,
     this.dimmed = false,
+    this.orbit = false,
   }) : super(key: key);
 
   @override
@@ -79,18 +83,28 @@ class _PetDisplayState extends State<PetDisplay>
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _controller,
-        builder: (_, __) => CustomPaint(
-          size: Size.square(widget.size),
-          painter: PetPainter(
-            pet: widget.pet,
-            progress: _controller.value,
-            dimmed: widget.dimmed,
+        builder: (_, __) => Transform.translate(
+          // Frequências inteiras: posição E velocidade coincidem na
+          // passagem de 1 para 0. Sem easing ou pausa nas extremidades.
+          offset: widget.orbit && _run
+          ? Offset(
+            widget.size * 0.16 * math.sin(_controller.value * math.pi * 2),
+            widget.size * 0.07 * math.sin(_controller.value * math.pi * 4),
+          )
+          : Offset.zero,
+          child: CustomPaint(
+            size: Size.square(widget.size),
+            painter: PetPainter(
+              pet: widget.pet,
+              progress: _controller.value,
+              dimmed: widget.dimmed,
+            ),
           ),
         ),
       ),
     );
   }
-}
+  }
 
 enum _Fx { fire, ice, water, leaf, star, arcane, light }
 
