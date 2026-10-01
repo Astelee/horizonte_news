@@ -232,12 +232,6 @@ class AdminUserTile extends StatelessWidget {
                             label: 'CUSTOM',
                             color: Color(0xFFFFD700),
                           ),
-                        if (equippedPet != null)
-                          AdminStatChip(
-                            icon: Icons.pets_rounded,
-                            label: equippedPet.name,
-                            color: equippedPet.primary,
-                          ),
                         if (premiumTier.isPremium)
                           AdminStatChip(
                             icon: premiumTier.icon,
