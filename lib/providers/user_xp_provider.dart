@@ -18,6 +18,12 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   Timer? _activeTimer;
   int _secondsAccumulated = 0;
 
+  // Relógio de parede da última contagem. O tempo online é medido pela
+  // diferença entre horários reais (e não por "ticks" de 1 s), porque
+  // com o app minimizado o Android pode adiar/congelar os timers do
+  // Dart. Ao voltar, a diferença cobre todo o tempo em segundo plano.
+  DateTime? _lastTickAt;
+
   // ── Assinatura do stream em tempo real (users_xp/{uid}) ──────────
   // Qualquer mudança no Firestore — inclusive as feitas pelo admin no
   // painel (moldura/nível/título) — chega aqui automaticamente e
@@ -31,6 +37,9 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
 
   Function(int newLevel)? onLevelUp;
 
+  // Tempo online rende 2 XP por minuto COMPLETO. Sem pausa por
+  // inatividade e sem limite diário: a contagem é contínua, inclusive
+  // com o app minimizado.
   static const int _saveIntervalSeconds = 60;
 
   UserXpData get data => _data;
@@ -90,11 +99,14 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
         if (_xpSubscription == null) {
           _startWatching();
         }
+        // Soma o tempo em que o app ficou minimizado e salva.
+        _startTimer();
+        _accrueElapsed();
+        _flushToFirestore();
         // Se o Premium venceu enquanto o app estava em segundo plano,
         // corrige a tag do OneSignal ao voltar.
         _syncPremiumTag();
         _updateLastSeen();
-        _startTimer();
         // Ao voltar do segundo plano (no máximo a cada 15 min, ver
         // o serviço), reconfere se o lembrete de sequência segue certo.
         CheckinReminderService.instance.syncFromFirestore();
@@ -102,13 +114,12 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
-        // App minimizado, mas o processo continua vivo: o timer segue
-        // contando XP normalmente. Só garantimos que o progresso
-        // acumulado até agora seja salvo, caso o Android decida matar
-        // o processo sem avisar (comum em segundo plano prolongado).
-        if (_secondsAccumulated > 0) {
-          _flushToFirestore();
-        }
+        // App minimizado: NÃO pausamos a contagem. O XP de tempo
+        // online segue acumulando em segundo plano. Só fechamos a
+        // conta até agora e salvamos o que já completou minutos, caso
+        // o Android mate o processo sem avisar.
+        _accrueElapsed();
+        _flushToFirestore();
         break;
       case AppLifecycleState.detached:
         // Processo sendo destruído de verdade (app fechado/deslizado
@@ -173,39 +184,56 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   void _startTimer() {
     if (_isActive) return;
     _isActive = true;
-    _secondsAccumulated = 0;
+    _lastTickAt = DateTime.now();
 
     _activeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      _secondsAccumulated++;
+      _accrueElapsed();
       if (_secondsAccumulated >= _saveIntervalSeconds) {
         _flushToFirestore();
       }
     });
   }
 
+  // Soma em _secondsAccumulated o tempo real decorrido desde a última
+  // contagem. Se o relógio do aparelho voltar no tempo, ignora o
+  // trecho negativo (nunca subtrai nem duplica tempo).
+  void _accrueElapsed() {
+    final last = _lastTickAt;
+    final now = DateTime.now();
+    _lastTickAt = now;
+    if (last == null) return;
+    final delta = now.difference(last).inSeconds;
+    if (delta > 0) _secondsAccumulated += delta;
+  }
+
   void _pauseAndSave() {
     if (!_isActive) return;
+    _accrueElapsed();
     _isActive = false;
     _activeTimer?.cancel();
     _activeTimer = null;
+    _lastTickAt = null;
 
-    if (_secondsAccumulated > 0) {
-      _flushToFirestore();
-    }
+    _flushToFirestore();
   }
 
+  // Credita apenas MINUTOS COMPLETOS (2 XP cada). Os segundos que
+  // sobram ficam guardados para o próximo envio, então nenhum tempo
+  // se perde ao minimizar ou voltar ao app.
+  //
   // _flushToFirestore continua usando o retorno direto do serviço
   // (não o stream) de propósito: addXpForTime roda no timer em
   // background, então não há risco de corrida com uma leitura manual
   // concorrente — é seguro e evita esperar o round-trip do stream.
   Future<void> _flushToFirestore() async {
-    if (_secondsAccumulated <= 0) return;
+    final wholeMinutes = _secondsAccumulated ~/ 60;
+    if (wholeMinutes <= 0) return;
 
-    final seconds = _secondsAccumulated;
-    _secondsAccumulated = 0;
+    final secondsToCredit = wholeMinutes * 60;
+    _secondsAccumulated -= secondsToCredit;
 
     final oldLevel = _data.level;
-    final updated = await _service.addXpForTime(seconds);
+    final updated = await _service.addXpForTime(secondsToCredit);
     _data = updated;
     notifyListeners();
 
