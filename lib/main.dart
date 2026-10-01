@@ -202,11 +202,15 @@ class _MaintenanceScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: SizedBox(
+              width: double.infinity,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
               const Icon(Icons.build_circle_rounded,
                   color: Color(0xFFEF5350), size: 64),
               const SizedBox(height: 20),
@@ -232,7 +236,9 @@ class _MaintenanceScreen extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
-            ],
+                ],
+              ),
+            ),
           ),
         ),
       ),
