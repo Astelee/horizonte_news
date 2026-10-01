@@ -5,6 +5,7 @@ import '../../../../config/app_colors.dart';
 import '../../../../services/xp_event_service.dart';
 import '../../services/admin_config_service.dart';
 import '../../services/admin_news_service.dart';
+import '../../services/admin_user_service.dart';
 import '../../widgets/admin_shared_widgets.dart';
 import '../../widgets/xp_event_admin_card.dart';
 import '../../../../widgets/app_messenger.dart';
@@ -20,7 +21,11 @@ class ConfigTab extends StatefulWidget {
 class _ConfigTabState extends State<ConfigTab> {
   final _maintenanceMsgController = TextEditingController();
   final _adminNewsService = AdminNewsService();
+  final _adminUserService = AdminUserService();
   bool _reindexing = false;
+  bool _resettingXp = false;
+  int _resetDone = 0;
+  int _resetTotal = 0;
 
   @override
   void dispose() {
@@ -91,6 +96,8 @@ class _ConfigTabState extends State<ConfigTab> {
           ),
           const SizedBox(height: 12),
           _buildReindexSearchCard(),
+          const SizedBox(height: 14),
+          _buildResetXpCard(),
         ],
       ),
     );
@@ -158,6 +165,171 @@ class _ConfigTabState extends State<ConfigTab> {
         ],
       ),
     );
+  }
+
+  Widget _buildResetXpCard() {
+    const red = Color(0xFFEF5350);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0A0A),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: red.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: red, size: 22),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Zerar XP de todos',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Recomeça todo mundo do zero: XP, nível, missões, estatísticas, '
+            'níveis/títulos manuais e pet equipado (volta para o pet 1). '
+            'Mantém conquistas, sequência e recompensas de check-in, '
+            'conta, nome, @usuário, foto, plano Premium e estilo de nome. '
+            'Esta ação NÃO pode ser desfeita.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _resettingXp ? null : _handleResetAllXp,
+              icon: _resettingXp
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: red),
+                    )
+                  : const Icon(Icons.restart_alt_rounded,
+                      color: red, size: 18),
+              label: Text(
+                _resettingXp
+                    ? 'Zerando... $_resetDone/$_resetTotal'
+                    : 'Zerar XP de todos',
+                style: const TextStyle(color: red),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleResetAllXp() async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final ok = controller.text.trim().toUpperCase() == 'ZERAR TUDO';
+          return AlertDialog(
+            backgroundColor: const Color(0xFF0A0A0A),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                  color: const Color(0xFFEF5350).withOpacity(0.5)),
+            ),
+            title: const Text(
+              'Zerar XP de TODOS os usuários?',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Todos (inclusive você) voltam ao nível 1, sem XP e '
+                  'com o pet 1. Conquistas e check-in são mantidos. '
+                  'Não dá para desfazer.\n\n'
+                  'Para confirmar, digite ZERAR TUDO:',
+                  style: TextStyle(
+                      color: AppColors.textSecondary, fontSize: 12.5),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.characters,
+                  style: const TextStyle(color: Colors.white),
+                  onChanged: (_) => setLocal(() {}),
+                  decoration: const InputDecoration(
+                    hintText: 'ZERAR TUDO',
+                    hintStyle: TextStyle(color: AppColors.textMuted),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar',
+                    style: TextStyle(color: AppColors.textSecondary)),
+              ),
+              TextButton(
+                onPressed: ok ? () => Navigator.pop(ctx, true) : null,
+                child: Text(
+                  'Zerar tudo',
+                  style: TextStyle(
+                    color: ok
+                        ? const Color(0xFFEF5350)
+                        : AppColors.textMuted,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    controller.dispose();
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _resettingXp = true;
+      _resetDone = 0;
+      _resetTotal = 0;
+    });
+    try {
+      final count = await _adminUserService.resetAllXp(
+        onProgress: (done, total) {
+          if (mounted) {
+            setState(() {
+              _resetDone = done;
+              _resetTotal = total;
+            });
+          }
+        },
+      );
+      if (mounted) {
+        AppMessenger.success('XP zerado para $count usuários.');
+      }
+    } catch (e) {
+      if (mounted) {
+        AppMessenger.error('Erro ao zerar XP: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _resettingXp = false);
+    }
   }
 
   Future<void> _handleReindexSearch() async {
