@@ -166,7 +166,11 @@ class _AuthGate extends StatelessWidget {
             }
             final user = authSnapshot.data;
             if (user == null) {
-              return _MaintenanceScreen(message: config.maintenanceMessage);
+              // Sem login ainda: mostra o fluxo normal (tela de login)
+              // para o admin conseguir entrar. Depois do login, este
+              // mesmo gate checa se a conta é admin; se não for, cai na
+              // tela de manutenção.
+              return const _AuthenticatedGate();
             }
             return FutureBuilder<DocumentSnapshot>(
               future: FirebaseFirestore.instance
@@ -236,6 +240,14 @@ class _MaintenanceScreen extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
+              if (FirebaseAuth.instance.currentUser != null) ...[
+                const SizedBox(height: 24),
+                // Permite trocar de conta (ex.: entrar com a conta admin).
+                TextButton(
+                  onPressed: () => FirebaseAuth.instance.signOut(),
+                  child: const Text('Sair'),
+                ),
+              ],
                 ],
               ),
             ),
