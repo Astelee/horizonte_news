@@ -480,7 +480,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                               child: Align(
                                 alignment: Alignment.center,
                                 child: Transform.translate(
-                                  offset: Offset(avatarRadius - 11, avatarRadius - 19),
+                                  // Canto superior direito, fora da aura: o canto
+                                  // inferior direito é do ícone de recompensa
+                                  // do check-in, e os dois se sobrepunham.
+                                  offset: Offset(
+                                    avatarRadius * 0.8 + 8,
+                                    -(avatarRadius * 0.8 + 8),
+                                  ),
                                   child: GestureDetector(
                                     onTap: () => Navigator.of(context).push(
                                       MaterialPageRoute(
