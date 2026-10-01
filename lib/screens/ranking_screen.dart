@@ -165,11 +165,18 @@ class _RankingScreenState extends State<RankingScreen>
       final snap = await FirebaseFirestore.instance
           .collection('users_xp')
           .orderBy('totalXp', descending: true)
-          .limit(100)
+          .limit(120)
           .get();
       if (!mounted) return;
       setState(() {
-        _users = snap.docs.map((d) => _RankUser.fromDoc(d)).toList();
+        // Contas admin ficam fora do ranking (flag gravada em
+        // AdminProvider.initialize). Busca uma margem a mais para ainda
+        // fechar o top 100 depois do filtro.
+        _users = snap.docs
+            .where((d) => d.data()['hiddenFromRanking'] != true)
+            .take(100)
+            .map((d) => _RankUser.fromDoc(d))
+            .toList();
         _isLoadingRanking = false;
       });
     } catch (e) {
