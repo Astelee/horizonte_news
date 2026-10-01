@@ -13,12 +13,11 @@ import 'package:flutter/material.dart';
 // Isso permite ao usuário ter, AO MESMO TEMPO, um avatar VIP
 // equipado e uma recompensa de check-in equipada.
 //
-// ── Segurança ────────────────────────────────────────────────────
-// O desbloqueio NUNCA é lido de uma lista gravada pelo cliente.
-// Ele é sempre CALCULADO a partir de longestCheckinStreak (campo
-// que só o CheckinService escreve, junto com um documento por dia
-// na subcoleção checkins/). Assim ninguém consegue se conceder uma
-// recompensa apenas editando o app.
+// ── Desbloqueio permanente ────────────────────────────────────────
+// Os marcos fixos usam longestCheckinStreak. O marco de mês completo
+// usa a conquista permanente checkin_month_complete, pois 28/29/30/31
+// são metas do calendário, não a identidade do emblema adquirido.
+// O serviço reconstitui essa conquista pelo histórico quando preciso.
 //
 // Para adicionar uma recompensa nova: crie o painter em
 // lib/widgets/checkin_reward_painters.dart, adicione um valor em
@@ -336,25 +335,67 @@ class CheckinRewardsConfig {
   static int bonusForStreak(int streak, {DateTime? month}) =>
       forStreak(streak, month: month)?.bonusXp ?? 0;
 
-  /// Uma recompensa está desbloqueada quando o RECORDE já alcançou
-  /// o marco. Usa o recorde (não a sequência atual) de propósito:
-  /// quebrar a sequência não tira uma recompensa já conquistada.
-  static bool isUnlocked(CheckinRewardDef def, int longestStreak) =>
-      longestStreak >= def.requiredStreak;
+  static const monthCompleteAchievement = 'checkin_month_complete';
 
-  /// Recompensas já desbloqueadas para um dado recorde, no mês
-  /// informado (padrão: mês corrente).
+  /// Compatibilidade com perfis antigos: o emblema final equipado e
+  /// um recorde de pelo menos 31 também comprovam a aquisição.
+  static bool hasCompletedMonth(Map<String, dynamic> data) {
+    final achievements = data['achievements'];
+    return (achievements is List &&
+            achievements.contains(monthCompleteAchievement)) ||
+        data['equippedCheckinRewardId'] ==
+            CheckinRewardId.solDoHorizonte.storageKey ||
+        ((data['longestCheckinStreak'] as num?)?.toInt() ?? 0) >= 31;
+  }
+
+  /// Reconstrói a aquisição respeitando o calendário DO MÊS GANHO.
+  /// Todos os dias devem existir: recorde 30 em um mês de 31 não basta.
+  static bool completedMonthInHistory(
+    Map<String, String> statuses, {
+    required DateTime today,
+  }) {
+    final daysByMonth = <DateTime, Set<int>>{};
+    final limit = DateTime(today.year, today.month, today.day);
+    for (final entry in statuses.entries) {
+      if (entry.value != 'done' && entry.value != 'recovered') continue;
+      final parts = entry.key.split('-');
+      if (parts.length != 3) continue;
+      final year = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      final day = int.tryParse(parts[2]);
+      if (year == null || month == null || day == null) continue;
+      final date = DateTime(year, month, day);
+      if (date.year != year || date.month != month || date.day != day ||
+          date.isAfter(limit)) continue;
+      final key = DateTime(year, month);
+      daysByMonth.putIfAbsent(key, () => <int>{}).add(day);
+    }
+    return daysByMonth.entries.any(
+      (entry) => entry.value.length == daysInMonth(entry.key),
+    );
+  }
+
+  /// O mês atual só determina a meta para quem ainda não conquistou.
+  /// Nunca compara um recorde de outro mês com uma meta variável.
+  static bool isUnlocked(CheckinRewardDef def, int longestStreak,
+      {bool completedMonth = false}) =>
+      def.id == CheckinRewardId.solDoHorizonte
+          ? completedMonth || longestStreak >= 31
+          : longestStreak >= def.requiredStreak;
+
   static List<CheckinRewardDef> unlockedFor(int longestStreak,
-          {DateTime? month}) =>
+          {DateTime? month, bool completedMonth = false}) =>
       allForMonth(month)
-          .where((r) => isUnlocked(r, longestStreak))
+          .where((r) => isUnlocked(r, longestStreak,
+              completedMonth: completedMonth))
           .toList(growable: false);
 
-  /// Próxima recompensa ainda bloqueada, ou null se tudo foi
-  /// conquistado (mês informado, padrão: mês corrente).
-  static CheckinRewardDef? nextLocked(int longestStreak, {DateTime? month}) {
+  static CheckinRewardDef? nextLocked(int longestStreak,
+      {DateTime? month, bool completedMonth = false}) {
     for (final r in allForMonth(month)) {
-      if (!isUnlocked(r, longestStreak)) return r;
+      if (!isUnlocked(r, longestStreak, completedMonth: completedMonth)) {
+        return r;
+      }
     }
     return null;
   }
@@ -362,9 +403,10 @@ class CheckinRewardsConfig {
   /// Fração 0..1 do caminho entre o marco anterior e o próximo,
   /// usada na barra de progressão.
   static double progressToNext(int currentStreak, int longestStreak,
-      {DateTime? month}) {
+      {DateTime? month, bool completedMonth = false}) {
     final list = allForMonth(month);
-    final next = nextLocked(longestStreak, month: month);
+    final next = nextLocked(longestStreak, month: month,
+        completedMonth: completedMonth);
     if (next == null) return 1.0;
     int prev = 0;
     for (final r in list) {
