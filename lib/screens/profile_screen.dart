@@ -826,7 +826,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                   const Spacer(),
                   const Text(
-                    '10 XP/min',
+                    '2 XP/min',
                     style: TextStyle(
                       color: AppColors.primaryOrange,
                       fontSize: 11,
