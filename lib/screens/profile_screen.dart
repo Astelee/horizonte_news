@@ -11,6 +11,7 @@ import '../config/premium_config.dart';
 import '../providers/user_xp_provider.dart';
 import '../services/xp_service.dart';
 import '../widgets/app_avatar.dart';
+import '../widgets/level_aura.dart';
 import '../widgets/frame_rarity_tag.dart';
 import '../widgets/badge_widgets.dart';
 import '../widgets/level_up_overlay.dart';
@@ -239,7 +240,15 @@ class _ProfileScreenState extends State<ProfileScreen>
             return CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                _buildSliverAppBar(user, data),
+                SliverAppBar(
+                  pinned: true,
+                  backgroundColor: AppColors.backgroundDark,
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+                _buildProfileHeader(user, data),
                 SliverToBoxAdapter(
                   child: isLoading
                       ? const _ProfileSkeleton()
@@ -365,203 +374,218 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildSliverAppBar(User? user, UserXpData data) {
+  Widget _buildProfileHeader(User? user, UserXpData data) {
     final levelColor = BadgeConfig.levelColor(data.level);
+    final avatarRadius = 84 * (0.5 +
+      (data.level > 0 ? LevelAura.extentFor(data.level, 84) : 0.0));
 
-    return SliverAppBar(
-      expandedHeight: 260,
-      pinned: true,
-      backgroundColor: AppColors.backgroundDark,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-        onPressed: () => Navigator.pop(context),
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF1A0800), Color(0xFF000000)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-            ),
-            AnimatedBuilder(
-              animation: _glowAnim,
-              builder: (_, __) => Center(
-                child: Container(
-                  width: 280,
-                  height: 280,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        levelColor.withOpacity(0.12 * _glowAnim.value),
-                        Colors.transparent,
-                      ],
+    // O cabeçalho participa do fluxo do scroll com altura natural.
+    // A altura mínima acompanha o viewport; conteúdo/texto maior pode
+    // crescer livremente em vez de ser cortado por um app bar de 260px.
+    return SliverLayoutBuilder(
+      builder: (context, constraints) => SliverToBoxAdapter(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: constraints.viewportMainAxisExtent * 0.38,
+          ),
+          child: IntrinsicHeight(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF1A0800), Color(0xFF000000)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-            Positioned(
-              bottom: 16,
-              left: 0,
-              right: 0,
-              child: Column(
-                children: [
-                  Stack(
-                    clipBehavior: Clip.none,
+                Positioned.fill(
+                  child: AnimatedBuilder(
+                    animation: _glowAnim,
+                    builder: (_, __) => Center(
+                      child: Container(
+                        width: 280,
+                        height: 280,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              levelColor.withOpacity(0.12 * _glowAnim.value),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      GestureDetector(
-                        onTap: _uploadingAvatar
-                            ? null
-                            : () => _handleAvatarTap(context),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
                         child: Stack(
-                          alignment: Alignment.center,
+                          clipBehavior: Clip.none,
                           children: [
-                            UserAvatarDisplay(
-                              name: user?.displayName ??
-                                  user?.email?.split('@').first ??
-                                  'Usuário',
-                              seed: user?.uid,
-                              photoUrl: data.photoUrl,
-                              equippedPremiumAvatarId:
-                                  data.equippedPremiumAvatarId,
-                              equippedCheckinRewardId:
-                                  data.equippedCheckinRewardId,
-                              equippedPetId: data.equippedPetId,
-                              level: data.level,
-                              size: 84,
+                            GestureDetector(
+                              onTap: _uploadingAvatar
+                              ? null
+                              : () => _handleAvatarTap(context),
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  UserAvatarDisplay(
+                                    name: user?.displayName ??
+                                    user?.email?.split('@').first ??
+                                    'Usuário',
+                                    seed: user?.uid,
+                                    photoUrl: data.photoUrl,
+                                    equippedPremiumAvatarId:
+                                    data.equippedPremiumAvatarId,
+                                    equippedCheckinRewardId:
+                                    data.equippedCheckinRewardId,
+                                    equippedPetId: data.equippedPetId,
+                                    orbitPet: true,
+                                    level: data.level,
+                                    size: 84,
+                                  ),
+                                  if (_uploadingAvatar)
+                                  Container(
+                                    width: 84,
+                                    height: 84,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.black54,
+                                    ),
+                                    child: const Center(
+                                      child: SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: AppColors.primaryOrange,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            if (_uploadingAvatar)
-                              Container(
-                                width: 84,
-                                height: 84,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.black54,
-                                ),
-                                child: const Center(
-                                  child: SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppColors.primaryOrange,
+                            // Atalho para a galeria de avatares animados
+                            // premium — não interfere no tap de troca de
+                            // foto, que continua no restante do círculo.
+                            Positioned.fill(
+                              child: Align(
+                                alignment: Alignment.center,
+                                child: Transform.translate(
+                                  offset: Offset(avatarRadius - 11, avatarRadius - 19),
+                                  child: GestureDetector(
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                        const PremiumAvatarGalleryScreen(),
+                                      ),
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: const Color(0xFF141414),
+                                        border: Border.all(
+                                          color: AppColors.primaryOrange
+                                          .withOpacity(0.7),
+                                          width: 1.4,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: AppColors.primaryOrange
+                                            .withOpacity(0.35),
+                                            blurRadius: 8,
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Icon(
+                                        FontAwesomeIcons.wandMagicSparkles,
+                                        size: 12,
+                                        color: AppColors.primaryOrange,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
+                            ),
                           ],
                         ),
                       ),
-                      // Atalho para a galeria de avatares animados
-                      // premium — não interfere no tap de troca de
-                      // foto, que continua no restante do círculo.
-                      Positioned(
-                        right: -2,
-                        bottom: 6,
-                        child: GestureDetector(
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  const PremiumAvatarGalleryScreen(),
-                            ),
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0xFF141414),
-                              border: Border.all(
-                                color: AppColors.primaryOrange
-                                    .withOpacity(0.7),
-                                width: 1.4,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primaryOrange
-                                      .withOpacity(0.35),
-                                  blurRadius: 8,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              FontAwesomeIcons.wandMagicSparkles,
-                              size: 12,
-                              color: AppColors.primaryOrange,
+                      const SizedBox(height: 12),
+                      CenteredNameRow(
+                        gap: 8,
+                        trailingWidth: (data.isPremium ? 18 + 8 : 0) + 30,
+                        // Tocar no nome continua abrindo a edição do texto.
+                        name: GestureDetector(
+                          onTap: () => _handleNameTap(context),
+                          child: StyledUserName(
+                            user?.displayName ??
+                            user?.email?.split('@').first ??
+                            'Usuário',
+                            nameStyle: data.nameStyle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
                             ),
                           ),
                         ),
+                        // Selo + botão de personalizar ficam à direita do nome.
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (data.isPremium) ...[
+                              const SubscriberBadge(size: 18, compact: true),
+                              const SizedBox(width: 8),
+                            ],
+                            _buildNameStyleButton(data),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      GestureDetector(
+                        onTap: () => _handleUsernameTap(context, data.username),
+                        child: Text(
+                          data.username != null
+                          ? '@${data.username}'
+                          : 'Definir ID de usuário',
+                          style: TextStyle(
+                            color: AppColors.primaryOrange.withOpacity(0.85),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      AnimatedBuilder(
+                        animation: _badgeSlideAnim,
+                        builder: (_, child) => Transform.translate(
+                          offset: Offset(0, _badgeSlideAnim.value),
+                          child: child,
+                        ),
+                        child: _buildLevelTag(data),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  CenteredNameRow(
-                    gap: 8,
-                    trailingWidth: (data.isPremium ? 18 + 8 : 0) + 30,
-                    // Tocar no nome continua abrindo a edição do texto.
-                    name: GestureDetector(
-                      onTap: () => _handleNameTap(context),
-                      child: StyledUserName(
-                        user?.displayName ??
-                            user?.email?.split('@').first ??
-                            'Usuário',
-                        nameStyle: data.nameStyle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                    // Selo + botão de personalizar ficam à direita do nome.
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (data.isPremium) ...[
-                          const SubscriberBadge(size: 18, compact: true),
-                          const SizedBox(width: 8),
-                        ],
-                        _buildNameStyleButton(data),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  GestureDetector(
-                    onTap: () => _handleUsernameTap(context, data.username),
-                    child: Text(
-                      data.username != null
-                          ? '@${data.username}'
-                          : 'Definir ID de usuário',
-                      style: TextStyle(
-                        color: AppColors.primaryOrange.withOpacity(0.85),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  AnimatedBuilder(
-                    animation: _badgeSlideAnim,
-                    builder: (_, child) => Transform.translate(
-                      offset: Offset(0, _badgeSlideAnim.value),
-                      child: child,
-                    ),
-                    child: _buildLevelTag(data),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
