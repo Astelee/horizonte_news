@@ -242,7 +242,11 @@ class _ProfileScreenState extends State<ProfileScreen>
               slivers: [
                 SliverAppBar(
                   pinned: true,
-                  backgroundColor: AppColors.backgroundDark,
+                  backgroundColor: const Color(0xFF1A0800),
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 0,
+                  scrolledUnderElevation: 0,
+                  toolbarHeight: 40,
                   leading: IconButton(
                     icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
                     onPressed: () => Navigator.pop(context),
@@ -254,14 +258,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ? const _ProfileSkeleton()
                       : Column(
                           children: [
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 12),
+                            _buildPremiumBanner(),
+                            const SizedBox(height: 12),
                             _buildXpCard(data),
                             const SizedBox(height: 12),
                             _buildNextLevelPreview(data),
                             const SizedBox(height: 16),
                             _buildStatsGrid(data),
-                            const SizedBox(height: 16),
-                            _buildPremiumBanner(),
                             const SizedBox(height: 16),
                             _buildDailyMissions(data),
                             const SizedBox(height: 16),
@@ -379,17 +383,10 @@ class _ProfileScreenState extends State<ProfileScreen>
     final avatarRadius = 84 * (0.5 +
       (data.level > 0 ? LevelAura.extentFor(data.level, 84) : 0.0));
 
-    // O cabeçalho participa do fluxo do scroll com altura natural.
-    // A altura mínima acompanha o viewport; conteúdo/texto maior pode
-    // crescer livremente em vez de ser cortado por um app bar de 260px.
-    return SliverLayoutBuilder(
-      builder: (context, constraints) => SliverToBoxAdapter(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: constraints.viewportMainAxisExtent * 0.38,
-          ),
-          child: IntrinsicHeight(
-            child: Stack(
+    // Altura natural: sem mínimo proporcional à tela ou distribuição
+    // de espaço vazio entre avatar, nome e identificação.
+    return SliverToBoxAdapter(
+      child: Stack(
               children: [
                 Positioned.fill(
                   child: Container(
@@ -423,9 +420,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       FittedBox(
                         fit: BoxFit.scaleDown,
@@ -584,9 +581,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                 ),
               ],
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -651,6 +645,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildXpCard(UserXpData data) {
     final levelColor = BadgeConfig.levelColor(data.level);
     final levelGradient = BadgeConfig.levelGradient(data.level);
+    final isMaxLevel = data.level >= XpService.maxLevel;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -777,12 +772,16 @@ class _ProfileScreenState extends State<ProfileScreen>
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${data.xpInCurrentLevel} / ${data.xpForNextLevel} XP',
+                  isMaxLevel
+                      ? 'Nível máximo alcançado'
+                      : '${data.xpInCurrentLevel} / ${data.xpForNextLevel} XP',
                   style:
                       const TextStyle(color: Color(0xFF9E9E9E), fontSize: 12),
                 ),
                 Text(
-                  'Faltam ${data.xpForNextLevel - data.xpInCurrentLevel} XP para Nível ${data.level + 1}',
+                  isMaxLevel
+                      ? 'Seu XP continua acumulando'
+                      : 'Faltam ${data.xpForNextLevel - data.xpInCurrentLevel} XP para Nível ${data.level + 1}',
                   style: const TextStyle(
                     color: AppColors.primaryOrange,
                     fontSize: 11,
@@ -793,7 +792,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
             const SizedBox(height: 8),
             _buildPremiumProgressBar(
-              data.progressPercent,
+              isMaxLevel ? 1.0 : data.progressPercent,
               levelGradient,
               levelColor,
             ),
