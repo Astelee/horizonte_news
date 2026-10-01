@@ -438,8 +438,8 @@ class CheckinService {
   ///  • NUNCA cria check-ins: só usa documentos que já existem.
   ///  • NUNCA reduz o recorde já salvo.
   ///  • Só escreve no Firestore se algum valor realmente mudou.
-  ///  • Não altera XP, nível nem conquistas — é só o resumo.
-  ///  • Se a subcoleção estiver vazia, não sobrescreve nada.
+  ///  • Não altera XP nem nível; restaura a conquista de mês completo.
+  ///  • Sem histórico, preserva o resumo e só migra aquisições comprovadas.
   ///
   /// Custo: 1 leitura de coleção + 1 leitura do doc pai + no máximo
   /// 1 escrita. Por isso a tela só chama isto UMA vez por sessão
@@ -470,12 +470,28 @@ class CheckinService {
         statuses[d.id] = (d.data()['status'] as String?) ?? 'done';
       }
 
+      // Migração idempotente: usa a conquista existente, o emblema
+      // equipado ou um mês comprovadamente completo no histórico.
+      final completedMonth = CheckinRewardsConfig.hasCompletedMonth(user) ||
+          CheckinRewardsConfig.completedMonthInHistory(
+            statuses, today: _todayDate());
+      final achievements = user['achievements'];
+      final restoreMonthAchievement = completedMonth &&
+          !(achievements is List && achievements.contains(
+              CheckinRewardsConfig.monthCompleteAchievement));
+
       // Sem nenhum documento real: nada a reconstruir. Não mexemos
       // no resumo existente (poderia apagar um dado legítimo).
       if (statuses.isEmpty) {
+        if (restoreMonthAchievement) {
+          await doc.update({
+            'achievements': FieldValue.arrayUnion(
+                [CheckinRewardsConfig.monthCompleteAchievement]),
+          });
+        }
         return RebuildReport(
           ran: true,
-          changed: false,
+          changed: restoreMonthAchievement,
           daysFound: 0,
           oldStreak: oldStreak,
           newStreak: oldStreak,
@@ -493,7 +509,11 @@ class CheckinService {
       final newLast = calc.lastDate;
       final newFirst = calc.firstDate;
 
-      final update = <String, dynamic>{};
+      final update = <String, dynamic>{
+        if (restoreMonthAchievement)
+          'achievements': FieldValue.arrayUnion(
+              [CheckinRewardsConfig.monthCompleteAchievement]),
+      };
       if (newStreak != oldStreak) update['checkinStreak'] = newStreak;
       if (newLongest != oldLongest) {
         update['longestCheckinStreak'] = newLongest;
@@ -653,8 +673,10 @@ class CheckinService {
           'longestCheckinStreak': finalLongest,
           if (freshData['checkinFirstDate'] == null)
             'checkinFirstDate': todayKey,
-          if (isSpecialMilestone(newStreak))
-            'achievements': FieldValue.arrayUnion(['checkin_month_complete']),
+          if (newStreak == CheckinRewardsConfig.daysInMonth(today) ||
+              CheckinRewardsConfig.hasCompletedMonth(freshData))
+            'achievements': FieldValue.arrayUnion(
+                [CheckinRewardsConfig.monthCompleteAchievement]),
         });
       });
 
@@ -667,9 +689,10 @@ class CheckinService {
 
       // A recompensa é "nova" se este marco não estava desbloqueado
       // pelo recorde anterior.
-      final reward = CheckinRewardsConfig.forStreak(newStreak);
-      final isNewUnlock =
-          reward != null && longestStreak < reward.requiredStreak;
+      final reward = CheckinRewardsConfig.forStreak(newStreak, month: today);
+      final isNewUnlock = reward != null &&
+          !CheckinRewardsConfig.isUnlocked(reward, longestStreak,
+              completedMonth: CheckinRewardsConfig.hasCompletedMonth(data));
 
       return CheckinResult(
         success: true,
@@ -749,6 +772,9 @@ class CheckinService {
         statuses[d.id] = (d.data()['status'] as String?) ?? 'done';
       }
       final calc = computeStreaks(statuses, today: today);
+      final completedBefore = CheckinRewardsConfig.hasCompletedMonth(user);
+      final completedAfter = completedBefore ||
+          CheckinRewardsConfig.completedMonthInHistory(statuses, today: today);
 
       final newLongest =
           calc.longest > longestBefore ? calc.longest : longestBefore;
@@ -765,6 +791,9 @@ class CheckinService {
         'lastActivity': FieldValue.serverTimestamp(),
         'checkinStreak': calc.current,
         'longestCheckinStreak': newLongest,
+        if (completedAfter)
+          'achievements': FieldValue.arrayUnion(
+              [CheckinRewardsConfig.monthCompleteAchievement]),
         'lastCheckinDate': newLast,
         if (calc.firstDate != null) 'checkinFirstDate': calc.firstDate,
       });
@@ -778,8 +807,10 @@ class CheckinService {
       // Recuperar pode empurrar o recorde por cima de um marco.
       CheckinRewardDef? newlyUnlocked;
       for (final r in CheckinRewardsConfig.currentMonthList) {
-        if (longestBefore < r.requiredStreak &&
-            newLongest >= r.requiredStreak) {
+        if (!CheckinRewardsConfig.isUnlocked(r, longestBefore,
+                completedMonth: completedBefore) &&
+            CheckinRewardsConfig.isUnlocked(r, newLongest,
+                completedMonth: completedAfter)) {
           newlyUnlocked = r; // fica com o mais alto atingido agora
         }
       }
@@ -826,7 +857,7 @@ class CheckinService {
   // RECOMPENSA EQUIPADA (independente do avatar VIP)
   // ═════════════════════════════════════════════════════════════════
   /// Equipa/desequipa uma recompensa do Check-in. Só grava se o
-  /// usuário REALMENTE desbloqueou (recorde >= marco) — a checagem é
+  /// usuário REALMENTE desbloqueou (recorde ou mês completo) — a checagem é
   /// feita aqui a partir do dado do servidor, não de um valor vindo
   /// da UI. Passe `null` para desequipar. Retorna true se gravou.
   Future<bool> setEquippedReward(String? storageKeyOrNull) async {
@@ -836,7 +867,13 @@ class CheckinService {
     try {
       if (storageKeyOrNull == null) {
         await doc.set(
-          {'equippedCheckinRewardId': FieldValue.delete()},
+          {
+            'equippedCheckinRewardId': FieldValue.delete(),
+            if (CheckinRewardsConfig.hasCompletedMonth(
+                (await doc.get()).data() ?? {}))
+              'achievements': FieldValue.arrayUnion(
+                  [CheckinRewardsConfig.monthCompleteAchievement]),
+          },
           SetOptions(merge: true),
         );
         return true;
@@ -848,10 +885,18 @@ class CheckinService {
       final snap = await doc.get();
       final longest =
           (snap.data()?['longestCheckinStreak'] as num?)?.toInt() ?? 0;
-      if (!CheckinRewardsConfig.isUnlocked(def, longest)) return false;
+      final completedMonth =
+          CheckinRewardsConfig.hasCompletedMonth(snap.data() ?? {});
+      if (!CheckinRewardsConfig.isUnlocked(def, longest,
+          completedMonth: completedMonth)) return false;
 
       await doc.set(
-        {'equippedCheckinRewardId': storageKeyOrNull},
+        {
+          'equippedCheckinRewardId': storageKeyOrNull,
+          if (completedMonth)
+            'achievements': FieldValue.arrayUnion(
+                [CheckinRewardsConfig.monthCompleteAchievement]),
+        },
         SetOptions(merge: true),
       );
       return true;
