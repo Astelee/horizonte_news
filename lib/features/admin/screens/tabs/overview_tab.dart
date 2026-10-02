@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../../config/app_colors.dart';
-import '../../../../config/badge_config.dart';
-import '../../../../widgets/app_avatar.dart';
 import '../../../../widgets/app_messenger.dart';
 import '../../services/admin_avatar_approval_service.dart';
 import '../../services/admin_subscription_request_service.dart';
@@ -172,35 +170,10 @@ class _OverviewTabState extends State<OverviewTab> {
                 ),
                 const SizedBox(height: 22),
                 _buildManagementCenter(),
-                const SizedBox(height: 26),
-                _buildKpiGrid(data),
-                const SizedBox(height: 22),
-                _buildLevelDistribution(data),
-                const SizedBox(height: 22),
-                _buildTopRanking(data),
               ],
             ),
           );
         },
-      ),
-    );
-  }
-
-  // ── KPIs gerais do sistema (não específicos de um usuário — dados
-  // por usuário individual como total/online/suspensos agora vivem
-  // só na aba Usuários e no perfil de cada um, para não duplicar) ──
-  Widget _buildKpiGrid(DashboardSnapshot data) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: SizedBox(
-        width: 150,
-        child: StatCardCompact(
-          icon: Icons.chat_bubble_rounded,
-          color: const Color(0xFF9575CD),
-          label: 'Comentários',
-          value: data.totalComments,
-          onTap: widget.onGoToComments,
-        ),
       ),
     );
   }
@@ -266,12 +239,9 @@ class _OverviewTabState extends State<OverviewTab> {
                 subtitle: 'Ver e gerenciar usuários banidos',
                 onTap: widget.onGoToBanned,
               ),
-              _ManagementTile(
-                icon: Icons.bar_chart_rounded,
-                color: const Color(0xFF4FC3F7),
-                title: 'VISUALIZAÇÕES',
-                subtitle: 'Acompanhar desempenho das publicações',
-                onTap: widget.onGoToViews,
+              _CommentsManagementTile(
+                commentService: widget.commentService,
+                onTap: widget.onGoToComments,
               ),
               _ManagementTile(
                 icon: Icons.auto_awesome_rounded,
@@ -374,141 +344,6 @@ class _OverviewTabState extends State<OverviewTab> {
           ),
         ),
       ],
-    );
-  }
-
-  // ── Distribuição de níveis (donut) ──────────────────────────────
-  // Ajustado para o teto de 30 níveis (era desenhado para 100).
-  Widget _buildLevelDistribution(DashboardSnapshot data) {
-    final labels = {
-      1: 'Nv 1-5',
-      6: 'Nv 6-10',
-      11: 'Nv 11-15',
-      16: 'Nv 16-20',
-      21: 'Nv 21-25',
-      26: 'Nv 26-30',
-    };
-    final colors = {
-      1: const Color(0xFF66BB6A),
-      6: const Color(0xFF4FC3F7),
-      11: const Color(0xFF9575CD),
-      16: const Color(0xFFFFD54F),
-      21: AppColors.primaryOrange,
-      26: const Color(0xFFEF5350),
-    };
-
-    final slices = data.levelDistribution.entries
-        .map((e) => DonutSlice(
-              e.value.toDouble(),
-              colors[e.key] ?? AppColors.textMuted,
-              labels[e.key] ?? 'Nv ${e.key}',
-            ))
-        .toList()
-      ..sort((a, b) => (labels.values.toList().indexOf(a.label))
-          .compareTo(labels.values.toList().indexOf(b.label)));
-
-    return DashCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const DashSectionTitle(
-            title: 'DISTRIBUIÇÃO DE NÍVEIS',
-            icon: Icons.pie_chart_rounded,
-          ),
-          Row(
-            children: [
-              AnimatedDonutChart(
-                slices: slices,
-                centerValue: data.totalUsers,
-                centerLabel: 'usuários',
-              ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final s in slices)
-                      if (s.value > 0)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: s.color,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  s.label,
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                '${s.value.round()}',
-                                style: TextStyle(
-                                  color: s.color,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                    Text(
-                      'Nível médio: ${data.avgLevel.toStringAsFixed(1)}',
-                      style: const TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Top 5 ranking por XP ────────────────────────────────────────
-  Widget _buildTopRanking(DashboardSnapshot data) {
-    return DashCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          DashSectionTitle(
-            title: 'TOP 5 — RANKING GERAL',
-            icon: Icons.emoji_events_rounded,
-            trailing: GestureDetector(
-              onTap: widget.onGoToUsers,
-              child: const Text(
-                'ver todos',
-                style: TextStyle(
-                  color: AppColors.primaryOrange,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ),
-          for (int i = 0; i < data.topByXp.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _RankRow(rank: i + 1, user: data.topByXp[i]),
-            ),
-        ],
-      ),
     );
   }
 }
@@ -930,72 +765,6 @@ class _SyncLevelsButton extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _RankRow extends StatelessWidget {
-  final int rank;
-  final DashUser user;
-  const _RankRow({required this.rank, required this.user});
-
-  Color get _rankColor {
-    if (rank == 1) return const Color(0xFFFFD700);
-    if (rank == 2) return const Color(0xFFC0C0C0);
-    if (rank == 3) return const Color(0xFFCD7F32);
-    return AppColors.textSecondary;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 22,
-          child: Text(
-            '$rank°',
-            style: TextStyle(
-              color: _rankColor,
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-        AppAvatar(name: user.name, seed: user.uid, size: 32),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                user.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              Text(
-                'Nv ${user.level} · ${BadgeConfig.levelTitle(user.level)}',
-                style: const TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 10,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Text(
-          '${user.totalXp} XP',
-          style: const TextStyle(
-            color: Color(0xFFFFD54F),
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
     );
   }
 }
