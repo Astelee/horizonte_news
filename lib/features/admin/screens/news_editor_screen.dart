@@ -13,6 +13,7 @@ import '../services/admin_news_service.dart';
 import '../services/push_notification_service.dart';
 import '../../../utils/plain_text_html_converter.dart';
 import '../widgets/video_frame_editor.dart';
+import '../widgets/news_image_crop_screen.dart';
 import '../../../widgets/app_messenger.dart';
 
 /// Formulário de criação/edição de notícia, usado pela aba NOTÍCIAS
@@ -75,10 +76,8 @@ const List<_EditorCategoryOption> _kEditorCategories = [
       'Entretenimento', FontAwesomeIcons.film, Color(0xFFAB47BC)),
 ];
 
-/// Limite recomendado (não bloqueante) de caracteres do título, só
-/// para dar feedback visual de "título muito grande" — o usuário
-/// continua podendo digitar além disso, o campo não trava.
-const int _kTitleSoftLimit = 90;
+/// Limite recomendado (não bloqueante) de caracteres do resumo. O
+/// título não tem limite nenhum.
 const int _kSummarySoftLimit = 180;
 
 class _NewsEditorScreenState extends State<NewsEditorScreen>
@@ -92,6 +91,8 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
   late final TextEditingController _categoryCtrl;
 
   String _coverUrl = '';
+  double? _coverAspectRatio; // proporção definida no recorte da capa
+  bool _customCategory = false; // "Outra categoria" selecionada
   bool _coverLoadError = false;
   List<String> _gallery = [];
   String? _videoUrl;
@@ -137,6 +138,11 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
           : '',
     );
     _coverUrl = post?.thumbnailUrl ?? '';
+    _coverAspectRatio = post?.coverAspectRatio;
+    final initialCategory = _categoryCtrl.text.trim();
+    _customCategory = initialCategory.isNotEmpty &&
+        !_kEditorCategories
+            .any((c) => c.label.toLowerCase() == initialCategory.toLowerCase());
     _gallery = List<String>.from(post?.gallery ?? []);
     _videoUrl = post?.videoUrl;
     _videoFrameConfig = post?.videoFrameConfig ?? VideoFrameConfig.original;
@@ -236,6 +242,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
       summary: _summaryCtrl.text.trim(),
       content: PlainTextHtmlConverter.ensureHtml(_contentCtrl.text.trim()),
       thumbnailUrl: _coverUrl,
+      coverAspectRatio: _coverUrl.isEmpty ? null : _coverAspectRatio,
       gallery: _gallery,
       videoUrl: _videoUrl,
       videoFrameConfig: _videoFrameConfig,
@@ -247,17 +254,40 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
     );
   }
 
-  Future<void> _pickAndUploadCover() async {
+  /// Escolhe uma foto, abre o recorte e devolve o arquivo já recortado
+  /// (temporário) junto da proporção escolhida. Null se cancelar.
+  Future<({File file, double ratio})?> _pickAndCropImage() async {
     final picked =
         await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (picked == null) return;
+    if (picked == null) return null;
+    final bytes = await picked.readAsBytes();
+    if (!mounted) return null;
+    final result = await Navigator.of(context).push<NewsCropResult>(
+      MaterialPageRoute(
+        builder: (_) => NewsImageCropScreen(imageBytes: bytes),
+        fullscreenDialog: true,
+      ),
+    );
+    if (result == null) return null;
+    final file = File(
+        '${Directory.systemTemp.path}/news_crop_${DateTime.now().microsecondsSinceEpoch}.png');
+    await file.writeAsBytes(result.bytes, flush: true);
+    return (file: file, ratio: result.aspectRatio);
+  }
+
+  Future<void> _pickAndUploadCover() async {
+    final cropped = await _pickAndCropImage();
+    if (cropped == null) return;
     setState(() {
       _uploadingCover = true;
       _coverLoadError = false;
     });
     try {
-      final url = await _cloudinary.uploadImage(File(picked.path));
-      setState(() => _coverUrl = url);
+      final url = await _cloudinary.uploadImage(cropped.file);
+      setState(() {
+        _coverUrl = url;
+        _coverAspectRatio = cropped.ratio;
+      });
     } catch (e) {
       _showError('Falha ao enviar imagem de capa. Verifique sua conexão '
           'e tente novamente.');
@@ -269,17 +299,17 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
   void _removeCover() {
     setState(() {
       _coverUrl = '';
+      _coverAspectRatio = null;
       _coverLoadError = false;
     });
   }
 
   Future<void> _pickAndUploadGalleryImage() async {
-    final picked =
-        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (picked == null) return;
+    final cropped = await _pickAndCropImage();
+    if (cropped == null) return;
     setState(() => _uploadingGallery = true);
     try {
-      final url = await _cloudinary.uploadImage(File(picked.path));
+      final url = await _cloudinary.uploadImage(cropped.file);
       setState(() => _gallery = [..._gallery, url]);
     } catch (e) {
       _showError('Falha ao enviar imagem da galeria. Verifique sua conexão '
@@ -386,6 +416,10 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
       FocusScope.of(context).requestFocus(_contentFocusNode);
       return false;
     }
+    if (_customCategory && _categoryCtrl.text.trim().isEmpty) {
+      _showError('Digite o nome da categoria.');
+      return false;
+    }
     if (_uploadingCover || _uploadingVideo || _uploadingGallery) {
       final what = _uploadingCover
           ? 'da imagem de capa'
@@ -471,6 +505,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
         contentHtml:
             PlainTextHtmlConverter.ensureHtml(_contentCtrl.text.trim()),
         coverUrl: _coverUrl,
+        coverAspectRatio: _coverAspectRatio,
         gallery: _gallery,
         videoUrl: _videoUrl,
         categoryLabel:
@@ -489,7 +524,19 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
   }
 
   void _selectCategory(String label) {
-    setState(() => _categoryCtrl.text = label);
+    setState(() {
+      _customCategory = false;
+      _categoryCtrl.text = label;
+    });
+  }
+
+  void _selectCustomCategory() {
+    setState(() {
+      // Se havia uma categoria da lista selecionada, limpa o campo para
+      // o ADM digitar a nova; se já era personalizada, mantém o texto.
+      if (!_customCategory) _categoryCtrl.text = '';
+      _customCategory = true;
+    });
   }
 
   // ── UI ───────────────────────────────────────────────────────────────
@@ -535,9 +582,8 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
                                   controller: _titleCtrl,
                                   focusNode: _titleFocusNode,
                                   hint: 'Título chamativo e direto da notícia',
-                                  maxLines: 3,
+                                  maxLines: null,
                                   minLines: 1,
-                                  softLimit: _kTitleSoftLimit,
                                 ),
                                 const SizedBox(height: 14),
                                 _label('Resumo / linha fina'),
@@ -554,7 +600,9 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
                                 _label('Categoria'),
                                 _CategorySelector(
                                   controller: _categoryCtrl,
+                                  customMode: _customCategory,
                                   onSelected: _selectCategory,
+                                  onCustomSelected: _selectCustomCategory,
                                 ),
                               ],
                             ),
@@ -595,6 +643,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
                               children: [
                                 _CoverSection(
                                   coverUrl: _coverUrl,
+                                  aspectRatio: _coverAspectRatio,
                                   uploading: _uploadingCover,
                                   loadError: _coverLoadError,
                                   onPick: _pickAndUploadCover,
@@ -887,7 +936,7 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
                         ),
                       ),
                       Text(
-                        _uploadingVideo ? 'Processando vídeo...' : _videoUrl!,
+                        _videoUrl!,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                             color: Colors.white54, fontSize: 11),
@@ -1015,17 +1064,6 @@ class _NewsEditorScreenState extends State<NewsEditorScreen>
         _uploadingCover || _uploadingVideo || _uploadingGallery;
     return Column(
       children: [
-        if (uploadingAny)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _UploadingNotice(
-              label: _uploadingCover
-                  ? 'Enviando imagem de capa...'
-                  : _uploadingVideo
-                      ? 'Processando vídeo...'
-                      : 'Enviando imagem da galeria...',
-            ),
-          ),
         AnimatedBuilder(
           animation: _glowAnim,
           builder: (_, child) => Container(
@@ -1262,14 +1300,14 @@ class _CounterTextField extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode? focusNode;
   final String hint;
-  final int maxLines;
+  final int? maxLines;
   final int minLines;
-  final int softLimit;
+  final int? softLimit;
 
   const _CounterTextField({
     required this.controller,
     required this.hint,
-    required this.softLimit,
+    this.softLimit,
     this.focusNode,
     this.maxLines = 1,
     this.minLines = 1,
@@ -1278,8 +1316,10 @@ class _CounterTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final length = controller.text.runes.length;
-    final overLimit = length > softLimit;
-    final nearLimit = !overLimit && length >= (softLimit * 0.85).round();
+    final limit = softLimit; // null = sem limite (ex.: título)
+    final overLimit = limit != null && length > limit;
+    final nearLimit =
+        limit != null && !overLimit && length >= (limit * 0.85).round();
     final counterColor = overLimit
         ? const Color(0xFFEF5350)
         : nearLimit
@@ -1331,13 +1371,14 @@ class _CounterTextField extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),
         ),
-        const SizedBox(height: 4),
+        if (limit != null) const SizedBox(height: 4),
+        if (limit != null)
         Align(
           alignment: Alignment.centerRight,
           child: Text(
             overLimit
-                ? '$length caracteres · acima do recomendado ($softLimit)'
-                : '$length / $softLimit caracteres',
+                ? '$length caracteres · acima do recomendado ($limit)'
+                : '$length / $limit caracteres',
             style: TextStyle(
               fontSize: 10.5,
               fontWeight: FontWeight.w600,
@@ -1384,9 +1425,16 @@ class _WordCountBadge extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════
 class _CategorySelector extends StatelessWidget {
   final TextEditingController controller;
+  final bool customMode;
   final ValueChanged<String> onSelected;
+  final VoidCallback onCustomSelected;
 
-  const _CategorySelector({required this.controller, required this.onSelected});
+  const _CategorySelector({
+    required this.controller,
+    required this.customMode,
+    required this.onSelected,
+    required this.onCustomSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1401,15 +1449,23 @@ class _CategorySelector extends StatelessWidget {
               height: 40,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: _kEditorCategories.length,
+                itemCount: _kEditorCategories.length + 1,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
-                  final cat = _kEditorCategories[index];
-                  final isSelected =
-                      selectedLabel.toLowerCase() == cat.label.toLowerCase();
+                  final bool isOther = index == _kEditorCategories.length;
+                  final cat = isOther
+                      ? const _EditorCategoryOption('Outra categoria',
+                          FontAwesomeIcons.plus, AppColors.primaryOrange)
+                      : _kEditorCategories[index];
+                  final isSelected = isOther
+                      ? customMode
+                      : (!customMode &&
+                          selectedLabel.toLowerCase() ==
+                              cat.label.toLowerCase());
                   return InkWell(
                     borderRadius: BorderRadius.circular(20),
-                    onTap: () => onSelected(cat.label),
+                    onTap: () =>
+                        isOther ? onCustomSelected() : onSelected(cat.label),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 160),
                       padding:
@@ -1449,27 +1505,36 @@ class _CategorySelector extends StatelessWidget {
                 },
               ),
             ),
-            if (selectedLabel.isNotEmpty &&
-                !_kEditorCategories
-                    .any((c) => c.label.toLowerCase() == selectedLabel.toLowerCase()))
+            if (customMode)
               Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline_rounded,
-                        size: 13, color: AppColors.textSecondary),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Categoria personalizada: "$selectedLabel"',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                padding: const EdgeInsets.only(top: 10),
+                child: TextField(
+                  controller: controller,
+                  textCapitalization: TextCapitalization.words,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  cursorColor: AppColors.primaryOrange,
+                  decoration: InputDecoration(
+                    hintText: 'Nome da categoria (ex.: Fortaleza)',
+                    hintStyle:
+                        const TextStyle(color: Color(0xFF666666), fontSize: 13),
+                    filled: true,
+                    fillColor: const Color(0xFF0A0A0A),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF262626)),
                     ),
-                  ],
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF262626)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                          color: AppColors.primaryOrange, width: 1.3),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                  ),
                 ),
               ),
           ],
@@ -1591,56 +1656,13 @@ class _FormatButton extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// AVISO DE UPLOAD EM ANDAMENTO — barra fina acima dos botões de ação,
-// deixando claro o que está acontecendo enquanto mídia é enviada.
-// ═══════════════════════════════════════════════════════════════════
-class _UploadingNotice extends StatelessWidget {
-  final String label;
-  const _UploadingNotice({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-      decoration: BoxDecoration(
-        color: AppColors.primaryOrange.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.primaryOrange.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(
-                strokeWidth: 2, color: AppColors.primaryOrange),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.primaryOrange,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
 // CAPA — preview grande, estado de carregamento, tratamento de erro
 // amigável (em vez de deixar o Image.network quebrar visualmente) e
 // botões de trocar/remover.
 // ═══════════════════════════════════════════════════════════════════
 class _CoverSection extends StatelessWidget {
   final String coverUrl;
+  final double? aspectRatio;
   final bool uploading;
   final bool loadError;
   final VoidCallback onPick;
@@ -1649,6 +1671,7 @@ class _CoverSection extends StatelessWidget {
 
   const _CoverSection({
     required this.coverUrl,
+    required this.aspectRatio,
     required this.uploading,
     required this.loadError,
     required this.onPick,
@@ -1675,13 +1698,9 @@ class _CoverSection extends StatelessWidget {
         ),
         ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: Container(
-            height: 170,
-            width: double.infinity,
-            color: const Color(0xFF0A0A0A),
-            child: uploading
-                ? const _MediaLoadingIndicator(label: 'Enviando imagem...')
-                : coverUrl.isEmpty
+          child: _CoverFrame(
+            aspectRatio: aspectRatio,
+            child: coverUrl.isEmpty
                     ? const _EmptyMediaPlaceholder(
                         icon: Icons.image_outlined,
                         label: 'Nenhuma capa selecionada',
@@ -1780,6 +1799,27 @@ class _CoverSection extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// Moldura da capa: usa a proporção escolhida no recorte (a imagem
+/// aparece inteira, sem corte) ou altura fixa para capas antigas.
+class _CoverFrame extends StatelessWidget {
+  final double? aspectRatio;
+  final Widget child;
+  const _CoverFrame({required this.aspectRatio, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final box = Container(
+      width: double.infinity,
+      height: aspectRatio == null ? 170 : null,
+      color: const Color(0xFF0A0A0A),
+      child: child,
+    );
+    return aspectRatio == null
+        ? box
+        : AspectRatio(aspectRatio: aspectRatio!, child: box);
   }
 }
 
@@ -2121,6 +2161,7 @@ class _NewsPreviewSheet extends StatelessWidget {
   final String summary;
   final String contentHtml;
   final String coverUrl;
+  final double? coverAspectRatio;
   final List<String> gallery;
   final String? videoUrl;
   final String? categoryLabel;
@@ -2131,6 +2172,7 @@ class _NewsPreviewSheet extends StatelessWidget {
     required this.summary,
     required this.contentHtml,
     required this.coverUrl,
+    required this.coverAspectRatio,
     required this.gallery,
     required this.videoUrl,
     required this.categoryLabel,
@@ -2198,7 +2240,7 @@ class _NewsPreviewSheet extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                         child: Image.network(
                           coverUrl,
-                          height: 190,
+                          height: coverAspectRatio == null ? 190 : null,
                           width: double.infinity,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stack) =>
