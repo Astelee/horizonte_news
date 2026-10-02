@@ -20,7 +20,6 @@ class OverviewTab extends StatefulWidget {
   final AdminAvatarApprovalService avatarApprovalService;
   final AdminSubscriptionRequestService subscriptionRequestService;
   final VoidCallback onGoToUsers;
-  final VoidCallback onGoToViews;
   final VoidCallback onGoToBanned;
   final VoidCallback onGoToNews;
   final VoidCallback onGoToComments;
@@ -38,7 +37,6 @@ class OverviewTab extends StatefulWidget {
     required this.avatarApprovalService,
     required this.subscriptionRequestService,
     required this.onGoToUsers,
-    required this.onGoToViews,
     required this.onGoToBanned,
     required this.onGoToNews,
     required this.onGoToComments,
