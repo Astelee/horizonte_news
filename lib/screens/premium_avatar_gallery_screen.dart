@@ -49,9 +49,9 @@ class PremiumAvatarGalleryScreen extends StatelessWidget {
       builder: (context, xpProvider, _) {
         final data = xpProvider.data;
         final isSubscriber = data.isPremium;
-        final userTier = data.premiumTier;
+        final userTier = data.effectiveTier;
         final equippedId =
-            PremiumAvatarIdX.fromStorageKey(data.equippedPremiumAvatarId);
+            PremiumAvatarIdX.fromStorageKey(data.activePremiumAvatarId);
 
         return Scaffold(
           backgroundColor: AppColors.backgroundDark,
