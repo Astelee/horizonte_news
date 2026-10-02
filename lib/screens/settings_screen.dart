@@ -1070,7 +1070,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final levelColor = BadgeConfig.levelColor(data.level);
     final levelGradient = BadgeConfig.levelGradient(data.level);
     final title = data.customTitle ?? BadgeConfig.levelTitle(data.level);
-    final isSubscriber = data.premiumTier != PremiumTier.none;
+    final isSubscriber = data.isPremium;
 
     final displayName = user?.displayName ??
         user?.email?.split('@').first ??
@@ -1101,7 +1101,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         seed: user?.uid,
                         photoUrl: data.photoUrl,
                         equippedPremiumAvatarId:
-                            data.equippedPremiumAvatarId,
+                            data.activePremiumAvatarId,
                         equippedCheckinRewardId:
                             data.equippedCheckinRewardId,
                         equippedPetId: data.equippedPetId,
