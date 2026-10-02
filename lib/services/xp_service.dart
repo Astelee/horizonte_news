@@ -142,7 +142,26 @@ class UserXpData {
   int get dailyMinutes =>
       (dailyMissions['minutesOnline'] as num?)?.toInt() ?? 0;
 
-  bool get isPremium => premiumTier.isPremium;
+  /// Plano VIGENTE: premiumTier gravado, mas já considerando a data de
+  /// vencimento. Passou do prazo → none (o campo no Firestore pode
+  /// continuar gravado até o admin/backend limpar; a UI não deve confiar
+  /// nele cru). Calculado a cada leitura, então vence mesmo com a tela
+  /// já aberta (o provider notifica no horário do vencimento).
+  PremiumTier get effectiveTier {
+    final expires = premiumExpiresAt;
+    if (expires != null && DateTime.now().isAfter(expires)) {
+      return PremiumTier.none;
+    }
+    return premiumTier;
+  }
+
+  bool get isPremium => effectiveTier.isPremium;
+
+  /// Avatar animado VIP que pode ser exibido: sem plano vigente, o
+  /// avatar equipado fica oculto (volta a foto/iniciais), mesmo que a
+  /// chave ainda esteja gravada. Se o usuário reassinar, ele volta.
+  String? get activePremiumAvatarId =>
+      isPremium ? equippedPremiumAvatarId : null;
 }
 
 // ═══════════════════════════════════════════════════════════════════
