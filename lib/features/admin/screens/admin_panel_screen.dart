@@ -9,12 +9,10 @@ import '../services/admin_dashboard_service.dart';
 import '../services/admin_news_service.dart';
 import '../services/admin_subscription_request_service.dart';
 import '../services/admin_user_service.dart';
-import '../services/admin_views_service.dart';
 import 'tabs/overview_tab.dart';
 import 'tabs/comments_tab.dart';
 import 'tabs/banned_tab.dart';
 import 'tabs/users_tab.dart';
-import 'tabs/views_tab.dart';
 import 'tabs/poderes_tab.dart';
 import 'tabs/news_tab.dart';
 import 'tabs/avatar_approvals_tab.dart';
@@ -35,7 +33,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
   final _commentService = AdminCommentService();
   final _userService = AdminUserService();
-  final _viewsService = AdminViewsService();
   final _dashboardService = AdminDashboardService();
   final _newsService = AdminNewsService();
   final _avatarApprovalService = AdminAvatarApprovalService();
@@ -47,7 +44,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     'COMENTÁRIOS',
     'BANIDOS',
     'USUÁRIOS',
-    'VISUALIZAÇÕES',
     'NÍVEIS & XP',
     'PUBLICAÇÕES',
     'FOTOS PENDENTES',
@@ -59,7 +55,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 11, vsync: this);
+    _tabController = TabController(length: 10, vsync: this);
     _tabController.addListener(() {
       // Reconstrói o AppBar (título + botão voltar) ao trocar de aba,
       // mesmo durante o gesto (sem esperar a animação terminar).
@@ -153,15 +149,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                       avatarApprovalService: _avatarApprovalService,
                       subscriptionRequestService: _subscriptionRequestService,
                       onGoToUsers: () => _goToTab(3),
-                      onGoToViews: () => _goToTab(4),
                       onGoToBanned: () => _goToTab(2),
-                      onGoToNews: () => _goToTab(6),
+                      onGoToNews: () => _goToTab(5),
                       onGoToComments: () => _goToTab(1),
-                      onGoToLevels: () => _goToTab(5),
-                      onGoToAvatarApprovals: () => _goToTab(7),
-                      onGoToSubscriptionRequests: () => _goToTab(8),
-                      onGoToConfig: () => _goToTab(9),
-                      onGoToAdsBar: () => _goToTab(10),
+                      onGoToLevels: () => _goToTab(4),
+                      onGoToAvatarApprovals: () => _goToTab(6),
+                      onGoToSubscriptionRequests: () => _goToTab(7),
+                      onGoToConfig: () => _goToTab(8),
+                      onGoToAdsBar: () => _goToTab(9),
                     ),
                   ),
                   _TabScaffold(
@@ -172,12 +167,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ),
                   _TabScaffold(child: BannedTab(userService: _userService)),
                   _TabScaffold(child: UsersTab(userService: _userService)),
-                  _TabScaffold(
-                    child: ViewsTab(
-                      viewsService: _viewsService,
-                      commentService: _commentService,
-                    ),
-                  ),
                     const _TabScaffold(child: PoderesTab()),
                     _TabScaffold(child: NewsTab(newsService: _newsService)),
                     _TabScaffold(
