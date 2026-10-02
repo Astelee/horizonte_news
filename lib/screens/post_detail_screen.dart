@@ -492,7 +492,17 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     // no conteúdo logo abaixo do título, e duplicar a prévia aqui em
     // cima (sem poder tocar) só confunde, parecendo um segundo vídeo.
     final bool hasOwnThumbnail = post.thumbnailUrl.trim().isNotEmpty;
-    final double expandedHeight = hasOwnThumbnail ? 280 : 0;
+    double expandedHeight = hasOwnThumbnail ? 280 : 0;
+    // Capa com proporção definida no recorte do editor: a altura do hero
+    // acompanha essa proporção (largura / ratio), então a imagem aparece
+    // inteira, sem corte nem distorção. O SliverAppBar soma o padding do
+    // topo à altura, por isso ele é descontado aqui.
+    final double? coverRatio = post.coverAspectRatio;
+    if (hasOwnThumbnail && coverRatio != null && coverRatio > 0) {
+      final mq = MediaQuery.of(context);
+      final double h = mq.size.width / coverRatio - mq.padding.top;
+      expandedHeight = h < kToolbarHeight ? kToolbarHeight : h;
+    }
 
     return SliverAppBar(
       expandedHeight: expandedHeight,
