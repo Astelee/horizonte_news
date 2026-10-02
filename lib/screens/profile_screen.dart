@@ -443,7 +443,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                     seed: user?.uid,
                                     photoUrl: data.photoUrl,
                                     equippedPremiumAvatarId:
-                                    data.equippedPremiumAvatarId,
+                                    data.activePremiumAvatarId,
                                     equippedCheckinRewardId:
                                     data.equippedCheckinRewardId,
                                     equippedPetId: data.equippedPetId,
