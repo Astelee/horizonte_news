@@ -166,7 +166,12 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
       // Limita a espera; ao disparar, recalcula e reagenda se preciso.
       const maxDelay = Duration(hours: 6);
       if (delay > maxDelay) delay = maxDelay;
-      _tierExpiryTimer = Timer(delay, _syncPremiumTag);
+      _tierExpiryTimer = Timer(delay, () {
+        _syncPremiumTag();
+        // Reconstrói as telas: selo, avatar VIP, anúncios e recuperação
+        // de check-in dependem de UserXpData.isPremium.
+        notifyListeners();
+      });
     }
   }
 
