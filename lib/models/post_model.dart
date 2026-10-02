@@ -178,6 +178,9 @@ class PostModel {
   final List<String> gallery;
   final String? videoUrl;
   final VideoFrameConfig videoFrameConfig;
+  /// Proporção (largura/altura) da capa definida no recorte do editor.
+  /// Null em matérias antigas (mantém o comportamento anterior).
+  final double? coverAspectRatio;
   final List<CategoryModel> categories;
   final String replyCount;
   final PostStatus status;
@@ -196,6 +199,7 @@ class PostModel {
     this.gallery = const [],
     this.videoUrl,
     this.videoFrameConfig = VideoFrameConfig.original,
+    this.coverAspectRatio,
     required this.categories,
     this.replyCount = '0',
     this.status = PostStatus.published,
@@ -218,6 +222,7 @@ class PostModel {
       gallery: gallery,
       videoUrl: videoUrl,
       videoFrameConfig: videoFrameConfig,
+      coverAspectRatio: coverAspectRatio,
       categories: categories,
       replyCount: replyCount,
       status: status,
@@ -271,6 +276,7 @@ class PostModel {
               preset:
                   _videoFramePresetFromString(data['videoAspectMode'] as String?),
             ),
+      coverAspectRatio: (data['capaAspectRatio'] as num?)?.toDouble(),
       categories: parsedCategories,
       replyCount: (data['replyCount'] ?? '0').toString(),
       status: _statusFromString(data['status'] as String?),
@@ -289,6 +295,7 @@ class PostModel {
       'conteudo': content,
       'categoria': categories.isNotEmpty ? categories.first.name : '',
       'capaUrl': thumbnailUrl,
+      'capaAspectRatio': coverAspectRatio,
       'galeria': gallery,
       'videoUrl': videoUrl,
       'videoFrameConfig': videoFrameConfig.toMap(),
