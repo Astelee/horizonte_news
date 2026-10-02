@@ -58,6 +58,10 @@ class _RankUser {
       premiumTier.isPremium &&
       (premiumExpiresAt == null || DateTime.now().isBefore(premiumExpiresAt!));
 
+  // Avatar VIP só aparece enquanto o plano estiver vigente.
+  String? get activePremiumAvatarId =>
+      isSubscriber ? equippedPremiumAvatarId : null;
+
   factory _RankUser.fromDoc(QueryDocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     // Prioridade: nome escolhido pelo usuário (displayName) > ID de
@@ -707,7 +711,7 @@ class _PodiumSpotState extends State<_PodiumSpot>
                   seed: widget.user.uid,
                   photoUrl: widget.user.photoUrl,
                   equippedPremiumAvatarId:
-                      widget.user.equippedPremiumAvatarId,
+                      widget.user.activePremiumAvatarId,
                   equippedCheckinRewardId:
                       widget.user.equippedCheckinRewardId,
                   equippedPetId: widget.user.equippedPetId,
@@ -904,7 +908,7 @@ class _RankTileState extends State<_RankTile>
                 name: widget.user.name,
                 seed: widget.user.uid,
                 photoUrl: widget.user.photoUrl,
-                equippedPremiumAvatarId: widget.user.equippedPremiumAvatarId,
+                equippedPremiumAvatarId: widget.user.activePremiumAvatarId,
                 equippedCheckinRewardId: widget.user.equippedCheckinRewardId,
                 equippedPetId: widget.user.equippedPetId,
                 level: widget.user.level,
@@ -1045,7 +1049,7 @@ class _MyPositionBar extends StatelessWidget {
               name: user.name,
               seed: user.uid,
               photoUrl: user.photoUrl,
-              equippedPremiumAvatarId: user.equippedPremiumAvatarId,
+              equippedPremiumAvatarId: user.activePremiumAvatarId,
               equippedCheckinRewardId: user.equippedCheckinRewardId,
               equippedPetId: user.equippedPetId,
               level: user.level,
