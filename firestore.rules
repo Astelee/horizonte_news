@@ -164,7 +164,11 @@ service cloud.firestore {
     // ── Banimento legado (usado hoje só na exclusão de conta) ──────
     match /banned_users/{userId} {
       allow read: if request.auth != null;
-      allow write: if isAdmin() || isOwner(userId);
+      // Só admin cria/edita um banimento. O dono mantém apenas o direito
+      // de APAGAR o próprio registro (exclusão de conta). Antes, o dono
+      // podia escrever qualquer coisa no próprio documento.
+      allow create, update: if isAdmin();
+      allow delete: if isAdmin() || isOwner(userId);
     }
 
     // ── Nomes de usuário (reserva de username) ──────────────────────
@@ -199,9 +203,25 @@ service cloud.firestore {
     }
 
     // ── Visualizações e compartilhamentos de posts ───────────────────
+    // Contadores de leitura/compartilhamento. O app só grava por
+    // set(merge) com incremento de +1 (ver AdminViewsService e
+    // XpService._recordPostShare). Qualquer outro formato é negado
+    // para quem não é admin: antes, qualquer logado podia reescrever
+    // ou zerar o contador de qualquer notícia.
     match /post_views/{postId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow create: if request.auth != null
+          && request.resource.data.keys().hasOnly(
+              ['postId', 'postTitle', 'totalViews', 'uniqueViewers', 'lastViewedAt'])
+          && request.resource.data.totalViews == 1
+          && request.resource.data.uniqueViewers == 1;
+      allow update: if isAdmin() || (
+          request.auth != null
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['postId', 'postTitle', 'totalViews', 'uniqueViewers', 'lastViewedAt'])
+          && request.resource.data.totalViews == resource.data.get('totalViews', 0) + 1
+          && request.resource.data.uniqueViewers == resource.data.get('uniqueViewers', 0) + 1);
+      allow delete: if isAdmin();
 
       match /viewers/{userId} {
         allow read: if request.auth != null;
@@ -211,7 +231,16 @@ service cloud.firestore {
 
     match /post_shares/{postId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow create: if request.auth != null
+          && request.resource.data.keys().hasOnly(
+              ['postId', 'postTitle', 'totalShares', 'lastSharedAt'])
+          && request.resource.data.totalShares == 1;
+      allow update: if isAdmin() || (
+          request.auth != null
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['postId', 'postTitle', 'totalShares', 'lastSharedAt'])
+          && request.resource.data.totalShares == resource.data.get('totalShares', 0) + 1);
+      allow delete: if isAdmin();
     }
 
     // ── Log ADM ───────────────────────────────────────────────────
@@ -387,10 +416,320 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ── Demais coleções ───────────────────────────────────────────
-    match /{document=**} {
+    // ── Atendimento privado (usuário ↔ equipe Horizonte News) ──────
+    //
+    // Estrutura:
+    //   support_conversations/{uid}            ← ID = UID do usuário
+    //   support_conversations/{uid}/messages/{messageId}
+    //   support_config/public                  ← boas-vindas, horário
+    //   support_config/agents                  ← quem atende / quem recebe push
+    //   support_quick_replies/{id}             ← respostas rápidas
+    //
+    // Sem Cloud Functions (plano gratuito): quem envia grava a mensagem
+    // E o resumo da conversa no MESMO batch. As regras abaixo exigem
+    // que os dois cheguem juntos (existsAfter/getAfter), com timestamps
+    // do servidor, contador +1 e remetente igual ao usuário autenticado.
+
+    // Atendente = admin listado em support_config/agents. Se esse
+    // documento ainda não existe, todo admin pode atender (modo
+    // inicial). As regras não conseguem conferir cada UID da lista
+    // contra /admins, mas isso não abre brecha: o atendente SEMPRE
+    // precisa passar por isAdmin() também.
+    function isSupportAgent() {
+      return isAdmin() && (
+        !exists(/databases/$(database)/documents/support_config/agents) ||
+        request.auth.uid in get(/databases/$(database)/documents/support_config/agents)
+            .data.get('agentUids', [])
+      );
+    }
+
+    function supportConvPath(convId) {
+      return /databases/$(database)/documents/support_conversations/$(convId);
+    }
+
+    function supportMsgPathAfter(convId, msgId) {
+      return /databases/$(database)/documents/support_conversations/$(convId)/messages/$(msgId);
+    }
+
+    function validSupportProfile(d) {
+      return d.userName is string && d.userName.size() <= 80
+          && d.username is string && d.username.size() <= 40
+          && d.usernameLower is string && d.usernameLower.size() <= 40
+          && d.searchName is string && d.searchName.size() <= 80
+          && (d.photoUrl == null || (d.photoUrl is string && d.photoUrl.size() <= 600));
+    }
+
+    function validSupportCategory(d) {
+      return !('category' in d) || d.category == null
+          || d.category in ['app', 'tecnico', 'assinatura', 'informacao', 'anunciar'];
+    }
+
+    function validSupportPreview(d) {
+      return d.lastMessageText is string
+          && d.lastMessageText.size() >= 1
+          && d.lastMessageText.size() <= 200
+          && d.lastMessageAt == request.time
+          && d.lastActivityAt == request.time
+          && d.lastMessageId is string
+          && d.lastMessageId.size() >= 1
+          && d.lastMessageId.size() <= 40;
+    }
+
+    // Resumo gravado por uma mensagem DO USUÁRIO.
+    function validUserSummary(convId, d) {
+      return validSupportPreview(d)
+          && d.lastMessageSenderRole == 'user'
+          && d.lastUserSendAt == request.time
+          && d.awaitingReply == true
+          && d.status == 'open'
+          && validSupportCategory(d)
+          && existsAfter(supportMsgPathAfter(convId, d.lastMessageId))
+          && getAfter(supportMsgPathAfter(convId, d.lastMessageId)).data.senderId == request.auth.uid
+          && getAfter(supportMsgPathAfter(convId, d.lastMessageId)).data.senderRole == 'user';
+    }
+
+    // Resumo gravado por uma mensagem DO ATENDENTE.
+    function validAgentSummary(convId, d) {
+      return validSupportPreview(d)
+          && d.lastMessageSenderRole == 'agent'
+          && d.lastAgentId == request.auth.uid
+          && d.awaitingReply == false
+          && d.status in ['open', 'resolved']
+          && existsAfter(supportMsgPathAfter(convId, d.lastMessageId))
+          && getAfter(supportMsgPathAfter(convId, d.lastMessageId)).data.senderId == request.auth.uid
+          && getAfter(supportMsgPathAfter(convId, d.lastMessageId)).data.senderRole == 'agent';
+    }
+
+    function validUserConvCreate(convId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly([
+            'userId', 'userName', 'username', 'usernameLower', 'searchName',
+            'photoUrl', 'category', 'hidePreview', 'status', 'pinned', 'blocked',
+            'awaitingReply', 'unreadUser', 'unreadAgent', 'lastMessageText',
+            'lastMessageSenderRole', 'lastMessageAt', 'lastMessageId',
+            'lastActivityAt', 'lastUserSendAt', 'createdAt'])
+          && d.userId == convId
+          && (!('hidePreview' in d) || d.hidePreview is bool)
+          && validSupportProfile(d)
+          && d.pinned == false
+          && d.blocked == false
+          && d.unreadUser == 0
+          && d.unreadAgent == 1
+          && d.createdAt == request.time
+          && validUserSummary(convId, d);
+    }
+
+    function validAgentConvCreate(convId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly([
+            'userId', 'userName', 'username', 'usernameLower', 'searchName',
+            'photoUrl', 'category', 'status', 'pinned', 'blocked',
+            'awaitingReply', 'unreadUser', 'unreadAgent', 'lastMessageText',
+            'lastMessageSenderRole', 'lastMessageAt', 'lastMessageId',
+            'lastActivityAt', 'lastAgentId', 'createdAt'])
+          && d.userId == convId
+          && validSupportProfile(d)
+          && d.pinned == false
+          && d.blocked == false
+          && d.unreadUser == 1
+          && d.unreadAgent == 0
+          && d.createdAt == request.time
+          && validAgentSummary(convId, d);
+    }
+
+    // Usuário envia mensagem (resumo + contador do atendente +1 +
+    // intervalo mínimo de 2 s entre envios + conta não bloqueada).
+    function validUserSend(convId) {
+      let d = request.resource.data;
+      let b = resource.data;
+      return d.diff(b).affectedKeys().hasOnly([
+            'userName', 'username', 'usernameLower', 'searchName', 'photoUrl',
+            'category', 'hidePreview', 'status', 'awaitingReply', 'unreadAgent',
+            'lastMessageText', 'lastMessageSenderRole', 'lastMessageAt',
+            'lastMessageId', 'lastActivityAt', 'lastUserSendAt'])
+          && d.userId == b.userId
+          && (!('hidePreview' in d) || d.hidePreview is bool)
+          && b.get('blocked', false) == false
+          && validSupportProfile(d)
+          && validUserSummary(convId, d)
+          && d.unreadAgent == b.get('unreadAgent', 0) + 1
+          && (!('lastUserSendAt' in b)
+              || request.time > b.lastUserSendAt + duration.value(2, 's'));
+    }
+
+    function validUserReadMark() {
+      let d = request.resource.data;
+      return d.diff(resource.data).affectedKeys().hasOnly(['unreadUser', 'userReadAt'])
+          && d.unreadUser == 0
+          && d.userReadAt == request.time;
+    }
+
+    function validUserPrefs() {
+      let d = request.resource.data;
+      return d.diff(resource.data).affectedKeys().hasOnly(['hidePreview'])
+          && d.hidePreview is bool;
+    }
+
+    function validAgentSend(convId) {
+      let d = request.resource.data;
+      let b = resource.data;
+      return d.diff(b).affectedKeys().hasOnly([
+            'lastMessageText', 'lastMessageSenderRole', 'lastMessageAt',
+            'lastMessageId', 'lastActivityAt', 'lastAgentId', 'unreadUser',
+            'awaitingReply', 'status'])
+          && d.userId == b.userId
+          && validAgentSummary(convId, d)
+          && d.unreadUser == b.get('unreadUser', 0) + 1;
+    }
+
+    function validAgentReadMark() {
+      let d = request.resource.data;
+      return d.diff(resource.data).affectedKeys().hasOnly(['unreadAgent', 'agentReadAt'])
+          && d.unreadAgent == 0
+          && d.agentReadAt == request.time;
+    }
+
+    // Resolver, reabrir, fixar, bloquear envio e categoria. Bloquear o
+    // atendimento NÃO é banir a conta (suspensions/banned_users).
+    function validAgentManage() {
+      let d = request.resource.data;
+      return d.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'pinned', 'blocked', 'awaitingReply', 'category'])
+          && d.status in ['open', 'resolved']
+          && d.pinned is bool
+          && d.blocked is bool
+          && d.awaitingReply is bool
+          && (d.status != 'resolved' || d.awaitingReply == false)
+          && validSupportCategory(d);
+    }
+
+    function validSupportMessage(convId, msgId) {
+      let d = request.resource.data;
+      return request.auth != null
+          && msgId.size() <= 40
+          && d.keys().hasOnly(['senderId', 'senderRole', 'text', 'createdAt', 'replyTo'])
+          && d.senderId == request.auth.uid
+          && d.text is string
+          && d.text.size() >= 1
+          && d.text.size() <= 2000
+          && d.createdAt == request.time
+          && (!('replyTo' in d) || d.replyTo == null || (
+                d.replyTo is map
+                && d.replyTo.keys().hasOnly(['id', 'text', 'senderRole'])
+                && d.replyTo.id is string
+                && d.replyTo.text is string
+                && d.replyTo.text.size() <= 200
+                && d.replyTo.senderRole in ['user', 'agent']))
+          && getAfter(supportConvPath(convId)).data.lastMessageId == msgId
+          && getAfter(supportConvPath(convId)).data.lastMessageAt == request.time
+          && (
+            (d.senderRole == 'user'
+              && request.auth.uid == convId
+              && !(exists(supportConvPath(convId))
+                   && get(supportConvPath(convId)).data.get('blocked', false) == true))
+            ||
+            (d.senderRole == 'agent' && isSupportAgent())
+          );
+    }
+
+    match /support_conversations/{convId} {
+      allow read: if isOwner(convId) || isSupportAgent();
+
+      allow create: if (isOwner(convId) && validUserConvCreate(convId))
+          || (isSupportAgent() && validAgentConvCreate(convId));
+
+      allow update: if (isOwner(convId) && (
+              validUserSend(convId) || validUserReadMark() || validUserPrefs()))
+          || (isSupportAgent() && (
+              validAgentSend(convId) || validAgentReadMark() || validAgentManage()));
+
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        allow read: if isOwner(convId) || isSupportAgent();
+        allow create: if validSupportMessage(convId, msgId);
+        // Mensagens são imutáveis: nada de editar ou apagar depois de
+        // enviada (evita adulterar o histórico).
+        allow update, delete: if false;
+      }
+    }
+
+    // Textos públicos do atendimento (boas-vindas, horário). Qualquer
+    // usuário logado lê; só atendente escreve.
+    match /support_config/public {
+      allow read: if request.auth != null;
+      allow write: if isSupportAgent()
+          && request.resource.data.keys().hasOnly(
+              ['enabled', 'welcomeMessage', 'offHoursMessage', 'hours',
+               'hidePreviewAgent', 'updatedAt'])
+          && request.resource.data.welcomeMessage is string
+          && request.resource.data.welcomeMessage.size() <= 500
+          && request.resource.data.offHoursMessage is string
+          && request.resource.data.offHoursMessage.size() <= 500;
+    }
+
+    // Quem atende e quem recebe push. Só admins leem. Quem escreve
+    // precisa continuar na lista (ninguém se remove sem querer) e a
+    // lista tem tamanho limitado.
+    match /support_config/agents {
+      allow read: if isAdmin();
+      allow write: if isAdmin()
+          && (!exists(/databases/$(database)/documents/support_config/agents)
+              || request.auth.uid in get(/databases/$(database)/documents/support_config/agents)
+                  .data.get('agentUids', []))
+          && request.resource.data.keys().hasOnly(
+              ['agentUids', 'notifyUids', 'updatedAt'])
+          && request.resource.data.agentUids is list
+          && request.resource.data.agentUids.size() >= 1
+          && request.resource.data.agentUids.size() <= 10
+          && request.auth.uid in request.resource.data.agentUids
+          && request.resource.data.notifyUids is list
+          && request.resource.data.notifyUids.size() <= 10;
+    }
+
+    match /support_quick_replies/{replyId} {
+      allow read: if isSupportAgent();
+      allow create, update: if isSupportAgent()
+          && request.resource.data.keys().hasOnly(['title', 'text', 'order', 'updatedAt'])
+          && request.resource.data.title is string
+          && request.resource.data.title.size() >= 1
+          && request.resource.data.title.size() <= 40
+          && request.resource.data.text is string
+          && request.resource.data.text.size() >= 1
+          && request.resource.data.text.size() <= 1000;
+      allow delete: if isSupportAgent();
+    }
+
+    // ── Coleções públicas que antes dependiam do "match tudo" ───────
+    // Notícias: leitura pública (inclusive sem login), escrita só admin.
+    match /noticias/{postId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // Documento-pai de comentários (comments/{postId}): o app lista essa
+    // coleção na exclusão de conta e no painel ADM.
+    match /comments/{postId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Consultas de grupo (painel ADM → aba Comentários).
+    match /{path=**}/postComments/{commentId} {
+      allow read: if true;
+    }
+    match /{path=**}/replies/{replyId} {
+      allow read: if true;
+    }
+
+    // ── Negação padrão ──────────────────────────────────────────────
+    // Antes: match /{document=**} { allow read: if true; allow write:
+    // if isAdmin(); } — deixava QUALQUER coleção sem regra legível por
+    // qualquer pessoa, até sem login. Agora o que não tem regra
+    // explícita é negado para todos (inclusive admin pelo app; o
+    // Admin SDK/console não passam pelas regras).
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
