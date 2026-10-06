@@ -177,12 +177,15 @@ class AppNotificationService {
   /// faz o OneSignal ignorar pedidos repetidos com a mesma chave (vale
   /// entre aparelhos do mesmo usuário; ver notifyPremiumExpiringSoon).
   static Future<bool> _sendPush({
-    required String recipientUserId,
+    String? recipientUserId,
+    Map<String, dynamic>? targeting,
     required String title,
     required String body,
     required Map<String, String> data,
     String? idempotencyKey,
+    String? collapseId,
   }) async {
+    assert(recipientUserId != null || targeting != null);
     if (_restApiKey.isEmpty) {
       debugPrint(
           'Push de notificação não enviado: ONESIGNAL_REST_API_KEY ausente.');
@@ -197,14 +200,18 @@ class AppNotificationService {
         },
         body: json.encode({
           'app_id': _appId,
-          'include_aliases': {
-            'external_id': [recipientUserId],
-          },
-          'target_channel': 'push',
+          ...(targeting ??
+              {
+                'include_aliases': {
+                  'external_id': [recipientUserId],
+                },
+                'target_channel': 'push',
+              }),
           'headings': {'en': title},
           'contents': {'en': body},
           'data': data,
           if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
+          if (collapseId != null) 'collapse_id': collapseId,
         }),
       );
       if (response.statusCode != 200) {
@@ -225,6 +232,64 @@ class AppNotificationService {
       debugPrint('Erro ao enviar push de notificação: $e');
       return false;
     }
+  }
+
+  // ── Atendimento (chat privado usuário ↔ equipe) ────────────────
+
+  /// Tag do OneSignal que marca os aparelhos dos atendentes que devem
+  /// receber o push de "nova mensagem de usuário". É mantida por
+  /// SupportProvider conforme support_config/agents (notifyUids).
+  static const String supportAgentTagKey = 'support_agent';
+
+  /// Push de uma mensagem do atendimento.
+  ///
+  /// [recipientUserId] != null → vai para ESSE usuário (External ID =
+  /// UID do Firebase). null → vai para a equipe (aparelhos com a tag
+  /// `support_agent = 1`), porque o app do usuário não pode ler a lista
+  /// de atendentes.
+  ///
+  /// Dados do toque: kind, conversationId e messageId. A chave de
+  /// idempotência é derivada do messageId: reenviar a mesma mensagem
+  /// não gera um segundo push. O collapse_id substitui o aviso anterior
+  /// da mesma conversa na bandeja em vez de empilhar vários.
+  ///
+  /// Melhor esforço: o Android pode atrasar ou descartar notificações
+  /// (economia de bateria, permissão negada, app restrito), então a
+  /// entrega não é garantida — o histórico e os contadores vêm do
+  /// Firestore e funcionam mesmo sem push.
+  static Future<bool> sendSupportPush({
+    required String conversationId,
+    required String messageId,
+    required String title,
+    required String body,
+    String? recipientUserId,
+  }) {
+    final toTeam = recipientUserId == null;
+    return _sendPush(
+      recipientUserId: recipientUserId,
+      targeting: toTeam
+          ? {
+              'filters': [
+                {
+                  'field': 'tag',
+                  'key': supportAgentTagKey,
+                  'relation': '=',
+                  'value': '1',
+                },
+              ],
+            }
+          : null,
+      title: title,
+      body: body,
+      data: {
+        'kind': 'support',
+        'conversationId': conversationId,
+        'messageId': messageId,
+      },
+      idempotencyKey: _deterministicUuid(
+          'support|$messageId|${toTeam ? 'team' : recipientUserId}'),
+      collapseId: 'support_$conversationId',
+    );
   }
 
   // ── Aviso de assinatura Premium perto de vencer ─────────────────
