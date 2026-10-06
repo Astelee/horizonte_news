@@ -5,6 +5,8 @@ import '../config/app_navigator.dart';
 import '../config/premium_config.dart';
 import '../screens/post_detail_screen.dart';
 import 'news_service.dart';
+import 'support_launcher.dart';
+import 'app_notification_service.dart';
 
 class NotificationService {
   static const String _permissionKey = 'notif_permission_asked';
@@ -22,12 +24,28 @@ class NotificationService {
     OneSignal.initialize(_oneSignalAppId);
 
     OneSignal.Notifications.addForegroundWillDisplayListener((event) {
+      // Atendimento: não mostra o aviso de uma conversa que a pessoa já
+      // está vendo na tela (a mensagem aparece direto no chat).
+      final data = event.notification.additionalData;
+      final viewing = SupportLauncher.viewingConversationId;
+      if (data?['kind'] == 'support' &&
+          viewing != null &&
+          data?['conversationId'] == viewing) {
+        event.preventDefault();
+        return;
+      }
       event.notification.display();
     });
 
     OneSignal.Notifications.addClickListener((event) {
       final data = event.notification.additionalData;
       final kind = data?['kind'] as String?;
+      if (kind == 'support') {
+        // Abre a conversa certa (aguarda login e navegação prontos e
+        // valida o acesso de novo — ver SupportLauncher).
+        SupportLauncher.handlePushTap(data?['conversationId'] as String?);
+        return;
+      }
       if (kind == 'premium_promo') {
         navigatorKey.currentState?.pushNamed('/premium');
         return;
@@ -66,9 +84,40 @@ class NotificationService {
       // divulgações filtradas por tier = none também o alcancem.
       await OneSignal.User.addTagWithKey(_tierTagKey, PremiumTier.none.id);
       _lastSyncedTierKey = 'anon:${PremiumTier.none.id}';
+      // O usuário anônimo criado pelo logout não tem a tag de atendente.
+      _lastSupportAgentTag = null;
     } catch (e) {
       _lastSyncedTierKey = null;
       debugPrint('Erro ao remover external_id do OneSignal: $e');
+    }
+  }
+
+  /// Último estado da tag de atendente enviado ao OneSignal
+  /// ('1' / 'off'). Evita reenviar a mesma tag a cada snapshot.
+  static String? _lastSupportAgentTag;
+
+  /// Liga/desliga neste aparelho a tag que faz o push de novas
+  /// mensagens de usuários chegar aqui (ver
+  /// AppNotificationService.sendSupportPush). Quem decide é
+  /// support_config/agents (notifyUids) — mantido por SupportProvider.
+  /// A tag só muda enquanto o app do admin está aberto: se alguém for
+  /// removido da lista, o aparelho dele deixa de receber assim que o
+  /// app abrir de novo.
+  static Future<void> syncSupportAgentTag({required bool enabled}) async {
+    final desired = enabled ? '1' : 'off';
+    if (_lastSupportAgentTag == desired) return;
+    try {
+      if (enabled) {
+        await OneSignal.User.addTagWithKey(
+            AppNotificationService.supportAgentTagKey, '1');
+      } else {
+        await OneSignal.User.removeTag(
+            AppNotificationService.supportAgentTagKey);
+      }
+      _lastSupportAgentTag = desired;
+    } catch (e) {
+      _lastSupportAgentTag = null;
+      debugPrint('Erro ao atualizar tag de atendente no OneSignal: $e');
     }
   }
 
