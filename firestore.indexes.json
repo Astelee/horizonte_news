@@ -7,6 +7,22 @@
         { "fieldPath": "recipientUserId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "support_conversations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "awaitingReply", "order": "ASCENDING" },
+        { "fieldPath": "lastActivityAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "support_conversations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "lastActivityAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
