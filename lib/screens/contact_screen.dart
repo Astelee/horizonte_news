@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/app_colors.dart';
 import '../widgets/app_messenger.dart';
+import '../providers/support_provider.dart';
+import '../services/support_launcher.dart';
 
 class ContactScreen extends StatefulWidget {
   const ContactScreen({Key? key}) : super(key: key);
@@ -212,6 +215,28 @@ class _ContactScreenState extends State<ContactScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildEditorialCall(isDark),
+                        const SizedBox(height: 28),
+
+                        // Atendimento privado dentro do app (chat com a
+                        // equipe). Para a conta ADM abre a caixa de
+                        // atendimento.
+                        _buildSectionLabel('ATENDIMENTO NO APP'),
+                        const SizedBox(height: 14),
+                        _buildContactCard(
+                          context: context,
+                          delay: 60,
+                          icon: Icons.chat_bubble_rounded,
+                          iconColor: AppColors.primaryOrange,
+                          glowColor: AppColors.primaryOrange,
+                          title: 'Conversar com a equipe',
+                          subtitle:
+                              'Envie mensagens em uma conversa privada, direto no app',
+                          tag: 'NO APP',
+                          tagColor: AppColors.primaryOrange,
+                          onTap: () => SupportLauncher.open(
+                            asAgent: context.read<SupportProvider>().isAgent,
+                          ),
+                        ),
                         const SizedBox(height: 28),
 
                         _buildSectionLabel('CANAIS OFICIAIS'),
