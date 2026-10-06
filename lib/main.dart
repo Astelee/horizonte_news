@@ -13,8 +13,11 @@ import 'providers/posts_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/user_xp_provider.dart';
+import 'providers/support_provider.dart';
 import 'features/admin/providers/admin_provider.dart';
 import 'services/notification_service.dart';
+import 'services/support_launcher.dart';
+import 'widgets/support_fab.dart';
 import 'services/checkin_reminder_service.dart';
 import 'services/sound_service.dart';
 import 'services/auth_service.dart';
@@ -77,6 +80,16 @@ void main() async {
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
         ChangeNotifierProvider(create: (_) => UserXpProvider()),
         ChangeNotifierProvider(create: (_) => AdminProvider()),
+        // Atendimento: contador de não lidas + tag de push da equipe.
+        // Depende do AdminProvider para saber se a conta é admin.
+        ChangeNotifierProxyProvider<AdminProvider, SupportProvider>(
+          create: (_) => SupportProvider(),
+          update: (_, admin, previous) {
+            final support = previous ?? SupportProvider();
+            support.updateAdmin(admin.isAdmin);
+            return support;
+          },
+        ),
       ],
       child: const HorizonteNewsApp(),
     ),
@@ -127,6 +140,12 @@ class _HorizonteNewsAppState extends State<HorizonteNewsApp> {
       ],
       supportedLocales: const [Locale('pt', 'BR')],
       home: const _AuthGate(),
+      // Observa a pilha de rotas para o botão "Fale conosco" saber em
+      // que tela está e se há diálogo/modal por cima.
+      navigatorObservers: [SupportRouteObserver()],
+      // Botão flutuante único sobre o app inteiro (ver support_fab.dart).
+      builder: (context, child) =>
+          SupportFabOverlay(child: child ?? const SizedBox.shrink()),
       onGenerateRoute: (settings) {
         final builder = AppRoutes.routes[settings.name];
         if (builder != null) {
@@ -291,6 +310,9 @@ class _AuthenticatedGate extends StatelessWidget {
             // App aberto pelo toque no lembrete de sequência: leva
             // direto ao Check-in (só acontece uma vez).
             CheckinReminderService.instance.openPendingCheckinIfAny();
+            // App aberto pelo toque em um push do atendimento: abre a
+            // conversa agora que o login e a navegação estão prontos.
+            SupportLauncher.openPendingIfAny();
           });
           return AppRoutes.routes[AppRoutes.home]!(context);
         }
