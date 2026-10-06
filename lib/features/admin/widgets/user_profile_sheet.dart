@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../../../config/app_colors.dart';
 import '../../../config/badge_config.dart';
 import '../../../config/premium_config.dart';
+import '../../../services/support_chat_service.dart';
+import '../../../services/support_launcher.dart';
 import '../../../services/xp_service.dart';
 import '../../../widgets/app_avatar.dart';
 import '../../../widgets/app_messenger.dart';
@@ -97,6 +99,25 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
     if (d == null) return '—';
     return '${_fmtDate(d)} às ${d.hour.toString().padLeft(2, '0')}:'
         '${d.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// Abre (ou prepara) a conversa de atendimento com este usuário. É a
+  /// MESMA conversa da caixa de entrada (support_conversations/{uid}):
+  /// se ele já escreveu, abre o histórico; se nunca escreveu, a
+  /// conversa só é criada quando a primeira mensagem for enviada.
+  Future<void> _handleSupportMessage() async {
+    setState(() => _busy = true);
+    try {
+      final profile =
+          await SupportChatService.instance.loadUserProfile(widget.userId);
+      if (!mounted) return;
+      setState(() => _busy = false);
+      await SupportLauncher.openForUser(context, profile);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      AppMessenger.error('Não foi possível abrir a conversa.');
+    }
   }
 
   Future<void> _run(Future<void> Function() action, {String? okMessage}) async {
@@ -1049,6 +1070,12 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
             label: 'Enviar notificação',
             color: const Color(0xFF4FC3F7),
             onTap: () => _handleNotify(name),
+          ),
+          _actionButton(
+            icon: Icons.chat_bubble_rounded,
+            label: 'Enviar mensagem',
+            color: AppColors.primaryOrange,
+            onTap: _handleSupportMessage,
           ),
         ];
 
