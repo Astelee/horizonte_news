@@ -19,6 +19,8 @@ import 'tabs/avatar_approvals_tab.dart';
 import 'tabs/subscription_requests_tab.dart';
 import 'tabs/config_tab.dart';
 import 'tabs/ads_bar_tab.dart';
+import 'tabs/support_tab.dart';
+import '../../../providers/support_provider.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({Key? key}) : super(key: key);
@@ -50,17 +52,44 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     'ASSINATURAS PENDENTES',
     'CONFIGURAÇÕES',
     'BARRA DE ANÚNCIOS',
+    'ATENDIMENTO',
   ];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 10, vsync: this);
+    _tabController = TabController(length: 11, vsync: this);
     _tabController.addListener(() {
       // Reconstrói o AppBar (título + botão voltar) ao trocar de aba,
       // mesmo durante o gesto (sem esperar a animação terminar).
       if (mounted) setState(() {});
     });
+  }
+
+  bool _initialTabApplied = false;
+
+  /// Aba em que o painel foi aberto direto (rota com {'tab': n}). Nela,
+  /// "voltar" sai do painel em vez de ir à Central de Controle.
+  int? _directTab;
+
+  bool get _atRootTab =>
+      _tabController.index == 0 || _tabController.index == _directTab;
+
+  /// Abre direto em uma aba quando a rota recebe {'tab': n} — usado
+  /// pelo botão "Fale conosco" e pelo menu lateral (aba Atendimento).
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialTabApplied) return;
+    _initialTabApplied = true;
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map && args['tab'] is int) {
+      final tab = args['tab'] as int;
+      if (tab >= 0 && tab < _tabController.length) {
+        _tabController.index = tab;
+        _directTab = tab;
+      }
+    }
   }
 
   @override
@@ -74,7 +103,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 
   void _handleBack() {
-    if (_tabController.index != 0) {
+    if (!_atRootTab) {
       _goToTab(0);
     } else {
       Navigator.pop(context);
@@ -101,9 +130,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         scaffoldBackgroundColor: AppColors.backgroundDark,
       ),
       child: PopScope(
-        canPop: _tabController.index == 0,
+        canPop: _atRootTab,
         onPopInvokedWithResult: (didPop, _) {
-          if (!didPop && _tabController.index != 0) _goToTab(0);
+          if (!didPop && !_atRootTab) _goToTab(0);
         },
         child: Scaffold(
           backgroundColor: AppColors.backgroundDark,
@@ -181,6 +210,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         child: ConfigTab(configService: _configService)),
                     _TabScaffold(
                         child: AdsBarTab(configService: _configService)),
+                    const _TabScaffold(child: SupportTab()),
                   ],
                 ),
               ),
@@ -192,7 +222,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 
   Widget _buildAppBar() {
-    final onOverview = _tabController.index == 0;
+    final onOverview = _atRootTab;
     return SliverAppBar(
       pinned: true,
       expandedHeight: 110,
@@ -208,6 +238,46 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         tooltip: onOverview ? 'Voltar' : 'Voltar à Central de Gestão',
         onPressed: _handleBack,
       ),
+      actions: [
+        // Atalho para o Atendimento com contador de conversas não lidas.
+        if (_tabController.index != 10)
+          Consumer<SupportProvider>(
+            builder: (context, support, _) => Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  tooltip: 'Atendimento',
+                  icon: const Icon(Icons.chat_bubble_rounded,
+                      color: AppColors.primaryOrange),
+                  onPressed: () => _goToTab(10),
+                ),
+                if (support.unreadCount > 0)
+                  Positioned(
+                    top: 6,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: AppColors.emergencyRed,
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Text(
+                        support.unreadCount > 99
+                            ? '99+'
+                            : '${support.unreadCount}',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
       title: Row(
         children: [
           Container(
