@@ -6,6 +6,9 @@ import '../screens/post_detail_screen.dart';
 import '../services/news_service.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_messenger.dart';
+import 'package:provider/provider.dart';
+import '../providers/support_provider.dart';
+import '../services/support_launcher.dart';
 
 /// Central de notificações — lista as notificações de "respondeu ao
 /// seu comentário" e "curtiu seu comentário" do usuário logado, mais
@@ -94,6 +97,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             );
           }
           final items = snapshot.data ?? const [];
+          // Atendimento: linha fixa no topo com as não lidas (vem do
+          // Firestore, então funciona mesmo com push desativado).
+          final support = context.watch<SupportProvider>();
+          final supportRow = support.unreadCount > 0
+              ? _SupportNotificationTile(
+                  unread: support.unreadCount,
+                  asAgent: support.isAgent,
+                  onTap: () =>
+                      SupportLauncher.open(asAgent: support.isAgent),
+                )
+              : null;
+          if (items.isEmpty && supportRow != null) {
+            return ListView(children: [supportRow]);
+          }
           if (items.isEmpty) {
             return Center(
               child: Padding(
@@ -123,13 +140,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             );
           }
 
+          final offset = supportRow != null ? 1 : 0;
           return ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: items.length,
+            itemCount: items.length + offset,
             separatorBuilder: (_, __) =>
                 Divider(height: 1, color: AppColors.borderSubtle),
             itemBuilder: (context, index) {
-              final n = items[index];
+              if (supportRow != null && index == 0) return supportRow;
+              final n = items[index - offset];
               return _NotificationTile(
                 notification: n,
                 onTap: () => _openNotification(n),
@@ -137,6 +156,80 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             },
           );
         },
+      ),
+    );
+  }
+}
+
+/// Linha do atendimento na central de notificações.
+class _SupportNotificationTile extends StatelessWidget {
+  final int unread;
+  final bool asAgent;
+  final VoidCallback onTap;
+
+  const _SupportNotificationTile({
+    required this.unread,
+    required this.asAgent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final title = asAgent
+        ? (unread == 1
+            ? '1 conversa com mensagens não lidas'
+            : '$unread conversas com mensagens não lidas')
+        : (unread == 1
+            ? 'Você tem 1 mensagem do atendimento'
+            : 'Você tem $unread mensagens do atendimento');
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        color: AppColors.primaryOrange.withOpacity(0.06),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: const BoxDecoration(
+                color: AppColors.primaryOrange,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.chat_bubble_rounded,
+                  color: Colors.black, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Atendimento Horizonte News',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                color: AppColors.primaryOrange,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
