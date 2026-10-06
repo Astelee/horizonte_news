@@ -707,3 +707,18 @@ Não afirmar que uma função foi implementada se ela apenas foi planejada.
 **O código atual é a fonte de verdade.**
 
 Se este guia, `ESTRUTURA_PROJETO.md` e o código entrarem em conflito, primeiro verificar o código e depois atualizar a documentação.
+---
+
+## Atendimento privado (chat usuário ↔ equipe)
+
+Detalhes, limites e publicação em `SUPORTE_ATENDIMENTO.md`. Resumo para IA:
+
+- Conversa única por usuário: `support_conversations/{uid}` + `messages/{id}`.
+  Quem envia grava mensagem + resumo no MESMO batch; as regras exigem os dois.
+- Push do atendimento sai do app de quem envia (`AppNotificationService.sendSupportPush`),
+  sem backend; a equipe é alcançada pela tag OneSignal `support_agent=1`.
+- Tela única do chat: `lib/screens/support_chat_screen.dart` (usuário e atendente).
+- Botão flutuante único: `lib/widgets/support_fab.dart` via `MaterialApp.builder`;
+  lista de telas em `SupportFabOverlay.visibleRoutes`.
+- Aba "Atendimento" do painel ADM = índice 10 (`SupportLauncher.adminInboxTab`).
+- `firestore.rules` NÃO tem mais leitura pública geral: coleção nova precisa de regra explícita.
