@@ -9,6 +9,9 @@ import '../config/app_navigator.dart';
 import '../providers/user_xp_provider.dart';
 import '../features/admin/providers/admin_provider.dart';
 import '../services/checkin_service.dart';
+import '../services/support_launcher.dart';
+import '../providers/support_provider.dart';
+import 'support_fab.dart';
 
 class AppDrawer extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -40,6 +43,7 @@ class _AppDrawerState extends State<AppDrawer>
   ];
 
   static const List<_NavItem> _supportItems = [
+    _NavItem(icon: Icons.chat_bubble_rounded, label: 'Atendimento', route: AppRoutes.support),
     _NavItem(icon: Icons.contact_mail_rounded, label: 'Fale Conosco', route: AppRoutes.contact),
     _NavItem(icon: Icons.settings_rounded, label: 'Configurações', route: AppRoutes.settings),
   ];
@@ -47,6 +51,12 @@ class _AppDrawerState extends State<AppDrawer>
   @override
   void initState() {
     super.initState();
+
+    // O botão flutuante "Fale conosco" se esconde enquanto o menu está
+    // aberto (ele fica acima do Navigator e cobriria o menu).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      SupportFabVisibility.drawerOpen.value = true;
+    });
 
     _headerCtrl = AnimationController(
       vsync: this,
@@ -77,6 +87,9 @@ class _AppDrawerState extends State<AppDrawer>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      SupportFabVisibility.drawerOpen.value = false;
+    });
     _headerCtrl.dispose();
     _particleCtrl.dispose();
     _fireCtrl.dispose();
@@ -86,6 +99,16 @@ class _AppDrawerState extends State<AppDrawer>
 
   void _navigate(BuildContext context, String route) async {
     HapticFeedback.lightImpact();
+
+    // Atendimento: usuário abre a própria conversa; admin autorizado
+    // abre a caixa de atendimento no painel. Não altera o item
+    // destacado do menu.
+    if (route == AppRoutes.support) {
+      SupportLauncher.open(
+        asAgent: context.read<SupportProvider>().isAgent,
+      );
+      return;
+    }
 
     selectedDrawerRouteNotifier.value = route;
 
@@ -229,6 +252,9 @@ class _AppDrawerState extends State<AppDrawer>
                                   _navigate(context, e.value.route),
                               fireCtrl: _fireCtrl,
                               glowCtrl: _glowCtrl,
+                              badge: e.value.route == AppRoutes.support
+                                  ? const _SupportBadge()
+                                  : null,
                             ),
                           ),
                           Consumer<AdminProvider>(
@@ -960,6 +986,37 @@ class _FireDot extends StatelessWidget {
                 spreadRadius: 2,
               ),
             ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Contador do Atendimento no menu: mensagens não lidas (usuário) ou
+/// conversas não lidas (atendente). Some quando é zero.
+class _SupportBadge extends StatelessWidget {
+  const _SupportBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<SupportProvider>(
+      builder: (context, support, _) {
+        final n = support.unreadCount;
+        if (n <= 0) return const SizedBox.shrink();
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.emergencyRed,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            n > 99 ? '99+' : '$n',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         );
       },
