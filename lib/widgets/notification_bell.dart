@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import 'package:provider/provider.dart';
+import '../providers/support_provider.dart';
 import '../services/app_notification_service.dart';
 
 /// Sino de notificações com badge de não lidas, para usar no AppBar
@@ -31,7 +33,9 @@ class _NotificationBellState extends State<NotificationBell> {
     return StreamBuilder<int>(
       stream: AppNotificationService.watchUnreadCount(),
       builder: (context, snapshot) {
-        final unread = snapshot.data ?? 0;
+        // Soma as mensagens do atendimento (Firestore, não depende de push).
+        final unread =
+            (snapshot.data ?? 0) + context.watch<SupportProvider>().unreadCount;
         return GestureDetector(
           onTapDown: (_) => setState(() => _pressed = true),
           onTapUp: (_) {
