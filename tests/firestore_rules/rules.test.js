@@ -174,7 +174,7 @@ test('mensagem sem o resumo da conversa no mesmo batch é recusada', async () =>
     }));
 });
 
-test('mensagens são imutáveis (sem editar nem apagar)', async () => {
+test('mensagens são imutáveis para o usuário (sem editar nem apagar)', async () => {
   const a = userDb('userA');
   await assertSucceeds(userFirstMessage(a, 'userA'));
   const ref = a.doc('support_conversations/userA/messages/m1');
@@ -303,4 +303,38 @@ test('banned_users: dono não cria o próprio banimento, mas pode apagar', async
     await ctx.firestore().doc('banned_users/userA').set({ banned: true });
   });
   await assertSucceeds(userDb('userA').doc('banned_users/userA').delete());
+});
+
+test('usuário limpa a conversa só para si (sem apagar nada)', async () => {
+  const a = userDb('userA');
+  await assertSucceeds(userFirstMessage(a, 'userA'));
+  const ref = a.doc('support_conversations/userA');
+  await assertSucceeds(ref.update({ userClearedAt: ts(), unreadUser: 0 }));
+  // não pode apagar a conversa nem mexer em outros campos junto
+  await assertFails(ref.delete());
+  await assertFails(ref.update({ userClearedAt: ts(), unreadUser: 0, blocked: false }));
+  await assertSucceeds(ref.get());
+});
+
+test('ADM arquiva (excluir só para mim) e a mensagem do usuário reabre', async () => {
+  await assertSucceeds(userFirstMessage(userDb('userA'), 'userA'));
+  const admin = userDb('adminUid');
+  await assertSucceeds(admin.doc('support_conversations/userA').update({
+    status: 'archived', awaitingReply: false, unreadAgent: 0, pinned: false,
+    agentClearedAt: ts(),
+  }));
+  // usuário comum não consegue arquivar
+  await assertFails(userDb('userA').doc('support_conversations/userA').update({
+    status: 'archived', awaitingReply: false, unreadAgent: 0, pinned: false,
+    agentClearedAt: ts(),
+  }));
+});
+
+test('ADM exclui para os dois; usuário comum não', async () => {
+  await assertSucceeds(userFirstMessage(userDb('userA'), 'userA'));
+  await assertFails(userDb('userA').doc('support_conversations/userA/messages/m1').delete());
+  await assertFails(userDb('userB').doc('support_conversations/userA').delete());
+  const admin = userDb('adminUid');
+  await assertSucceeds(admin.doc('support_conversations/userA/messages/m1').delete());
+  await assertSucceeds(admin.doc('support_conversations/userA').delete());
 });
