@@ -8,6 +8,7 @@ import '../../../../widgets/app_messenger.dart';
 import '../../services/admin_support_service.dart';
 import '../../widgets/support_settings_sheets.dart';
 import '../../widgets/support_user_picker.dart';
+import '../../widgets/support_delete_dialogs.dart';
 
 /// Aba "Atendimento" do painel ADM: caixa de entrada das conversas
 /// privadas com os usuários.
@@ -483,11 +484,12 @@ class _SupportTabState extends State<SupportTab> {
                         ),
                     ],
                   ),
-                  if (c.isResolved || c.blocked || category.isNotEmpty)
+                  if (c.isResolved || c.isArchived || c.blocked || category.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 3),
                       child: Text(
                         [
+                          if (c.isArchived) 'Arquivada',
                           if (c.isResolved) 'Resolvida',
                           if (c.blocked) 'Envio bloqueado',
                           if (category.isNotEmpty) category,
@@ -540,6 +542,25 @@ class _SupportTabState extends State<SupportTab> {
               onTap: () {
                 Navigator.pop(ctx);
                 _togglePinned(c);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded,
+                  color: AppColors.emergencyRed),
+              title: const Text('Excluir conversa…',
+                  style: TextStyle(color: AppColors.emergencyRed)),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final done = await askAndDeleteSupportConversation(
+                  context,
+                  service: _service,
+                  conversation: c,
+                );
+                // Resultado de busca: tira a linha apagada da lista.
+                if (done && mounted && _query.isNotEmpty) {
+                  setState(() => _results =
+                      _results.where((x) => x.id != c.id).toList());
+                }
               },
             ),
           ],
