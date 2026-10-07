@@ -128,6 +128,75 @@ class AdminSupportService {
     return found.values.toList()..sort(_byPinnedThenActivity);
   }
 
+  // ── Escolher um usuário para iniciar conversa ───────────────────
+
+  SupportProfile _profileFrom(String uid, Map<String, dynamic> d) {
+    final username = ((d['username'] as String?) ?? '').trim();
+    var name = ((d['displayName'] as String?) ?? '').trim();
+    if (name.isEmpty) {
+      final email = (d['email'] as String?) ?? '';
+      name = username.isNotEmpty
+          ? username
+          : (email.isNotEmpty ? email.split('@').first : 'Usuário');
+    }
+    final photo = d['photoUrl'] as String?;
+    return SupportProfile(
+      userId: uid,
+      userName: name,
+      username: username,
+      photoUrl: (photo != null && photo.isNotEmpty) ? photo : null,
+    );
+  }
+
+  /// Usuários que abriram o app mais recentemente (limitado; sem
+  /// carregar a base inteira).
+  Future<List<SupportProfile>> recentUsers({int limit = 40}) async {
+    final snap = await _db
+        .collection('users_xp')
+        .orderBy('lastSeenAt', descending: true)
+        .limit(limit)
+        .get();
+    return snap.docs.map((d) => _profileFrom(d.id, d.data())).toList();
+  }
+
+  /// Busca usuários pelo início do nome, início do username ou UID
+  /// completo (o Firestore não faz busca por "contém").
+  Future<List<SupportProfile>> searchUsers(String raw) async {
+    final q = raw.trim();
+    if (q.isEmpty) return const [];
+    final found = <String, SupportProfile>{};
+
+    Future<void> prefix(String field, String value) async {
+      if (value.isEmpty) return;
+      try {
+        final snap = await _db
+            .collection('users_xp')
+            .where(field, isGreaterThanOrEqualTo: value)
+            .where(field, isLessThanOrEqualTo: '$value\uf8ff')
+            .limit(15)
+            .get();
+        for (final d in snap.docs) {
+          found[d.id] = _profileFrom(d.id, d.data());
+        }
+      } catch (_) {}
+    }
+
+    final capitalized = q[0].toUpperCase() + q.substring(1);
+    await Future.wait([
+      prefix('username', q.toLowerCase()),
+      prefix('displayName', q),
+      prefix('displayName', capitalized),
+    ]);
+
+    if (q.length >= 20 && !q.contains(' ') && !found.containsKey(q)) {
+      try {
+        final doc = await _db.collection('users_xp').doc(q).get();
+        if (doc.exists) found[doc.id] = _profileFrom(doc.id, doc.data()!);
+      } catch (_) {}
+    }
+    return found.values.toList();
+  }
+
   // ── Ações em uma conversa ───────────────────────────────────────
 
   /// Resolver ou reabrir. Ao reabrir, volta a "aguardando resposta"
