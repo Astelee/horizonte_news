@@ -458,7 +458,7 @@ class _FabButton extends StatelessWidget {
                 shape: const CircleBorder(),
                 child: const Center(
                   child: Icon(Icons.chat_bubble_rounded,
-                      color: Colors.black, size: 26),
+                      color: Colors.white, size: 26),
                 ),
               ),
             ),
