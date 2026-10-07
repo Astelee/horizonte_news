@@ -113,7 +113,11 @@ class SupportRouteObserver extends NavigatorObserver {
 /// Fica oculto: sem login; fora das telas de [visibleRoutes] (login,
 /// chat, painel ADM, editores e rotas sem nome, como vídeo em tela
 /// cheia); com diálogo/bottom sheet/menu aberto; com o menu lateral
-/// aberto; e com o teclado aberto.
+/// aberto; com o teclado aberto; e depois de fechado pelo usuário.
+///
+/// Toque = abre o atendimento. Arrastar (é só encostar e mover) = muda de
+/// lugar e gruda na borda mais próxima. Arrastar até o "X" que aparece
+/// embaixo = fecha o botão.
 class SupportFabOverlay extends StatefulWidget {
   final Widget child;
   const SupportFabOverlay({Key? key, required this.child}) : super(key: key);
@@ -142,21 +146,20 @@ class SupportFabOverlay extends StatefulWidget {
 class _SupportFabOverlayState extends State<SupportFabOverlay> {
   User? _user = FirebaseAuth.instance.currentUser;
   StreamSubscription<User?>? _authSub;
-  bool _expanded = true;
-  Timer? _collapseTimer;
-  String? _lastPage;
 
-  // Posição personalizada (null = padrão: canto inferior direito).
+  // Posição personalizada (false = padrão: canto inferior direito).
   bool _customPos = false;
   bool _rightSide = true;
   double _yFraction = 0.7; // distância do topo / altura da tela
 
-  // Arrastando (segurar e mover).
+  // Arrastando.
   bool _dragging = false;
   Offset _dragTopLeft = Offset.zero;
   bool _overClose = false;
 
-  static const double _fabSize = 52;
+  final GlobalKey _fabKey = GlobalKey();
+
+  static const double _fabSize = 56;
   static const double _margin = 16;
 
   @override
@@ -165,8 +168,13 @@ class _SupportFabOverlayState extends State<SupportFabOverlay> {
     _authSub = FirebaseAuth.instance.authStateChanges().listen((u) {
       if (mounted) setState(() => _user = u);
     });
-    _scheduleCollapse();
     _loadPrefs();
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadPrefs() async {
@@ -194,21 +202,6 @@ class _SupportFabOverlayState extends State<SupportFabOverlay> {
           SupportFabVisibility._sideKey, _rightSide ? 'r' : 'l');
       await prefs.setDouble(SupportFabVisibility._yKey, _yFraction);
     } catch (_) {}
-  }
-
-  void _scheduleCollapse() {
-    _collapseTimer?.cancel();
-    _expanded = true;
-    _collapseTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted) setState(() => _expanded = false);
-    });
-  }
-
-  @override
-  void dispose() {
-    _authSub?.cancel();
-    _collapseTimer?.cancel();
-    super.dispose();
   }
 
   @override
@@ -258,35 +251,42 @@ class _SupportFabOverlayState extends State<SupportFabOverlay> {
     );
   }
 
-  void _onDragStart(LongPressStartDetails d) {
+  // ── Arrastar (começa assim que o dedo se move; sem precisar segurar) ──
+
+  void _onPanStart(DragStartDetails d) {
+    // Posição atual real do botão na tela, para ele não "pular".
+    Offset topLeft = d.globalPosition - const Offset(_fabSize / 2, _fabSize / 2);
+    final box = _fabKey.currentContext?.findRenderObject();
+    if (box is RenderBox && box.hasSize) {
+      topLeft = box.localToGlobal(Offset.zero);
+    }
     HapticFeedback.mediumImpact();
     setState(() {
       _dragging = true;
-      _expanded = false;
-      _dragTopLeft = d.globalPosition - const Offset(_fabSize / 2, _fabSize / 2);
+      _dragTopLeft = topLeft;
       _overClose = false;
     });
   }
 
-  void _onDragMove(BuildContext context, LongPressMoveUpdateDetails d) {
+  void _onPanUpdate(BuildContext context, DragUpdateDetails d) {
+    if (!_dragging) return;
     final media = MediaQuery.of(context);
-    final center = d.globalPosition;
+    final next = _dragTopLeft + d.delta;
+    final clamped = Offset(
+      next.dx.clamp(0.0, media.size.width - _fabSize).toDouble(),
+      next.dy.clamp(media.padding.top, media.size.height - _fabSize).toDouble(),
+    );
+    final center = clamped + const Offset(_fabSize / 2, _fabSize / 2);
     final nearClose = _closeTargetRect(context).inflate(28).contains(center);
     if (nearClose && !_overClose) HapticFeedback.selectionClick();
     setState(() {
-      _dragTopLeft = Offset(
-        (center.dx - _fabSize / 2)
-            .clamp(0.0, media.size.width - _fabSize)
-            .toDouble(),
-        (center.dy - _fabSize / 2)
-            .clamp(media.padding.top, media.size.height - _fabSize)
-            .toDouble(),
-      );
+      _dragTopLeft = clamped;
       _overClose = nearClose;
     });
   }
 
-  void _onDragEnd(BuildContext context, String? page) {
+  void _onPanEnd(BuildContext context, String? page) {
+    if (!_dragging) return;
     final media = MediaQuery.of(context);
     if (_overClose) {
       setState(() {
@@ -307,7 +307,6 @@ class _SupportFabOverlayState extends State<SupportFabOverlay> {
       _customPos = true;
       _rightSide = centerX >= media.size.width / 2;
       _yFraction = y / media.size.height;
-      _scheduleCollapse();
     });
     _savePos();
   }
@@ -323,37 +322,37 @@ class _SupportFabOverlayState extends State<SupportFabOverlay> {
         !drawerOpen &&
         media.viewInsets.bottom == 0;
 
-    if (page != _lastPage) {
-      _lastPage = page;
-      // Reabre o rótulo ao entrar em uma tela principal.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(_scheduleCollapse);
-      });
-    }
-
     if (!visible) return const SizedBox.shrink();
 
     final button = Consumer<SupportProvider>(
       builder: (context, support, _) => GestureDetector(
-        behavior: HitTestBehavior.deferToChild,
-        onLongPressStart: _onDragStart,
-        onLongPressMoveUpdate: (d) => _onDragMove(context, d),
-        onLongPressEnd: (_) => _onDragEnd(context, page),
-        onLongPressCancel: () {
-          if (_dragging) setState(() => _dragging = false);
+        behavior: HitTestBehavior.opaque,
+        onTap: () => SupportLauncher.open(asAgent: support.isAgent),
+        onPanStart: _onPanStart,
+        onPanUpdate: (d) => _onPanUpdate(context, d),
+        onPanEnd: (_) => _onPanEnd(context, page),
+        onPanCancel: () {
+          // Gesto interrompido (ex.: gesto do sistema): só solta o botão
+          // onde está, sem fechar nem salvar posição.
+          if (_dragging) {
+            setState(() {
+              _dragging = false;
+              _overClose = false;
+            });
+          }
         },
         child: _FabButton(
+          key: _fabKey,
           unread: support.unreadCount,
-          expanded: _expanded && !_dragging,
           dragging: _dragging,
-          onTap: () => SupportLauncher.open(asAgent: support.isAgent),
         ),
       ),
     );
 
-    Widget positioned;
+    final Widget positioned;
     if (_dragging) {
       positioned = Positioned(
+        key: const ValueKey('support_fab_button'),
         left: _dragTopLeft.dx,
         top: _dragTopLeft.dy,
         child: button,
@@ -363,6 +362,7 @@ class _SupportFabOverlayState extends State<SupportFabOverlay> {
       final top =
           (_yFraction * media.size.height).clamp(minY, maxY).toDouble();
       positioned = Positioned(
+        key: const ValueKey('support_fab_button'),
         top: top,
         left: _rightSide ? null : _margin,
         right: _rightSide ? _margin : null,
@@ -372,13 +372,21 @@ class _SupportFabOverlayState extends State<SupportFabOverlay> {
       final bottom = media.padding.bottom +
           _margin +
           (page == AppRoutes.home ? SupportFabOverlay._homeBannerSpace : 0);
-      positioned = Positioned(right: _margin, bottom: bottom, child: button);
+      positioned = Positioned(
+        key: const ValueKey('support_fab_button'),
+        right: _margin,
+        bottom: bottom,
+        child: button,
+      );
     }
 
+    // IMPORTANTE: o botão tem key fixa e a lista nunca muda de tamanho.
+    // Antes, o "X" entrava na lista só durante o arrasto, o que recriava
+    // o botão no meio do gesto e fazia o arrasto falhar às vezes.
     return Positioned.fill(
       child: Stack(
         children: [
-          if (_dragging) _closeTarget(context),
+          _dragging ? _closeTarget(context) : const SizedBox.shrink(),
           positioned,
         ],
       ),
@@ -388,6 +396,7 @@ class _SupportFabOverlayState extends State<SupportFabOverlay> {
   Widget _closeTarget(BuildContext context) {
     final r = _closeTargetRect(context);
     return Positioned(
+      key: const ValueKey('support_fab_close'),
       left: r.left,
       top: r.top,
       width: r.width,
@@ -416,94 +425,70 @@ class _SupportFabOverlayState extends State<SupportFabOverlay> {
   }
 }
 
+/// Botão redondo, sempre só com o ícone de conversa (sem texto que
+/// aparece e some). O nome fica na acessibilidade (leitor de tela).
 class _FabButton extends StatelessWidget {
   final int unread;
-  final bool expanded;
   final bool dragging;
-  final VoidCallback onTap;
 
   const _FabButton({
+    Key? key,
     required this.unread,
-    required this.expanded,
     required this.dragging,
-    required this.onTap,
-  });
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
       label: unread > 0
-          ? 'Fale conosco, $unread não lidas'
-          : 'Fale conosco',
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Material(
-            color: AppColors.primaryOrange,
-            elevation: dragging ? 14 : 6,
-            shadowColor: Colors.black,
-            borderRadius: BorderRadius.circular(28),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(28),
-              onTap: onTap,
-              child: AnimatedSize(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOut,
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: expanded ? 16 : 14,
-                    vertical: 14,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.chat_bubble_rounded,
-                          color: Colors.black, size: 22),
-                      if (expanded) ...[
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Fale conosco',
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                            decoration: TextDecoration.none,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+          ? 'Fale conosco, $unread não lidas. Arraste para mover.'
+          : 'Fale conosco. Arraste para mover.',
+      child: SizedBox(
+        width: _SupportFabOverlayState._fabSize,
+        height: _SupportFabOverlayState._fabSize,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(
+              child: Material(
+                color: AppColors.primaryOrange,
+                elevation: dragging ? 14 : 6,
+                shadowColor: Colors.black,
+                shape: const CircleBorder(),
+                child: const Center(
+                  child: Icon(Icons.chat_bubble_rounded,
+                      color: Colors.black, size: 26),
                 ),
               ),
             ),
-          ),
-          if (unread > 0)
-            Positioned(
-              top: -6,
-              right: -4,
-              child: Container(
-                constraints: const BoxConstraints(minWidth: 20),
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.emergencyRed,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white, width: 1.5),
-                ),
-                child: Text(
-                  unread > 99 ? '99+' : '$unread',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    decoration: TextDecoration.none,
+            if (unread > 0)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 20),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.emergencyRed,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                  child: Text(
+                    unread > 99 ? '99+' : '$unread',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      decoration: TextDecoration.none,
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
