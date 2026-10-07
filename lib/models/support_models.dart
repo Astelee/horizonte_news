@@ -150,6 +150,11 @@ class SupportConversation {
   final DateTime? lastActivityAt;
   final DateTime? userReadAt;
   final DateTime? agentReadAt;
+
+  /// "Limpar conversa" do usuário / "Excluir só para mim" do atendente:
+  /// cada lado só enxerga mensagens posteriores a este horário.
+  final DateTime? userClearedAt;
+  final DateTime? agentClearedAt;
   final bool hidePreview;
 
   const SupportConversation({
@@ -171,10 +176,16 @@ class SupportConversation {
     this.lastActivityAt,
     this.userReadAt,
     this.agentReadAt,
+    this.userClearedAt,
+    this.agentClearedAt,
     this.hidePreview = true,
   });
 
   bool get isResolved => status == 'resolved';
+
+  /// Tirada da caixa de entrada pela equipe ("Excluir só para mim").
+  /// Volta sozinha quando o usuário escrever de novo.
+  bool get isArchived => status == 'archived';
 
   static DateTime? _date(dynamic v) => v is Timestamp ? v.toDate() : null;
 
@@ -201,6 +212,8 @@ class SupportConversation {
       lastActivityAt: _date(d['lastActivityAt']),
       userReadAt: _date(d['userReadAt']),
       agentReadAt: _date(d['agentReadAt']),
+      userClearedAt: _date(d['userClearedAt']),
+      agentClearedAt: _date(d['agentClearedAt']),
       // Sem o campo (conversa criada pelo ADM) vale o padrão: ocultar.
       hidePreview: d['hidePreview'] != false,
     );
