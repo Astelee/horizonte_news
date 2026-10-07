@@ -15,6 +15,7 @@ import '../services/support_chat_service.dart';
 import '../services/support_launcher.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_messenger.dart';
+import '../widgets/support_fab.dart';
 
 /// Conversa de atendimento. A MESMA tela serve o usuário (sua própria
 /// conversa) e o atendente (conversa de qualquer usuário, aberta pela
@@ -1003,8 +1004,21 @@ class _SupportChatScreenState extends State<SupportChatScreen>
         PopupMenuButton<String>(
           color: AppColors.backgroundElevated,
           iconColor: Colors.white,
-          onSelected: (_) => _toggleHidePreview(),
+          onSelected: (v) {
+            if (v == 'fab') {
+              SupportFabVisibility.setHidden(false);
+              AppMessenger.success('Botão "Fale conosco" reexibido');
+            } else {
+              _toggleHidePreview();
+            }
+          },
           itemBuilder: (_) => [
+            if (SupportFabVisibility.hidden.value)
+              const PopupMenuItem(
+                value: 'fab',
+                child: Text('Mostrar botão "Fale conosco" nas telas',
+                    style: TextStyle(color: Colors.white)),
+              ),
             PopupMenuItem(
               value: 'preview',
               child: Text(
