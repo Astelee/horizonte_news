@@ -16,6 +16,7 @@ import '../services/support_launcher.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/app_messenger.dart';
 import '../widgets/support_fab.dart';
+import '../features/admin/widgets/support_delete_dialogs.dart';
 
 /// Conversa de atendimento. A MESMA tela serve o usuário (sua própria
 /// conversa) e o atendente (conversa de qualquer usuário, aberta pela
@@ -69,6 +70,17 @@ class _SupportChatScreenState extends State<SupportChatScreen>
   int _newWhileAway = 0;
   Set<String> _knownIds = {};
   bool _markingRead = false;
+
+  // Histórico escondido por "Limpar conversa" (usuário) ou "Excluir só
+  // para mim" (atendente): só mensagens depois deste horário.
+  DateTime? _localCleared; // vale até o horário do servidor chegar
+  DateTime? _subscribedBoundary;
+  bool _msgsStarted = false;
+
+  DateTime? get _boundary {
+    final server = _asAgent ? _conv?.agentClearedAt : _conv?.userClearedAt;
+    return server ?? _localCleared;
+  }
   DateTime? _lastSendAt;
   bool _showOffHoursNote = false;
   bool _pendingSlow = false;
@@ -130,6 +142,7 @@ class _SupportChatScreenState extends State<SupportChatScreen>
           _convLoaded = true;
           _noAccess = false;
         });
+        _syncMessageSubscription();
         _maybeMarkRead();
       },
       onError: (_) {
@@ -139,13 +152,6 @@ class _SupportChatScreenState extends State<SupportChatScreen>
             _noAccess = true;
           });
         }
-      },
-    );
-
-    _msgSub = _service.watchLatestMessages(_convId).listen(
-      _onMessages,
-      onError: (_) {
-        if (mounted) setState(() => _messagesLoaded = true);
       },
     );
 
@@ -160,6 +166,29 @@ class _SupportChatScreenState extends State<SupportChatScreen>
       } catch (_) {}
     }
     _updateViewing();
+  }
+
+  /// (Re)assina as mensagens quando muda o horário de "limpeza". Só
+  /// começa depois de conhecer a conversa, para já usar o limite certo.
+  void _syncMessageSubscription() {
+    final b = _boundary;
+    if (_msgsStarted && b == _subscribedBoundary) return;
+    _msgsStarted = true;
+    _subscribedBoundary = b;
+    _msgSub?.cancel();
+    _older.clear();
+    _failed.clear();
+    _latest = const [];
+    _hasMore = true;
+    _knownIds = {};
+    _msgSub = _service
+        .watchLatestMessages(_convId, after: b)
+        .listen(
+      _onMessages,
+      onError: (_) {
+        if (mounted) setState(() => _messagesLoaded = true);
+      },
+    );
   }
 
   // ── Ciclo de vida / presença ────────────────────────────────────
@@ -277,6 +306,7 @@ class _SupportChatScreenState extends State<SupportChatScreen>
       final page = await _service.loadOlder(
         _convId,
         before: confirmed.last.createdTs!,
+        after: _subscribedBoundary,
       );
       if (!mounted) return;
       setState(() {
@@ -655,6 +685,65 @@ class _SupportChatScreenState extends State<SupportChatScreen>
     }
   }
 
+  /// Usuário: esconde o histórico só para si. A equipe mantém tudo e
+  /// uma nova mensagem reabre o atendimento.
+  Future<void> _clearForMe({bool focusComposer = false}) async {
+    if (_conv == null) return;
+    final ok = focusComposer ||
+        await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: AppColors.backgroundElevated,
+                title: const Text('Limpar conversa?',
+                    style: TextStyle(color: Colors.white)),
+                content: const Text(
+                  'As mensagens anteriores somem só para você. A equipe '
+                  'Horizonte News continua com o histórico. Se você escrever '
+                  'de novo, o atendimento é reaberto.',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancelar')),
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Limpar')),
+                ],
+              ),
+            ) ==
+            true;
+    if (!ok || !mounted) return;
+    setState(() => _localCleared = DateTime.now());
+    _syncMessageSubscription();
+    try {
+      await _service.clearForUser(_convId);
+      if (!mounted) return;
+      if (focusComposer) {
+        _focus.requestFocus();
+      } else {
+        AppMessenger.success('Conversa limpa');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _localCleared = null);
+      _syncMessageSubscription();
+      AppMessenger.error('Não foi possível limpar a conversa.');
+    }
+  }
+
+  /// Atendente: "Excluir só para mim" ou "Excluir para os dois".
+  Future<void> _deleteConversation() async {
+    final c = _conv;
+    if (c == null) return;
+    final done = await askAndDeleteSupportConversation(
+      context,
+      service: _adminService,
+      conversation: c,
+    );
+    if (done && mounted) Navigator.of(context).maybePop();
+  }
+
   Future<void> _toggleHidePreview() async {
     final next = !_hidePreview;
     setState(() => _hidePreview = next);
@@ -1020,6 +1109,9 @@ class _SupportChatScreenState extends State<SupportChatScreen>
                 case 'block':
                   _toggleBlocked();
                   break;
+                case 'delete':
+                  _deleteConversation();
+                  break;
               }
             },
             itemBuilder: (_) => [
@@ -1041,6 +1133,11 @@ class _SupportChatScreenState extends State<SupportChatScreen>
                           ? 'Desbloquear envio'
                           : 'Bloquear envio no atendimento',
                       style: const TextStyle(color: Colors.white)),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Text('Excluir conversa…',
+                      style: TextStyle(color: AppColors.emergencyRed)),
                 ),
               ],
             ],
@@ -1074,11 +1171,19 @@ class _SupportChatScreenState extends State<SupportChatScreen>
             if (v == 'fab') {
               SupportFabVisibility.setHidden(false);
               AppMessenger.success('Botão "Fale conosco" reexibido');
+            } else if (v == 'clear') {
+              _clearForMe();
             } else {
               _toggleHidePreview();
             }
           },
           itemBuilder: (_) => [
+            if (_conv != null)
+              const PopupMenuItem(
+                value: 'clear',
+                child: Text('Limpar conversa (só para mim)',
+                    style: TextStyle(color: Colors.white)),
+              ),
             if (SupportFabVisibility.hidden.value)
               const PopupMenuItem(
                 value: 'fab',
@@ -1121,6 +1226,39 @@ class _SupportChatScreenState extends State<SupportChatScreen>
             icon: const Icon(Icons.close_rounded,
                 size: 18, color: AppColors.textSecondary),
             onPressed: () => setState(() => _replyTo = null),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Atendimento finalizado pela equipe: o usuário pode seguir
+  /// escrevendo (reabre) ou começar um novo atendimento limpo.
+  Widget _resolvedBar() {
+    final c = _conv;
+    if (_asAgent || c == null || !c.isResolved) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      color: AppColors.backgroundElevated,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle_rounded,
+              color: AppColors.primaryOrange, size: 18),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'Atendimento finalizado. Se escrever, ele é reaberto.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            ),
+          ),
+          TextButton(
+            onPressed: () => _clearForMe(focusComposer: true),
+            child: const Text('Novo atendimento',
+                style: TextStyle(
+                    color: AppColors.primaryOrange,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12)),
           ),
         ],
       ),
@@ -1440,6 +1578,7 @@ class _SupportChatScreenState extends State<SupportChatScreen>
               ],
             ),
           ),
+          _resolvedBar(),
           _replyBar(),
           _categoryBar(),
           _composer(),
