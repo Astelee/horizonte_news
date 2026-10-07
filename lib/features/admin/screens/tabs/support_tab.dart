@@ -7,6 +7,7 @@ import '../../../../widgets/app_avatar.dart';
 import '../../../../widgets/app_messenger.dart';
 import '../../services/admin_support_service.dart';
 import '../../widgets/support_settings_sheets.dart';
+import '../../widgets/support_user_picker.dart';
 
 /// Aba "Atendimento" do painel ADM: caixa de entrada das conversas
 /// privadas com os usuários.
@@ -126,6 +127,25 @@ class _SupportTabState extends State<SupportTab> {
     return Column(
       children: [
         _summaryBar(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              icon: const Icon(Icons.edit_rounded, size: 18),
+              label: const Text('Nova mensagem para um usuário',
+                  style: TextStyle(fontWeight: FontWeight.w800)),
+              onPressed: () => showSupportUserPicker(context, service: _service),
+            ),
+          ),
+        ),
         _searchField(),
         _filterChips(),
         Expanded(child: _query.isNotEmpty ? _searchResults() : _list()),
