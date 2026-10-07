@@ -142,7 +142,7 @@ class _HorizonteNewsAppState extends State<HorizonteNewsApp> {
       home: const _AuthGate(),
       // Observa a pilha de rotas para o botão "Fale conosco" saber em
       // que tela está e se há diálogo/modal por cima.
-      navigatorObservers: [SupportRouteObserver()],
+      navigatorObservers: [SupportRouteObserver.instance],
       // Botão flutuante único sobre o app inteiro (ver support_fab.dart).
       builder: (context, child) =>
           SupportFabOverlay(child: child ?? const SizedBox.shrink()),
