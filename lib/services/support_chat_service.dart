@@ -54,11 +54,19 @@ class SupportChatService {
 
   /// Mensagens mais recentes (tempo real). As mais antigas vêm sob
   /// demanda por [loadOlder]. O listener é limitado a [limit] mensagens.
+  ///
+  /// [after]: só mensagens posteriores a este horário (usado quando a
+  /// pessoa limpou a conversa só para si).
   Stream<List<SupportMessage>> watchLatestMessages(
     String conversationId, {
     int limit = pageSize,
+    DateTime? after,
   }) {
-    return _messagesRef(conversationId)
+    Query<Map<String, dynamic>> q = _messagesRef(conversationId);
+    if (after != null) {
+      q = q.where('createdAt', isGreaterThan: Timestamp.fromDate(after));
+    }
+    return q
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots(includeMetadataChanges: true)
@@ -69,8 +77,13 @@ class SupportChatService {
     String conversationId, {
     required Timestamp before,
     int limit = pageSize,
+    DateTime? after,
   }) async {
-    final snap = await _messagesRef(conversationId)
+    Query<Map<String, dynamic>> q = _messagesRef(conversationId);
+    if (after != null) {
+      q = q.where('createdAt', isGreaterThan: Timestamp.fromDate(after));
+    }
+    final snap = await q
         .orderBy('createdAt', descending: true)
         .startAfter([before])
         .limit(limit)
@@ -338,6 +351,16 @@ class SupportChatService {
     } catch (e) {
       debugPrint('Erro ao marcar conversa como lida: $e');
     }
+  }
+
+  /// Usuário: "Limpar conversa". As mensagens anteriores deixam de
+  /// aparecer só para ele; nada é apagado do banco (a equipe mantém o
+  /// histórico). Uma nova mensagem dele reabre o atendimento.
+  Future<void> clearForUser(String conversationId) {
+    return conversationRef(conversationId).update({
+      'userClearedAt': FieldValue.serverTimestamp(),
+      'unreadUser': 0,
+    });
   }
 
   /// Usuário: ocultar o conteúdo da mensagem na prévia do push que
