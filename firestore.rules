@@ -564,6 +564,16 @@ service cloud.firestore {
           && d.userReadAt == request.time;
     }
 
+    // "Limpar conversa" (só para mim): o usuário esconde o histórico
+    // anterior no próprio app. Nada é apagado do banco; a equipe
+    // continua vendo tudo.
+    function validUserClear() {
+      let d = request.resource.data;
+      return d.diff(resource.data).affectedKeys().hasOnly(['userClearedAt', 'unreadUser'])
+          && d.userClearedAt == request.time
+          && d.unreadUser == 0;
+    }
+
     function validUserPrefs() {
       let d = request.resource.data;
       return d.diff(resource.data).affectedKeys().hasOnly(['hidePreview'])
@@ -603,6 +613,21 @@ service cloud.firestore {
           && validSupportCategory(d);
     }
 
+    // "Excluir só para mim" do atendente: tira a conversa da caixa de
+    // entrada e esconde o histórico anterior para a equipe. O usuário
+    // continua vendo a conversa; se ele escrever de novo, ela volta
+    // (a mensagem dele grava status 'open').
+    function validAgentArchive() {
+      let d = request.resource.data;
+      return d.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'awaitingReply', 'unreadAgent', 'pinned', 'agentClearedAt'])
+          && d.status == 'archived'
+          && d.awaitingReply == false
+          && d.unreadAgent == 0
+          && d.pinned == false
+          && d.agentClearedAt == request.time;
+    }
+
     function validSupportMessage(convId, msgId) {
       let d = request.resource.data;
       return request.auth != null
@@ -639,18 +664,23 @@ service cloud.firestore {
           || (isSupportAgent() && validAgentConvCreate(convId));
 
       allow update: if (isOwner(convId) && (
-              validUserSend(convId) || validUserReadMark() || validUserPrefs()))
+              validUserSend(convId) || validUserReadMark() || validUserPrefs()
+              || validUserClear()))
           || (isSupportAgent() && (
-              validAgentSend(convId) || validAgentReadMark() || validAgentManage()));
+              validAgentSend(convId) || validAgentReadMark() || validAgentManage()
+              || validAgentArchive()));
 
-      allow delete: if false;
+      // "Excluir para os dois": só atendente apaga a conversa de vez.
+      allow delete: if isSupportAgent();
 
       match /messages/{msgId} {
         allow read: if isOwner(convId) || isSupportAgent();
         allow create: if validSupportMessage(convId, msgId);
-        // Mensagens são imutáveis: nada de editar ou apagar depois de
-        // enviada (evita adulterar o histórico).
-        allow update, delete: if false;
+        // Mensagens são imutáveis: ninguém edita depois de enviada
+        // (evita adulterar o histórico). Só o atendente apaga, e é o que
+        // "Excluir para os dois" usa.
+        allow update: if false;
+        allow delete: if isSupportAgent();
       }
     }
 
