@@ -61,7 +61,11 @@ class AdminSupportService {
     int limit = 40,
   }) {
     return _inboxQuery(filter, limit).snapshots().map((snap) {
-      final list = snap.docs.map(SupportConversation.fromDoc).toList()
+      // Arquivadas ("Excluir só para mim") saem da caixa de entrada.
+      final list = snap.docs
+          .map(SupportConversation.fromDoc)
+          .where((c) => !c.isArchived)
+          .toList()
         ..sort(_byPinnedThenActivity);
       return list;
     });
@@ -69,11 +73,11 @@ class AdminSupportService {
 
   /// Conversas fixadas (sempre aparecem no topo, mesmo antigas).
   Stream<List<SupportConversation>> watchPinned() {
-    return _conv
-        .where('pinned', isEqualTo: true)
-        .limit(30)
-        .snapshots()
-        .map((snap) => snap.docs.map(SupportConversation.fromDoc).toList());
+    return _conv.where('pinned', isEqualTo: true).limit(30).snapshots().map(
+        (snap) => snap.docs
+            .map(SupportConversation.fromDoc)
+            .where((c) => !c.isArchived)
+            .toList());
   }
 
   /// Quantas conversas têm mensagens não lidas (conta até 99; não
@@ -206,6 +210,35 @@ class AdminSupportService {
       'status': resolved ? 'resolved' : 'open',
       'awaitingReply': !resolved && c.lastMessageSenderRole == 'user',
     });
+  }
+
+  /// "Excluir só para mim": tira da caixa de entrada e esconde o
+  /// histórico anterior para a equipe. O usuário continua vendo a
+  /// conversa; se ele escrever de novo, ela volta como nova.
+  Future<void> archiveConversation(String conversationId) {
+    return _conv.doc(conversationId).update({
+      'status': 'archived',
+      'awaitingReply': false,
+      'unreadAgent': 0,
+      'pinned': false,
+      'agentClearedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// "Excluir para os dois": apaga todas as mensagens e a conversa,
+  /// definitivamente. As exclusões vão em grupos pequenos porque cada
+  /// uma passa pelas regras do Firestore.
+  Future<void> deleteConversationForAll(String conversationId) async {
+    final msgs = _conv.doc(conversationId).collection('messages');
+    while (true) {
+      final snap = await msgs.limit(100).get();
+      if (snap.docs.isEmpty) break;
+      for (var i = 0; i < snap.docs.length; i += 20) {
+        final chunk = snap.docs.skip(i).take(20);
+        await Future.wait(chunk.map((d) => d.reference.delete()));
+      }
+    }
+    await _conv.doc(conversationId).delete();
   }
 
   Future<void> setPinned(String conversationId, bool pinned) =>
