@@ -718,7 +718,13 @@ class _SupportChatScreenState extends State<SupportChatScreen>
     }
     for (var i = 0; i < msgs.length; i++) {
       final m = msgs[i];
-      items.add(_bubble(m));
+      // Mostra quem enviou quando muda o remetente (lista é do mais
+      // novo para o mais antigo, então o "anterior" é o índice i + 1).
+      final older = i + 1 < msgs.length ? msgs[i + 1] : null;
+      final showLabel = older == null ||
+          older.senderRole != m.senderRole ||
+          older.senderId != m.senderId;
+      items.add(_bubble(m, showLabel: showLabel));
       final d = m.createdAt;
       if (d != null) {
         final older = i + 1 < msgs.length ? msgs[i + 1].createdAt : null;
@@ -791,7 +797,64 @@ class _SupportChatScreenState extends State<SupportChatScreen>
         ),
       );
 
-  Widget _bubble(SupportMessage m) {
+  /// Identifica quem enviou. Para o usuário, toda mensagem da equipe
+  /// vem com a etiqueta EQUIPE e o nome do atendimento. Para o
+  /// atendente, mostra o nome do usuário e diferencia "você" de outro
+  /// atendente.
+  Widget _senderLabel(SupportMessage m) {
+    final team = m.fromAgent;
+    String text;
+    if (!_asAgent) {
+      if (!team) return const SizedBox.shrink(); // mensagem do próprio usuário
+      text = 'Atendimento Horizonte News';
+    } else if (team) {
+      text = m.senderId == _myUid ? 'Você' : 'Outro atendente';
+    } else {
+      final name = _conv?.userName ?? _seedProfile?.userName ?? '';
+      text = name.isEmpty ? 'Usuário' : name;
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3, left: 4, right: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (team) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.primaryOrange,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text(
+                'EQUIPE',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: team ? AppColors.primaryOrange : AppColors.textSecondary,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bubble(SupportMessage m, {bool showLabel = false}) {
     final mine = _asAgent ? m.fromAgent : !m.fromAgent;
     final failed = m.failed;
     final bg = mine
@@ -809,6 +872,7 @@ class _SupportChatScreenState extends State<SupportChatScreen>
       child: Column(
         crossAxisAlignment: align,
         children: [
+          if (showLabel) _senderLabel(m),
           GestureDetector(
             onLongPress: () => _openMessageActions(m),
             onTap: failed ? () => _openMessageActions(m) : null,
@@ -828,7 +892,9 @@ class _SupportChatScreenState extends State<SupportChatScreen>
                   ),
                   border: failed
                       ? Border.all(color: AppColors.emergencyRed)
-                      : null,
+                      : (m.fromAgent && !_asAgent
+                          ? Border.all(color: AppColors.borderOrange)
+                          : null),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
