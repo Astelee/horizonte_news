@@ -722,3 +722,23 @@ Detalhes, limites e publicação em `SUPORTE_ATENDIMENTO.md`. Resumo para IA:
   lista de telas em `SupportFabOverlay.visibleRoutes`.
 - Aba "Atendimento" do painel ADM = índice 10 (`SupportLauncher.adminInboxTab`).
 - `firestore.rules` NÃO tem mais leitura pública geral: coleção nova precisa de regra explícita.
+
+---
+
+## Emblemas 3D (conquistas)
+
+Só aparência — regras de desbloqueio continuam em `XpService._checkAchievements`
+e `getAllAchievements` (não alterados).
+
+- `lib/config/badge_3d_config.dart`: material, símbolo e raridade VISUAL de cada
+  conquista (a raridade não vai para o Firebase), critérios e progresso (só lê dados).
+- `lib/widgets/medal_3d_painter.dart`: renderização 3D por código (camadas em Z com
+  `Matrix4` de perspectiva; lateral com espessura, fundo rebaixado, símbolo extrudado,
+  verso). Sem imagens nem motor 3D.
+- `lib/widgets/medal_3d_widgets.dart`: `Medal3D` (animada), `Medal3DMini` (ao lado do
+  nome), `MedalGrid` (perfil), `showMedalViewer` (janela com giro por arrasto) e
+  `Medal3DPerf` (reduz o detalhe sozinho se o aparelho não acompanhar).
+- Conquista nova (ainda não "vista") toca a animação de entrada uma vez; o controle de
+  "vistas" fica em SharedPreferences (`medals_seen_<uid>`), não no Firebase.
+- Ícone/id novo de conquista sem entrada em `Badge3DConfig._specs` usa uma medalha
+  derivada das cores de `BadgeConfig` (nunca fica sem renderizar).
