@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../config/badge_config.dart';
 import '../config/pet_config.dart';
 import 'pet_painters.dart';
+import 'medal_3d_widgets.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // BADGE WIDGETS — PREMIUM COM GLOW E GRADIENTES
@@ -181,24 +182,8 @@ class AchievementBadgeInline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color  = BadgeConfig.achievementColor(achievementId);
-    final isLeg  = BadgeConfig.isLegendary(achievementId);
-
-    return Container(
-      width: size + 12,
-      height: size + 12,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color.withOpacity(0.15),
-        border: Border.all(color: color.withOpacity(isLeg ? 0.8 : 0.4), width: isLeg ? 1.2 : 0.8),
-        boxShadow: isLeg
-            ? [BoxShadow(color: color.withOpacity(0.5), blurRadius: 8)]
-            : null,
-      ),
-      child: Center(
-        child: FaIcon(BadgeConfig.achievementIcon(achievementId), size: size, color: color),
-      ),
-    );
+    // Medalha 3D estática e minúscula (mesma largura do selo anterior).
+    return Medal3DMini(achievementId: achievementId, size: size + 12);
   }
 }
 
