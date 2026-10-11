@@ -56,6 +56,9 @@ class _AppDrawerState extends State<AppDrawer>
     // aberto (ele fica acima do Navigator e cobriria o menu).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       SupportFabVisibility.drawerOpen.value = true;
+      // Se o botão tinha sido fechado (arrastado até o X), reabrir o
+      // menu lateral traz ele de volta.
+      SupportFabVisibility.hidden.value = false;
     });
 
     _headerCtrl = AnimationController(
