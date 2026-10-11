@@ -18,8 +18,10 @@ class SupportFabVisibility {
   /// true enquanto o menu lateral está aberto (o AppDrawer liga/desliga).
   static final ValueNotifier<bool> drawerOpen = ValueNotifier<bool>(false);
 
-  /// true = o usuário fechou o botão arrastando-o para o "X". Fica
-  /// salvo no aparelho; pode ser reexibido no menu ⋮ da conversa.
+  /// true = o usuário fechou o botão arrastando-o até o "X". É
+  /// TEMPORÁRIO (só na memória): o botão volta ao abrir o menu lateral
+  /// e ao abrir o app de novo. Também dá para reexibir no menu ⋮ da
+  /// conversa.
   static final ValueNotifier<bool> hidden = ValueNotifier<bool>(false);
 
   static const String _hiddenKey = 'support_fab_hidden';
@@ -28,10 +30,6 @@ class SupportFabVisibility {
 
   static Future<void> setHidden(bool value) async {
     hidden.value = value;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_hiddenKey, value);
-    } catch (_) {}
   }
 }
 
@@ -180,8 +178,10 @@ class _SupportFabOverlayState extends State<SupportFabOverlay> {
   Future<void> _loadPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      SupportFabVisibility.hidden.value =
-          prefs.getBool(SupportFabVisibility._hiddenKey) ?? false;
+      // Versões anteriores salvavam o "fechado" para sempre: apaga isso
+      // e começa sempre com o botão visível.
+      SupportFabVisibility.hidden.value = false;
+      await prefs.remove(SupportFabVisibility._hiddenKey);
       final side = prefs.getString(SupportFabVisibility._sideKey);
       final y = prefs.getDouble(SupportFabVisibility._yKey);
       if (!mounted) return;
@@ -277,7 +277,9 @@ class _SupportFabOverlayState extends State<SupportFabOverlay> {
       next.dy.clamp(media.padding.top, media.size.height - _fabSize).toDouble(),
     );
     final center = clamped + const Offset(_fabSize / 2, _fabSize / 2);
-    final nearClose = _closeTargetRect(context).inflate(28).contains(center);
+    // Só fecha se o centro do botão estiver DENTRO do círculo do X.
+    final closeRect = _closeTargetRect(context);
+    final nearClose = (center - closeRect.center).distance <= closeRect.width * 0.62;
     if (nearClose && !_overClose) HapticFeedback.selectionClick();
     setState(() {
       _dragTopLeft = clamped;
@@ -295,7 +297,7 @@ class _SupportFabOverlayState extends State<SupportFabOverlay> {
       });
       SupportFabVisibility.setHidden(true);
       AppMessenger.info(
-          'Botão fechado. Para reexibir: Atendimento → menu ⋮ → Mostrar botão.');
+          'Botão fechado. Ele volta ao abrir o menu lateral ou ao reabrir o app.');
       return;
     }
     // Gruda na borda mais próxima e guarda a altura escolhida.
