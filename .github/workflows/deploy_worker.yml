@@ -1,0 +1,52 @@
+name: Publicar backend seguro (Cloudflare Worker)
+
+# Manual: Actions → "Publicar backend seguro" → Run workflow.
+# Pré-requisitos e passo a passo: cloudflare/horizonte-worker/README.md
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Testar e publicar o Worker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare/horizonte-worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Testes (não publica se algum falhar)
+        run: npm test
+
+      - name: Publicar Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@3 deploy
+
+      # Opcional: se você guardou os segredos no GitHub (nomes abaixo),
+      # eles são enviados ao Worker. Se preferir, cadastre-os direto no
+      # painel da Cloudflare (Worker → Settings → Variables and Secrets)
+      # e deixe estes secrets do GitHub vazios — nada é alterado.
+      - name: Enviar segredos ao Worker (se existirem)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WORKER_ONESIGNAL_REST_API_KEY: ${{ secrets.WORKER_ONESIGNAL_REST_API_KEY }}
+          WORKER_GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.WORKER_GOOGLE_SERVICE_ACCOUNT_JSON }}
+          WORKER_RTDN_SHARED_SECRET: ${{ secrets.WORKER_RTDN_SHARED_SECRET }}
+        run: |
+          put() {
+            if [ -n "$2" ]; then
+              printf '%s' "$2" | npx --yes wrangler@3 secret put "$1"
+            else
+              echo "(sem $1 no GitHub — mantendo o que já está na Cloudflare)"
+            fi
+          }
+          put ONESIGNAL_REST_API_KEY "$WORKER_ONESIGNAL_REST_API_KEY"
+          put GOOGLE_SERVICE_ACCOUNT_JSON "$WORKER_GOOGLE_SERVICE_ACCOUNT_JSON"
+          put RTDN_SHARED_SECRET "$WORKER_RTDN_SHARED_SECRET"
