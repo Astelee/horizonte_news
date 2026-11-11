@@ -7,9 +7,16 @@ import 'package:http/http.dart' as http;
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import '../config/premium_config.dart';
 import '../models/notification_model.dart';
+import 'backend_client.dart';
 
 /// Central de notificações in-app (coleção `notifications`) + disparo
 /// de push individual via OneSignal usando External ID.
+///
+/// ENVIO DO PUSH: com BACKEND_URL configurado no build, o app NÃO fala
+/// mais com o OneSignal — pede ao backend (Cloudflare Worker) que envia,
+/// e a REST API Key deixa de existir dentro do APK. Sem BACKEND_URL
+/// vale o caminho antigo descrito abaixo (chave via --dart-define), que
+/// continua funcionando até o backend estar configurado e testado.
 ///
 /// Reutiliza a MESMA REST API Key e o MESMO app_id já usados por
 /// PushNotificationService (ver esse arquivo para o histórico de
@@ -86,6 +93,20 @@ class AppNotificationService {
       return;
     }
 
+    if (BackendClient.isConfigured) {
+      // O servidor confere a resposta no Firestore e monta título/texto.
+      if (replyId != null) {
+        await BackendClient.instance.post('/v1/notify/comment', {
+          'kind': 'reply',
+          'postId': postId,
+          'commentId': commentId,
+          'replyId': replyId,
+          'recipientUserId': recipientUserId,
+        });
+      }
+      return;
+    }
+
     await _sendPush(
       recipientUserId: recipientUserId,
       title: actorUserName,
@@ -151,6 +172,17 @@ class AppNotificationService {
       });
     } catch (e) {
       debugPrint('Erro ao criar notificação de curtida: $e');
+      return;
+    }
+
+    if (BackendClient.isConfigured) {
+      await BackendClient.instance.post('/v1/notify/comment', {
+        'kind': 'like',
+        'postId': postId,
+        'commentId': commentId,
+        if (replyId != null) 'replyId': replyId,
+        'recipientUserId': recipientUserId,
+      });
       return;
     }
 
@@ -264,6 +296,15 @@ class AppNotificationService {
     required String body,
     String? recipientUserId,
   }) {
+    // Com o backend, quem escolhe os destinatários (equipe = notifyUids
+    // do Firestore, sem depender de tag no aparelho) e monta o texto é o
+    // servidor, que confere a mensagem e o remetente.
+    if (BackendClient.isConfigured) {
+      return _sendSupportViaBackend(
+        conversationId: conversationId,
+        messageId: messageId,
+      );
+    }
     final toTeam = recipientUserId == null;
     return _sendPush(
       recipientUserId: recipientUserId,
@@ -290,6 +331,17 @@ class AppNotificationService {
           'support|$messageId|${toTeam ? 'team' : recipientUserId}'),
       collapseId: 'support_$conversationId',
     );
+  }
+
+  static Future<bool> _sendSupportViaBackend({
+    required String conversationId,
+    required String messageId,
+  }) async {
+    final res = await BackendClient.instance.post('/v1/notify/support', {
+      'conversationId': conversationId,
+      'messageId': messageId,
+    });
+    return res?.ok ?? false;
   }
 
   // ── Aviso de assinatura Premium perto de vencer ─────────────────
@@ -365,16 +417,25 @@ class AppNotificationService {
       final dateLabel = '${local.day.toString().padLeft(2, '0')}/'
           '${local.month.toString().padLeft(2, '0')}';
 
-      final sent = await _sendPush(
-        recipientUserId: uid,
-        title: 'Sua assinatura está perto de vencer',
-        body: 'Sua assinatura ${tier.label} vence em $dateLabel. '
-            'Renove para continuar aproveitando seus benefícios.',
-        // 'premium_promo' já abre a tela Premium ao tocar (ver
-        // NotificationService.init).
-        data: {'kind': 'premium_promo'},
-        idempotencyKey: _deterministicUuid('premium_expiry|$uid|$millis'),
-      );
+      bool sent;
+      if (BackendClient.isConfigured) {
+        // O servidor confere plano/vencimento no Firestore e envia só
+        // dentro da janela de 3 dias, uma vez por vencimento.
+        final res = await BackendClient.instance
+            .post('/v1/notify/premium-expiry', const <String, dynamic>{});
+        sent = res != null && res.ok && res.body['skipped'] == null;
+      } else {
+        sent = await _sendPush(
+          recipientUserId: uid,
+          title: 'Sua assinatura está perto de vencer',
+          body: 'Sua assinatura ${tier.label} vence em $dateLabel. '
+              'Renove para continuar aproveitando seus benefícios.',
+          // 'premium_promo' já abre a tela Premium ao tocar (ver
+          // NotificationService.init).
+          data: {'kind': 'premium_promo'},
+          idempotencyKey: _deterministicUuid('premium_expiry|$uid|$millis'),
+        );
+      }
 
       if (sent) {
         _lastExpiryWarnedKey = key;
