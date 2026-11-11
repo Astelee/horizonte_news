@@ -1,0 +1,17 @@
+# Backend do Horizonte News (Cloudflare Workers — plano gratuito atende).
+# Passo a passo completo em README.md.
+#
+# NADA secreto fica neste arquivo. Os segredos são cadastrados com
+# `wrangler secret put` (ver README.md):
+#   ONESIGNAL_REST_API_KEY        chave REST do OneSignal (a mesma de hoje)
+#   GOOGLE_SERVICE_ACCOUNT_JSON   JSON da conta de serviço (Firestore + Google Play)
+#   RTDN_SHARED_SECRET            texto aleatório usado na URL do Pub/Sub (RTDN)
+
+name = "horizonte-news-api"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+FIREBASE_PROJECT_ID = "horizontenews-6b48f"
+ONESIGNAL_APP_ID = "999de6a2-1965-4cb0-9558-a0cc8ed39828"
+ANDROID_PACKAGE_NAME = "com.astelee.horizonte_news"
