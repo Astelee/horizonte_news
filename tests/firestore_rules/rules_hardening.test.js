@@ -15,6 +15,14 @@ const {
 } = require('@firebase/rules-unit-testing');
 const firebase = require('firebase/compat/app');
 
+// Silencia o log do SDK: cada negação esperada (PERMISSION_DENIED) virava
+// uma linha de erro e escondia o resultado real dos testes no CI.
+try {
+  firebase.firestore.setLogLevel('silent');
+} catch (_) {
+  /* sem efeito se a versão do SDK não expuser setLogLevel */
+}
+
 const ts = () => firebase.firestore.FieldValue.serverTimestamp();
 const inc = (n) => firebase.firestore.FieldValue.increment(n);
 const del = () => firebase.firestore.FieldValue.delete();
