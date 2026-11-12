@@ -18,6 +18,7 @@ class AdminViewsService {
         .doc(postId)
         .collection('viewers')
         .orderBy('lastViewedAt', descending: true)
+        .limit(300) // posts muito vistos: não baixa milhares de leitores
         .snapshots();
   }
 
@@ -45,26 +46,38 @@ class AdminViewsService {
         return;
       }
 
-      await Future.wait([
-        viewerRef.set({
-          'userId': user.uid,
-          'userName': user.displayName ??
-              user.email?.split('@').first ??
-              'Leitor',
-          'userEmail': user.email ?? '',
-          'postId': postId,
-          'postTitle': postTitle,
-          'firstViewedAt': FieldValue.serverTimestamp(),
-          'lastViewedAt': FieldValue.serverTimestamp(),
-        }),
-        postRef.set({
+      // Primeira visita deste usuário a este post: o documento do leitor
+      // e os contadores vão no MESMO batch (atômico). As regras do
+      // Firestore só aceitam +1 nos contadores junto da CRIAÇÃO do
+      // documento do leitor — que só pode existir uma vez. Assim:
+      //   • duas aberturas simultâneas não contam duas vezes (a segunda
+      //     tenta "criar" um documento que já existe e o batch todo é
+      //     recusado);
+      //   • se uma das escritas falhar, nenhuma é aplicada (antes o leitor
+      //     ficava marcado sem o contador subir, ou o contrário).
+      final batch = _db.batch();
+      batch.set(viewerRef, {
+        'userId': user.uid,
+        'userName':
+            user.displayName ?? user.email?.split('@').first ?? 'Leitor',
+        'userEmail': user.email ?? '',
+        'postId': postId,
+        'postTitle': postTitle,
+        'firstViewedAt': FieldValue.serverTimestamp(),
+        'lastViewedAt': FieldValue.serverTimestamp(),
+      });
+      batch.set(
+        postRef,
+        {
           'postId': postId,
           'postTitle': postTitle,
           'totalViews': FieldValue.increment(1),
           'uniqueViewers': FieldValue.increment(1),
           'lastViewedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true)),
-      ]);
+        },
+        SetOptions(merge: true),
+      );
+      await batch.commit();
     } catch (e) {
       // ignore: avoid_print
       print('[AdminViewsService.recordUniqueView] erro: $e');
