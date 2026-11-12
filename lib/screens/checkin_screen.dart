@@ -188,6 +188,10 @@ class _CheckinScreenState extends State<CheckinScreen>
       _loadMonth();
     } else if (result.error == 'already_done') {
       _showSnack('Você já fez o check-in de hoje!', isError: false);
+    } else if (result.error == 'clock_invalid') {
+      _showSnack(
+          'Confira a data e a hora do seu aparelho (deixe no automático) e tente novamente.',
+          isError: true);
     } else {
       _showSnack('Não foi possível fazer o check-in agora. Tente novamente.',
           isError: true);
