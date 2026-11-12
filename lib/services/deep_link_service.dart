@@ -9,7 +9,7 @@ import 'news_service.dart';
 /// Resolve dois cenários de compartilhamento de notícia:
 ///
 /// 1) App já instalado: alguém clica no link
-///    (https://horizontenews-6b48f.web.app/noticia/{postId}) e o
+///    (https://horizontenews.app.br/noticia/{postId}) e o
 ///    Android abre o app direto nessa tela (App Link), sem passar
 ///    pela loja. Capturado aqui via [AppLinks].
 ///
