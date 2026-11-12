@@ -76,12 +76,28 @@ jobs:
       # --target-platform android-arm64: gera só a arquitetura usada
       # por praticamente todo celular atual, em vez das 3 padrão
       # (arm, arm64, x64) — corta bastante o tempo desse passo.
+      # BACKEND_URL (Settings → Secrets and variables → Actions → aba
+      # "Variables"): quando existe, o app fala com o backend seguro
+      # (Cloudflare Worker) e a chave REST do OneSignal NÃO entra no APK.
+      # Enquanto não existir, o build segue no modo antigo (a chave vai
+      # dentro do app) — nada muda em produção antes do backend estar
+      # configurado e testado. Ver cloudflare/horizonte-worker/README.md.
       - name: Compilar APK Release
         if: ${{ inputs.tipo_build == 'apk' || inputs.tipo_build == 'ambos' }}
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL }}
+          ONESIGNAL_REST_API_KEY: ${{ secrets.ONESIGNAL_REST_API_KEY }}
         run: |
+          if [ -n "$BACKEND_URL" ]; then
+            echo "Backend seguro ativo: a chave REST do OneSignal NÃO entra no app."
+            DEFINES="--dart-define=BACKEND_URL=$BACKEND_URL"
+          else
+            echo "::warning::BACKEND_URL não configurada: build no modo antigo (chave REST do OneSignal dentro do app)."
+            DEFINES="--dart-define=ONESIGNAL_REST_API_KEY=$ONESIGNAL_REST_API_KEY"
+          fi
           flutter build apk --release \
             --target-platform android-arm64 \
-            --dart-define=ONESIGNAL_REST_API_KEY=${{ secrets.ONESIGNAL_REST_API_KEY }}
+            $DEFINES
 
       - name: Renomear APK
         if: ${{ inputs.tipo_build == 'apk' || inputs.tipo_build == 'ambos' }}
@@ -98,9 +114,18 @@ jobs:
       # ── AAB ──────────────────────────────────────────────────
       - name: Compilar AAB Release
         if: ${{ inputs.tipo_build == 'aab' || inputs.tipo_build == 'ambos' }}
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL }}
+          ONESIGNAL_REST_API_KEY: ${{ secrets.ONESIGNAL_REST_API_KEY }}
         run: |
-          flutter build appbundle --release \
-            --dart-define=ONESIGNAL_REST_API_KEY=${{ secrets.ONESIGNAL_REST_API_KEY }}
+          if [ -n "$BACKEND_URL" ]; then
+            echo "Backend seguro ativo: a chave REST do OneSignal NÃO entra no app."
+            DEFINES="--dart-define=BACKEND_URL=$BACKEND_URL"
+          else
+            echo "::warning::BACKEND_URL não configurada: build no modo antigo (chave REST do OneSignal dentro do app)."
+            DEFINES="--dart-define=ONESIGNAL_REST_API_KEY=$ONESIGNAL_REST_API_KEY"
+          fi
+          flutter build appbundle --release $DEFINES
 
       - name: Renomear AAB
         if: ${{ inputs.tipo_build == 'aab' || inputs.tipo_build == 'ambos' }}
