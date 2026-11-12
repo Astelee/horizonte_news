@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/premium_config.dart';
+import 'backend_client.dart';
 import 'purchase_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -66,6 +67,25 @@ class SubscriptionRequestService {
         ? user.displayName!.trim()
         : (user.email ?? 'Usuário');
 
+    // Anti-duplicata (cada restauração/reinício do app reentrega a compra):
+    //  1) o plano (ou um melhor) já está ativo → não há o que pedir;
+    //  2) já existe um pedido PENDENTE do mesmo plano → não cria outro
+    //     (nem manda outro push para os administradores).
+    try {
+      final xpSnap = await _db.collection('users_xp').doc(user.uid).get();
+      final current = premiumTierFromData(xpSnap.data() ?? const {});
+      if (current.isPremium && _rank(current) >= _rank(tier)) return;
+    } catch (_) {
+      // Sem conseguir ler o plano atual, segue para a checagem de pedidos.
+    }
+    final pending = await _requests
+        .where('uid', isEqualTo: user.uid)
+        .where('plan', isEqualTo: tier.id)
+        .where('status', isEqualTo: 'pendente')
+        .limit(1)
+        .get();
+    if (pending.docs.isNotEmpty) return;
+
     final docRef = await _requests.add({
       'uid': user.uid,
       'userName': userName,
@@ -83,6 +103,9 @@ class SubscriptionRequestService {
     );
   }
 
+  static int _rank(PremiumTier tier) =>
+      tier == PremiumTier.ultra ? 2 : (tier == PremiumTier.pro ? 1 : 0);
+
   /// Envia um push individual (via External ID do OneSignal) para
   /// cada administrador cadastrado em `admins/`. Reaproveita a MESMA
   /// REST API Key e app_id já usados por PushNotificationService e
@@ -99,6 +122,18 @@ class SubscriptionRequestService {
     required String userName,
     required String planLabel,
   }) async {
+    // Backend seguro (Cloudflare Worker): quem lê a lista de admins e
+    // fala com o OneSignal é o servidor. (No app, um usuário comum nem
+    // tem permissão de ler `admins/` — o envio direto abaixo só
+    // funciona no modo antigo para quem pode listar a coleção.)
+    if (BackendClient.isConfigured) {
+      await BackendClient.instance.post(
+        '/v1/notify/subscription-request',
+        {'requestId': requestId},
+      );
+      return;
+    }
+
     if (_restApiKey.isEmpty) {
       debugPrint(
         'Push de nova assinatura não enviado: ONESIGNAL_REST_API_KEY '
