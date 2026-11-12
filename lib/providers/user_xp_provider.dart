@@ -6,6 +6,7 @@ import '../config/premium_config.dart';
 import '../services/app_notification_service.dart';
 import '../services/checkin_reminder_service.dart';
 import '../services/notification_service.dart';
+import '../services/private_profile_service.dart';
 import '../services/xp_service.dart';
 
 class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
@@ -45,8 +46,23 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   UserXpData get data => _data;
   bool get isLoading => _isLoading;
 
+  // Para qual usuário a sessão já foi iniciada. initialize() é chamado a
+  // cada vez que a tela autenticada é montada; sem esta trava cada chamada
+  // registrava o observer de novo e refazia a escuta do Firestore.
+  String? _initializedForUid;
+  bool _observing = false;
+
   Future<void> initialize() async {
-    WidgetsBinding.instance.addObserver(this);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null && _initializedForUid == uid) return;
+    // Outro usuário entrou sem passar por reset(): limpa o que era do anterior.
+    if (_initializedForUid != null) reset(notify: false);
+    _initializedForUid = uid;
+
+    if (!_observing) {
+      WidgetsBinding.instance.addObserver(this);
+      _observing = true;
+    }
     _isLoading = true;
     notifyListeners();
 
@@ -57,6 +73,29 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
     // Lembrete local da sequência de check-in: alinha com o resumo
     // atual ao entrar (não altera XP nem check-in).
     CheckinReminderService.instance.syncFromFirestore(force: true);
+
+    // E-mail e data de nascimento saem do perfil público (users_xp é
+    // legível por todo usuário logado) e vão para users_private.
+    unawaited(PrivateProfileService.instance.migrateLegacyFields());
+  }
+
+  /// Logout: para a escuta, os timers e o contador de tempo online. Sem
+  /// isso o contador continuava rodando e o tempo do usuário anterior
+  /// podia ser creditado ao próximo a entrar no mesmo aparelho.
+  void reset({bool notify = true}) {
+    _xpSubscription?.cancel();
+    _xpSubscription = null;
+    _activeTimer?.cancel();
+    _activeTimer = null;
+    _tierExpiryTimer?.cancel();
+    _tierExpiryTimer = null;
+    _isActive = false;
+    _lastTickAt = null;
+    _secondsAccumulated = 0;
+    _data = UserXpData.empty();
+    _isLoading = true;
+    _initializedForUid = null;
+    if (notify) notifyListeners();
   }
 
   // ── Liga o listener em tempo real e mantém _data sempre em dia ───
@@ -226,24 +265,36 @@ class UserXpProvider with ChangeNotifier, WidgetsBindingObserver {
   // sobram ficam guardados para o próximo envio, então nenhum tempo
   // se perde ao minimizar ou voltar ao app.
   //
-  // _flushToFirestore continua usando o retorno direto do serviço
-  // (não o stream) de propósito: addXpForTime roda no timer em
-  // background, então não há risco de corrida com uma leitura manual
-  // concorrente — é seguro e evita esperar o round-trip do stream.
+  // Falha ao gravar (sem internet, por exemplo): os segundos VOLTAM para
+  // o contador e entram no próximo envio — antes eram perdidos. Cada
+  // gravação leva no máximo 120 minutos (as regras do Firestore limitam o
+  // tamanho de cada salto de XP/tempo); o excedente segue em seguida.
+  // O _data e o aviso de subir de nível vêm do stream do Firestore
+  // (_startWatching), que reflete esta gravação logo depois.
+  static const int _maxSecondsPerFlush = 120 * 60;
+  bool _flushing = false;
+
   Future<void> _flushToFirestore() async {
-    final wholeMinutes = _secondsAccumulated ~/ 60;
-    if (wholeMinutes <= 0) return;
+    if (_flushing) return; // o laço abaixo já cuida do que chegar depois
+    _flushing = true;
+    try {
+      while (true) {
+        final wholeMinutes = _secondsAccumulated ~/ 60;
+        if (wholeMinutes <= 0) break;
 
-    final secondsToCredit = wholeMinutes * 60;
-    _secondsAccumulated -= secondsToCredit;
+        final wanted = wholeMinutes * 60;
+        final secondsToCredit =
+            wanted > _maxSecondsPerFlush ? _maxSecondsPerFlush : wanted;
+        _secondsAccumulated -= secondsToCredit;
 
-    final oldLevel = _data.level;
-    final updated = await _service.addXpForTime(secondsToCredit);
-    _data = updated;
-    notifyListeners();
-
-    if (updated.level > oldLevel) {
-      onLevelUp?.call(updated.level);
+        final saved = await _service.creditOnlineTime(secondsToCredit);
+        if (!saved) {
+          _secondsAccumulated += secondsToCredit;
+          break; // tenta de novo no próximo ciclo
+        }
+      }
+    } finally {
+      _flushing = false;
     }
   }
 
