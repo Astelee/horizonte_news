@@ -4,6 +4,7 @@ import '../../../../config/app_colors.dart';
 import '../../services/admin_user_service.dart';
 import '../../widgets/admin_shared_widgets.dart';
 import '../../widgets/admin_user_tile.dart';
+import '../../../../services/private_profile_service.dart';
 
 // A aba mostra sempre todos os usuários (sem chips de filtro), com
 // busca livre por nome, username, e-mail ou UID.
@@ -24,9 +25,35 @@ class _UsersTabState extends State<UsersTab> {
   // dentro de build() gera uma nova Stream a cada setState (ex: digitar
   // na busca), o que reinicia o StreamBuilder (volta a "waiting" por um
   // instante) e causa a piscada/perda de foco do teclado na busca.
-  late final Stream<QuerySnapshot> _usersStream = widget.userService.usersStream();
+  //
+  // Paginação: começa com os 300 usuários vistos mais recentemente;
+  // "Carregar mais" aumenta de 300 em 300. Ao PESQUISAR, o limite sobe de
+  // uma vez para [_searchLimit], para a busca por nome/e-mail/UID cobrir
+  // mais gente sem manter a coleção inteira aberta o tempo todo.
+  static const int _pageSize = 300;
+  static const int _searchLimit = 3000;
+  int _limit = _pageSize;
+  late Stream<QuerySnapshot> _usersStream =
+      widget.userService.usersStream(limit: _limit);
+
+  void _setLimit(int value) {
+    if (value == _limit) return;
+    setState(() {
+      _limit = value;
+      _usersStream = widget.userService.usersStream(limit: value);
+    });
+  }
   late final Stream<QuerySnapshot> _suspensionsStream =
       widget.userService.suspensionsStream();
+
+  @override
+  void initState() {
+    super.initState();
+    // O e-mail saiu do perfil público: vem de users_private (só admin lê).
+    AdminEmailDirectory.instance.ensureLoaded().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   void dispose() {
@@ -117,7 +144,9 @@ class _UsersTabState extends State<UsersTab> {
         final d = doc.data() as Map<String, dynamic>;
         final name = _resolveName(d).toLowerCase();
         final username = (d['username'] as String? ?? '').toLowerCase();
-        final email = (d['email'] as String? ?? '').toLowerCase();
+        final email = AdminEmailDirectory.instance
+            .emailFor(doc.id, legacy: d['email'] as String?)
+            .toLowerCase();
         final uid = doc.id.toLowerCase();
         return name.contains(q) ||
             username.contains(q) ||
@@ -125,6 +154,9 @@ class _UsersTabState extends State<UsersTab> {
             uid.contains(q);
       }).toList();
     }
+
+    final canLoadMore =
+        _search.trim().isEmpty && allDocs.length >= _limit && _limit < _searchLimit;
 
     return Column(
       children: [
@@ -140,7 +172,12 @@ class _UsersTabState extends State<UsersTab> {
               const SizedBox(height: 10),
               TextField(
                 controller: _searchController,
-                onChanged: (v) => setState(() => _search = v),
+                onChanged: (v) {
+                  setState(() => _search = v);
+                  if (v.trim().length >= 2 && _limit < _searchLimit) {
+                    _setLimit(_searchLimit);
+                  }
+                },
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 decoration: InputDecoration(
                   hintText: 'Nome, username, e-mail ou UID...',
@@ -177,7 +214,7 @@ class _UsersTabState extends State<UsersTab> {
           icon: Icons.people_rounded,
           iconColor: AppColors.primaryOrange,
           text:
-              '${docs.length} resultado${docs.length != 1 ? 's' : ''}${_search.isNotEmpty ? ' (de $total)' : ''}',
+              '${docs.length} resultado${docs.length != 1 ? 's' : ''}${_search.isNotEmpty ? ' (de $total)' : ''}${allDocs.length >= _limit ? ' · mais recentes' : ''}',
         ),
         Expanded(
           child: docs.isEmpty
@@ -190,8 +227,20 @@ class _UsersTabState extends State<UsersTab> {
                   onRefresh: () async {},
                   child: ListView.builder(
                     padding: const EdgeInsets.all(12),
-                    itemCount: docs.length,
+                    itemCount: docs.length + (canLoadMore ? 1 : 0),
                     itemBuilder: (context, i) {
+                      if (i >= docs.length) {
+                        return Center(
+                          child: TextButton.icon(
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.primaryOrange,
+                            ),
+                            onPressed: () => _setLimit(_limit + _pageSize),
+                            icon: const Icon(Icons.expand_more_rounded),
+                            label: const Text('Carregar mais usuários'),
+                          ),
+                        );
+                      }
                       final doc = docs[i];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 10),
