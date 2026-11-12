@@ -6,7 +6,16 @@ on:
       - main
     paths:
       - 'public/**'
+      - 'firebase.json'
+      - '.github/workflows/deploy_hosting.yml'
   workflow_dispatch:
+
+concurrency:
+  group: deploy-hosting
+  cancel-in-progress: false
+
+env:
+  CUSTOM_DOMAIN: horizontenews.app.br
 
 jobs:
   deploy_hosting:
@@ -17,6 +26,11 @@ jobs:
       - name: Baixar Código do Repositório
         uses: actions/checkout@v4
 
+      - name: Validar JSONs
+        run: |
+          python3 -m json.tool firebase.json > /dev/null
+          python3 -m json.tool public/.well-known/assetlinks.json > /dev/null
+
       - name: Publicar no Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -24,3 +38,11 @@ jobs:
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
           projectId: horizontenews-6b48f
           channelId: live
+
+      - name: Verificar assetlinks.json no domínio oficial
+        run: |
+          sleep 20
+          r=$(curl -sS -o /tmp/al.json -w '%{http_code} %{content_type}' "https://$CUSTOM_DOMAIN/.well-known/assetlinks.json")
+          echo "Resposta: $r"
+          [[ "$r" == "200 application/json"* ]] || { echo "::error::assetlinks.json inválido em $CUSTOM_DOMAIN"; exit 1; }
+          grep -q com.astelee.horizonte_news /tmp/al.json
