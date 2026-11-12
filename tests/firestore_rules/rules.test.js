@@ -285,14 +285,23 @@ test('comentários: leitura pública, inclusive consulta de grupo', async () => 
   await assertSucceeds(anonDb().collectionGroup('postComments').limit(5).get());
 });
 
-test('post_views: criar com 1/1 ok; adulterar contador negado', async () => {
+test('post_views: contagem só com o documento do leitor no mesmo batch', async () => {
   const a = userDb('userA');
-  await assertSucceeds(a.doc('post_views/p1').set({
-    postId: 'p1', postTitle: 'T', totalViews: 1, uniqueViewers: 1, lastViewedAt: ts(),
-  }, { merge: true }));
-  await assertSucceeds(userDb('userB').doc('post_views/p1').set({
-    postId: 'p1', postTitle: 'T', totalViews: inc(1), uniqueViewers: inc(1), lastViewedAt: ts(),
-  }, { merge: true }));
+  const viewBatch = (db, uid, counters) => {
+    const b = db.batch();
+    b.set(db.doc(`post_views/p1/viewers/${uid}`), {
+      userId: uid, userName: 'X', userEmail: 'x@x.com', postId: 'p1', postTitle: 'T',
+      firstViewedAt: ts(), lastViewedAt: ts(),
+    });
+    b.set(db.doc('post_views/p1'), {
+      postId: 'p1', postTitle: 'T', totalViews: counters, uniqueViewers: counters, lastViewedAt: ts(),
+    }, { merge: true });
+    return b.commit();
+  };
+  await assertSucceeds(viewBatch(a, 'userA', 1));
+  await assertSucceeds(viewBatch(userDb('userB'), 'userB', inc(1)));
+  // sem o documento do leitor, nada de somar
+  await assertFails(a.doc('post_views/p1').set({ totalViews: inc(1), uniqueViewers: inc(1), lastViewedAt: ts() }, { merge: true }));
   await assertFails(a.doc('post_views/p1').set({ totalViews: 99999 }, { merge: true }));
   await assertFails(a.doc('post_views/p1').delete());
 });
