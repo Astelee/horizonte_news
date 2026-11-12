@@ -247,12 +247,20 @@ users_xp/{uid}
 Também existem:
 
 ```text
-users/{uid}
+users/{uid}              (legado: o app só apaga; não é mais público)
+users_private/{uid}      (e-mail e data de nascimento — só dono e admin leem)
 usernames/{uid}
 admins/{uid}
-suspensions/{uid}
+suspensions/{uid}        (cada usuário lê só a própria)
 banned_users/{uid}
 ```
+
+`users_xp` é legível por TODO usuário logado (ranking, perfis, comentários).
+Por isso e-mail e data de nascimento NÃO podem ficar nele — ver
+`lib/services/private_profile_service.dart` (migração automática no login) e
+`AdminEmailDirectory` (painel admin lê os e-mails de `users_private`).
+A idade pública é a cópia `publicBirthDate`, que só existe com "Mostrar minha
+idade" ligado.
 
 Para alterações relacionadas ao usuário, verificar:
 
@@ -349,6 +357,11 @@ pro  = 2x
 ultra = 8x
 ```
 
+Valem para leitura, comentário e compartilhamento (e o evento de XP soma por
+cima). NÃO valem para o TEMPO ONLINE, que é sempre exatamente 2 XP por minuto
+(`XpService.addXpForTime` / `creditOnlineTime` passam `applyMultipliers: false`),
+nem para missões, check-in e XP de curtida.
+
 A validade considera `premiumExpiresAt`.
 
 O admin pode conceder/revogar Premium por:
@@ -358,6 +371,14 @@ lib/features/admin/services/admin_user_service.dart
 ```
 
 Não alterar os campos Premium diretamente de uma tela sem respeitar as regras do Firestore.
+
+O usuário NUNCA grava `premiumTier`/`premiumExpiresAt`/`premiumTrial`/
+`premiumSource`/`premiumPurchaseHash` (as regras recusam). Quem libera Premium:
+- o backend (Cloudflare Worker, `/v1/billing/verify` + avisos RTDN do Google),
+  que só grava depois de consultar a Google Play Developer API; ou
+- um administrador (manual — `grantPremium`, que apaga `premiumSource`).
+Sem `BACKEND_URL` no build, o app usa o fluxo antigo (solicitação pendente em
+`subscriptionRequests` + aprovação do admin).
 
 ---
 
@@ -575,7 +596,12 @@ comments/{postId}/postComments/{commentId}/replies/{replyId}/likes
 
 Não criar ou documentar Cloud Functions como se já existissem.
 
-Pushes administrativos e individuais atualmente são tratados pelos serviços Flutter/OneSignal existentes.
+**Existe um backend em Cloudflare Workers** (plano gratuito) em
+`cloudflare/horizonte-worker/` — não é Cloud Functions (que exige plano Blaze).
+Ele envia os pushes do OneSignal (a chave REST só existe nele), valida compras
+do Google Play, e credita o XP de curtida recebida. O app só o usa quando o
+build recebe `--dart-define=BACKEND_URL=...` (`BackendClient.isConfigured`);
+sem isso, tudo continua no modo antigo. Detalhes: `cloudflare/horizonte-worker/README.md`.
 
 ---
 
@@ -715,8 +741,11 @@ Detalhes, limites e publicação em `SUPORTE_ATENDIMENTO.md`. Resumo para IA:
 
 - Conversa única por usuário: `support_conversations/{uid}` + `messages/{id}`.
   Quem envia grava mensagem + resumo no MESMO batch; as regras exigem os dois.
-- Push do atendimento sai do app de quem envia (`AppNotificationService.sendSupportPush`),
-  sem backend; a equipe é alcançada pela tag OneSignal `support_agent=1`.
+- Push do atendimento: com `BACKEND_URL`, o servidor (`/v1/notify/support`) confere a
+  mensagem e envia só para os UIDs de `support_config/agents.notifyUids` (não depende de
+  tag no aparelho). Sem `BACKEND_URL`: modo antigo — sai do app de quem envia
+  (`AppNotificationService.sendSupportPush`) e a equipe é alcançada pela tag OneSignal
+  `support_agent=1`.
 - Tela única do chat: `lib/screens/support_chat_screen.dart` (usuário e atendente).
 - Botão flutuante único: `lib/widgets/support_fab.dart` via `MaterialApp.builder`;
   lista de telas em `SupportFabOverlay.visibleRoutes`.
@@ -742,3 +771,35 @@ e `getAllAchievements` (não alterados).
   "vistas" fica em SharedPreferences (`medals_seen_<uid>`), não no Firebase.
 - Ícone/id novo de conquista sem entrada em `Badge3DConfig._specs` usa uma medalha
   derivada das cores de `BadgeConfig` (nunca fica sem renderizar).
+
+---
+
+# 21. Segurança, backend e auditoria (nov/2026)
+
+Resumo do que mudou na auditoria (relatório completo em `AUDITORIA_2026-11.md`):
+
+**Regras do Firestore (`firestore.rules`) — leia antes de criar coleção/campo novo**
+- `users_xp`: o dono só altera o que lhe cabe. `totalXp` só sobe (máx. +1000 por
+  gravação), `level` nunca passa do que o XP permite (tabela copiada de
+  `XpService.xpRequiredForLevel` — mantida igual por `test/backend_contract_test.dart`),
+  campos de premium/override de admin só admin/backend. Ninguém escreve no XP de OUTRA
+  pessoa (o +5 de curtida vem do backend).
+  LIMITE CONHECIDO: XP é calculado no aparelho; um app adulterado ainda ganha XP no ritmo
+  máximo por gravação. Eliminar isso exige creditar todo XP no backend.
+- Check-in: data validada contra o relógio do servidor (`request.time`, ±1 dia de fuso);
+  recuperação só de dias passados do mês atual; um documento por dia.
+- Comentários: suspensão/ban imposta nas regras; envio = batch com `users_xp.lastCommentAt`
+  (mín. 10 s entre envios, evita duplicata/spam); `likesCount`/`repliesCount` só mudam junto
+  da curtida/resposta correspondente (`lastReplyId`); nível/conquistas exibidos precisam bater
+  com o usuário.
+- `post_views`/`post_shares`: contador só sobe com o documento do leitor/marca do usuário no
+  mesmo batch. `post_views/*/viewers` guarda e-mail: só dono e admin leem.
+- Notificações internas amarradas a um fato real (curtida/resposta existente, id determinístico).
+- `billing_purchases` e `xp_ledger`: só o backend (regra padrão nega todo cliente).
+
+**Atenção ao publicar:** as regras novas exigem a versão nova do app (envio de comentário em
+batch, marca anti-spam, check-in com data do servidor...). Publique o app ANTES das regras.
+
+**Testes:** `flutter test` (app), `cd tests/firestore_rules && npm install && npm test`
+(emulador do Firestore) e `cd cloudflare/horizonte-worker && npm test` (backend). O CI
+(`.github/workflows/ci.yml`) roda os três.
