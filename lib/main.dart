@@ -1,9 +1,13 @@
+import 'dart:ui' show PlatformDispatcher;
+
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // ✅ AdMob adicionado
 import 'config/app_theme.dart';
@@ -16,6 +20,7 @@ import 'providers/user_xp_provider.dart';
 import 'providers/support_provider.dart';
 import 'features/admin/providers/admin_provider.dart';
 import 'services/notification_service.dart';
+import 'services/purchase_service.dart';
 import 'services/support_launcher.dart';
 import 'widgets/support_fab.dart';
 import 'services/checkin_reminder_service.dart';
@@ -46,6 +51,22 @@ void main() async {
   await FirebaseAppCheck.instance.activate(
     androidProvider: AndroidProvider.playIntegrity,
   );
+
+  // ✅ Crashlytics: relata falhas do Flutter e erros assíncronos não
+  // tratados (só em release; em debug não polui o painel). Falha ao
+  // configurar nunca pode impedir o app de abrir.
+  try {
+    await FirebaseCrashlytics.instance
+        .setCrashlyticsCollectionEnabled(!kDebugMode);
+    if (!kDebugMode) {
+      FlutterError.onError =
+          FirebaseCrashlytics.instance.recordFlutterFatalError;
+      PlatformDispatcher.instance.onError = (error, stack) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        return true;
+      };
+    }
+  } catch (_) {}
 
   // ✅ Verifica a preferência de "Lembrar login" ANTES de exibir
   // qualquer tela, evitando piscar a Home antes de deslogar. Isso
@@ -298,6 +319,13 @@ class _AuthenticatedGate extends StatelessWidget {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             Provider.of<UserXpProvider>(context, listen: false).initialize();
             Provider.of<AdminProvider>(context, listen: false).initialize();
+            // Compras do Google Play: o serviço precisa estar ouvindo
+            // desde o login (não só na tela Premium) para processar
+            // compras interrompidas — app fechado no meio do pagamento,
+            // sem internet, pagamento que compensou depois. Idempotente.
+            PurchaseService.instance.initialize();
+            // Identifica o usuário nos relatórios de erro (só o uid).
+            FirebaseCrashlytics.instance.setUserIdentifier(user.uid);
             // Associa este dispositivo ao uid do Firebase no OneSignal
             // (External ID) — é isso que permite mandar push
             // individual (notificação de resposta/curtida em
@@ -319,6 +347,10 @@ class _AuthenticatedGate extends StatelessWidget {
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           Provider.of<AdminProvider>(context, listen: false).reset();
+          // Para o contador de tempo online e a escuta do XP do usuário
+          // anterior (não pode creditar tempo/XP ao próximo a entrar).
+          Provider.of<UserXpProvider>(context, listen: false).reset();
+          FirebaseCrashlytics.instance.setUserIdentifier('');
           // Sem usuário logado: desassocia o dispositivo do OneSignal
           // para que pushes individuais direcionados ao uid anterior
           // parem de chegar aqui (ex.: usuário deslogou ou trocou de
