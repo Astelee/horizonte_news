@@ -27,6 +27,7 @@ import '../widgets/badge_widgets.dart';
 import '../widgets/styled_user_name.dart';
 import '../widgets/subscriber_badge.dart';
 import '../widgets/profile_edit_sheets.dart' show showEditDisplayNameSheet, showEditUsernameSheet, showAvatarOptionsSheet;
+import '../services/private_profile_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -83,14 +84,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final username = data?['username'] as String?;
       final photoUrl = data?['photoUrl'] as String?;
       final showAge = data?['showAge'] as bool? ?? false;
-      final birthDate = data?['birthDate'] as Timestamp?;
+      // A data de nascimento fica em users_private (ou, em contas ainda
+      // não migradas, no perfil antigo).
+      final hasBirthDate = data?['birthDate'] != null ||
+          data?['publicBirthDate'] != null ||
+          (await PrivateProfileService.instance.loadOwnBirthDate()) != null;
 
       if (mounted) {
         setState(() {
           _currentUsername = username;
           _photoUrl = photoUrl;
           _showAge = showAge;
-          _hasBirthDate = birthDate != null;
+          _hasBirthDate = hasBirthDate;
         });
       }
     } catch (_) {
@@ -368,6 +373,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
 
+      // 2b. Remove as marcas de compartilhamento do usuário
+      try {
+        final postShares = await db.collection('post_shares').get();
+        for (final shareDoc in postShares.docs) {
+          try {
+            await shareDoc.reference.collection('sharers').doc(uid).delete();
+          } catch (_) {}
+        }
+      } catch (_) {}
+
       // 3. Remove logs
       try {
         final adminLogs = await db
@@ -396,6 +411,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await _deleteSubcollection(db, 'users_xp/$uid/checkins');
 
       // 6. Perfil e XP — por último, depois de tudo que dependia deles
+      await PrivateProfileService.instance.deleteOwn();
       await db.collection('users').doc(uid).delete();
       await db.collection('users_xp').doc(uid).delete();
 
@@ -501,17 +517,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
 
         for (final r in mine.docs) {
+          // Apaga a resposta E ajusta o contador do comentário pai no
+          // MESMO batch: as regras só aceitam repliesCount -1 junto da
+          // exclusão da resposta apontada por lastReplyId.
           try {
-            await r.reference.delete();
-          } catch (_) {
-            continue;
-          }
-          try {
-            await root.reference.update({
+            final batch = db.batch();
+            batch.delete(r.reference);
+            batch.update(root.reference, {
               'repliesCount': FieldValue.increment(-1),
+              'lastReplyId': r.id,
             });
+            await batch.commit();
           } catch (_) {
-            // Contador não ajustado — não impede a exclusão da conta.
+            // Resposta não apagada / contador não ajustado — não impede
+            // a exclusão da conta.
+            try {
+              await r.reference.delete();
+            } catch (_) {}
           }
         }
       }
@@ -936,15 +958,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // Desativando: só oculta a idade para outras pessoas. O
-    // birthDate nunca é apagado.
+    // Desativando: só oculta a idade para outras pessoas (apaga a cópia
+    // pública). A data de nascimento privada nunca é apagada.
     if (!value) {
       setState(() => _showAge = false);
       try {
-        await FirebaseFirestore.instance
-            .collection('users_xp')
-            .doc(user.uid)
-            .set({'showAge': false}, SetOptions(merge: true));
+        await PrivateProfileService.instance.setPublicAge(showAge: false);
       } catch (_) {
         if (mounted) {
           setState(() => _showAge = true);
@@ -963,10 +982,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_hasBirthDate) {
       setState(() => _showAge = true);
       try {
-        await FirebaseFirestore.instance
-            .collection('users_xp')
-            .doc(user.uid)
-            .set({'showAge': true}, SetOptions(merge: true));
+        // Publica a idade (consentimento explícito) a partir da data
+        // guardada com segurança em users_private.
+        await PrivateProfileService.instance.setPublicAge(showAge: true);
       } catch (_) {
         if (mounted) {
           setState(() => _showAge = false);
@@ -1002,12 +1020,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
 
     try {
-      await FirebaseFirestore.instance.collection('users_xp').doc(user.uid).set(
-        {
-          'birthDate': Timestamp.fromDate(picked),
-          'showAge': true,
-        },
-        SetOptions(merge: true),
+      await PrivateProfileService.instance.saveBirthDate(
+        picked,
+        showAge: true,
       );
     } catch (_) {
       if (mounted) {
