@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../models/support_models.dart';
 import '../../../utils/search_normalizer.dart';
+import '../../../services/private_profile_service.dart';
 
 enum SupportInboxFilter { all, unread, awaiting, resolved }
 
@@ -138,7 +139,8 @@ class AdminSupportService {
     final username = ((d['username'] as String?) ?? '').trim();
     var name = ((d['displayName'] as String?) ?? '').trim();
     if (name.isEmpty) {
-      final email = (d['email'] as String?) ?? '';
+      final email = AdminEmailDirectory.instance
+          .emailFor(uid, legacy: d['email'] as String?);
       name = username.isNotEmpty
           ? username
           : (email.isNotEmpty ? email.split('@').first : 'Usuário');
@@ -289,7 +291,8 @@ class AdminSupportService {
         final u = await _db.collection('users_xp').doc(doc.id).get();
         name = ((u.data()?['displayName'] as String?) ?? '').trim();
         if (name.isEmpty) {
-          final email = (u.data()?['email'] as String?) ?? '';
+          final email = AdminEmailDirectory.instance
+              .emailFor(doc.id, legacy: u.data()?['email'] as String?);
           if (email.isNotEmpty) name = email.split('@').first;
         }
       } catch (_) {}
