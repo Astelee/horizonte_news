@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/xp_service.dart';
+import '../../../services/private_profile_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // MODELO — SNAPSHOT COMPLETO DO DASHBOARD
@@ -145,19 +146,29 @@ class AdminDashboardService {
   /// (users_xp) e o mesmo critério (lastSeenAt há menos de 5 min) que a
   /// tela de Usuários usa. Isso mantém os dois lugares sempre iguais,
   /// em vez de depender de um recarregamento manual do dashboard.
-  Stream<int> onlineNowStream() {
-    return _db.collection('users_xp').snapshots().map((snap) {
-      final now = DateTime.now();
-      var count = 0;
-      for (final doc in snap.docs) {
-        final d = doc.data();
-        final lastSeenAt = (d['lastSeenAt'] as Timestamp?)?.toDate();
-        if (lastSeenAt != null && now.difference(lastSeenAt).inMinutes < 5) {
-          count++;
-        }
+  ///
+  /// Antes: escutava a coleção users_xp INTEIRA em tempo real (cada
+  /// "visto por último" de cada usuário online virava uma leitura no
+  /// aparelho do admin). Agora: uma contagem agregada (count()) a cada
+  /// minuto, só dos usuários vistos nos últimos 5 minutos — o custo não
+  /// cresce com o número de usuários cadastrados.
+  Stream<int> onlineNowStream() async* {
+    while (true) {
+      try {
+        final cutoff = Timestamp.fromDate(
+          DateTime.now().subtract(const Duration(minutes: 5)),
+        );
+        final agg = await _db
+            .collection('users_xp')
+            .where('lastSeenAt', isGreaterThan: cutoff)
+            .count()
+            .get();
+        yield agg.count ?? 0;
+      } catch (_) {
+        // Sem rede: mantém o último valor e tenta de novo no próximo ciclo.
       }
-      return count;
-    });
+      await Future<void>.delayed(const Duration(seconds: 60));
+    }
   }
 
   DashboardSnapshot _build(
@@ -197,7 +208,8 @@ class AdminDashboardService {
           break;
         }
       }
-      final email = (d['email'] as String?) ?? '';
+      final email = AdminEmailDirectory.instance
+          .emailFor(doc.id, legacy: d['email'] as String?);
       if (name == 'Sem nome' && email.isNotEmpty) {
         name = email.split('@').first;
       }
