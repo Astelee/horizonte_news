@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../models/support_models.dart';
 import '../utils/search_normalizer.dart';
 import 'app_notification_service.dart';
+import 'private_profile_service.dart';
 
 /// Atendimento privado entre o usuário e a equipe Horizonte News.
 ///
@@ -107,7 +108,8 @@ class SupportChatService {
     String name = (d['displayName'] as String?)?.trim() ?? '';
     final username = (d['username'] as String?)?.trim() ?? '';
     if (name.isEmpty) {
-      final email = (d['email'] as String?) ?? '';
+      final email = AdminEmailDirectory.instance
+          .emailFor(uid, legacy: d['email'] as String?);
       name = username.isNotEmpty
           ? username
           : (email.isNotEmpty ? email.split('@').first : 'Usuário');
