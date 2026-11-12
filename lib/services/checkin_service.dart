@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/checkin_rewards_config.dart';
 import 'checkin_reminder_service.dart';
+import 'xp_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // STATUS DE UM DIA NO CALENDÁRIO
@@ -223,6 +224,16 @@ class CheckinService {
   // continuam contando para a sequência e para o recorde.
   DateTime _recoverableFloor(DateTime today, DateTime? firstPossibleDate) {
     return DateTime(today.year, today.month, 1);
+  }
+
+  /// REGRA ÚNICA de "dia recuperável": um dia PASSADO (nunca hoje nem o
+  /// futuro) que pertence ao MÊS ATUAL. Usada por [recoverDay]; as regras
+  /// do Firestore repetem a mesma checagem contra o relógio do servidor.
+  /// Meses anteriores não são recuperáveis (a sequência reinicia todo mês).
+  static bool isRecoverableDay(DateTime day, DateTime today) {
+    final d = DateTime(day.year, day.month, day.day);
+    final t = DateTime(today.year, today.month, today.day);
+    return d.isBefore(t) && d.year == t.year && d.month == t.month;
   }
 
   DateTime? _parseKey(String key) {
@@ -665,8 +676,16 @@ class CheckinService {
           'timestamp': FieldValue.serverTimestamp(),
         });
 
+        // XP e nível gravados juntos (antes só o XP subia e o nível
+        // ficava desatualizado até a próxima abertura do app). Com
+        // override de nível do admin ativo o nível não acompanha o XP.
+        final freshTotalXp = (freshData['totalXp'] as num?)?.toInt() ?? 0;
+        final newTotalXp = freshTotalXp + totalXp;
+
         tx.update(doc, {
-          'totalXp': FieldValue.increment(totalXp),
+          'totalXp': newTotalXp,
+          if (freshData['adminOverrideActive'] != true)
+            'level': XpService.levelFromXp(newTotalXp),
           'lastActivity': FieldValue.serverTimestamp(),
           'lastCheckinDate': todayKey,
           'checkinStreak': newStreak,
@@ -706,6 +725,12 @@ class CheckinService {
       if (e is StateError && e.message == 'already_done') {
         return const CheckinResult(success: false, error: 'already_done');
       }
+      // As regras do Firestore só aceitam o dia de HOJE segundo o relógio
+      // do servidor (com folga de ±1 dia por fuso). Relógio do aparelho
+      // adiantado/atrasado cai aqui.
+      if (e is FirebaseException && e.code == 'permission-denied') {
+        return const CheckinResult(success: false, error: 'clock_invalid');
+      }
       return const CheckinResult(success: false, error: 'unknown');
     }
   }
@@ -716,11 +741,20 @@ class CheckinService {
   // Chamar SÓ depois do anúncio concluído (onUserEarnedReward) ou
   // direto para Premium/Ultra (a vantagem Premium É pular o anúncio).
   //
-  // Melhoria em relação à versão anterior: em vez de N leituras
-  // sequenciais (1 get() por dia voltando), fazemos UMA query com o
-  // histórico e usamos computeStreaks — a mesma função da
-  // reconstrução. Assim a regra de sequência é única e o custo cai
-  // de O(dias) leituras para 1 query.
+  // REGRAS (valem aqui no serviço, não só na tela, e também nas regras
+  // do Firestore):
+  //   • só dias PERDIDOS do MÊS ATUAL — nunca hoje, futuro, nem meses
+  //     anteriores (a sequência reinicia todo mês);
+  //   • cada dia existe uma única vez (id do documento = a data);
+  //   • recuperar vale baseXp (10 XP), sem bônus de sequência.
+  //
+  // ATOMICIDADE: o registro do dia, o resumo (sequência/recorde/último
+  // dia/conquista) e o XP + nível são gravados numa ÚNICA transação.
+  // Antes eram duas etapas: se a segunda falhasse (sem internet), o dia
+  // ficava marcado como recuperado mas sem XP e com a sequência velha.
+  //
+  // Custo: uma query só com os dias do MÊS ATUAL (no máximo 31), a mesma
+  // computeStreaks da reconstrução do histórico.
   Future<CheckinResult> recoverDay(DateTime day) async {
     final doc = _userDoc;
     final col = _checkinsCol;
@@ -730,7 +764,8 @@ class CheckinService {
 
     final today = _todayDate();
     final targetDate = DateTime(day.year, day.month, day.day);
-    if (!targetDate.isBefore(today)) {
+    final monthStart = _recoverableFloor(today, null);
+    if (!isRecoverableDay(targetDate, today)) {
       return const CheckinResult(success: false, error: 'invalid_day');
     }
 
@@ -738,64 +773,78 @@ class CheckinService {
     final checkinDoc = col.doc(key);
 
     try {
-      final existing = await checkinDoc.get();
-      if (existing.exists) {
+      final monthSnap = await col
+          .where(FieldPath.documentId,
+              isGreaterThanOrEqualTo: dateKey(monthStart))
+          .where(FieldPath.documentId, isLessThanOrEqualTo: dateKey(today))
+          .get();
+      final statuses = <String, String>{};
+      for (final d in monthSnap.docs) {
+        if (_parseKey(d.id) == null) continue;
+        statuses[d.id] = (d.data()['status'] as String?) ?? 'done';
+      }
+      if (statuses.containsKey(key)) {
         return const CheckinResult(success: false, error: 'already_done');
       }
 
-      // Grava o dia recuperado de forma atômica (falha se surgiu uma
-      // corrida entre a checagem acima e a escrita).
+      final withRecovered = <String, String>{...statuses, key: 'recovered'};
+      final calc = computeStreaks(withRecovered, today: today);
+
+      var longestBefore = 0;
+      var newLongest = 0;
+      var completedBefore = false;
+      var completedAfter = false;
+      String? newLast;
+
       await _db.runTransaction((tx) async {
         final freshExisting = await tx.get(checkinDoc);
         if (freshExisting.exists) {
           throw StateError('already_done');
         }
+        final userSnap = await tx.get(doc);
+        final user = userSnap.data() ?? <String, dynamic>{};
+
+        longestBefore = (user['longestCheckinStreak'] as num?)?.toInt() ?? 0;
+        newLongest = calc.longest > longestBefore ? calc.longest : longestBefore;
+
+        completedBefore = CheckinRewardsConfig.hasCompletedMonth(user);
+        completedAfter = completedBefore ||
+            CheckinRewardsConfig.completedMonthInHistory(withRecovered,
+                today: today);
+
+        // lastCheckinDate só avança (recuperar um dia antigo não a
+        // "volta" para trás).
+        final currentLast = user['lastCheckinDate'] as String?;
+        newLast = (currentLast == null || key.compareTo(currentLast) > 0)
+            ? key
+            : currentLast;
+
+        // O 1º dia só recua (nunca avança): é o mais antigo conhecido.
+        final oldFirst = user['checkinFirstDate'] as String?;
+        final newFirst =
+            (oldFirst == null || key.compareTo(oldFirst) < 0) ? key : oldFirst;
+
+        final newTotalXp =
+            ((user['totalXp'] as num?)?.toInt() ?? 0) + baseXp;
+
         tx.set(checkinDoc, {
           'status': 'recovered',
           'xpAwarded': baseXp,
           'timestamp': FieldValue.serverTimestamp(),
         });
-      });
-
-      // Recalcula o resumo a partir do histórico REAL (já contendo o
-      // dia que acabou de ser gravado). Uma query só.
-      final userSnap = await doc.get();
-      final user = userSnap.data() ?? {};
-      final longestBefore =
-          (user['longestCheckinStreak'] as num?)?.toInt() ?? 0;
-      final currentLast = user['lastCheckinDate'] as String?;
-
-      final snap = await col.get();
-      final statuses = <String, String>{};
-      for (final d in snap.docs) {
-        if (_parseKey(d.id) == null) continue;
-        statuses[d.id] = (d.data()['status'] as String?) ?? 'done';
-      }
-      final calc = computeStreaks(statuses, today: today);
-      final completedBefore = CheckinRewardsConfig.hasCompletedMonth(user);
-      final completedAfter = completedBefore ||
-          CheckinRewardsConfig.completedMonthInHistory(statuses, today: today);
-
-      final newLongest =
-          calc.longest > longestBefore ? calc.longest : longestBefore;
-
-      // lastCheckinDate só avança (recuperar um dia antigo não a
-      // "volta" para trás).
-      final newLast =
-          (currentLast == null || key.compareTo(currentLast) > 0)
-              ? key
-              : currentLast;
-
-      await doc.update({
-        'totalXp': FieldValue.increment(baseXp),
-        'lastActivity': FieldValue.serverTimestamp(),
-        'checkinStreak': calc.current,
-        'longestCheckinStreak': newLongest,
-        if (completedAfter)
-          'achievements': FieldValue.arrayUnion(
-              [CheckinRewardsConfig.monthCompleteAchievement]),
-        'lastCheckinDate': newLast,
-        if (calc.firstDate != null) 'checkinFirstDate': calc.firstDate,
+        tx.update(doc, {
+          'totalXp': newTotalXp,
+          if (user['adminOverrideActive'] != true)
+            'level': XpService.levelFromXp(newTotalXp),
+          'lastActivity': FieldValue.serverTimestamp(),
+          'checkinStreak': calc.current,
+          'longestCheckinStreak': newLongest,
+          'lastCheckinDate': newLast,
+          if (newFirst != oldFirst) 'checkinFirstDate': newFirst,
+          if (completedAfter)
+            'achievements': FieldValue.arrayUnion(
+                [CheckinRewardsConfig.monthCompleteAchievement]),
+        });
       });
 
       // Recuperar um dia muda a sequência: realinha o lembrete local.
@@ -824,6 +873,9 @@ class CheckinService {
     } catch (e) {
       if (e is StateError && e.message == 'already_done') {
         return const CheckinResult(success: false, error: 'already_done');
+      }
+      if (e is FirebaseException && e.code == 'permission-denied') {
+        return const CheckinResult(success: false, error: 'clock_invalid');
       }
       return const CheckinResult(success: false, error: 'unknown');
     }
