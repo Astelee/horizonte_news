@@ -1,765 +1,805 @@
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-
-    function isAdmin() {
-      return request.auth != null &&
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-    }
-
-    function isOwner(uid) {
-      return request.auth != null && request.auth.uid == uid;
-    }
-
-    // ── Admins ────────────────────────────────────────────────────
-    match /admins/{adminId} {
-      // O próprio usuário pode checar se é admin (isOwner), e um
-      // admin pode listar todos (usado pelo painel, em
-      // Configurações → Administradores, para mostrar quem tem
-      // acesso).
-      allow read: if isOwner(adminId) || isAdmin();
-      // Só admin adiciona/remove outro admin — pelo painel
-      // (Configurações → Administradores). O primeiro admin do
-      // projeto precisa ser criado manualmente pelo console do
-      // Firebase (não existe "auto-promoção").
-      allow write: if isAdmin();
-    }
-
-    // ── Configurações globais do app (manutenção, comentários) ────
-    // Documento único (app_config/global), lido por todo mundo — o
-    // app precisa saber se está em manutenção ou se comentários
-    // estão desativados mesmo sem o usuário estar logado. Só admin
-    // escreve (ver Configurações no painel).
-    match /app_config/{configId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // ── XP dos usuários ───────────────────────────────────────────
-    match /users_xp/{userId} {
-      allow read: if request.auth != null;
-
-      // O dono pode criar seu próprio documento de XP, mas nunca com
-      // photoUrl já definido — a foto de perfil só entra depois de
-      // aprovada por um admin (ver avatarApprovals mais abaixo).
-      //
-      // Também não pode nascer já com XP/nível acima do inicial nem com
-      // premiumTier/premiumExpiresAt. Isso importa porque o dono agora
-      // pode APAGAR o próprio documento (exclusão de conta, mais
-      // abaixo): sem esta trava, bastaria apagar e recriar o doc já
-      // com premiumTier='ultra' e nível alto para burlar a regra de
-      // update que protege esses campos. Os dois fluxos legítimos de
-      // criação (register_screen e XpService._initializeUser) gravam
-      // totalXp: 0 e level: 1 e nunca gravam premiumTier.
-      allow create: if isOwner(userId) &&
-        !('photoUrl' in request.resource.data) &&
-        !('premiumTier' in request.resource.data) &&
-        !('premiumExpiresAt' in request.resource.data) &&
-        (!('totalXp' in request.resource.data) ||
-          request.resource.data.totalXp == 0) &&
-        (!('level' in request.resource.data) ||
-          request.resource.data.level == 1);
-
-      // O dono pode atualizar seus dados livremente, incluindo
-      // REMOVER photoUrl (apagar a própria foto continua uma ação
-      // instantânea, sem moderação) — mas nunca DEFINIR um valor
-      // nesse campo: isso é exclusivo de admin, via aprovação da
-      // fila de fotos pendentes (avatarApprovals). Sem essa
-      // restrição, o usuário poderia escrever a foto direto aqui e
-      // pular a fila de aprovação.
-      //
-      // premiumTier/premiumExpiresAt seguem a MESMA lógica: só admin
-      // (ou, no futuro, a Cloud Function que valida a compra no
-      // Google Play com o Admin SDK — que também passa por isAdmin())
-      // pode escrever nesses campos. Sem essa trava, qualquer usuário
-      // logado poderia se autoconceder Premium direto pelo app.
-      allow update: if isAdmin() || (
-        isOwner(userId) &&
-        (!('photoUrl' in request.resource.data) ||
-         !request.resource.data.diff(resource.data).affectedKeys()
-           .hasAny(['photoUrl'])) &&
-        !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['premiumTier', 'premiumExpiresAt'])
-      );
-
-      // ── Exclusão da própria conta ────────────────────────────────
-      // Sem esta regra, o usuário comum tomava "permissão negada" ao
-      // apagar o próprio documento de XP durante a exclusão de conta
-      // (Configurações → Excluir conta): o app apagava o perfil, falhava
-      // aqui e deixava a conta pela metade. Só o DONO (ou um admin)
-      // pode apagar este documento; ninguém apaga o de outra pessoa.
-      allow delete: if isOwner(userId) || isAdmin();
-
-      // ── XP ganho por curtida em comentário ───────────────────────
-      // A curtida credita XP fixo (5) ao AUTOR do comentário curtido,
-      // e quem escreve aqui é quem curtiu (não o dono do documento).
-      // Por isso essa regra é bem mais estreita que a de cima: só
-      // totalXp/level podem mudar, o delta é exatamente o valor fixo
-      // de uma curtida (XpService.commentLikeXp), e nunca sobre o
-      // próprio documento (sem auto-curtida).
-      allow update: if request.auth != null &&
-        request.auth.uid != userId &&
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['totalXp', 'level']) &&
-        request.resource.data.totalXp == resource.data.totalXp + 5;
-
-      // ── Check-in diário ───────────────────────────────────────────
-      // checkInToday()/recoverDay() (ver checkin_service.dart) gravam
-      // dois lugares: os campos-resumo aqui no doc principal
-      // (checkinStreak, lastCheckinDate etc.) e um documento por dia
-      // na subcoleção checkins/{yyyy-MM-dd}. Sem uma regra própria
-      // para a subcoleção, ela caía na regra "Demais coleções" do
-      // fim do arquivo (allow write: if isAdmin()) — por isso só
-      // administradores conseguiam fazer check-in; usuários comuns
-      // eram bloqueados silenciosamente pela regra padrão.
-      //
-      // xpAwarded é validado contra os MESMOS valores hardcoded no
-      // cliente (CheckinService.baseXp = 10 e os bônus de sequência
-      // em bonusForStreak) para impedir que alguém edite o app e
-      // grave um valor de XP maior do que o check-in realmente vale.
-      // O streak em si (campo `checkinStreak` no doc pai) não dá pra
-      // validar aqui com segurança sem duplicar toda a lógica de
-      // sequência em regras — fica só a trava de valor de XP, que é
-      // o que evita ganho arbitrário de pontos.
-      function isValidCheckinXp(xp) {
-        return xp == 10   // baseXp
-            || xp == 25   // baseXp + bônus de 3 dias   (10+15)
-            || xp == 35   // baseXp + bônus de 5 dias   (10+25)
-            || xp == 50   // baseXp + bônus de 7 dias   (10+40)
-            || xp == 70   // baseXp + bônus de 10 dias  (10+60)
-            || xp == 100  // baseXp + bônus de 14 dias  (10+90)
-            || xp == 140  // baseXp + bônus de 18 dias  (10+130)
-            || xp == 210  // baseXp + bônus de 24 dias  (10+200)
-            || xp == 360; // baseXp + bônus de 31 dias  (10+350)
-      }
-
-      match /checkins/{dateKey} {
-        allow read: if isOwner(userId) || isAdmin();
-        // create, não update: cada dia só é gravado uma vez (tanto
-        // checkInToday quanto recoverDay checam existence antes e
-        // nunca sobrescrevem um dia já registrado).
-        allow create: if isOwner(userId)
-            && request.resource.data.status in ['done', 'recovered']
-            && isValidCheckinXp(request.resource.data.xpAwarded);
-        allow update: if isAdmin();
-        // O dono pode apagar os próprios check-ins: necessário para a
-        // exclusão de conta (a subcoleção não some sozinha quando o
-        // documento pai é apagado).
-        allow delete: if isOwner(userId) || isAdmin();
-      }
-    }
-
-    // ── Perfis ────────────────────────────────────────────────────
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if isOwner(userId) || isAdmin();
-    }
-
-    // ── Suspensões (sistema de banimento usado pelo painel admin) ──
-    match /suspensions/{userId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
-    }
-
-    // ── Banimento legado (usado hoje só na exclusão de conta) ──────
-    match /banned_users/{userId} {
-      allow read: if request.auth != null;
-      // Só admin cria/edita um banimento. O dono mantém apenas o direito
-      // de APAGAR o próprio registro (exclusão de conta). Antes, o dono
-      // podia escrever qualquer coisa no próprio documento.
-      allow create, update: if isAdmin();
-      allow delete: if isAdmin() || isOwner(userId);
-    }
-
-    // ── Nomes de usuário (reserva de username) ──────────────────────
-    match /usernames/{userId} {
-      allow read: if true;
-      allow write: if isOwner(userId) || isAdmin();
-    }
-
-    // ── Aprovação de fotos de perfil (moderação manual) ───────────
-    // O usuário registra a foto recém-enviada (já hospedada no
-    // Cloudinary) como pendente — ela NÃO vira pública sozinha; só
-    // um admin, aprovando pelo painel, grava a URL em
-    // users_xp/{uid}.photoUrl (ver a regra de users_xp acima, que
-    // bloqueia o próprio usuário de definir esse campo).
-    function validAvatarApprovalSubmit(uid) {
-      return isOwner(uid)
-          && request.resource.data.uid == uid
-          && request.resource.data.status == 'pending'
-          && request.resource.data.pendingPhotoUrl is string
-          && request.resource.data.pendingPhotoUrl.size() > 0;
-    }
-
-    match /avatarApprovals/{uid} {
-      allow read: if isOwner(uid) || isAdmin();
-      allow create: if validAvatarApprovalSubmit(uid);
-      // Reenvio: o próprio dono pode sobrescrever sua solicitação enviando uma nova foto.
-      // Permite reenviar mesmo que o status anterior fosse 'approved' ou 'rejected',
-      // desde que a nova submissão seja válida (status 'pending', mesmo UID e photoUrl válida).
-      allow update: if isAdmin()
-          || validAvatarApprovalSubmit(uid);
-      allow delete: if isAdmin();
-    }
-
-    // ── Visualizações e compartilhamentos de posts ───────────────────
-    // Contadores de leitura/compartilhamento. O app só grava por
-    // set(merge) com incremento de +1 (ver AdminViewsService e
-    // XpService._recordPostShare). Qualquer outro formato é negado
-    // para quem não é admin: antes, qualquer logado podia reescrever
-    // ou zerar o contador de qualquer notícia.
-    match /post_views/{postId} {
-      allow read: if true;
-      allow create: if request.auth != null
-          && request.resource.data.keys().hasOnly(
-              ['postId', 'postTitle', 'totalViews', 'uniqueViewers', 'lastViewedAt'])
-          && request.resource.data.totalViews == 1
-          && request.resource.data.uniqueViewers == 1;
-      allow update: if isAdmin() || (
-          request.auth != null
-          && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['postId', 'postTitle', 'totalViews', 'uniqueViewers', 'lastViewedAt'])
-          && request.resource.data.totalViews == resource.data.get('totalViews', 0) + 1
-          && request.resource.data.uniqueViewers == resource.data.get('uniqueViewers', 0) + 1);
-      allow delete: if isAdmin();
-
-      match /viewers/{userId} {
-        allow read: if request.auth != null;
-        allow write: if isOwner(userId) || isAdmin();
-      }
-    }
-
-    match /post_shares/{postId} {
-      allow read: if true;
-      allow create: if request.auth != null
-          && request.resource.data.keys().hasOnly(
-              ['postId', 'postTitle', 'totalShares', 'lastSharedAt'])
-          && request.resource.data.totalShares == 1;
-      allow update: if isAdmin() || (
-          request.auth != null
-          && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['postId', 'postTitle', 'totalShares', 'lastSharedAt'])
-          && request.resource.data.totalShares == resource.data.get('totalShares', 0) + 1);
-      allow delete: if isAdmin();
-    }
-
-    // ── Log ADM ───────────────────────────────────────────────────
-    match /admin_logs/{logId} {
-      allow read, write: if isAdmin();
-    }
-
-    // ── Comentários ───────────────────────────────────────────────
-    // Campos aceitos na criação de um comentário/resposta. username e
-    // replyToUsername são opcionais (podem vir null), então só são
-    // conferidos quando presentes.
-    function validCommentCreate() {
-      return request.auth != null
-          && request.resource.data.text is string
-          && request.resource.data.text.size() >= 1
-          && request.resource.data.text.size() <= 10000
-          && request.resource.data.userId == request.auth.uid
-          && request.resource.data.likesCount == 0;
-    }
-
-    // Único jeito de um não-admin "atualizar" um comentário/resposta:
-    // mexer em exatamente likesCount OU repliesCount, em ±1, e nada
-    // mais no documento. Isso cobre curtir/descurtir e o contador de
-    // respostas, sem abrir brecha para editar texto ou trocar autor.
-    function isCounterBump(field) {
-      let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return changed.hasOnly([field])
-          && (request.resource.data[field] == resource.data[field] + 1
-              || request.resource.data[field] == resource.data[field] - 1);
-    }
-
-    function validCommentCounterUpdate() {
-      return request.auth != null
-          && (isCounterBump('likesCount') || isCounterBump('repliesCount'));
-    }
-
-    // ── Edição do próprio texto (botão "Editar comentário") ─────────
-    // Só o AUTOR do comentário (não admin — edição alheia continua
-    // proibida mesmo para admin, que só pode excluir) pode alterar
-    // exatamente os campos text/edited/editedAt, mantendo o mesmo
-    // userId e sem tocar em likesCount/repliesCount/demais campos.
-    // Isso garante que a edição nunca é usada como brecha para trocar
-    // autoria ou zerar/inflar contadores.
-    function validCommentTextEdit() {
-      let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return request.auth != null
-          && resource.data.userId == request.auth.uid
-          && request.resource.data.userId == resource.data.userId
-          && changed.hasOnly(['text', 'edited', 'editedAt'])
-          && request.resource.data.text is string
-          && request.resource.data.text.size() >= 1
-          && request.resource.data.text.size() <= 10000
-          && request.resource.data.edited == true;
-    }
-
-    match /comments/{postId}/postComments/{commentId} {
-      allow read: if true;
-      allow create: if validCommentCreate();
-      allow delete: if request.auth != null
-          && (resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if isAdmin()
-          || validCommentCounterUpdate()
-          || validCommentTextEdit();
-
-      // ── Respostas (1 nível, estilo Instagram) ─────────────────────
-      match /replies/{replyId} {
-        allow read: if true;
-        allow create: if validCommentCreate();
-        allow delete: if request.auth != null
-            && (resource.data.userId == request.auth.uid || isAdmin());
-        allow update: if isAdmin()
-            || validCommentCounterUpdate()
-            || validCommentTextEdit();
-
-        // ── Curtidas de uma resposta ─────────────────────────────────
-        match /likes/{likerId} {
-          allow read: if true;
-          allow create: if isOwner(likerId);
-          allow delete: if isOwner(likerId) || isAdmin();
-          allow update: if false;
-        }
-      }
-
-      // ── Curtidas de um comentário-raiz ───────────────────────────
-      match /likes/{likerId} {
-        allow read: if true;
-        allow create: if isOwner(likerId);
-        allow delete: if isOwner(likerId) || isAdmin();
-        allow update: if false;
-      }
-    }
-
-    // ── Central de notificações (respostas/curtidas em comentários) ──
-    // Cada notificação pertence a UM destinatário (recipientUserId).
-    // Só ele pode ler as próprias notificações, e só ele pode marcá-
-    // las como lidas (update restrito ao campo `read`). A CRIAÇÃO é
-    // feita pelo autor da AÇÃO (quem respondeu/curtiu, gravando o uid
-    // dele em actorUserId) diretamente do app — não há Cloud Function
-    // nesse projeto — então validamos aqui o suficiente para impedir
-    // que alguém crie notificação em nome de outro usuário ou
-    // falsificando o campo `read`/`type`.
-    function validNotificationCreate() {
-      return request.auth != null
-          && request.resource.data.actorUserId == request.auth.uid
-          && request.resource.data.actorUserId != request.resource.data.recipientUserId
-          && request.resource.data.recipientUserId is string
-          && request.resource.data.recipientUserId.size() > 0
-          && request.resource.data.type in ['comment_reply', 'comment_like']
-          && request.resource.data.read == false;
-    }
-
-    // Reabrir uma notificação de curtida já existente (curtir de novo
-    // depois de descurtir) só pode mexer em `read`/`createdAt`, sem
-    // trocar remetente/destinatário/tipo — mesma lógica de
-    // isCounterBump acima, mas para os dois campos permitidos aqui.
-    function validNotificationReopen() {
-      let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return request.auth != null
-          && request.auth.uid == resource.data.actorUserId
-          && changed.hasOnly(['read', 'createdAt'])
-          && request.resource.data.read == false;
-    }
-
-    function validNotificationMarkRead() {
-      let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return request.auth != null
-          && request.auth.uid == resource.data.recipientUserId
-          && changed.hasOnly(['read'])
-          && request.resource.data.read == true;
-    }
-
-    match /notifications/{notificationId} {
-      allow read: if request.auth != null
-          && resource.data.recipientUserId == request.auth.uid;
-      allow create: if validNotificationCreate();
-      allow update: if validNotificationMarkRead() || validNotificationReopen();
-      // Só admin apaga notificações diretamente — o app não expõe
-      // exclusão manual pelo usuário comum (ver GUIA_DA_IA: usuário
-      // não pode criar/alterar notificações manualmente além do que
-      // as regras acima autorizam).
-      allow delete: if isAdmin();
-    }
-
-    // ── Presença (online/offline) ────────────────────────────────
-    match /presence/{userId} {
-      allow read: if request.auth != null;
-      allow write: if isOwner(userId);
-    }
-
-    // ── Solicitações de assinatura (aprovação manual PRO/ULTRA) ───
-    // Depois que o Google Play Billing confirma a compra, o app cria
-    // aqui um registro pendente (ver SubscriptionRequestService) em
-    // vez de liberar o Premium sozinho. Só o próprio usuário pode
-    // criar sua solicitação (sempre com status: 'pendente' e o uid
-    // batendo com quem está autenticado), e só um admin pode
-    // aprovar/recusar (mudar o status), evitando que o usuário
-    // aprove a própria compra.
-    function validSubscriptionRequestCreate() {
-      return request.auth != null
-          && request.resource.data.uid == request.auth.uid
-          && request.resource.data.status == 'pendente'
-          && request.resource.data.plan in ['pro', 'ultra'];
-    }
-
-    match /subscriptionRequests/{requestId} {
-      allow read: if isAdmin()
-          || (request.auth != null &&
-              resource.data.uid == request.auth.uid);
-      allow create: if validSubscriptionRequestCreate();
-      // Só admin pode mudar o status (aprovar/recusar) — o usuário
-      // nunca pode alterar a própria solicitação depois de criada.
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
-    // ── Atendimento privado (usuário ↔ equipe Horizonte News) ──────
-    //
-    // Estrutura:
-    //   support_conversations/{uid}            ← ID = UID do usuário
-    //   support_conversations/{uid}/messages/{messageId}
-    //   support_config/public                  ← boas-vindas, horário
-    //   support_config/agents                  ← quem atende / quem recebe push
-    //   support_quick_replies/{id}             ← respostas rápidas
-    //
-    // Sem Cloud Functions (plano gratuito): quem envia grava a mensagem
-    // E o resumo da conversa no MESMO batch. As regras abaixo exigem
-    // que os dois cheguem juntos (existsAfter/getAfter), com timestamps
-    // do servidor, contador +1 e remetente igual ao usuário autenticado.
-
-    // Atendente = admin listado em support_config/agents. Se esse
-    // documento ainda não existe, todo admin pode atender (modo
-    // inicial). As regras não conseguem conferir cada UID da lista
-    // contra /admins, mas isso não abre brecha: o atendente SEMPRE
-    // precisa passar por isAdmin() também.
-    function isSupportAgent() {
-      return isAdmin() && (
-        !exists(/databases/$(database)/documents/support_config/agents) ||
-        request.auth.uid in get(/databases/$(database)/documents/support_config/agents)
-            .data.get('agentUids', [])
-      );
-    }
-
-    function supportConvPath(convId) {
-      return /databases/$(database)/documents/support_conversations/$(convId);
-    }
-
-    function supportMsgPathAfter(convId, msgId) {
-      return /databases/$(database)/documents/support_conversations/$(convId)/messages/$(msgId);
-    }
-
-    function validSupportProfile(d) {
-      return d.userName is string && d.userName.size() <= 80
-          && d.username is string && d.username.size() <= 40
-          && d.usernameLower is string && d.usernameLower.size() <= 40
-          && d.searchName is string && d.searchName.size() <= 80
-          && (d.photoUrl == null || (d.photoUrl is string && d.photoUrl.size() <= 600));
-    }
-
-    function validSupportCategory(d) {
-      return !('category' in d) || d.category == null
-          || d.category in ['app', 'tecnico', 'assinatura', 'informacao', 'anunciar'];
-    }
-
-    function validSupportPreview(d) {
-      return d.lastMessageText is string
-          && d.lastMessageText.size() >= 1
-          && d.lastMessageText.size() <= 200
-          && d.lastMessageAt == request.time
-          && d.lastActivityAt == request.time
-          && d.lastMessageId is string
-          && d.lastMessageId.size() >= 1
-          && d.lastMessageId.size() <= 40;
-    }
-
-    // Resumo gravado por uma mensagem DO USUÁRIO.
-    function validUserSummary(convId, d) {
-      return validSupportPreview(d)
-          && d.lastMessageSenderRole == 'user'
-          && d.lastUserSendAt == request.time
-          && d.awaitingReply == true
-          && d.status == 'open'
-          && validSupportCategory(d)
-          && existsAfter(supportMsgPathAfter(convId, d.lastMessageId))
-          && getAfter(supportMsgPathAfter(convId, d.lastMessageId)).data.senderId == request.auth.uid
-          && getAfter(supportMsgPathAfter(convId, d.lastMessageId)).data.senderRole == 'user';
-    }
-
-    // Resumo gravado por uma mensagem DO ATENDENTE.
-    function validAgentSummary(convId, d) {
-      return validSupportPreview(d)
-          && d.lastMessageSenderRole == 'agent'
-          && d.lastAgentId == request.auth.uid
-          && d.awaitingReply == false
-          && d.status in ['open', 'resolved']
-          && existsAfter(supportMsgPathAfter(convId, d.lastMessageId))
-          && getAfter(supportMsgPathAfter(convId, d.lastMessageId)).data.senderId == request.auth.uid
-          && getAfter(supportMsgPathAfter(convId, d.lastMessageId)).data.senderRole == 'agent';
-    }
-
-    function validUserConvCreate(convId) {
-      let d = request.resource.data;
-      return d.keys().hasOnly([
-            'userId', 'userName', 'username', 'usernameLower', 'searchName',
-            'photoUrl', 'category', 'hidePreview', 'status', 'pinned', 'blocked',
-            'awaitingReply', 'unreadUser', 'unreadAgent', 'lastMessageText',
-            'lastMessageSenderRole', 'lastMessageAt', 'lastMessageId',
-            'lastActivityAt', 'lastUserSendAt', 'createdAt'])
-          && d.userId == convId
-          && (!('hidePreview' in d) || d.hidePreview is bool)
-          && validSupportProfile(d)
-          && d.pinned == false
-          && d.blocked == false
-          && d.unreadUser == 0
-          && d.unreadAgent == 1
-          && d.createdAt == request.time
-          && validUserSummary(convId, d);
-    }
-
-    function validAgentConvCreate(convId) {
-      let d = request.resource.data;
-      return d.keys().hasOnly([
-            'userId', 'userName', 'username', 'usernameLower', 'searchName',
-            'photoUrl', 'category', 'status', 'pinned', 'blocked',
-            'awaitingReply', 'unreadUser', 'unreadAgent', 'lastMessageText',
-            'lastMessageSenderRole', 'lastMessageAt', 'lastMessageId',
-            'lastActivityAt', 'lastAgentId', 'createdAt'])
-          && d.userId == convId
-          && validSupportProfile(d)
-          && d.pinned == false
-          && d.blocked == false
-          && d.unreadUser == 1
-          && d.unreadAgent == 0
-          && d.createdAt == request.time
-          && validAgentSummary(convId, d);
-    }
-
-    // Usuário envia mensagem (resumo + contador do atendente +1 +
-    // intervalo mínimo de 2 s entre envios + conta não bloqueada).
-    function validUserSend(convId) {
-      let d = request.resource.data;
-      let b = resource.data;
-      return d.diff(b).affectedKeys().hasOnly([
-            'userName', 'username', 'usernameLower', 'searchName', 'photoUrl',
-            'category', 'hidePreview', 'status', 'awaitingReply', 'unreadAgent',
-            'lastMessageText', 'lastMessageSenderRole', 'lastMessageAt',
-            'lastMessageId', 'lastActivityAt', 'lastUserSendAt'])
-          && d.userId == b.userId
-          && (!('hidePreview' in d) || d.hidePreview is bool)
-          && b.get('blocked', false) == false
-          && validSupportProfile(d)
-          && validUserSummary(convId, d)
-          && d.unreadAgent == b.get('unreadAgent', 0) + 1
-          && (!('lastUserSendAt' in b)
-              || request.time > b.lastUserSendAt + duration.value(2, 's'));
-    }
-
-    function validUserReadMark() {
-      let d = request.resource.data;
-      return d.diff(resource.data).affectedKeys().hasOnly(['unreadUser', 'userReadAt'])
-          && d.unreadUser == 0
-          && d.userReadAt == request.time;
-    }
-
-    // "Limpar conversa" (só para mim): o usuário esconde o histórico
-    // anterior no próprio app. Nada é apagado do banco; a equipe
-    // continua vendo tudo.
-    function validUserClear() {
-      let d = request.resource.data;
-      return d.diff(resource.data).affectedKeys().hasOnly(['userClearedAt', 'unreadUser'])
-          && d.userClearedAt == request.time
-          && d.unreadUser == 0;
-    }
-
-    function validUserPrefs() {
-      let d = request.resource.data;
-      return d.diff(resource.data).affectedKeys().hasOnly(['hidePreview'])
-          && d.hidePreview is bool;
-    }
-
-    function validAgentSend(convId) {
-      let d = request.resource.data;
-      let b = resource.data;
-      return d.diff(b).affectedKeys().hasOnly([
-            'lastMessageText', 'lastMessageSenderRole', 'lastMessageAt',
-            'lastMessageId', 'lastActivityAt', 'lastAgentId', 'unreadUser',
-            'awaitingReply', 'status'])
-          && d.userId == b.userId
-          && validAgentSummary(convId, d)
-          && d.unreadUser == b.get('unreadUser', 0) + 1;
-    }
-
-    function validAgentReadMark() {
-      let d = request.resource.data;
-      return d.diff(resource.data).affectedKeys().hasOnly(['unreadAgent', 'agentReadAt'])
-          && d.unreadAgent == 0
-          && d.agentReadAt == request.time;
-    }
-
-    // Resolver, reabrir, fixar, bloquear envio e categoria. Bloquear o
-    // atendimento NÃO é banir a conta (suspensions/banned_users).
-    function validAgentManage() {
-      let d = request.resource.data;
-      return d.diff(resource.data).affectedKeys()
-            .hasOnly(['status', 'pinned', 'blocked', 'awaitingReply', 'category'])
-          && d.status in ['open', 'resolved']
-          && d.pinned is bool
-          && d.blocked is bool
-          && d.awaitingReply is bool
-          && (d.status != 'resolved' || d.awaitingReply == false)
-          && validSupportCategory(d);
-    }
-
-    // "Excluir só para mim" do atendente: tira a conversa da caixa de
-    // entrada e esconde o histórico anterior para a equipe. O usuário
-    // continua vendo a conversa; se ele escrever de novo, ela volta
-    // (a mensagem dele grava status 'open').
-    function validAgentArchive() {
-      let d = request.resource.data;
-      return d.diff(resource.data).affectedKeys()
-            .hasOnly(['status', 'awaitingReply', 'unreadAgent', 'pinned', 'agentClearedAt'])
-          && d.status == 'archived'
-          && d.awaitingReply == false
-          && d.unreadAgent == 0
-          && d.pinned == false
-          && d.agentClearedAt == request.time;
-    }
-
-    function validSupportMessage(convId, msgId) {
-      let d = request.resource.data;
-      return request.auth != null
-          && msgId.size() <= 40
-          && d.keys().hasOnly(['senderId', 'senderRole', 'text', 'createdAt', 'replyTo'])
-          && d.senderId == request.auth.uid
-          && d.text is string
-          && d.text.size() >= 1
-          && d.text.size() <= 2000
-          && d.createdAt == request.time
-          && (!('replyTo' in d) || d.replyTo == null || (
-                d.replyTo is map
-                && d.replyTo.keys().hasOnly(['id', 'text', 'senderRole'])
-                && d.replyTo.id is string
-                && d.replyTo.text is string
-                && d.replyTo.text.size() <= 200
-                && d.replyTo.senderRole in ['user', 'agent']))
-          && getAfter(supportConvPath(convId)).data.lastMessageId == msgId
-          && getAfter(supportConvPath(convId)).data.lastMessageAt == request.time
-          && (
-            (d.senderRole == 'user'
-              && request.auth.uid == convId
-              && !(exists(supportConvPath(convId))
-                   && get(supportConvPath(convId)).data.get('blocked', false) == true))
-            ||
-            (d.senderRole == 'agent' && isSupportAgent())
-          );
-    }
-
-    match /support_conversations/{convId} {
-      allow read: if isOwner(convId) || isSupportAgent();
-
-      allow create: if (isOwner(convId) && validUserConvCreate(convId))
-          || (isSupportAgent() && validAgentConvCreate(convId));
-
-      allow update: if (isOwner(convId) && (
-              validUserSend(convId) || validUserReadMark() || validUserPrefs()
-              || validUserClear()))
-          || (isSupportAgent() && (
-              validAgentSend(convId) || validAgentReadMark() || validAgentManage()
-              || validAgentArchive()));
-
-      // "Excluir para os dois": só atendente apaga a conversa de vez.
-      allow delete: if isSupportAgent();
-
-      match /messages/{msgId} {
-        allow read: if isOwner(convId) || isSupportAgent();
-        allow create: if validSupportMessage(convId, msgId);
-        // Mensagens são imutáveis: ninguém edita depois de enviada
-        // (evita adulterar o histórico). Só o atendente apaga, e é o que
-        // "Excluir para os dois" usa.
-        allow update: if false;
-        allow delete: if isSupportAgent();
-      }
-    }
-
-    // Textos públicos do atendimento (boas-vindas, horário). Qualquer
-    // usuário logado lê; só atendente escreve.
-    match /support_config/public {
-      allow read: if request.auth != null;
-      allow write: if isSupportAgent()
-          && request.resource.data.keys().hasOnly(
-              ['enabled', 'welcomeMessage', 'offHoursMessage', 'hours',
-               'hidePreviewAgent', 'updatedAt'])
-          && request.resource.data.welcomeMessage is string
-          && request.resource.data.welcomeMessage.size() <= 500
-          && request.resource.data.offHoursMessage is string
-          && request.resource.data.offHoursMessage.size() <= 500;
-    }
-
-    // Quem atende e quem recebe push. Só admins leem. Quem escreve
-    // precisa continuar na lista (ninguém se remove sem querer) e a
-    // lista tem tamanho limitado.
-    match /support_config/agents {
-      allow read: if isAdmin();
-      allow write: if isAdmin()
-          && (!exists(/databases/$(database)/documents/support_config/agents)
-              || request.auth.uid in get(/databases/$(database)/documents/support_config/agents)
-                  .data.get('agentUids', []))
-          && request.resource.data.keys().hasOnly(
-              ['agentUids', 'notifyUids', 'updatedAt'])
-          && request.resource.data.agentUids is list
-          && request.resource.data.agentUids.size() >= 1
-          && request.resource.data.agentUids.size() <= 10
-          && request.auth.uid in request.resource.data.agentUids
-          && request.resource.data.notifyUids is list
-          && request.resource.data.notifyUids.size() <= 10;
-    }
-
-    match /support_quick_replies/{replyId} {
-      allow read: if isSupportAgent();
-      allow create, update: if isSupportAgent()
-          && request.resource.data.keys().hasOnly(['title', 'text', 'order', 'updatedAt'])
-          && request.resource.data.title is string
-          && request.resource.data.title.size() >= 1
-          && request.resource.data.title.size() <= 40
-          && request.resource.data.text is string
-          && request.resource.data.text.size() >= 1
-          && request.resource.data.text.size() <= 1000;
-      allow delete: if isSupportAgent();
-    }
-
-    // ── Coleções públicas que antes dependiam do "match tudo" ───────
-    // Notícias: leitura pública (inclusive sem login), escrita só admin.
-    match /noticias/{postId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Documento-pai de comentários (comments/{postId}): o app lista essa
-    // coleção na exclusão de conta e no painel ADM.
-    match /comments/{postId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Consultas de grupo (painel ADM → aba Comentários).
-    match /{path=**}/postComments/{commentId} {
-      allow read: if true;
-    }
-    match /{path=**}/replies/{replyId} {
-      allow read: if true;
-    }
-
-    // ── Negação padrão ──────────────────────────────────────────────
-    // Antes: match /{document=**} { allow read: if true; allow write:
-    // if isAdmin(); } — deixava QUALQUER coleção sem regra legível por
-    // qualquer pessoa, até sem login. Agora o que não tem regra
-    // explícita é negado para todos (inclusive admin pelo app; o
-    // Admin SDK/console não passam pelas regras).
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
+# Horizonte News — Guia para IA
+
+> **Revisado em:** 23/09/2026
+>
+> Este guia deve ser usado junto com `ESTRUTURA_PROJETO.md`. Ambos foram revisados com base no código atual do projeto.
+
+---
+
+## 1. Regra principal
+
+Antes de criar ou alterar qualquer coisa:
+
+1. Procure primeiro o arquivo e o serviço que já executam a função.
+2. Prefira editar/reutilizar código existente.
+3. Não crie sistemas paralelos para resolver algo que já existe.
+4. Verifique dependências entre tela, provider, service, widget e Firestore.
+5. Consulte `ESTRUTURA_PROJETO.md` antes de assumir que um arquivo existe.
+6. Se a alteração envolver Firebase, consulte `firestore.rules`.
+7. Se a alteração envolver notificações, verifique `notification_service.dart`, `app_notification_service.dart` e os serviços administrativos de push.
+8. Se a alteração envolver notícias, verifique `NewsService`, `AdminNewsService` e `PostModel` antes de mexer no Blogger.
+9. Preserve as funcionalidades existentes, salvo pedido explícito para removê-las.
+
+---
+
+# 2. Visão geral atual
+
+O Horizonte News é um aplicativo Flutter focado em notícias de Horizonte e região, com:
+
+- feed de notícias em Firestore;
+- categorias e busca;
+- matérias relacionadas;
+- vídeos dentro das matérias;
+- usuários via Firebase Auth;
+- XP e níveis;
+- badges/emblemas;
+- ranking;
+- check-in diário;
+- favoritos;
+- comentários e respostas;
+- notificações internas e push;
+- perfil e avatares;
+- avatares animados Premium;
+- planos PRO/ULTRA;
+- anúncios AdMob/parceiros;
+- painel administrativo;
+- gerenciamento de notícias dentro do painel ADM;
+- moderação de usuários e avatares;
+- solicitações de assinatura;
+- configurações globais e modo manutenção.
+
+---
+
+# 3. Inicialização — `lib/main.dart`
+
+O `main.dart` é o ponto de entrada.
+
+A sequência atual é:
+
+```text
+WidgetsFlutterBinding.ensureInitialized()
+        ↓
+Firebase.initializeApp()
+        ↓
+AuthService.enforceRememberPreference()
+        ↓
+MobileAds.initialize()
+NotificationService.init()
+SoundService.init()
+        ↓
+MultiProvider
+        ↓
+HorizonteNewsApp
+        ↓
+DeepLinkService.init() após primeiro frame
+        ↓
+AuthGate
+```
+
+### Providers globais
+
+```text
+ThemeProvider
+PostsProvider
+FavoritesProvider
+UserXpProvider
+AdminProvider
+```
+
+Não duplicar esses providers em telas individuais sem necessidade.
+
+### Autenticação
+
+`_AuthGate` verifica `AppConfigService`.
+
+Se o modo manutenção estiver ativo:
+
+- usuário não autenticado → tela de manutenção;
+- usuário autenticado que é admin → continua para o app/painel;
+- usuário autenticado comum → tela de manutenção.
+
+No fluxo normal:
+
+- autenticado → Home;
+- não autenticado → Login.
+
+Ao detectar usuário autenticado, o app também chama:
+
+```text
+NotificationService.loginExternalUser(uid)
+```
+
+Ao sair da conta:
+
+```text
+NotificationService.logoutExternalUser()
+```
+
+Não remover esse comportamento ao alterar o fluxo de autenticação.
+
+---
+
+# 4. Notícias — regra importante
+
+## Fonte atual
+
+A fonte principal atual é:
+
+```text
+Firestore → noticias
+```
+
+O serviço principal é:
+
+```text
+lib/services/news_service.dart
+```
+
+Ele trabalha com notícias `publicado` e suporta:
+
+- feed ao vivo;
+- paginação por cursor;
+- categorias;
+- busca normalizada;
+- busca por palavras;
+- matéria por ID;
+- matérias relacionadas.
+
+### Admin
+
+O painel possui:
+
+```text
+lib/features/admin/services/admin_news_service.dart
+lib/features/admin/screens/tabs/news_tab.dart
+lib/features/admin/screens/news_editor_screen.dart
+```
+
+O administrador pode:
+
+- listar notícias;
+- criar;
+- editar;
+- publicar;
+- despublicar;
+- excluir;
+- reindexar campos de busca.
+
+Ao publicar uma notícia pelo painel, o sistema pode disparar push via `PushNotificationService`.
+
+### Blogger
+
+Existe:
+
+```text
+lib/services/blogger_service.dart
+lib/config/blogger_config.dart
+```
+
+Mas `BloggerService` é legado/compatibilidade/importação. **Não assumir que o feed atual usa Blogger.**
+
+Se alguém pedir uma alteração no sistema de notícias, verificar primeiro `NewsService` e `AdminNewsService`.
+
+---
+
+# 5. Modelo de notícia
+
+Arquivo:
+
+```text
+lib/models/post_model.dart
+```
+
+O modelo suporta, entre outros dados:
+
+- título;
+- resumo;
+- conteúdo;
+- URL;
+- publicação/atualização;
+- thumbnail;
+- galeria;
+- vídeo;
+- enquadramento do vídeo;
+- categorias;
+- status;
+- autor.
+
+Status Firestore:
+
+```text
+publicado
+rascunho
+despublicado
+```
+
+---
+
+# 6. Busca de notícias
+
+A busca atual usa campos normalizados:
+
+```text
+tituloBusca
+palavrasBusca
+```
+
+O utilitário é:
+
+```text
+lib/utils/search_normalizer.dart
+```
+
+Existe uma ação administrativa de reindexação para notícias antigas.
+
+Não criar outro mecanismo de busca sem antes verificar esse sistema.
+
+---
+
+# 7. Usuários
+
+O núcleo de progresso fica em:
+
+```text
+users_xp/{uid}
+```
+
+Também existem:
+
+```text
+users/{uid}              (legado: o app só apaga; não é mais público)
+users_private/{uid}      (e-mail e data de nascimento — só dono e admin leem)
+usernames/{uid}
+admins/{uid}
+suspensions/{uid}        (cada usuário lê só a própria)
+banned_users/{uid}
+```
+
+`users_xp` é legível por TODO usuário logado (ranking, perfis, comentários).
+Por isso e-mail e data de nascimento NÃO podem ficar nele — ver
+`lib/services/private_profile_service.dart` (migração automática no login) e
+`AdminEmailDirectory` (painel admin lê os e-mails de `users_private`).
+A idade pública é a cópia `publicBirthDate`, que só existe com "Mostrar minha
+idade" ligado.
+
+Para alterações relacionadas ao usuário, verificar:
+
+```text
+lib/services/auth_service.dart
+lib/providers/user_xp_provider.dart
+lib/services/xp_service.dart
+lib/screens/profile_screen.dart
+lib/features/admin/services/admin_user_service.dart
+```
+
+---
+
+# 8. Painel administrativo
+
+Arquivo principal:
+
+```text
+lib/features/admin/screens/admin_panel_screen.dart
+```
+
+Abas atuais:
+
+```text
+0  Overview
+1  Comments
+2  Banned
+3  Users
+4  Views
+5  Poderes
+6  News
+7  Avatar approvals
+8  Subscription requests
+9  Config
+10 Ads bar
+```
+
+Não assumir que o painel possui apenas as abas antigas de `overview/users/comments/banned/views/poderes`.
+
+---
+
+# 9. Aba Usuários
+
+Arquivos principais:
+
+```text
+lib/features/admin/screens/tabs/users_tab.dart
+lib/features/admin/widgets/admin_user_tile.dart
+lib/features/admin/services/admin_user_service.dart
+```
+
+O serviço já possui:
+
+- listagem em tempo real;
+- ordenação por `lastSeenAt`;
+- suspensão/desbloqueio;
+- dados brutos do usuário;
+- alteração administrativa de nível;
+- restauração do nível real;
+- alteração administrativa de título/tag;
+- restauração do título;
+- concessão PRO/ULTRA;
+- revogação Premium;
+- sincronização de níveis;
+- logs administrativos.
+
+A `UsersTab` atualmente oferece pesquisa básica e cards de usuários.
+
+Se a aba for ampliada, reutilizar `AdminUserService` e `AdminUserTile`. Não criar um segundo serviço de usuários.
+
+---
+
+# 10. Premium
+
+Configuração central:
+
+```text
+lib/config/premium_config.dart
+```
+
+Tiers:
+
+```text
+none
+pro
+ultra
+```
+
+Os multiplicadores atuais são:
+
+```text
+none = 1x
+pro  = 2x
+ultra = 8x
+```
+
+Valem para leitura, comentário e compartilhamento (e o evento de XP soma por
+cima). NÃO valem para o TEMPO ONLINE, que é sempre exatamente 2 XP por minuto
+(`XpService.addXpForTime` / `creditOnlineTime` passam `applyMultipliers: false`),
+nem para missões, check-in e XP de curtida.
+
+A validade considera `premiumExpiresAt`.
+
+O admin pode conceder/revogar Premium por:
+
+```text
+lib/features/admin/services/admin_user_service.dart
+```
+
+Não alterar os campos Premium diretamente de uma tela sem respeitar as regras do Firestore.
+
+O usuário NUNCA grava `premiumTier`/`premiumExpiresAt`/`premiumTrial`/
+`premiumSource`/`premiumPurchaseHash` (as regras recusam). Quem libera Premium:
+- o backend (Cloudflare Worker, `/v1/billing/verify` + avisos RTDN do Google),
+  que só grava depois de consultar a Google Play Developer API; ou
+- um administrador (manual — `grantPremium`, que apaga `premiumSource`).
+Sem `BACKEND_URL` no build, o app usa o fluxo antigo (solicitação pendente em
+`subscriptionRequests` + aprovação do admin).
+
+---
+
+# 11. Avatares
+
+Fotos do usuário:
+
+```text
+avatar_upload_service.dart
+avatar_approval_service.dart
+admin_avatar_approval_service.dart
+```
+
+O fluxo de foto envolve aprovação administrativa.
+
+Avatares animados Premium:
+
+```text
+config/premium_avatars_config.dart
+widgets/premium_avatars.dart
+screens/premium_avatar_gallery_screen.dart
+```
+
+Catálogo atual:
+
+- Nova Aurora
+- Fênix Elétrica
+- Lobo Espectral
+- Cristal Quântico
+- Águia Solar
+- Serpente Aurora
+
+---
+
+# 12. XP, níveis e check-in
+
+Arquivos principais:
+
+```text
+lib/services/xp_service.dart
+lib/providers/user_xp_provider.dart
+lib/config/badge_config.dart
+lib/widgets/badge_widgets.dart
+lib/widgets/level_up_overlay.dart
+lib/services/checkin_service.dart
+lib/screens/checkin_screen.dart
+lib/widgets/checkin_calendar.dart
+```
+
+Antes de alterar nível/XP:
+
+1. verificar `XpService`;
+2. verificar `UserXpProvider`;
+3. verificar `firestore.rules`;
+4. verificar testes de XP;
+5. verificar overrides administrativos.
+
+O painel administrativo possui sincronização de níveis.
+
+---
+
+# 13. Comentários
+
+Arquivo visual principal:
+
+```text
+lib/widgets/comments_section.dart
+```
+
+Admin:
+
+```text
+lib/features/admin/services/admin_comment_service.dart
+lib/features/admin/screens/tabs/comments_tab.dart
+```
+
+Estrutura:
+
+```text
+comments/{postId}/postComments/{commentId}
+  ├── replies/{replyId}
+  └── likes/{likerId}
+```
+
+Respostas possuem suas próprias curtidas.
+
+O sistema atual suporta:
+
+- comentários;
+- respostas;
+- edição do próprio comentário;
+- curtidas;
+- contadores;
+- notificações;
+- exclusão pelo autor/admin;
+- XP por interações.
+
+Ao alterar comentários, conferir também as regras do Firestore.
+
+---
+
+# 14. Notificações
+
+Existem dois níveis:
+
+### OneSignal
+
+```text
+lib/services/notification_service.dart
+lib/features/admin/services/push_notification_service.dart
+```
+
+Usado para push.
+
+### Notificações internas
+
+```text
+lib/services/app_notification_service.dart
+lib/models/notification_model.dart
+lib/screens/notifications_screen.dart
+```
+
+A coleção é:
+
+```text
+notifications
+```
+
+O sistema também usa External ID do OneSignal baseado no UID do Firebase para direcionamento individual.
+
+Não remover o login/logout do OneSignal do `_AuthenticatedGate`.
+
+---
+
+# 15. Configuração global
+
+Arquivo:
+
+```text
+lib/services/app_config_service.dart
+```
+
+Documento:
+
+```text
+app_config/global
+```
+
+Configurações atuais:
+
+- `maintenanceMode`;
+- `maintenanceMessage`;
+- `commentsEnabled`;
+- `adsBarMode`;
+- `adsPartnerName`;
+- `adsPartnerImageUrl`;
+- `adsPartnerLinkUrl`.
+
+Modos de anúncio:
+
+```text
+admob
+partner
+off
+```
+
+---
+
+# 16. Firestore
+
+Antes de criar/alterar uma coleção:
+
+1. procure a coleção no código;
+2. procure a coleção em `firestore.rules`;
+3. confira quem pode ler/escrever;
+4. confira se existem subcoleções;
+5. atualize as regras junto com o schema, se necessário.
+
+Coleções principais atuais:
+
+```text
+admins
+app_config
+users_xp
+users
+suspensions
+banned_users
+usernames
+avatarApprovals
+post_views
+post_shares
+admin_logs
+comments
+notifications
+presence
+subscriptionRequests
+noticias
+```
+
+Subcoleções importantes:
+
+```text
+users_xp/{uid}/checkins
+post_views/{postId}/viewers
+comments/{postId}/postComments/{commentId}/replies
+comments/{postId}/postComments/{commentId}/likes
+comments/{postId}/postComments/{commentId}/replies/{replyId}/likes
+```
+
+---
+
+# 17. Cloud Functions
+
+**Não existe `functions/` neste pacote atual.**
+
+Não criar ou documentar Cloud Functions como se já existissem.
+
+**Existe um backend em Cloudflare Workers** (plano gratuito) em
+`cloudflare/horizonte-worker/` — não é Cloud Functions (que exige plano Blaze).
+Ele envia os pushes do OneSignal (a chave REST só existe nele), valida compras
+do Google Play, e credita o XP de curtida recebida. O app só o usa quando o
+build recebe `--dart-define=BACKEND_URL=...` (`BackendClient.isConfigured`);
+sem isso, tudo continua no modo antigo. Detalhes: `cloudflare/horizonte-worker/README.md`.
+
+---
+
+# 18. Uploads e mídia
+
+Cloudinary:
+
+```text
+avatar_upload_service.dart
+cloudinary_upload_service.dart
+cloudinary_url_utils.dart
+```
+
+Vídeos:
+
+```text
+widgets/post_video_player.dart
+features/admin/widgets/video_frame_editor.dart
+```
+
+Existe suporte a vídeo dentro das matérias, mas **não existe uma tela pública independente de vídeos**.
+
+---
+
+# 19. Rotas atuais
+
+Definidas em:
+
+```text
+lib/config/app_routes.dart
+```
+
+Rotas principais:
+
+```text
+/
+/category
+/post-detail
+/search
+/favorites
+/contact
+/settings
+/login
+/register
+/forgot-password
+/profile
+/admin-panel
+/most-read
+/horizon-now
+/events
+/ranking
+/checkin
+/premium
+/premium-avatars
+/notifications
+```
+
+Ao criar uma tela nova, verificar primeiro se a navegação existente pode ser reutilizada.
+
+---
+
+# 20. Sistemas que NÃO existem
+
+Não assumir que existam:
+
+- sistema de amigos;
+- sistema de chat;
+- `chat_screen.dart`;
+- sistema social de amizade;
+- `videos_screen.dart` como tela independente.
+
+Existe suporte a vídeo em notícias, então não confundir as duas coisas.
+
+Também existe editor de notícias no painel administrativo:
+
+```text
+news_editor_screen.dart
+```
+
+Portanto, não afirmar que o projeto não possui editor administrativo.
+
+---
+
+# 21. Regra para alterações
+
+Ao implementar uma funcionalidade:
+
+1. Identifique os arquivos existentes.
+2. Reutilize services/providers/widgets existentes.
+3. Evite duplicação.
+4. Não crie uma segunda fonte de verdade para o mesmo dado.
+5. Preserve Firebase/Auth/Firestore.
+6. Preserve XP e níveis.
+7. Preserve comentários e respostas.
+8. Preserve notificações.
+9. Preserve Premium/assinaturas.
+10. Preserve aprovação de avatares.
+11. Não altere regras de segurança sem verificar o impacto.
+12. Se houver alteração de schema Firestore, atualize `firestore.rules`.
+13. Se houver alteração no fluxo de notícias, verifique `NewsService` e `AdminNewsService`.
+14. Se houver alteração na autenticação, verifique `main.dart`, `AuthService` e OneSignal.
+
+---
+
+# 22. Regra para resposta da IA
+
+Antes de executar uma alteração relevante, informar de forma objetiva:
+
+- arquivos que serão alterados;
+- motivo de cada alteração;
+- impacto esperado;
+- dependências afetadas;
+- se há mudança no Firestore;
+- se há mudança nas regras.
+
+Depois da alteração, informar:
+
+- arquivos efetivamente alterados;
+- funcionalidades implementadas;
+- limitações/dados que não existem atualmente;
+- necessidade ou não de alteração no Firebase.
+
+Não afirmar que uma função foi implementada se ela apenas foi planejada.
+
+---
+
+# 23. Princípio final
+
+**O código atual é a fonte de verdade.**
+
+Se este guia, `ESTRUTURA_PROJETO.md` e o código entrarem em conflito, primeiro verificar o código e depois atualizar a documentação.
+---
+
+## Atendimento privado (chat usuário ↔ equipe)
+
+Detalhes, limites e publicação em `SUPORTE_ATENDIMENTO.md`. Resumo para IA:
+
+- Conversa única por usuário: `support_conversations/{uid}` + `messages/{id}`.
+  Quem envia grava mensagem + resumo no MESMO batch; as regras exigem os dois.
+- Push do atendimento: com `BACKEND_URL`, o servidor (`/v1/notify/support`) confere a
+  mensagem e envia só para os UIDs de `support_config/agents.notifyUids` (não depende de
+  tag no aparelho). Sem `BACKEND_URL`: modo antigo — sai do app de quem envia
+  (`AppNotificationService.sendSupportPush`) e a equipe é alcançada pela tag OneSignal
+  `support_agent=1`.
+- Tela única do chat: `lib/screens/support_chat_screen.dart` (usuário e atendente).
+- Botão flutuante único: `lib/widgets/support_fab.dart` via `MaterialApp.builder`;
+  lista de telas em `SupportFabOverlay.visibleRoutes`.
+- Aba "Atendimento" do painel ADM = índice 10 (`SupportLauncher.adminInboxTab`).
+- `firestore.rules` NÃO tem mais leitura pública geral: coleção nova precisa de regra explícita.
+
+---
+
+## Emblemas 3D (conquistas)
+
+Só aparência — regras de desbloqueio continuam em `XpService._checkAchievements`
+e `getAllAchievements` (não alterados).
+
+- `lib/config/badge_3d_config.dart`: material, símbolo e raridade VISUAL de cada
+  conquista (a raridade não vai para o Firebase), critérios e progresso (só lê dados).
+- `lib/widgets/medal_3d_painter.dart`: renderização 3D por código (camadas em Z com
+  `Matrix4` de perspectiva; lateral com espessura, fundo rebaixado, símbolo extrudado,
+  verso). Sem imagens nem motor 3D.
+- `lib/widgets/medal_3d_widgets.dart`: `Medal3D` (animada), `Medal3DMini` (ao lado do
+  nome), `MedalGrid` (perfil), `showMedalViewer` (janela com giro por arrasto) e
+  `Medal3DPerf` (reduz o detalhe sozinho se o aparelho não acompanhar).
+- Conquista nova (ainda não "vista") toca a animação de entrada uma vez; o controle de
+  "vistas" fica em SharedPreferences (`medals_seen_<uid>`), não no Firebase.
+- Ícone/id novo de conquista sem entrada em `Badge3DConfig._specs` usa uma medalha
+  derivada das cores de `BadgeConfig` (nunca fica sem renderizar).
+
+---
+
+# 21. Segurança, backend e auditoria (nov/2026)
+
+Resumo do que mudou na auditoria (relatório completo em `AUDITORIA_2026-11.md`):
+
+**Regras do Firestore (`firestore.rules`) — leia antes de criar coleção/campo novo**
+- `users_xp`: o dono só altera o que lhe cabe. `totalXp` só sobe (máx. +1000 por
+  gravação), `level` nunca passa do que o XP permite (tabela copiada de
+  `XpService.xpRequiredForLevel` — mantida igual por `test/backend_contract_test.dart`),
+  campos de premium/override de admin só admin/backend. Ninguém escreve no XP de OUTRA
+  pessoa (o +5 de curtida vem do backend).
+  LIMITE CONHECIDO: XP é calculado no aparelho; um app adulterado ainda ganha XP no ritmo
+  máximo por gravação. Eliminar isso exige creditar todo XP no backend.
+- Check-in: data validada contra o relógio do servidor (`request.time`, ±1 dia de fuso);
+  recuperação só de dias passados do mês atual; um documento por dia.
+- Comentários: suspensão/ban imposta nas regras; envio = batch com `users_xp.lastCommentAt`
+  (mín. 10 s entre envios, evita duplicata/spam); `likesCount`/`repliesCount` só mudam junto
+  da curtida/resposta correspondente (`lastReplyId`); nível/conquistas exibidos precisam bater
+  com o usuário.
+- `post_views`/`post_shares`: contador só sobe com o documento do leitor/marca do usuário no
+  mesmo batch. `post_views/*/viewers` guarda e-mail: só dono e admin leem.
+- Notificações internas amarradas a um fato real (curtida/resposta existente, id determinístico).
+- `billing_purchases` e `xp_ledger`: só o backend (regra padrão nega todo cliente).
+
+**Atenção ao publicar:** as regras novas exigem a versão nova do app (envio de comentário em
+batch, marca anti-spam, check-in com data do servidor...). Publique o app ANTES das regras.
+
+**Testes:** `flutter test` (app), `cd tests/firestore_rules && npm install && npm test`
+(emulador do Firestore) e `cd cloudflare/horizonte-worker && npm test` (backend). O CI
+(`.github/workflows/ci.yml`) roda os três.
