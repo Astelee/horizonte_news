@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../../services/private_profile_service.dart';
 import 'package:flutter/services.dart';
 import '../../../config/app_colors.dart';
 import '../../../config/badge_config.dart';
@@ -63,6 +64,14 @@ class UserProfileSheet extends StatefulWidget {
 
 class _UserProfileSheetState extends State<UserProfileSheet> {
   bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    AdminEmailDirectory.instance.ensureLoaded().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   // ── Helpers de leitura (mesmo critério usado no resto do painel) ──
 
@@ -414,7 +423,8 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
   Widget _buildContent(BuildContext context, Map<String, dynamic> d) {
     final name = _resolveName(d);
     final username = d['username'] as String?;
-    final email = d['email'] as String? ?? '';
+    final email = AdminEmailDirectory.instance
+        .emailFor(widget.userId, legacy: d['email'] as String?);
     final photoUrl = d['photoUrl'] as String?;
     final xp = (d['totalXp'] as num?)?.toInt() ?? 0;
     final realLevel = XpService.levelFromXp(xp);
