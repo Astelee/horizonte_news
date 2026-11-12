@@ -1,13 +1,9 @@
 {
-  "name": "horizonte-firestore-rules-tests",
+  "name": "horizonte-news-api",
   "private": true,
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
-    "test": "firebase emulators:exec --only firestore --project demo-horizonte \"node --test rules.test.js rules_hardening.test.js\""
-  },
-  "devDependencies": {
-    "@firebase/rules-unit-testing": "^3.0.4",
-    "firebase": "^10.14.0",
-    "firebase-tools": "^13.29.0"
+    "test": "node --test test/"
   }
 }
