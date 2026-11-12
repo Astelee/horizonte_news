@@ -5,6 +5,10 @@ name: Publicar backend seguro (Cloudflare Worker)
 on:
   workflow_dispatch:
 
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Testar e publicar o Worker
