@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../../config/premium_config.dart';
+import '../../../services/backend_client.dart';
 import 'push_notification_service.dart' show PushNotificationResult;
 
 /// Envio de push feito pelo ADM a partir do painel:
@@ -26,6 +27,11 @@ class AdminPushService {
     required String body,
     Map<String, String>? data,
   }) {
+    if (BackendClient.isConfigured) {
+      return _sendViaBackend(
+        {'target': 'user', 'uid': uid, 'title': title, 'body': body, 'data': data},
+      );
+    }
     return _send(
       target: {
         'include_aliases': {
@@ -50,6 +56,13 @@ class AdminPushService {
     required String uid,
     required PremiumTier tier,
   }) async {
+    if (BackendClient.isConfigured) {
+      final res = await BackendClient.instance.post(
+        '/v1/notify/tier-tag',
+        {'uid': uid, 'tier': tier.id},
+      );
+      return res?.ok ?? false;
+    }
     if (_restApiKey.isEmpty) return false;
     try {
       final response = await http.patch(
@@ -85,6 +98,11 @@ class AdminPushService {
     required String body,
     Map<String, String>? data,
   }) {
+    if (BackendClient.isConfigured) {
+      return _sendViaBackend(
+        {'target': 'all', 'title': title, 'body': body, 'data': data},
+      );
+    }
     return _send(
       target: {
         'included_segments': ['All'],
@@ -93,6 +111,13 @@ class AdminPushService {
       body: body,
       data: data,
     );
+  }
+
+  static Future<PushNotificationResult> _sendViaBackend(
+    Map<String, dynamic> payload,
+  ) async {
+    final res = await BackendClient.instance.post('/v1/notify/admin', payload);
+    return PushNotificationResult.fromBackend(res);
   }
 
   static Future<PushNotificationResult> _send({
