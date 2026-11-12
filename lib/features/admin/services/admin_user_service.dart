@@ -23,7 +23,10 @@ class AdminUserService {
 
   // ── Usuários ────────────────────────────────────────────────────
 
-  Stream<QuerySnapshot> usersStream() {
+  /// [limit]: quantos usuários trazer (os mais recentes). Antes a escuta
+  /// abria a coleção INTEIRA em tempo real — cada usuário novo, XP ganho ou
+  /// "visto por último" de qualquer pessoa chegava ao painel como leitura.
+  Stream<QuerySnapshot> usersStream({int limit = 300}) {
     // Ordena por última vez que o usuário abriu o app (lastSeenAt),
     // do mais recente pro mais antigo. Usamos lastSeenAt em vez de
     // createdAt (data de cadastro) porque createdAt é fixo — quem se
@@ -34,6 +37,7 @@ class AdminUserService {
     return _db
         .collection('users_xp')
         .orderBy('lastSeenAt', descending: true)
+        .limit(limit)
         .snapshots();
   }
 
@@ -301,6 +305,11 @@ class AdminUserService {
       // concessão (compra aprovada, cortesia manual) limpa a marca,
       // então uma assinatura paga nunca herda o status de "teste".
       'premiumTrial': trial ? true : FieldValue.delete(),
+      // Concessão manual: deixa de ser "do Google Play". Sem isso uma
+      // notificação de expiração da compra antiga poderia derrubar uma
+      // cortesia que o admin acabou de dar.
+      'premiumSource': FieldValue.delete(),
+      'premiumPurchaseHash': FieldValue.delete(),
     });
     await _log('premium_granted', uid, extra: {
       'tier': tier.id,
@@ -363,18 +372,39 @@ class AdminUserService {
       'premiumTier': FieldValue.delete(),
       'premiumExpiresAt': FieldValue.delete(),
       'premiumTrial': FieldValue.delete(),
+      'premiumSource': FieldValue.delete(),
+      'premiumPurchaseHash': FieldValue.delete(),
     });
     await _log('premium_revoked', uid);
   }
 
+  /// Realinha o `level` de cada usuário com o `totalXp` dele.
+  ///
+  /// Correções em relação à versão anterior:
+  ///  • grava em lotes de 400 (um batch aceita no máximo 500 operações;
+  ///    com mais usuários que isso a função inteira falhava);
+  ///  • pula quem tem "override de nível" do admin ativo (o nível dele é
+  ///    o definido pelo admin, não o calculado);
+  ///  • só grava quem realmente está desalinhado (menos escritas).
   Future<void> syncAllUserLevels() async {
     final snap = await _db.collection('users_xp').get();
-    final batch = _db.batch();
+    var batch = _db.batch();
+    var pending = 0;
     for (final doc in snap.docs) {
-      final xp = (doc.data()['totalXp'] as num?)?.toInt() ?? 0;
-      batch.update(doc.reference, {'level': XpService.levelFromXp(xp)});
+      final data = doc.data();
+      if (data['adminOverrideActive'] == true) continue;
+      final xp = (data['totalXp'] as num?)?.toInt() ?? 0;
+      final level = XpService.levelFromXp(xp);
+      if ((data['level'] as num?)?.toInt() == level) continue;
+      batch.update(doc.reference, {'level': level});
+      pending++;
+      if (pending >= 400) {
+        await batch.commit();
+        batch = _db.batch();
+        pending = 0;
+      }
     }
-    await batch.commit();
+    if (pending > 0) await batch.commit();
   }
 
   Future<void> _log(
