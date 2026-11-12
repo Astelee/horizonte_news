@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../../models/post_model.dart';
+import '../../../services/backend_client.dart';
 import '../../../utils/cloudinary_url_utils.dart';
 
 /// Dispara notificações push via API REST do OneSignal, chamada
@@ -28,6 +29,19 @@ class PushNotificationService {
   /// (ex.: SnackBar) ao ADM.
   static Future<PushNotificationResult> notifyPostPublished(
       PostModel post) async {
+    // Backend seguro: o servidor confere que o usuário é admin e que a
+    // notícia está publicada, e só ele fala com o OneSignal.
+    if (BackendClient.isConfigured) {
+      final String image = post.thumbnailUrl.trim().isNotEmpty
+          ? post.thumbnailUrl
+          : (CloudinaryUrlUtils.videoThumbnail(post.videoUrl) ?? '');
+      final res = await BackendClient.instance.post('/v1/notify/news', {
+        'postId': post.id,
+        if (image.isNotEmpty) 'imageUrl': image,
+      });
+      return PushNotificationResult.fromBackend(res);
+    }
+
     if (_restApiKey.isEmpty) {
       const msg =
           'Push não enviado: chave do OneSignal ausente neste build '
@@ -127,4 +141,27 @@ class PushNotificationResult {
   final String? message;
 
   const PushNotificationResult({required this.success, this.message});
+
+  /// Converte a resposta do backend no resultado que a tela já entende.
+  factory PushNotificationResult.fromBackend(BackendResponse? res) {
+    if (res == null) {
+      return const PushNotificationResult(
+        success: false,
+        message: 'Não foi possível enviar: faça login novamente.',
+      );
+    }
+    if (res.ok) {
+      final recipients = res.body['recipients'];
+      return PushNotificationResult(
+        success: true,
+        message: recipients == null
+            ? 'Enviado.'
+            : 'Enviado para $recipients aparelho(s).',
+      );
+    }
+    return PushNotificationResult(
+      success: false,
+      message: res.message ?? 'Falha ao enviar (${res.error ?? res.statusCode}).',
+    );
+  }
 }
