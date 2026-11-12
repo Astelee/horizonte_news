@@ -258,7 +258,12 @@ class _CommentUserProfileSheetState extends State<_CommentUserProfileSheet> {
     final equippedCheckinRewardId =
         _userData?['equippedCheckinRewardId'] as String?;
     final showAge = _userData?['showAge'] as bool? ?? false;
-    final birthDate = (_userData?['birthDate'] as Timestamp?)?.toDate();
+    // `publicBirthDate` só existe enquanto o usuário mantém "Mostrar minha
+    // idade" ligado; `birthDate` é o formato antigo (antes da migração
+    // para users_private).
+    final birthDate =
+        ((_userData?['publicBirthDate'] ?? _userData?['birthDate']) as Timestamp?)
+            ?.toDate();
     final age = (showAge && birthDate != null) ? _calculateAge(birthDate) : null;
     // Nível e conquistas ATUAIS (não mais o snapshot congelado salvo
     // no comentário no momento em que foi escrito, ver
@@ -766,7 +771,54 @@ class CommentsSectionState extends State<CommentsSection>
     return '${date.day}/${date.month}/${date.year}';
   }
 
+  /// Confere, antes de enviar, se os comentários estão ativos e se o
+  /// usuário não está suspenso/banido. Devolve false (já avisando o
+  /// usuário) quando não pode enviar. A mesma regra é imposta também pelas
+  /// regras do Firestore — esta checagem só dá a mensagem certa.
+  Future<bool> _passesSendChecks(User user) async {
+    try {
+      final config = await AppConfigService().fetch();
+      if (!config.commentsEnabled) {
+        _showSnack('Os comentários estão temporariamente desativados.', isWarning: true);
+        return false;
+      }
+
+      final suspension = await FirebaseFirestore.instance
+          .collection('suspensions')
+          .doc(user.uid)
+          .get();
+
+      if (suspension.exists) {
+        final data = suspension.data()!;
+        final until = (data['until'] as Timestamp?)?.toDate();
+        final isPermanent = until == null;
+        final isActive = isPermanent || DateTime.now().isBefore(until);
+
+        if (isActive) {
+          final reason = (data['reason'] as String?)?.trim() ?? '';
+          final reasonText = reason.isNotEmpty ? '\nMotivo: $reason' : '';
+          if (isPermanent) {
+            _showSnack('Você foi banido permanentemente.$reasonText', isWarning: true);
+          } else {
+            final fmt = '${until.day}/${until.month}/${until.year}';
+            _showSnack('Você está suspenso até $fmt.$reasonText', isWarning: true);
+          }
+          return false;
+        }
+      }
+      return true;
+    } catch (_) {
+      _showSnack('Sem conexão. Tente novamente em instantes.', isError: true);
+      return false;
+    }
+  }
+
   Future<void> _sendComment() async {
+    // Duplo toque: a trava precisa vir ANTES de qualquer await. Antes ela
+    // só era ligada depois de duas consultas à rede, e dois toques
+    // seguidos publicavam o comentário duas vezes.
+    if (_isSending) return;
+
     final user = FirebaseAuth.instance.currentUser;
     final text = _controller.text.trim();
 
@@ -774,47 +826,18 @@ class CommentsSectionState extends State<CommentsSection>
       _showLoginSnack();
       return;
     }
-
-    final config = await AppConfigService().fetch();
-    if (!config.commentsEnabled) {
-      _showSnack('Os comentários estão temporariamente desativados.', isWarning: true);
-      return;
-    }
-
-    final suspension = await FirebaseFirestore.instance
-        .collection('suspensions')
-        .doc(user.uid)
-        .get();
-
-    if (suspension.exists) {
-      final data = suspension.data()!;
-      final until = (data['until'] as Timestamp?)?.toDate();
-      final isPermanent = until == null;
-      final isActive = isPermanent || DateTime.now().isBefore(until!);
-
-      if (isActive) {
-        final reason = (data['reason'] as String?)?.trim() ?? '';
-        final reasonText = reason.isNotEmpty ? '\nMotivo: $reason' : '';
-        if (isPermanent) {
-          _showSnack('Você foi banido permanentemente.$reasonText', isWarning: true);
-        } else {
-          final fmt = '${until.day}/${until.month}/${until.year}';
-          _showSnack('Você está suspenso até $fmt.$reasonText', isWarning: true);
-        }
-        setState(() => _isSending = false);
-        return;
-      }
-    }
-
     if (text.isEmpty) return;
 
     setState(() => _isSending = true);
-    _sendAnim.reverse().then((_) => _sendAnim.forward());
-
-    final replyingToCommentId = _replyToCommentId;
-    final replyingToUsername = _replyToUsername;
-
     try {
+      if (!await _passesSendChecks(user)) return;
+      if (!mounted) return;
+
+      _sendAnim.reverse().then((_) => _sendAnim.forward());
+
+      final replyingToCommentId = _replyToCommentId;
+      final replyingToUsername = _replyToUsername;
+
       final userName =
           user.displayName ?? user.email?.split('@').first ?? 'Leitor';
       final xpProvider = Provider.of<UserXpProvider>(context, listen: false);
@@ -842,15 +865,41 @@ class CommentsSectionState extends State<CommentsSection>
         'likesCount': 0,
       };
 
+      // Tudo num único batch (atômico): o comentário/resposta, o contador
+      // de respostas do comentário-pai e a marca anti-spam do usuário
+      // (users_xp.lastCommentAt). As regras do Firestore exigem as três
+      // coisas juntas: o contador só sobe com a resposta que o justifica,
+      // e a marca recusa um segundo envio em menos de 10 s (duplo toque,
+      // spam). Antes eram escritas separadas — a resposta podia ser criada
+      // sem o contador subir.
+      final db = FirebaseFirestore.instance;
+      final batch = db.batch();
+      String? newReplyId;
+
       if (replyingToCommentId != null) {
-        final replyDoc = await _repliesRef(replyingToCommentId).add({
+        final replyRef = _repliesRef(replyingToCommentId).doc();
+        newReplyId = replyRef.id;
+        batch.set(replyRef, {
           ...payload,
           'replyToUsername': replyingToUsername,
         });
-        await _commentsRef
-            .doc(replyingToCommentId)
-            .update({'repliesCount': FieldValue.increment(1)});
+        batch.update(_commentsRef.doc(replyingToCommentId), {
+          'repliesCount': FieldValue.increment(1),
+          'lastReplyId': replyRef.id,
+        });
+      } else {
+        batch.set(_commentsRef.doc(), {
+          ...payload,
+          'repliesCount': 0,
+        });
+      }
+      batch.update(
+        db.collection('users_xp').doc(user.uid),
+        {'lastCommentAt': FieldValue.serverTimestamp()},
+      );
+      await batch.commit();
 
+      if (replyingToCommentId != null && newReplyId != null) {
         // Notifica o autor do comentário-pai (a resposta pode ser a
         // uma resposta de outra pessoa dentro da mesma thread — o
         // destinatário é sempre quem escreveu o item ao qual esta
@@ -869,15 +918,10 @@ class CommentsSectionState extends State<CommentsSection>
             postId: widget.postId,
             postTitle: widget.postTitle,
             commentId: replyingToCommentId,
-            replyId: replyDoc.id,
+            replyId: newReplyId,
             previewText: text,
           ));
         }
-      } else {
-        await _commentsRef.add({
-          ...payload,
-          'repliesCount': 0,
-        });
       }
 
       _controller.clear();
@@ -894,6 +938,15 @@ class CommentsSectionState extends State<CommentsSection>
         await xpProvider.addXpForComment();
         _xpAwarded = true;
         if (mounted) _showXpSnack();
+      }
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        // Regras recusaram: normalmente é o intervalo anti-spam (menos de
+        // 10 s desde o último envio) ou uma suspensão que acabou de valer.
+        _showSnack('Aguarde alguns segundos antes de enviar outro comentário.',
+            isWarning: true);
+      } else {
+        _showSnack('Erro ao enviar comentário. Tente novamente.', isError: true);
       }
     } catch (e) {
       _showSnack('Erro ao enviar comentário. Tente novamente.', isError: true);
@@ -967,10 +1020,17 @@ class CommentsSectionState extends State<CommentsSection>
     required String replyId,
   }) async {
     try {
-      await _repliesRef(parentCommentId).doc(replyId).delete();
-      await _commentsRef
-          .doc(parentCommentId)
-          .update({'repliesCount': FieldValue.increment(-1)});
+      // Exclusão da resposta + contador do comentário-pai no MESMO batch
+      // (as regras só aceitam repliesCount -1 junto da exclusão da
+      // resposta apontada por lastReplyId). Antes eram dois passos e o
+      // contador podia ficar errado se o segundo falhasse.
+      final batch = FirebaseFirestore.instance.batch();
+      batch.delete(_repliesRef(parentCommentId).doc(replyId));
+      batch.update(_commentsRef.doc(parentCommentId), {
+        'repliesCount': FieldValue.increment(-1),
+        'lastReplyId': replyId,
+      });
+      await batch.commit();
     } catch (e) {
       if (mounted) _showSnack('Erro ao excluir: $e', isError: true);
     }
