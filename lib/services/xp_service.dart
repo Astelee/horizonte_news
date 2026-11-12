@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../config/badge_config.dart';
 import '../config/name_style_config.dart';
 import '../config/premium_config.dart';
+import 'backend_client.dart';
+import 'private_profile_service.dart';
 import 'xp_event_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -194,9 +198,11 @@ class XpService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Tempo online: 2 XP por minuto completo (60 s), sem limite diário e
-  // sem pausa por inatividade. O multiplicador VIP e o de evento são
-  // aplicados por cima em _applyXpGain.
+  // Tempo online: EXATAMENTE 2 XP por minuto completo (60 s), sem limite
+  // diário e sem pausa por inatividade. NÃO recebe multiplicador de
+  // assinatura (PRO/ULTRA) nem de evento — ver addXpForTime, que passa
+  // applyMultipliers: false. Os multiplicadores continuam valendo para
+  // leitura, comentário e compartilhamento.
   static const int _xpPerInterval = 2;
   static const int _intervalSeconds = 60;
 
@@ -550,7 +556,8 @@ class XpService {
 
     await doc.set({
       'uid': user?.uid ?? '',
-      'email': user?.email ?? '',
+      // E-mail NÃO fica no perfil público (users_xp é legível por todo
+      // usuário logado): vai para users_private logo abaixo.
       'displayName': user?.displayName ?? '',
       'totalXp': 0,
       'level': 1,
@@ -575,12 +582,18 @@ class XpService {
         'lastLoginDate': today,
       },
     });
+
+    // Guarda o e-mail na área privada (só dono e admin leem).
+    unawaited(PrivateProfileService.instance.migrateLegacyFields());
   }
 
-  Future<UserXpData> _incrementXpAndSave({
+  Future<UserXpData?> _incrementXpAndSave({
     required int xpGained,
     int? extraSeconds,
     Map<String, dynamic> extraFields = const {},
+    bool applyMultipliers = true,
+    String? dedupeField,
+    String? dedupeId,
   }) async {
     final doc = _userDoc;
     if (doc == null) return UserXpData.empty();
@@ -593,66 +606,97 @@ class XpService {
       update['totalSecondsOnline'] = FieldValue.increment(extraSeconds);
     }
 
-    await _applyXpGain(doc, xpGained, update);
+    final applied = await _applyXpGain(
+      doc,
+      xpGained,
+      update,
+      applyMultipliers: applyMultipliers,
+      dedupeField: dedupeField,
+      dedupeId: dedupeId,
+    );
+    // null = ação já recompensada antes (dedupe): nada foi gravado.
+    if (!applied) return null;
 
     return loadUserXpData();
   }
 
-  // ── Grava totalXp e level SEMPRE na mesma escrita ──────────────────
-  // As regras do Firestore exigem que `level` já bata com o `totalXp`
-  // resultante em toda escrita (senão a escrita é negada). Se `level`
-  // fosse atualizado numa chamada separada (como era antes), a PRIMEIRA
-  // escrita — a que soma o XP — passava a ser rejeitada assim que o
-  // total cruzasse a fronteira de um nível, e como o erro era engolido
-  // silenciosamente (catch vazio), o usuário simplesmente parava de
-  // ganhar XP dali em diante, sem nenhum aviso.
+  // ── Grava totalXp e level SEMPRE na mesma escrita, dentro de uma
+  // TRANSAÇÃO ───────────────────────────────────────────────────────────
+  // Antes: lia o documento, calculava o nível em cima de um total que
+  // podia já estar velho e gravava `increment(ganho)` + esse nível. Duas
+  // ações quase simultâneas (tempo online + leitura, por exemplo) faziam
+  // o nível gravado não bater com o XP final. Agora a leitura, o cálculo
+  // e a escrita acontecem na mesma transação: o Firestore refaz tudo se
+  // o documento mudar no meio, então `totalXp` e `level` saem sempre
+  // coerentes (as regras do Firestore recusam nível acima do que o XP
+  // permite).
+  //
+  // A MESMA transação também faz a trava anti-duplicação ([dedupeField]/
+  // [dedupeId], ex.: stats.articlesReadIds + id do post): antes a checagem
+  // era uma leitura separada, e dois toques rápidos podiam pagar o XP
+  // duas vezes.
   //
   // ── Multiplicadores de XP (Premium PRO 2x / ULTRA 8x + Evento) ──────
   // Aplicados aqui, no ponto único por onde passa todo ganho de XP
-  // feito pelo usuário: tempo online, leitura, comentário e
-  // compartilhamento. Multiplicam juntos: XP base x plano x evento.
+  // feito pelo usuário: leitura, comentário e compartilhamento.
+  // Multiplicam juntos: XP base x plano x evento.
   //
-  // NÃO se aplicam a:
+  // NÃO se aplicam a ([applyMultipliers] = false):
+  //   - Tempo online: sempre exatamente 2 XP por minuto.
   //   - Missões diárias: a recompensa é sempre o valor fixo original
-  //     (25 / 40 / 15 / 20), sem VIP e sem evento. Elas usam
-  //     `applyMultipliers: false`.
-  //   - likeComment (XP fixo ao autor curtido, validado à parte).
+  //     (25 / 40 / 15 / 20).
+  //   - likeComment (XP fixo ao autor curtido, creditado pelo backend).
   //   - Check-in diário (CheckinService tem sua própria regra).
   //
-  // O evento de XP em dobro/triplo (XpEventService) continua com a
-  // regra atual, ligado pelo admin em Configurações.
-  Future<void> _applyXpGain(
+  // Devolve false quando a ação já havia sido recompensada.
+  Future<bool> _applyXpGain(
     DocumentReference<Map<String, dynamic>> doc,
     int xpGained,
     Map<String, dynamic> extraUpdate, {
     bool applyMultipliers = true,
+    String? dedupeField,
+    String? dedupeId,
   }) async {
-    final snap = await doc.get();
-    final data = snap.data() ?? {};
-    final overrideActive = data['adminOverrideActive'] == true;
-    final currentTotalXp = (data['totalXp'] as num?)?.toInt() ?? 0;
+    // O multiplicador de evento vem de outro documento: lido ANTES da
+    // transação (a transação pode repetir o corpo várias vezes).
+    final int eventMultiplier =
+        applyMultipliers ? await XpEventService().currentMultiplier() : 1;
 
-    int multipliedGain = xpGained;
-    if (applyMultipliers) {
-      final tier = premiumTierFromData(data);
-      final eventMultiplier = await XpEventService().currentMultiplier();
-      multipliedGain = xpGained * tier.xpMultiplier * eventMultiplier;
-    }
-    final newTotalXp = currentTotalXp + multipliedGain;
+    return _db.runTransaction<bool>((tx) async {
+      final snap = await tx.get(doc);
+      final data = snap.data() ?? <String, dynamic>{};
 
-    final update = <String, dynamic>{
-      'totalXp': FieldValue.increment(multipliedGain),
-      'lastActivity': FieldValue.serverTimestamp(),
-      ...extraUpdate,
-    };
+      if (dedupeField != null && dedupeId != null) {
+        final stats = data['stats'];
+        final ids = stats is Map ? stats[dedupeField] : null;
+        if (ids is List && ids.contains(dedupeId)) return false;
+      }
 
-    // Só sincronizamos level junto quando não há override de admin
-    // ativo (com override, a regra dispensa essa checagem).
-    if (!overrideActive) {
-      update['level'] = levelFromXp(newTotalXp);
-    }
+      final overrideActive = data['adminOverrideActive'] == true;
+      final currentTotalXp = (data['totalXp'] as num?)?.toInt() ?? 0;
 
-    await doc.update(update);
+      int gain = xpGained;
+      if (applyMultipliers) {
+        final tier = premiumTierFromData(data);
+        gain = xpGained * tier.xpMultiplier * eventMultiplier;
+      }
+      final newTotalXp = currentTotalXp + gain;
+
+      final update = <String, dynamic>{
+        'totalXp': newTotalXp,
+        'lastActivity': FieldValue.serverTimestamp(),
+        ...extraUpdate,
+      };
+
+      // Só sincronizamos level junto quando não há override de admin
+      // ativo (com override, o nível exibido é o do admin).
+      if (!overrideActive) {
+        update['level'] = levelFromXp(newTotalXp);
+      }
+
+      tx.update(doc, update);
+      return true;
+    });
   }
 
   Future<UserXpData> addXpForTime(int secondsActive) async {
@@ -666,6 +710,9 @@ class XpService {
       final updated = await _incrementXpAndSave(
         xpGained: xpGained,
         extraSeconds: secondsActive,
+        // Tempo online = 2 XP por minuto, sem multiplicador de plano
+        // nem de evento.
+        applyMultipliers: false,
         extraFields: minutesActive > 0
             ? {
                 'dailyMissions.minutesOnline':
@@ -673,11 +720,45 @@ class XpService {
               }
             : {},
       );
+      if (updated == null) return loadUserXpData();
       await _checkMissionRewards(updated);
       await _checkAchievements(updated);
       return updated;
     } catch (e) {
       return loadUserXpData();
+    }
+  }
+
+  /// Igual a [addXpForTime], mas informa se o crédito foi GRAVADO. O
+  /// provider usa isso para devolver ao contador os segundos que não
+  /// puderam ser salvos (sem internet) em vez de perdê-los.
+  Future<bool> creditOnlineTime(int secondsActive) async {
+    final intervals = secondsActive ~/ _intervalSeconds;
+    if (intervals <= 0) return true;
+    final doc = _userDoc;
+    if (doc == null) return false;
+
+    final minutesActive = secondsActive ~/ 60;
+    try {
+      final updated = await _incrementXpAndSave(
+        xpGained: intervals * _xpPerInterval,
+        extraSeconds: secondsActive,
+        applyMultipliers: false,
+        extraFields: minutesActive > 0
+            ? {
+                'dailyMissions.minutesOnline':
+                    FieldValue.increment(minutesActive),
+              }
+            : {},
+      );
+      if (updated != null) {
+        await _checkMissionRewards(updated);
+        await _checkAchievements(updated);
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Falha ao creditar tempo online: $e');
+      return false;
     }
   }
 
@@ -700,12 +781,15 @@ class XpService {
 
       final updated = await _incrementXpAndSave(
         xpGained: 5,
+        dedupeField: 'articlesReadIds',
+        dedupeId: postId,
         extraFields: {
           'stats.articlesRead': FieldValue.increment(1),
           'stats.articlesReadIds': FieldValue.arrayUnion([postId]),
           'dailyMissions.articlesRead': FieldValue.increment(1),
         },
       );
+      if (updated == null) return; // já recompensado (outro toque/aparelho)
       await _checkMissionRewards(updated);
       await _checkAchievements(updated);
     } catch (_) {}
@@ -723,14 +807,18 @@ class XpService {
 
       final updated = await _incrementXpAndSave(
         xpGained: 15,
+        dedupeField: 'articlesSharedIds',
+        dedupeId: postId,
         extraFields: {
           'stats.articlesShared': FieldValue.increment(1),
           'stats.articlesSharedIds': FieldValue.arrayUnion([postId]),
           'dailyMissions.articlesShared': FieldValue.increment(1),
         },
       );
-      await _checkMissionRewards(updated);
-      await _checkAchievements(updated);
+      if (updated != null) {
+        await _checkMissionRewards(updated);
+        await _checkAchievements(updated);
+      }
       await _recordPostShare(postId: postId, postTitle: postTitle ?? '');
     } catch (_) {}
   }
@@ -743,14 +831,34 @@ class XpService {
     final user = _auth.currentUser;
     if (user == null) return;
     try {
+      // A marca do usuário (sharers/{uid}) e o contador vão no MESMO
+      // batch: as regras só aceitam +1 no contador junto da marca, e no
+      // máximo um compartilhamento contado a cada 30 s por usuário e
+      // post. Passou do limite → o batch é recusado e nada é contado.
       final shareRef = _db.collection('post_shares').doc(postId);
-      await shareRef.set({
-        'postId': postId,
-        'postTitle': postTitle,
-        'totalShares': FieldValue.increment(1),
-        'lastSharedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } catch (_) {}
+      final batch = _db.batch();
+      batch.set(
+        shareRef.collection('sharers').doc(user.uid),
+        {
+          'userId': user.uid,
+          'lastSharedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      batch.set(
+        shareRef,
+        {
+          'postId': postId,
+          'postTitle': postTitle,
+          'totalShares': FieldValue.increment(1),
+          'lastSharedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Compartilhamento não contado no post: $e');
+    }
   }
 
   Future<void> recordComment() async {
@@ -762,6 +870,7 @@ class XpService {
           'dailyMissions.commentsPosted': FieldValue.increment(1),
         },
       );
+      if (updated == null) return;
       await _checkMissionRewards(updated);
       await _checkAchievements(updated);
     } catch (_) {}
@@ -769,13 +878,19 @@ class XpService {
 
   // ── XP por curtida em comentário ──────────────────────────────────
   // Quem GANHA o XP é o autor do comentário curtido, não quem curte.
-  // Tudo roda numa única transação para garantir que:
-  //   - a mesma pessoa não pode curtir duas vezes — o doc de curtida
-  //     serve de trava e é criado na mesma transação que dá o XP;
-  //   - o autor não pode "farmar" curtindo o próprio comentário;
-  //   - o XP só é creditado se a curtida realmente for nova.
-  // Constante de XP por curtida — repetida na regra do Firestore
-  // (commentLikeXp) para validar o valor exato gravado pelo cliente.
+  //
+  // A curtida em si (documento likes/{uid} + likesCount) é uma transação
+  // do próprio usuário: o doc de curtida serve de trava contra curtir duas
+  // vezes, e as regras do Firestore só aceitam o +1 do contador junto da
+  // criação desse documento.
+  //
+  // O XP do AUTOR é creditado depois, fora dessa transação, pelo BACKEND
+  // (/v1/xp/like): o servidor confere a curtida, soma +5 e registra um
+  // livro-razão que impede pagar de novo se a pessoa descurtir e curtir
+  // outra vez. Escrever o XP de outra pessoa direto do app deixou de ser
+  // permitido pelas regras (era possível somar XP e trocar o nível de
+  // qualquer conta).
+  // Constante de XP por curtida — a mesma do backend (COMMENT_LIKE_XP).
   static const int commentLikeXp = 5;
 
   Future<bool> likeComment({
@@ -796,38 +911,71 @@ class XpService {
         ? baseRef.doc(parentCommentId).collection('replies').doc(commentId)
         : baseRef.doc(commentId);
     final likeRef = commentRef.collection('likes').doc(likerUid);
-    final authorXpRef = _db.collection('users_xp').doc(authorUid);
 
+    var created = false;
     try {
       await _db.runTransaction((tx) async {
+        created = false; // a transação pode repetir o corpo
         final likeSnap = await tx.get(likeRef);
         if (likeSnap.exists) return; // já curtiu antes
-
-        final authorSnap = await tx.get(authorXpRef);
-        final authorData = authorSnap.data() ?? {};
-        final overrideActive = authorData['adminOverrideActive'] == true;
-        final currentTotalXp = (authorData['totalXp'] as num?)?.toInt() ?? 0;
-        final newTotalXp = currentTotalXp + commentLikeXp;
 
         tx.set(likeRef, {
           'likerUid': likerUid,
           'createdAt': FieldValue.serverTimestamp(),
         });
         tx.update(commentRef, {'likesCount': FieldValue.increment(1)});
-
-        if (authorSnap.exists) {
-          final authorUpdate = <String, dynamic>{
-            'totalXp': FieldValue.increment(commentLikeXp),
-          };
-          if (!overrideActive) {
-            authorUpdate['level'] = levelFromXp(newTotalXp);
-          }
-          tx.update(authorXpRef, authorUpdate);
-        }
+        created = true;
       });
-      return true;
     } catch (_) {
       return false;
+    }
+
+    if (created) {
+      unawaited(_creditLikeXp(
+        postId: postId,
+        rootCommentId: parentCommentId ?? commentId,
+        replyId: parentCommentId != null ? commentId : null,
+        authorUid: authorUid,
+      ));
+    }
+    return true;
+  }
+
+  /// Crédito do +5 XP ao autor da curtida recebida. Nunca lança exceção.
+  Future<void> _creditLikeXp({
+    required String postId,
+    required String rootCommentId,
+    required String? replyId,
+    required String authorUid,
+  }) async {
+    try {
+      if (BackendClient.isConfigured) {
+        await BackendClient.instance.post('/v1/xp/like', {
+          'postId': postId,
+          'commentId': rootCommentId,
+          if (replyId != null) 'replyId': replyId,
+        });
+        return;
+      }
+
+      // MODO ANTIGO (sem backend configurado): crédito direto, como antes.
+      // As regras novas do Firestore recusam essa escrita — então, depois
+      // de publicar as regras, o XP de curtida só funciona com o backend.
+      final authorXpRef = _db.collection('users_xp').doc(authorUid);
+      await _db.runTransaction((tx) async {
+        final authorSnap = await tx.get(authorXpRef);
+        if (!authorSnap.exists) return;
+        final authorData = authorSnap.data() ?? {};
+        final newTotalXp =
+            ((authorData['totalXp'] as num?)?.toInt() ?? 0) + commentLikeXp;
+        final authorUpdate = <String, dynamic>{'totalXp': newTotalXp};
+        if (authorData['adminOverrideActive'] != true) {
+          authorUpdate['level'] = levelFromXp(newTotalXp);
+        }
+        tx.update(authorXpRef, authorUpdate);
+      });
+    } catch (e) {
+      debugPrint('XP de curtida não creditado: $e');
     }
   }
 
