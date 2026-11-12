@@ -233,6 +233,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
     setState(() => _purchaseInFlightProductId = null);
 
     switch (result.status) {
+      case PurchaseResultStatus.activated:
+        _showSnack(context, 'Premium ativado! Aproveite seus benefícios.');
+        break;
       case PurchaseResultStatus.pendingApproval:
         _showPendingApprovalDialog(context);
         break;
