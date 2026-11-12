@@ -16,6 +16,14 @@ const {
 } = require('@firebase/rules-unit-testing');
 const firebase = require('firebase/compat/app');
 
+// Silencia o log do SDK: cada negação esperada (PERMISSION_DENIED) virava
+// uma linha de erro e escondia o resultado real dos testes no CI.
+try {
+  firebase.firestore.setLogLevel('silent');
+} catch (_) {
+  /* sem efeito se a versão do SDK não expuser setLogLevel */
+}
+
 const ts = () => firebase.firestore.FieldValue.serverTimestamp();
 const inc = (n) => firebase.firestore.FieldValue.increment(n);
 let env;
@@ -278,8 +286,11 @@ test('notícias continuam públicas para leitura; só ADM escreve', async () => 
 
 test('comentários: leitura pública, inclusive consulta de grupo', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
-    await ctx.firestore().doc('comments/p1').set({ x: 1 });
-    await ctx.firestore().doc('comments/p1/postComments/c1').set({ userId: 'userA', text: 'oi' });
+    // Uma única instância: chamar ctx.firestore() de novo depois de usada
+    // lança "Firestore has already been started" nesta versão do SDK.
+    const db = ctx.firestore();
+    await db.doc('comments/p1').set({ x: 1 });
+    await db.doc('comments/p1/postComments/c1').set({ userId: 'userA', text: 'oi' });
   });
   await assertSucceeds(anonDb().collection('comments').get());
   await assertSucceeds(anonDb().collectionGroup('postComments').limit(5).get());
@@ -321,7 +332,8 @@ test('usuário limpa a conversa só para si (sem apagar nada)', async () => {
   await assertSucceeds(ref.update({ userClearedAt: ts(), unreadUser: 0 }));
   // não pode apagar a conversa nem mexer em outros campos junto
   await assertFails(ref.delete());
-  await assertFails(ref.update({ userClearedAt: ts(), unreadUser: 0, blocked: false }));
+  // (blocked já é false: regravar false não muda nada — por isso o teste usa true)
+  await assertFails(ref.update({ userClearedAt: ts(), unreadUser: 0, blocked: true }));
   await assertSucceeds(ref.get());
 });
 
