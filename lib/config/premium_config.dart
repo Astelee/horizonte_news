@@ -40,8 +40,10 @@ extension PremiumTierX on PremiumTier {
     }
   }
 
-  /// Multiplicador aplicado a todo ganho de XP (tempo online, leitura,
-  /// comentário, compartilhamento, check-in, curtida recebida).
+  /// Multiplicador do XP de LEITURA, COMENTÁRIO e COMPARTILHAMENTO (ver
+  /// XpService._applyXpGain). NÃO se aplica ao tempo online — sempre
+  /// exatamente 2 XP por minuto —, nem às missões, ao check-in e ao XP de
+  /// curtida recebida, que têm valores fixos.
   int get xpMultiplier {
     switch (this) {
       case PremiumTier.pro:
