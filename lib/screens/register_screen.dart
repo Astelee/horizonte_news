@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../widgets/app_messenger.dart';
+import '../services/private_profile_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
@@ -294,14 +295,19 @@ class _RegisterScreenState extends State<RegisterScreen>
       // outras telas passariam a mostrar o ID no lugar do nome mesmo
       // quando o usuário nunca escolheu um nome de fato.
 
+      // E-mail e data de nascimento vão para a área PRIVADA (só o dono e
+      // administradores leem). users_xp é público para todo usuário logado.
+      await PrivateProfileService.instance.saveRegistrationData(
+        email: user.email ?? '',
+        birthDate: _birthDate!,
+      );
+
       await FirebaseFirestore.instance
           .collection('users_xp')
           .doc(user.uid)
           .set({
         'uid': user.uid,
         'username': username,
-        'email': user.email ?? '',
-        'birthDate': Timestamp.fromDate(_birthDate!),
         'acceptedTermsAt': FieldValue.serverTimestamp(),
         'totalXp': 0,
         'level': 1,
