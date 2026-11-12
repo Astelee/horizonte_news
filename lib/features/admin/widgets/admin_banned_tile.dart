@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../../services/private_profile_service.dart';
 import '../../../config/app_colors.dart';
 import '../../../widgets/app_messenger.dart';
 import '../services/admin_user_service.dart';
@@ -87,7 +88,8 @@ class AdminBannedTile extends StatelessWidget {
         if (snap.hasData && snap.data!.exists) {
           final ud = snap.data!.data() as Map<String, dynamic>;
           name = _resolveName(ud);
-          email = (ud['email'] as String?) ?? '';
+          email = AdminEmailDirectory.instance
+              .emailFor(userId, legacy: ud['email'] as String?);
         }
 
         return Padding(
