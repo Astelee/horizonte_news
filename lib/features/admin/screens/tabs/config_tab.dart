@@ -9,6 +9,7 @@ import '../../services/admin_user_service.dart';
 import '../../widgets/admin_shared_widgets.dart';
 import '../../widgets/xp_event_admin_card.dart';
 import '../../../../widgets/app_messenger.dart';
+import '../../../../services/private_profile_service.dart';
 
 class ConfigTab extends StatefulWidget {
   final AdminConfigService configService;
@@ -654,7 +655,9 @@ class _AdminsManagerState extends State<_AdminsManager> {
                 final data = doc.data() as Map<String, dynamic>;
                 final name =
                     (data['displayName'] as String?)?.toLowerCase() ?? '';
-                final email = (data['email'] as String?)?.toLowerCase() ?? '';
+                final email = AdminEmailDirectory.instance
+                    .emailFor(doc.id, legacy: data['email'] as String?)
+                    .toLowerCase();
                 return name.contains(_search) || email.contains(_search);
               }).take(10).toList();
 
@@ -670,7 +673,8 @@ class _AdminsManagerState extends State<_AdminsManager> {
                 children: matches.map((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   final name = (data['displayName'] as String?)?.trim();
-                  final email = (data['email'] as String?) ?? '';
+                  final email = AdminEmailDirectory.instance
+                      .emailFor(doc.id, legacy: data['email'] as String?);
                   final displayName =
                       (name != null && name.isNotEmpty) ? name : email;
                   return Container(
