@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../../services/private_profile_service.dart';
 import '../../../config/app_colors.dart';
 import '../../../config/name_style_config.dart';
 import '../../../config/premium_config.dart';
@@ -75,7 +76,8 @@ class AdminUserTile extends StatelessWidget {
     }
 
     final photoUrl = d['photoUrl'] as String?;
-    final email = d['email'] as String? ?? '';
+    final email = AdminEmailDirectory.instance
+        .emailFor(userId, legacy: d['email'] as String?);
     final xp = (d['totalXp'] as num?)?.toInt() ?? 0;
     final level = XpService.levelFromXp(xp);
     final comments = (d['stats']?['commentsPosted'] as num?)?.toInt() ?? 0;
