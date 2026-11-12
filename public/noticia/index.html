@@ -90,9 +90,19 @@
     //
     // Atraso mínimo apenas para não competir com um possível App Link
     // ainda em processamento; depois disso, redireciona sozinho.
-    setTimeout(function () {
-      window.location.replace(playStoreUrl);
-    }, 300);
+    // Domínio antigo (.web.app / .firebaseapp.com): leva para o domínio
+    // oficial. Se o app estiver instalado, o Android já abriu o app antes
+    // desta página carregar.
+    var CANONICAL_HOST = 'horizontenews.app.br';
+    if (/\.(web\.app|firebaseapp\.com)$/.test(window.location.hostname)) {
+      window.location.replace(
+        'https://' + CANONICAL_HOST + window.location.pathname + window.location.search
+      );
+    } else {
+      setTimeout(function () {
+        window.location.replace(playStoreUrl);
+      }, 300);
+    }
   </script>
 </body>
 </html>
