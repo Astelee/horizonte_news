@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../../services/private_profile_service.dart';
 
 class AdminProvider with ChangeNotifier {
   bool _isAdmin = false;
@@ -30,6 +31,9 @@ class AdminProvider with ChangeNotifier {
         _isAdmin = true;
         _adminRole = doc.data()?['role'] ?? 'admin';
         _hideFromRanking(user.uid);
+        // E-mails dos usuários (área privada): carregados uma vez para o
+        // painel exibir/pesquisar sem uma leitura por linha.
+        AdminEmailDirectory.instance.ensureLoaded();
       } else {
         _isAdmin = false;
         _adminRole = null;
