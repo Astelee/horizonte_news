@@ -18,6 +18,7 @@ import '../widgets/badge_widgets.dart';
 import '../widgets/level_up_overlay.dart';
 import '../widgets/profile_edit_sheets.dart';
 import '../widgets/styled_user_name.dart';
+import '../widgets/premium_profile_section.dart';
 import '../widgets/subscriber_badge.dart';
 import 'name_style_screen.dart';
 import 'premium_avatar_gallery_screen.dart';
@@ -260,7 +261,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       : Column(
                           children: [
                             const SizedBox(height: 12),
-                            _buildPremiumBanner(),
+                            const PremiumProfileSection(),
                             const SizedBox(height: 12),
                             _buildXpCard(data),
                             const SizedBox(height: 12),
@@ -1121,73 +1122,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  // ── Banner de entrada para a tela Premium (planos PRO/ULTRA) ─────
-  Widget _buildPremiumBanner() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: () =>
-              Navigator.of(context).pushNamed(AppRoutes.premium),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: const LinearGradient(
-                colors: [Color(0xFFF2B705), Color(0xFFE08E00)],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(21),
-                  ),
-                  child: const Icon(FontAwesomeIcons.crown,
-                      color: Colors.white, size: 18),
-                ),
-                const SizedBox(width: 14),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Seja Premium',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Suba de nível mais rápido e remova anúncios',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right_rounded,
-                    color: Colors.white, size: 22),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
