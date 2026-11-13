@@ -7,7 +7,6 @@ import '../services/admin_comment_service.dart';
 import '../services/admin_config_service.dart';
 import '../services/admin_dashboard_service.dart';
 import '../services/admin_news_service.dart';
-import '../services/admin_subscription_request_service.dart';
 import '../services/admin_user_service.dart';
 import 'tabs/overview_tab.dart';
 import 'tabs/comments_tab.dart';
@@ -16,7 +15,6 @@ import 'tabs/users_tab.dart';
 import 'tabs/poderes_tab.dart';
 import 'tabs/news_tab.dart';
 import 'tabs/avatar_approvals_tab.dart';
-import 'tabs/subscription_requests_tab.dart';
 import 'tabs/config_tab.dart';
 import 'tabs/ads_bar_tab.dart';
 import 'tabs/support_tab.dart';
@@ -38,7 +36,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   final _dashboardService = AdminDashboardService();
   final _newsService = AdminNewsService();
   final _avatarApprovalService = AdminAvatarApprovalService();
-  final _subscriptionRequestService = AdminSubscriptionRequestService();
   final _configService = AdminConfigService();
 
   static const List<String> _tabTitles = [
@@ -49,7 +46,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     'NÍVEIS & XP',
     'PUBLICAÇÕES',
     'FOTOS PENDENTES',
-    'ASSINATURAS PENDENTES',
     'CONFIGURAÇÕES',
     'BARRA DE ANÚNCIOS',
     'ATENDIMENTO',
@@ -58,7 +54,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 11, vsync: this);
+    _tabController = TabController(length: 10, vsync: this);
     _tabController.addListener(() {
       // Reconstrói o AppBar (título + botão voltar) ao trocar de aba,
       // mesmo durante o gesto (sem esperar a animação terminar).
@@ -176,16 +172,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                       newsService: _newsService,
                       commentService: _commentService,
                       avatarApprovalService: _avatarApprovalService,
-                      subscriptionRequestService: _subscriptionRequestService,
                       onGoToUsers: () => _goToTab(3),
                       onGoToBanned: () => _goToTab(2),
                       onGoToNews: () => _goToTab(5),
                       onGoToComments: () => _goToTab(1),
                       onGoToLevels: () => _goToTab(4),
                       onGoToAvatarApprovals: () => _goToTab(6),
-                      onGoToSubscriptionRequests: () => _goToTab(7),
-                      onGoToConfig: () => _goToTab(8),
-                      onGoToAdsBar: () => _goToTab(9),
+                      onGoToConfig: () => _goToTab(7),
+                      onGoToAdsBar: () => _goToTab(8),
                     ),
                   ),
                   _TabScaffold(
@@ -201,10 +195,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     _TabScaffold(
                       child: AvatarApprovalsTab(
                           approvalService: _avatarApprovalService),
-                    ),
-                    _TabScaffold(
-                      child: SubscriptionRequestsTab(
-                          requestService: _subscriptionRequestService),
                     ),
                     _TabScaffold(
                         child: ConfigTab(configService: _configService)),
@@ -240,7 +230,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       ),
       actions: [
         // Atalho para o Atendimento com contador de conversas não lidas.
-        if (_tabController.index != 10)
+        if (_tabController.index != 9)
           Consumer<SupportProvider>(
             builder: (context, support, _) => Stack(
               clipBehavior: Clip.none,
@@ -250,7 +240,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   tooltip: 'Atendimento',
                   icon: const Icon(Icons.chat_bubble_rounded,
                       color: AppColors.primaryOrange),
-                  onPressed: () => _goToTab(10),
+                  onPressed: () => _goToTab(9),
                 ),
                 if (support.unreadCount > 0)
                   Positioned(
