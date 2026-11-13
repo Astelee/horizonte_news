@@ -7,6 +7,7 @@
 //   POST /v1/billing/status                            (estado da assinatura do usuário)
 //   POST /v1/billing/rtdn?secret=...                   (avisos do Google Play via Pub/Sub)
 //   GET  /v1/health
+//   GET  /noticia/{id}                                 (página do link compartilhado, com prévia)
 //
 // O app envia o ID token do Firebase em `Authorization: Bearer ...`.
 // Nenhum segredo (OneSignal, conta de serviço) existe no app.
@@ -18,6 +19,7 @@ import { createOneSignal } from './onesignal.js';
 import { createNotifyHandlers } from './notify.js';
 import { createBilling, createPlayClient } from './billing.js';
 import { createXpHandlers } from './xp.js';
+import { createShareHandler } from './share.js';
 import { createRateLimiter } from './ratelimit.js';
 import { HttpError, jsonResponse, timingSafeEqual, base64ToBytes } from './util.js';
 
@@ -46,7 +48,7 @@ async function readJson(request) {
   }
 }
 
-export function createApp({ env, verifyIdToken, notify, billing, xp = {}, now = () => Date.now() }) {
+export function createApp({ env, verifyIdToken, notify, billing, xp = {}, share = null, now = () => Date.now() }) {
   const limitNotify = createRateLimiter({ max: 60, windowMs: 60_000, now });
   const limitBilling = createRateLimiter({ max: 20, windowMs: 60_000, now });
 
@@ -110,6 +112,12 @@ export function createApp({ env, verifyIdToken, notify, billing, xp = {}, now = 
           },
         });
       }
+      const shareMatch = /^\/noticia\/([^/]+)$/.exec(path);
+      if (shareMatch && share && (request.method === 'GET' || request.method === 'HEAD')) {
+        let postId = shareMatch[1];
+        try { postId = decodeURIComponent(postId); } catch { /* id inválido cai na página genérica */ }
+        return share(request, postId);
+      }
       if (request.method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Método não permitido.');
 
       if (path === '/v1/billing/rtdn') return jsonResponse(await handleRtdn(request, url));
@@ -170,6 +178,7 @@ function createDefaultApp(env) {
     notify: createNotifyHandlers({ fs, onesignal }),
     billing: createBilling({ fs, play }),
     xp: createXpHandlers({ fs }),
+    share: createShareHandler({ fs, env }),
   });
 }
 
