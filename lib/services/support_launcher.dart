@@ -16,7 +16,7 @@ class SupportLauncher {
   static String? viewingConversationId;
 
   /// Índice da aba "Atendimento" no painel ADM (ver AdminPanelScreen).
-  static const int adminInboxTab = 10;
+  static const int adminInboxTab = 9;
 
   static String? _pendingConversationId;
   static bool _opening = false;
