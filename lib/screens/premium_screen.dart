@@ -374,7 +374,7 @@ class _PremiumScreenState extends State<PremiumScreen>
     var holder = PremiumTier.none;
     if (status != null) {
       blocked = status.blocksPurchase;
-      holder = PremiumTierX.fromId(status.subscription?.tier);
+      holder = status.subscription?.tier ?? PremiumTier.none;
     } else if (snap.fromPlay && snap.hasAccess) {
       blocked = true;
       holder = snap.tier;
