@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
@@ -10,6 +8,8 @@ import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../config/premium_config.dart';
 import '../services/purchase_service.dart';
+import '../services/subscription_state_service.dart';
+import 'my_subscription_screen.dart';
 import 'premium_avatar_gallery_screen.dart';
 import '../widgets/app_messenger.dart';
 
@@ -20,16 +20,11 @@ const String _kPrivacyUrl = 'https://astelee.github.io/horizonte-news-privacy/';
 // ═══════════════════════════════════════════════════════════════════
 // TELA PREMIUM — planos PRO e ULTRA
 // ═══════════════════════════════════════════════════════════════════
-// A vitrine (preço) vem do que foi cadastrado no Google Play Console
-// — PremiumProductIds.pro/ultra em purchase_service.dart — e não mais
-// de texto fixo aqui. Ícones, cores e lista de benefícios continuam
-// definidos no app, já que a Play Store não guarda esse tipo de
-// informação visual.
-//
-// Enquanto os produtos não existirem no Play Console (ou o app não
-// estiver rodando num dispositivo com Play Store), os cards mostram
-// os preços de referência abaixo e o botão "Assinar" informa que o
-// plano ainda não está disponível — sem travar a tela.
+// Preço: sempre o cadastrado no Google Play (ProductDetails.price). Os
+// benefícios são os já existentes no app. PRO e ULTRA são EXCLUSIVOS:
+// com uma assinatura em vigor (ativa, cancelada-mas-paga, carência ou
+// pagamento em espera) os dois botões ficam bloqueados; o backend também
+// recusa a segunda compra. "Restaurar compras" nunca some.
 // ═══════════════════════════════════════════════════════════════════
 
 class PremiumPlan {
@@ -78,7 +73,8 @@ class PremiumScreen extends StatefulWidget {
   State<PremiumScreen> createState() => _PremiumScreenState();
 }
 
-class _PremiumScreenState extends State<PremiumScreen> {
+class _PremiumScreenState extends State<PremiumScreen>
+    with SingleTickerProviderStateMixin {
   static const List<PremiumPlan> _plans = [
     PremiumPlan(
       productId: PremiumProductIds.pro,
@@ -168,55 +164,37 @@ class _PremiumScreenState extends State<PremiumScreen> {
     ),
   ];
 
+
   final _purchaseService = PurchaseService.instance;
+  final _subs = SubscriptionService.instance;
 
   Map<String, ProductDetails> _productsById = {};
   bool _loadingProducts = true;
-  // Guarda o productId em compra no momento (não um bool genérico),
-  // para que só o card daquele plano específico entre em loading —
-  // clicar em ULTRA não pode travar o botão do PRO junto.
+  // Só o card do plano em compra entra em loading.
   String? _purchaseInFlightProductId;
+  bool _restoring = false;
   StreamSubscription<PurchaseResult>? _purchaseSub;
-
-  // Tier Premium que o usuário JÁ possui (lido de users_xp/{uid}).
-  // Usado para desabilitar/renomear o botão "Assinar" do plano que
-  // ele já tem — evita reenviar a compra pro Google Play e receber
-  // o erro itemAlreadyOwned.
-  PremiumTier _currentTier = PremiumTier.none;
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _tierSub;
+  late final AnimationController _pulse;
 
   @override
   void initState() {
     super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    )..repeat(reverse: true);
+    _subs.ensureStarted();
     _purchaseService.initialize();
     _loadProducts();
     _purchaseSub = _purchaseService.purchaseResults.listen(_onPurchaseResult);
-    _listenCurrentTier();
+    unawaited(_subs.refreshStatus());
   }
 
   @override
   void dispose() {
     _purchaseSub?.cancel();
-    _tierSub?.cancel();
+    _pulse.dispose();
     super.dispose();
-  }
-
-  void _listenCurrentTier() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    _tierSub = FirebaseFirestore.instance
-        .collection('users_xp')
-        .doc(uid)
-        .snapshots()
-        .listen((snap) {
-      if (!mounted) return;
-      final data = snap.data();
-      setState(() {
-        _currentTier =
-            data != null ? premiumTierFromData(data) : PremiumTier.none;
-      });
-    });
   }
 
   Future<void> _loadProducts() async {
@@ -229,7 +207,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
   }
 
   void _onPurchaseResult(PurchaseResult result) {
-    if (!mounted) return;
+    if (!mounted || result.silent) return;
     setState(() => _purchaseInFlightProductId = null);
 
     switch (result.status) {
@@ -243,8 +221,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
         _showSnack(context, 'Pagamento em processamento...');
         break;
       case PurchaseResultStatus.cancelled:
-        // Usuário cancelou o fluxo de pagamento — não precisa de aviso.
         break;
+      case PurchaseResultStatus.alreadySubscribed:
       case PurchaseResultStatus.error:
         _showSnack(
           context,
@@ -255,12 +233,6 @@ class _PremiumScreenState extends State<PremiumScreen> {
     }
   }
 
-  // ── Compra confirmada pelo Google Play, aguardando aprovação ────
-  // A compra em si já foi concluída — isso NÃO é revertido nem
-  // burlado —, mas o Premium só é ativado depois que um admin aprovar
-  // a solicitação pelo painel. Mostramos isso claramente aqui, com um
-  // atalho para o canal de contato já existente no app, caso o
-  // usuário queira acelerar ou tirar dúvidas.
   void _showPendingApprovalDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -323,14 +295,15 @@ class _PremiumScreenState extends State<PremiumScreen> {
     Navigator.of(context).pushNamed(AppRoutes.contact);
   }
 
-  Future<void> _buyPlan(PremiumPlan plan) async {
-    // Já é assinante deste exato plano — não reenvia pro Google Play
-    // (evita o erro itemAlreadyOwned). O botão já deveria estar
-    // desabilitado neste caso, isso aqui é uma segunda trava.
-    if (PremiumProductIds.tierFor(plan.productId) == _currentTier) {
+  Future<void> _buyPlan(PremiumPlan plan, bool blocked) async {
+    if (blocked) {
+      _showSnack(
+        context,
+        'Você já tem uma assinatura em vigor. Só é possível contratar '
+        'outro plano depois que ela terminar.',
+      );
       return;
     }
-
     final product = _productsById[plan.productId];
     if (product == null) {
       _showSnack(
@@ -344,73 +317,171 @@ class _PremiumScreenState extends State<PremiumScreen> {
     await _purchaseService.buy(product);
   }
 
+  Future<void> _manage(PremiumTier tier) async {
+    final id = tier == PremiumTier.ultra
+        ? PremiumProductIds.ultra
+        : PremiumProductIds.pro;
+    final ok = await _purchaseService.openManageSubscription(productId: id);
+    if (!ok && mounted) {
+      _showSnack(context, 'Não foi possível abrir a Google Play.',
+          isError: true);
+    }
+  }
+
+  Future<void> _restorePurchases() async {
+    if (_restoring) return;
+    setState(() => _restoring = true);
+    final outcome = await _purchaseService.restore();
+    if (!mounted) return;
+    setState(() => _restoring = false);
+    switch (outcome) {
+      case RestoreOutcome.restored:
+        _showSnack(context, 'Compras verificadas e sincronizadas.');
+        break;
+      case RestoreOutcome.nothingFound:
+        _showSnack(
+            context, 'Nenhuma assinatura encontrada nesta conta Google Play.');
+        break;
+      case RestoreOutcome.unavailable:
+        _showSnack(context, 'A Google Play Store não está disponível agora.',
+            isError: true);
+        break;
+      case RestoreOutcome.failed:
+        _showSnack(context, 'Não foi possível restaurar as compras agora.',
+            isError: true);
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          _buildHeader(context),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-            sliver: SliverToBoxAdapter(
-              child: Text(
-                'Escolha um plano e suba de nível mais rápido.',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.85),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+      body: ValueListenableBuilder<SubscriptionSnapshot>(
+        valueListenable: _subs.snapshot,
+        builder: (context, snap, _) => ValueListenableBuilder<BillingStatus?>(
+          valueListenable: _subs.status,
+          builder: (context, status, _) => _buildBody(context, snap, status),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(
+      BuildContext context, SubscriptionSnapshot snap, BillingStatus? status) {
+    // Fonte da verdade = backend; sem ele, usa o estado do Firestore.
+    var blocked = false;
+    var holder = PremiumTier.none;
+    if (status != null) {
+      blocked = status.blocksPurchase;
+      holder = PremiumTierX.fromId(status.subscription?.tier);
+    } else if (snap.fromPlay && snap.hasAccess) {
+      blocked = true;
+      holder = snap.tier;
+    }
+    final details = status?.subscription;
+
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        _buildHeader(context),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          sliver: SliverToBoxAdapter(
+            child: blocked
+                ? _ActiveBanner(
+                    tier: holder,
+                    details: details,
+                    onMy: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const MySubscriptionScreen(),
+                    )),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Escolha seu plano',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.95),
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Suba de nível mais rápido e navegue sem anúncios.',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: 13.5,
+                        ),
+                      ),
+                      if (snap.hasAccess && !snap.fromPlay) ...[
+                        const SizedBox(height: 10),
+                        _InfoChip(
+                          'Seu ${snap.tier.label} atual é uma cortesia'
+                          '${snap.expiresAt != null ? ' até ${formatDatePt(snap.expiresAt!)}' : ''}.',
+                        ),
+                      ],
+                    ],
+                  ),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            sliver: SliverToBoxAdapter(
-              child: _buildAvatarsTeaser(context),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final plan = _plans[index];
-                  final isThisPlanBuying =
-                      _purchaseInFlightProductId == plan.productId;
-                  final anyPurchaseInFlight =
-                      _purchaseInFlightProductId != null;
-                  final isOwned =
-                      PremiumProductIds.tierFor(plan.productId) ==
-                          _currentTier;
-                  return Padding(
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final plan = _plans[index];
+                final tier = PremiumProductIds.tierFor(plan.productId);
+                final isCurrent = blocked && holder == tier;
+                final buying = _purchaseInFlightProductId == plan.productId;
+                final anyBuying = _purchaseInFlightProductId != null;
+                return TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: Duration(milliseconds: 450 + index * 150),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, v, child) => Opacity(
+                    opacity: v,
+                    child: Transform.translate(
+                      offset: Offset(0, 24 * (1 - v)),
+                      child: child,
+                    ),
+                  ),
+                  child: Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: _PlanCard(
                       plan: plan,
                       product: _productsById[plan.productId],
                       loadingProduct: _loadingProducts,
-                      isBuying: isThisPlanBuying,
-                      isOwned: isOwned,
-                      disabled:
-                          (anyPurchaseInFlight && !isThisPlanBuying) ||
-                              isOwned,
-                      onSubscribe: () => _buyPlan(plan),
+                      isBuying: buying,
+                      isCurrent: isCurrent,
+                      isBlockedByOther: blocked && !isCurrent,
+                      otherTierLabel: holder.label,
+                      disabled: anyBuying && !buying,
+                      pulse: _pulse,
+                      onSubscribe: () => _buyPlan(plan, blocked),
+                      onManage: () => _manage(tier),
                     ),
-                  );
-                },
-                childCount: _plans.length,
-              ),
+                  ),
+                );
+              },
+              childCount: _plans.length,
             ),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
-            sliver: SliverToBoxAdapter(
-              child: _buildFooter(context),
-            ),
-          ),
-        ],
-      ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          sliver: SliverToBoxAdapter(child: _ComparisonTable(plans: _plans)),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          sliver: SliverToBoxAdapter(child: _buildAvatarsTeaser(context)),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+          sliver: SliverToBoxAdapter(child: _buildFooter(context, blocked, holder)),
+        ),
+      ],
     );
   }
 
@@ -419,7 +490,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
       pinned: true,
       backgroundColor: AppColors.backgroundDark,
       elevation: 0,
-      expandedHeight: 120,
+      scrolledUnderElevation: 0,
+      expandedHeight: 130,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
         onPressed: () => Navigator.of(context).maybePop(),
@@ -430,15 +502,19 @@ class _PremiumScreenState extends State<PremiumScreen> {
           'Premium',
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
         ),
-        background: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                AppColors.primaryOrangeDark.withOpacity(0.35),
-                AppColors.backgroundDark,
-              ],
+        background: AnimatedBuilder(
+          animation: _pulse,
+          builder: (context, _) => Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.primaryOrangeDark
+                      .withOpacity(0.28 + 0.12 * _pulse.value),
+                  AppColors.backgroundDark,
+                ],
+              ),
             ),
           ),
         ),
@@ -514,11 +590,67 @@ class _PremiumScreenState extends State<PremiumScreen> {
     );
   }
 
-  Widget _buildFooter(BuildContext context) {
+  Widget _buildFooter(BuildContext context, bool hasSub, PremiumTier holder) {
     return Column(
       children: [
         const _InfoBar(),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
+        // Restaurar compras: SEMPRE visível, com ou sem assinatura.
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: OutlinedButton.icon(
+            onPressed: _restoring ? null : _restorePurchases,
+            icon: _restoring
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white70),
+                  )
+                : const Icon(FontAwesomeIcons.rotate,
+                    size: 14, color: Colors.white70),
+            label: Text(
+              _restoring ? 'Verificando...' : 'Restaurar compras',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: Colors.white.withOpacity(0.18)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ),
+        if (hasSub) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: () => _manage(holder),
+              icon: Icon(FontAwesomeIcons.googlePlay,
+                  size: 14, color: holder.accentColor),
+              label: Text(
+                'Gerenciar assinatura',
+                style: TextStyle(
+                  color: holder.accentColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: holder.accentColor.withOpacity(0.5)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 18),
         Wrap(
           alignment: WrapAlignment.center,
           spacing: 16,
@@ -527,23 +659,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
             _footerLink(context, 'Política de Privacidade', _kPrivacyUrl),
           ],
         ),
-        const SizedBox(height: 20),
-        TextButton(
-          onPressed: () => _restorePurchases(context),
-          child: Text(
-            'Restaurar compras',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        // Toda compra fica pendente de aprovação manual do admin — este
-        // botão dá acesso direto ao canal de contato já existente no
-        // app (mesma ContactScreen usada no resto do app) para quem
-        // quiser tirar dúvidas ou acelerar a validação.
+        const SizedBox(height: 14),
         OutlinedButton.icon(
           onPressed: () => _openContactChannel(context),
           icon: Icon(FontAwesomeIcons.headset,
@@ -560,11 +676,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
             side: BorderSide(
               color: AppColors.primaryOrangeLight.withOpacity(0.4),
             ),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
       ],
@@ -600,36 +714,6 @@ class _PremiumScreenState extends State<PremiumScreen> {
     }
   }
 
-  // ── Restaura compras já feitas na conta Google Play do usuário ───
-  // O resultado chega de forma assíncrona em _onPurchaseResult, pelo
-  // mesmo purchaseStream usado para compras novas.
-  Future<void> _restorePurchases(BuildContext context) async {
-    final available = await _purchaseService.isAvailable;
-    if (!context.mounted) return;
-
-    if (!available) {
-      _showSnack(
-        context,
-        'A Google Play Store não está disponível no momento.',
-        isError: true,
-      );
-      return;
-    }
-
-    try {
-      await _purchaseService.restore();
-      if (!context.mounted) return;
-      _showSnack(context, 'Verificando suas compras anteriores...');
-    } catch (_) {
-      if (!context.mounted) return;
-      _showSnack(
-        context,
-        'Não foi possível restaurar as compras agora.',
-        isError: true,
-      );
-    }
-  }
-
   void _showSnack(BuildContext context, String msg, {bool isError = false}) {
     if (isError) {
       AppMessenger.error(msg);
@@ -640,212 +724,321 @@ class _PremiumScreenState extends State<PremiumScreen> {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// BANNER "ASSINATURA EM VIGOR" (no lugar do convite)
+// ═══════════════════════════════════════════════════════════════════
+class _ActiveBanner extends StatelessWidget {
+  final PremiumTier tier;
+  final SubscriptionDetails? details;
+  final VoidCallback onMy;
+  const _ActiveBanner(
+      {required this.tier, required this.details, required this.onMy});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = tier.accentColor;
+    final d = details;
+    String line;
+    if (d == null) {
+      line = 'Seu plano ${tier.label} está em vigor.';
+    } else if (d.onHold) {
+      line = 'Pagamento pendente. Regularize na Google Play.';
+    } else if (d.cancelScheduled && d.expiresAt != null) {
+      line = 'Cancelado: benefícios até ${formatDatePt(d.expiresAt!)}.';
+    } else if (d.expiresAt != null) {
+      line = 'Ativo — ${d.autoRenewing ? 'renova' : 'vence'} em '
+          '${formatDatePt(d.expiresAt!)}.';
+    } else {
+      line = 'Seu plano ${tier.label} está em vigor.';
+    }
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onMy,
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: color.withOpacity(0.10),
+            border: Border.all(color: color.withOpacity(0.5)),
+          ),
+          child: Row(
+            children: [
+              Icon(tier.icon, color: color, size: 22),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Você é assinante ${tier.label}',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 15.5)),
+                    const SizedBox(height: 3),
+                    Text(line,
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 12.5)),
+                  ],
+                ),
+              ),
+              Text('Minha assinatura',
+                  style: TextStyle(
+                      color: color, fontSize: 12, fontWeight: FontWeight.w800)),
+              Icon(Icons.chevron_right_rounded, color: color),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final String text;
+  const _InfoChip(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Text(text,
+          style: TextStyle(
+              color: Colors.white.withOpacity(0.75),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // CARD DE PLANO
 // ═══════════════════════════════════════════════════════════════════
-class _PlanCard extends StatelessWidget {
+class _PlanCard extends StatefulWidget {
   final PremiumPlan plan;
   final ProductDetails? product;
   final bool loadingProduct;
   final bool isBuying;
-  final bool isOwned;
+  final bool isCurrent;
+  final bool isBlockedByOther;
+  final String otherTierLabel;
   final bool disabled;
+  final Animation<double> pulse;
   final VoidCallback onSubscribe;
+  final VoidCallback onManage;
 
   const _PlanCard({
     required this.plan,
     required this.product,
     required this.loadingProduct,
     required this.isBuying,
-    required this.isOwned,
+    required this.isCurrent,
+    required this.isBlockedByOther,
+    required this.otherTierLabel,
     required this.disabled,
+    required this.pulse,
     required this.onSubscribe,
+    required this.onManage,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final priceLabel = product?.price ?? plan.fallbackPrice;
-    final available = product != null;
+  State<_PlanCard> createState() => _PlanCardState();
+}
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.backgroundCard,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: plan.accentColor.withOpacity(0.45),
-          width: 1.3,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: plan.accentColor.withOpacity(0.12),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+class _PlanCardState extends State<_PlanCard> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final plan = widget.plan;
+    final isUltra = plan.productId == PremiumProductIds.ultra;
+    final available = widget.product != null;
+    final priceLabel = widget.product?.price ?? plan.fallbackPrice;
+    final dim = widget.isBlockedByOther;
+    final canTap = !widget.isCurrent &&
+        !widget.isBlockedByOther &&
+        !widget.isBuying &&
+        !widget.disabled;
+
+    return AnimatedBuilder(
+      animation: widget.pulse,
+      builder: (context, child) {
+        final glow = widget.isCurrent ? 0.18 + 0.14 * widget.pulse.value : 0.10;
+        return Opacity(
+          opacity: dim ? 0.55 : 1,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: plan.accentColor
+                    .withOpacity(widget.isCurrent ? 0.9 : 0.45),
+                width: widget.isCurrent ? 1.6 : 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: plan.accentColor.withOpacity(glow),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  plan.accentColor.withOpacity(0.12),
+                  AppColors.backgroundCard,
+                ],
+              ),
+            ),
+            padding: const EdgeInsets.all(18),
+            child: child,
           ),
-        ],
-      ),
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+        );
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 46,
+                height: 46,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(colors: plan.gradient),
-                  borderRadius: BorderRadius.circular(22),
+                  shape: BoxShape.circle,
                 ),
-                child: Icon(plan.icon, color: Colors.white, size: 20),
+                child: Icon(plan.icon,
+                    color: isUltra ? Colors.black.withOpacity(0.85) : Colors.white,
+                    size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      plan.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    Text(
-                      plan.subtitle,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.55),
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    Text(plan.name,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 21,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5)),
+                    Text(plan.subtitle,
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.55),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: plan.accentColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: plan.accentColor.withOpacity(0.5),
-                  ),
-                ),
-                child: Text(
-                  plan.xpTag,
-                  style: TextStyle(
-                    color: plan.accentColor,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              if (loadingProduct)
-                const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white54,
-                  ),
-                )
+              if (widget.isCurrent)
+                _Pill('PLANO ATUAL', plan.accentColor, filled: true)
               else
-                Text(
-                  priceLabel,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+                _Pill(plan.xpTag, plan.accentColor),
             ],
           ),
-          if (!loadingProduct && !available) ...[
+          const SizedBox(height: 16),
+          if (widget.loadingProduct)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.white54),
+            )
+          else
+            Text(priceLabel,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 25,
+                    fontWeight: FontWeight.w900)),
+          if (!widget.loadingProduct && !available) ...[
             const SizedBox(height: 6),
-            Text(
-              'Plano ainda não disponível para compra.',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.4),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text('Plano ainda não disponível para compra.',
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.4),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600)),
           ],
           const SizedBox(height: 14),
           Divider(color: Colors.white.withOpacity(0.08), height: 1),
-          const SizedBox(height: 14),
-          ...plan.features.map((f) => _FeatureRow(
-                feature: f,
-                accentColor: plan.accentColor,
-              )),
-          const SizedBox(height: 6),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: Opacity(
-              opacity: isOwned
-                  ? 1
-                  : (disabled ? 0.5 : 1),
-              child: DecoratedBox(
-                decoration: isOwned
-                    ? BoxDecoration(
-                        color: Colors.white.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: plan.accentColor.withOpacity(0.5),
-                        ),
-                      )
-                    : BoxDecoration(
-                        gradient: LinearGradient(colors: plan.gradient),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(14),
-                    // Plano já é do usuário → botão nunca é clicável,
-                    // nem mostra loading (não há compra a iniciar).
-                    onTap: (isOwned || isBuying || disabled)
-                        ? null
-                        : onSubscribe,
+          const SizedBox(height: 10),
+          ...plan.features.map(
+              (f) => _FeatureRow(feature: f, accentColor: plan.accentColor)),
+          const SizedBox(height: 8),
+          if (widget.isBlockedByOther)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                'Indisponível: você já tem o ${widget.otherTierLabel} ativo. '
+                'Poderá contratar este plano quando ele terminar.',
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 12.5,
+                    height: 1.35),
+              ),
+            ),
+          AnimatedScale(
+            scale: _down ? 0.97 : 1,
+            duration: const Duration(milliseconds: 100),
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onHighlightChanged: (v) => setState(() => _down = v),
+                  onTap: widget.isCurrent
+                      ? widget.onManage
+                      : (canTap ? widget.onSubscribe : null),
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: (canTap)
+                          ? LinearGradient(colors: plan.gradient)
+                          : null,
+                      color: canTap ? null : Colors.white.withOpacity(0.06),
+                      border: canTap
+                          ? null
+                          : Border.all(
+                              color: plan.accentColor
+                                  .withOpacity(widget.isCurrent ? 0.6 : 0.2)),
+                    ),
                     child: Center(
-                      child: isBuying
+                      child: widget.isBuying
                           ? const SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+                                  strokeWidth: 2, color: Colors.white),
                             )
                           : Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                if (isOwned) ...[
-                                  Icon(
-                                    FontAwesomeIcons.circleCheck,
-                                    size: 15,
-                                    color: plan.accentColor,
-                                  ),
+                                if (widget.isCurrent) ...[
+                                  Icon(FontAwesomeIcons.googlePlay,
+                                      size: 14, color: plan.accentColor),
                                   const SizedBox(width: 8),
                                 ],
                                 Text(
-                                  isOwned ? 'Plano atual' : 'Assinar',
+                                  widget.isCurrent
+                                      ? 'Gerenciar assinatura'
+                                      : widget.isBlockedByOther
+                                          ? 'Indisponível'
+                                          : 'Assinar ${plan.name}',
                                   style: TextStyle(
-                                    color: isOwned
-                                        ? plan.accentColor
-                                        : (plan.productId ==
-                                                PremiumProductIds.ultra
+                                    color: canTap
+                                        ? (isUltra
                                             ? Colors.black.withOpacity(0.85)
-                                            : Colors.white),
+                                            : Colors.white)
+                                        : (widget.isCurrent
+                                            ? plan.accentColor
+                                            : Colors.white38),
                                     fontWeight: FontWeight.w800,
                                     fontSize: 15.5,
                                   ),
@@ -858,6 +1051,107 @@ class _PlanCard extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  final String text;
+  final Color color;
+  final bool filled;
+  const _Pill(this.text, this.color, {this.filled = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(filled ? 0.25 : 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.55)),
+      ),
+      child: Text(text,
+          style: TextStyle(
+              color: color, fontWeight: FontWeight.w800, fontSize: 11.5)),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// COMPARAÇÃO PRO × ULTRA (só benefícios que já existem no app)
+// ═══════════════════════════════════════════════════════════════════
+class _ComparisonTable extends StatelessWidget {
+  final List<PremiumPlan> plans;
+  const _ComparisonTable({required this.plans});
+
+  static const List<List<String>> _rows = [
+    ['Check-in sem anúncio', '✓', '✓'],
+    ['Sem banner de anúncios', '✓', '✓'],
+    ['Ganho de XP', '2x', '8x'],
+    ['Avatares animados', '6', '22'],
+    ['Nome personalizado', '✓', '✓'],
+    ['Distintivo de assinante', 'Pro', 'Ultra'],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final pro = plans.first.accentColor;
+    final ultra = plans.last.accentColor;
+    Widget cell(String t, Color c, {bool bold = false}) => Expanded(
+          flex: 2,
+          child: Center(
+            child: Text(t,
+                style: TextStyle(
+                    color: t == '✓' ? c : Colors.white,
+                    fontWeight: bold || t == '✓' ? FontWeight.w900 : FontWeight.w700,
+                    fontSize: t == '✓' ? 17 : 14)),
+          ),
+        );
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0A0A),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                flex: 4,
+                child: Text('Compare os planos',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14)),
+              ),
+              cell('PRO', pro, bold: true),
+              cell('ULTRA', ultra, bold: true),
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (final r in _rows) ...[
+            Divider(color: Colors.white.withOpacity(0.06), height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: Text(r[0],
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.75),
+                            fontSize: 12.5)),
+                  ),
+                  cell(r[1], pro),
+                  cell(r[2], ultra),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
