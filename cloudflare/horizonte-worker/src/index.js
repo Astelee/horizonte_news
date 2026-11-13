@@ -4,6 +4,7 @@
 //                admin | tier-tag | premium-expiry   (push via OneSignal)
 //   POST /v1/xp/like                                   (XP de curtida recebida)
 //   POST /v1/billing/verify                            (compra do Google Play)
+//   POST /v1/billing/status                            (estado da assinatura do usuário)
 //   POST /v1/billing/rtdn?secret=...                   (avisos do Google Play via Pub/Sub)
 //   GET  /v1/health
 //
@@ -76,7 +77,12 @@ export function createApp({ env, verifyIdToken, notify, billing, xp = {}, now = 
     if (message.testNotification) return { ok: true, test: true };
 
     if (message.subscriptionNotification?.purchaseToken) {
-      const r = await billing.processToken({ purchaseToken: message.subscriptionNotification.purchaseToken });
+      // tipo 12 = SUBSCRIPTION_REVOKED (revogada/reembolsada): nunca volta a valer
+      const revoked = Number(message.subscriptionNotification.notificationType) === 12;
+      const r = await billing.processToken({
+        purchaseToken: message.subscriptionNotification.purchaseToken,
+        ...(revoked ? { forceRevoke: true } : {}),
+      });
       return { ok: true, ...r };
     }
     if (message.voidedPurchaseNotification?.purchaseToken && Number(message.voidedPurchaseNotification.productType) === 1) {
@@ -118,6 +124,12 @@ export function createApp({ env, verifyIdToken, notify, billing, xp = {}, now = 
           purchaseToken: body.purchaseToken,
         });
         return jsonResponse(result);
+      }
+
+      if (path === '/v1/billing/status') {
+        const caller = await authenticate(request);
+        limitBilling(caller.uid);
+        return jsonResponse(await billing.statusForUser(caller.uid));
       }
 
       if (path === '/v1/xp/like') {
