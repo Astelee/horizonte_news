@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../config/premium_config.dart';
 import 'backend_client.dart';
 import 'subscription_request_service.dart';
+import 'subscription_state_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // PURCHASE SERVICE — assinaturas Premium via Google Play Billing
@@ -68,12 +71,22 @@ enum PurchaseResultStatus {
   pending,
   error,
   cancelled,
+
+  /// Já existe uma assinatura em vigor: PRO e ULTRA são exclusivos.
+  alreadySubscribed,
 }
+
+/// Resultado de "Restaurar compras".
+enum RestoreOutcome { restored, nothingFound, unavailable, failed }
 
 class PurchaseResult {
   final PurchaseResultStatus status;
   final String? message;
-  const PurchaseResult(this.status, {this.message});
+
+  /// Resultado de uma sincronização automática em segundo plano: a UI
+  /// não deve mostrar mensagens para ele.
+  final bool silent;
+  const PurchaseResult(this.status, {this.message, this.silent = false});
 }
 
 class PurchaseService {
@@ -94,6 +107,24 @@ class PurchaseService {
 
   bool _initialized = false;
 
+  // Restauração: quantas compras o Google entregou na última chamada, e se
+  // ela é automática (silenciosa).
+  bool _restoring = false;
+  bool _silentMode = false;
+  int _restoreDeliveries = 0;
+  bool _silentSyncScheduled = false;
+  static const String _kLastSyncKey = 'billing_last_sync_ms';
+
+  void _emit(PurchaseResult r) {
+    if (_silentMode && !r.silent) {
+      _resultController.add(
+        PurchaseResult(r.status, message: r.message, silent: true),
+      );
+    } else {
+      _resultController.add(r);
+    }
+  }
+
   // Tokens em processamento agora (o Google pode entregar a mesma compra
   // duas vezes seguidas: purchaseStream + restore).
   final Set<String> _inFlight = <String>{};
@@ -111,6 +142,8 @@ class PurchaseService {
   /// Iniciar logo após o login (main.dart). Idempotente. Se o Google Play
   /// Billing ainda não estiver disponível, uma chamada futura tenta de novo.
   Future<void> initialize() async {
+    // Estado da assinatura (perfil/Premium) não depende do Billing.
+    SubscriptionService.instance.ensureStarted();
     if (_initialized) return;
 
     bool available;
@@ -132,6 +165,28 @@ class PurchaseService {
       },
       onError: (Object e) => debugPrint('Erro no purchaseStream: $e'),
     );
+    _scheduleSilentSync();
+  }
+
+  /// Uma vez por abertura do app (no máx. a cada 6 h): pede ao Google as
+  /// compras da conta e deixa o backend conferir com o Google Play. Cobre
+  /// reinstalação, troca de celular e renovações cujo aviso (RTDN) atrasou.
+  void _scheduleSilentSync() {
+    if (_silentSyncScheduled || !BackendClient.isConfigured) return;
+    _silentSyncScheduled = true;
+    Future.delayed(const Duration(seconds: 10), () async {
+      try {
+        if (FirebaseAuth.instance.currentUser == null) return;
+        final prefs = await SharedPreferences.getInstance();
+        final last = prefs.getInt(_kLastSyncKey) ?? 0;
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
+        if (nowMs - last < const Duration(hours: 6).inMilliseconds) return;
+        await prefs.setInt(_kLastSyncKey, nowMs);
+        await restore(silent: true);
+      } catch (e) {
+        debugPrint('Sincronização automática de compras: $e');
+      }
+    });
   }
 
   Future<bool> get isAvailable => _iap.isAvailable();
@@ -161,9 +216,10 @@ class PurchaseService {
   /// na validação (obfuscatedExternalAccountId) e o backend só libera a
   /// compra para a MESMA conta que pagou.
   Future<void> buy(ProductDetails product) async {
+    _silentMode = false;
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      _resultController.add(
+      _emit(
         const PurchaseResult(
           PurchaseResultStatus.error,
           message: 'Faça login para assinar o Premium.',
@@ -174,6 +230,25 @@ class PurchaseService {
 
     await initialize();
 
+    // PRO e ULTRA são exclusivos. Confere ANTES de abrir o pagamento (o
+    // backend confere de novo ao validar, então isto é só a primeira trava).
+    final svc = SubscriptionService.instance;
+    final status = await svc.refreshStatus();
+    final snap = svc.snapshot.value;
+    final blocked =
+        status?.blocksPurchase ?? (snap.fromPlay && snap.hasAccess);
+    if (blocked) {
+      final tier = status?.subscription?.tier ?? snap.tier;
+      _emit(
+        PurchaseResult(
+          PurchaseResultStatus.alreadySubscribed,
+          message: 'Você já tem uma assinatura ${tier.label} em vigor. '
+              'Só é possível contratar outro plano depois que ela terminar.',
+        ),
+      );
+      return;
+    }
+
     final param = PurchaseParam(
       productDetails: product,
       applicationUserName: uid,
@@ -182,7 +257,7 @@ class PurchaseService {
     try {
       await _iap.buyNonConsumable(purchaseParam: param);
     } catch (e) {
-      _resultController.add(
+      _emit(
         PurchaseResult(
           PurchaseResultStatus.error,
           message: 'Não foi possível iniciar a compra: $e',
@@ -195,21 +270,71 @@ class PurchaseService {
   /// resultado (se havia algo para restaurar) chega pelo mesmo
   /// purchaseStream tratado em [_handlePurchaseUpdates] e passa pela
   /// MESMA validação de uma compra nova.
-  Future<void> restore() async {
+  ///
+  /// Devolve o que aconteceu, para a tela poder avisar (inclusive quando o
+  /// Google não tem nada para restaurar). Depois de processar as compras,
+  /// atualiza o estado vindo do backend.
+  Future<RestoreOutcome> restore({bool silent = false}) async {
+    if (_restoring) return RestoreOutcome.restored;
     await initialize();
-    await _iap.restorePurchases();
+    if (!_initialized) return RestoreOutcome.unavailable;
+
+    _restoring = true;
+    _silentMode = silent;
+    _restoreDeliveries = 0;
+    try {
+      await _iap.restorePurchases();
+
+      // Espera o Google entregar (até 6 s) e o backend validar (até 25 s).
+      for (var i = 0; i < 20 && _restoreDeliveries == 0; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
+      for (var i = 0; i < 50 && _inFlight.isNotEmpty; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+      await SubscriptionService.instance.refreshStatus();
+      return _restoreDeliveries > 0
+          ? RestoreOutcome.restored
+          : RestoreOutcome.nothingFound;
+    } catch (e) {
+      debugPrint('Erro ao restaurar compras: $e');
+      return RestoreOutcome.failed;
+    } finally {
+      _restoring = false;
+      _silentMode = false;
+    }
+  }
+
+  /// Abre a página oficial de assinaturas da Google Play (consultar e
+  /// cancelar). Não existe cancelamento dentro do app.
+  Future<bool> openManageSubscription({String? productId}) async {
+    try {
+      return await launchUrl(
+        SubscriptionService.manageUri(productId: productId),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _handlePurchaseUpdates(
     List<PurchaseDetails> purchases,
   ) async {
+    if (_restoring) {
+      _restoreDeliveries += purchases
+          .where((p) =>
+              p.status == PurchaseStatus.restored ||
+              p.status == PurchaseStatus.purchased)
+          .length;
+    }
     for (final purchase in purchases) {
       try {
         await _handleOne(purchase);
       } catch (e) {
         // Uma compra com problema não pode travar as seguintes.
         debugPrint('Erro ao processar compra ${purchase.productID}: $e');
-        _resultController.add(
+        _emit(
           const PurchaseResult(
             PurchaseResultStatus.error,
             message: 'Não foi possível processar a compra agora. '
@@ -223,13 +348,13 @@ class PurchaseService {
   Future<void> _handleOne(PurchaseDetails purchase) async {
     switch (purchase.status) {
       case PurchaseStatus.pending:
-        _resultController.add(
+        _emit(
           const PurchaseResult(PurchaseResultStatus.pending),
         );
         break;
 
       case PurchaseStatus.error:
-        _resultController.add(
+        _emit(
           PurchaseResult(
             PurchaseResultStatus.error,
             message: purchase.error?.message ??
@@ -240,7 +365,7 @@ class PurchaseService {
         break;
 
       case PurchaseStatus.canceled:
-        _resultController.add(
+        _emit(
           const PurchaseResult(PurchaseResultStatus.cancelled),
         );
         await _complete(purchase);
@@ -278,7 +403,7 @@ class PurchaseService {
 
     final token = purchase.verificationData.serverVerificationData;
     if (token.isEmpty) {
-      _resultController.add(
+      _emit(
         const PurchaseResult(
           PurchaseResultStatus.error,
           message: 'Compra sem comprovante. Fale com o suporte.',
@@ -311,16 +436,17 @@ class PurchaseService {
 
     if (res != null && res.ok) {
       _retries.remove(token);
+      unawaited(SubscriptionService.instance.refreshStatus());
       final entitled = res.body['entitled'] == true;
       if (entitled) {
         await _complete(purchase);
-        _resultController.add(
+        _emit(
           const PurchaseResult(PurchaseResultStatus.activated),
         );
       } else {
         // Compra existe mas ainda não vale (pagamento em análise/em
         // espera). O Google avisa o backend quando mudar.
-        _resultController.add(
+        _emit(
           const PurchaseResult(PurchaseResultStatus.pending),
         );
       }
@@ -331,7 +457,7 @@ class PurchaseService {
       // Backend fora do ar / sem internet: NÃO conclui a compra (o Google
       // entrega de novo) e tenta novamente em instantes.
       _scheduleRetry(purchase, token);
-      _resultController.add(
+      _emit(
         const PurchaseResult(
           PurchaseResultStatus.error,
           message: 'Não foi possível validar sua compra agora. Vamos tentar '
@@ -343,13 +469,17 @@ class PurchaseService {
     }
 
     // Recusa definitiva (compra de outra conta, produto inválido,
-    // comprovante inexistente...). Não libera nada.
-    _resultController.add(
+    // assinatura já ativa...). Não libera nada e NÃO conclui a compra:
+    // o Google estorna sozinho o que não for reconhecido.
+    _emit(
       PurchaseResult(
-        PurchaseResultStatus.error,
+        res.error == 'subscription_already_active'
+            ? PurchaseResultStatus.alreadySubscribed
+            : PurchaseResultStatus.error,
         message: _friendlyBackendError(res),
       ),
     );
+    unawaited(SubscriptionService.instance.refreshStatus());
   }
 
   void _scheduleRetry(PurchaseDetails purchase, String token) {
@@ -375,6 +505,10 @@ class PurchaseService {
       case 'purchase_account_mismatch':
         return 'Esta assinatura pertence a outra conta do Horizonte News. '
             'Entre com a conta que fez a compra.';
+      case 'subscription_already_active':
+        return 'Você já tem uma assinatura em vigor, então esta nova compra '
+            'não foi ativada. O Google Play estorna o valor automaticamente '
+            'em até 3 dias.';
       case 'purchase_not_found':
       case 'invalid_purchase_token':
         return 'O Google Play não reconheceu esta compra.';
@@ -394,11 +528,11 @@ class PurchaseService {
       // Só conclui no Google depois de registrar a solicitação — se o
       // registro falhar (sem internet), o Google entrega de novo.
       await _complete(purchase);
-      _resultController.add(
+      _emit(
         const PurchaseResult(PurchaseResultStatus.pendingApproval),
       );
     } else {
-      _resultController.add(
+      _emit(
         const PurchaseResult(
           PurchaseResultStatus.error,
           message: 'A compra foi concluída, mas não foi possível '
