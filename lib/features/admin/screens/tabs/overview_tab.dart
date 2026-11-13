@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../widgets/app_messenger.dart';
 import '../../services/admin_avatar_approval_service.dart';
-import '../../services/admin_subscription_request_service.dart';
 import '../../services/admin_dashboard_service.dart';
 import '../../services/admin_user_service.dart';
 import '../../services/admin_news_service.dart';
@@ -18,14 +17,12 @@ class OverviewTab extends StatefulWidget {
   final AdminNewsService newsService;
   final AdminCommentService commentService;
   final AdminAvatarApprovalService avatarApprovalService;
-  final AdminSubscriptionRequestService subscriptionRequestService;
   final VoidCallback onGoToUsers;
   final VoidCallback onGoToBanned;
   final VoidCallback onGoToNews;
   final VoidCallback onGoToComments;
   final VoidCallback onGoToLevels;
   final VoidCallback onGoToAvatarApprovals;
-  final VoidCallback onGoToSubscriptionRequests;
   final VoidCallback onGoToConfig;
   final VoidCallback onGoToAdsBar;
 
@@ -35,14 +32,12 @@ class OverviewTab extends StatefulWidget {
     required this.newsService,
     required this.commentService,
     required this.avatarApprovalService,
-    required this.subscriptionRequestService,
     required this.onGoToUsers,
     required this.onGoToBanned,
     required this.onGoToNews,
     required this.onGoToComments,
     required this.onGoToLevels,
     required this.onGoToAvatarApprovals,
-    required this.onGoToSubscriptionRequests,
     required this.onGoToConfig,
     required this.onGoToAdsBar,
     Key? key,
@@ -225,10 +220,6 @@ class _OverviewTabState extends State<OverviewTab> {
               _AvatarApprovalsManagementTile(
                 approvalService: widget.avatarApprovalService,
                 onTap: widget.onGoToAvatarApprovals,
-              ),
-              _SubscriptionRequestsManagementTile(
-                requestService: widget.subscriptionRequestService,
-                onTap: widget.onGoToSubscriptionRequests,
               ),
               _ManagementTile(
                 icon: Icons.block_rounded,
@@ -655,57 +646,6 @@ class _AvatarApprovalsManagementTile extends StatelessWidget {
                     '$count',
                     style: const TextStyle(
                       color: AppColors.primaryOrange,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                )
-              : null,
-        );
-      },
-    );
-  }
-}
-
-/// Card de atalho da Central de Gestão para a fila de solicitações de
-/// assinatura (PRO/ULTRA compradas via Google Play, aguardando
-/// aprovação manual). Mesmo padrão do tile de fotos pendentes: o
-/// badge mostra a contagem em tempo real via
-/// AdminSubscriptionRequestService.pendingStream().
-class _SubscriptionRequestsManagementTile extends StatelessWidget {
-  final AdminSubscriptionRequestService requestService;
-  final VoidCallback onTap;
-
-  const _SubscriptionRequestsManagementTile({
-    required this.requestService,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: requestService.pendingStream(),
-      builder: (context, snapshot) {
-        final count = snapshot.hasData ? snapshot.data!.docs.length : null;
-        return _ManagementTile(
-          icon: Icons.workspace_premium_rounded,
-          color: const Color(0xFFFFC107),
-          title: 'ASSINATURAS PENDENTES',
-          subtitle: 'Aprovar ou recusar compras PRO/ULTRA',
-          onTap: onTap,
-          badge: (count != null && count > 0)
-              ? Container(
-                  margin: const EdgeInsets.only(right: 4),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFC107).withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '$count',
-                    style: const TextStyle(
-                      color: Color(0xFFFFC107),
                       fontSize: 10.5,
                       fontWeight: FontWeight.w800,
                     ),
