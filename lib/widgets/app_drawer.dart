@@ -546,7 +546,7 @@ class _AppDrawerState extends State<AppDrawer>
           _buildDivider(),
           const SizedBox(height: 14),
           const Text(
-            'Versão 1.0.0  ©  Horizonte News 2026',
+            'Versão 1.0.1  ©  Horizonte News 2026',
             style: TextStyle(
               color: Color(0xFF333333),
               fontSize: 10,
