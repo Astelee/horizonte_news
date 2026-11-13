@@ -179,17 +179,131 @@ test('RTDN — expiração NÃO derruba concessão manual do admin', async () =>
   assert.equal(fs.docs.get('users_xp/userA').premiumTier, 'pro');
 });
 
-test('PRO e ULTRA ao mesmo tempo: quando o ULTRA vence, o PRO continua valendo', async () => {
-  const subs = { [TOKEN_PRO]: sub({ expiry: NOW + 25 * DAY }), [TOKEN_ULTRA]: sub({ productId: 'premium_ultra_mensal', expiry: NOW + 5 * DAY }) };
-  const { billing, fs } = setup(subs);
+test('exclusividade: com PRO ativo, uma compra NOVA de ULTRA é recusada, não reconhecida e não altera o plano', async () => {
+  const subs = { [TOKEN_PRO]: sub(), [TOKEN_ULTRA]: sub({ productId: 'premium_ultra_mensal' }) };
+  const { billing, fs, acks } = setup(subs);
   await billing.verifyForUser({ uid: 'userA', productId: 'premium_pro_mensal', purchaseToken: TOKEN_PRO });
-  await billing.verifyForUser({ uid: 'userA', productId: 'premium_ultra_mensal', purchaseToken: TOKEN_ULTRA });
-  assert.equal(fs.docs.get('users_xp/userA').premiumTier, 'ultra');
-  subs[TOKEN_ULTRA] = sub({ productId: 'premium_ultra_mensal', state: 'SUBSCRIPTION_STATE_EXPIRED', expiry: NOW - 1000 });
-  await billing.processToken({ purchaseToken: TOKEN_ULTRA });
+  await assert.rejects(
+    () => billing.verifyForUser({ uid: 'userA', productId: 'premium_ultra_mensal', purchaseToken: TOKEN_ULTRA }),
+    code('subscription_already_active'),
+  );
+  assert.deepEqual(acks, [['premium_pro_mensal', TOKEN_PRO]]); // o ULTRA não foi reconhecido (Google estorna)
   const u = fs.docs.get('users_xp/userA');
   assert.equal(u.premiumTier, 'pro');
-  assert.equal(u.premiumExpiresAt.getTime(), NOW + 25 * DAY);
+  const rec = fs.docs.get(`billing_purchases/${await sha256Hex(TOKEN_ULTRA)}`);
+  assert.equal(rec.active, false);
+  assert.equal(rec.blocked, 'exclusive_subscription');
+});
+
+test('exclusividade vale também de ULTRA para PRO', async () => {
+  const subs = { [TOKEN_PRO]: sub(), [TOKEN_ULTRA]: sub({ productId: 'premium_ultra_mensal' }) };
+  const { billing, fs } = setup(subs);
+  await billing.verifyForUser({ uid: 'userA', productId: 'premium_ultra_mensal', purchaseToken: TOKEN_ULTRA });
+  await assert.rejects(() => billing.verifyForUser({ uid: 'userA', productId: 'premium_pro_mensal', purchaseToken: TOKEN_PRO }), code('subscription_already_active'));
+  assert.equal(fs.docs.get('users_xp/userA').premiumTier, 'ultra');
+});
+
+test('duas compras SIMULTÂNEAS: só uma é concedida', async () => {
+  const subs = { [TOKEN_PRO]: sub(), [TOKEN_ULTRA]: sub({ productId: 'premium_ultra_mensal' }) };
+  const { billing, fs } = setup(subs);
+  const r = await Promise.allSettled([
+    billing.verifyForUser({ uid: 'userA', productId: 'premium_pro_mensal', purchaseToken: TOKEN_PRO }),
+    billing.verifyForUser({ uid: 'userA', productId: 'premium_ultra_mensal', purchaseToken: TOKEN_ULTRA }),
+  ]);
+  assert.equal(r.filter((x) => x.status === 'fulfilled').length, 1);
+  assert.equal(r.filter((x) => x.status === 'rejected').length, 1);
+  const actives = [...fs.docs.entries()].filter(([k, v]) => k.startsWith('billing_purchases/') && v.active === true);
+  assert.equal(actives.length, 1);
+});
+
+test('cancelamento solicitado mantém o benefício E o bloqueio até vencer; depois libera os dois planos', async () => {
+  const subs = { [TOKEN_PRO]: sub(), [TOKEN_ULTRA]: sub({ productId: 'premium_ultra_mensal' }) };
+  const { billing, fs } = setup(subs);
+  await billing.verifyForUser({ uid: 'userA', productId: 'premium_pro_mensal', purchaseToken: TOKEN_PRO });
+  subs[TOKEN_PRO] = sub({ state: 'SUBSCRIPTION_STATE_CANCELED', acked: true });
+  await billing.processToken({ purchaseToken: TOKEN_PRO });
+  assert.equal(fs.docs.get('users_xp/userA').premiumTier, 'pro');
+  let st = await billing.statusForUser('userA');
+  assert.equal(st.blocksPurchase, true);
+  assert.equal(st.subscription.cancelScheduled, true);
+  assert.equal(st.subscription.benefitsActive, true);
+  await assert.rejects(() => billing.verifyForUser({ uid: 'userA', productId: 'premium_ultra_mensal', purchaseToken: TOKEN_ULTRA }), code('subscription_already_active'));
+
+  // vence: Google informa EXPIRED
+  subs[TOKEN_PRO] = sub({ state: 'SUBSCRIPTION_STATE_EXPIRED', expiry: NOW - 1000, acked: true });
+  await billing.processToken({ purchaseToken: TOKEN_PRO });
+  assert.equal(fs.docs.get('users_xp/userA').premiumTier, undefined);
+  st = await billing.statusForUser('userA');
+  assert.equal(st.blocksPurchase, false);
+  const r = await billing.verifyForUser({ uid: 'userA', productId: 'premium_ultra_mensal', purchaseToken: TOKEN_ULTRA });
+  assert.equal(r.tier, 'ultra');
+});
+
+test('renovação mantém benefício e bloqueio (vaga acompanha a nova validade)', async () => {
+  const subs = { [TOKEN_PRO]: sub({ expiry: NOW + DAY }), [TOKEN_ULTRA]: sub({ productId: 'premium_ultra_mensal' }) };
+  const { billing, fs } = setup(subs);
+  await billing.verifyForUser({ uid: 'userA', productId: 'premium_pro_mensal', purchaseToken: TOKEN_PRO });
+  subs[TOKEN_PRO] = sub({ expiry: NOW + 31 * DAY, acked: true });
+  await billing.processToken({ purchaseToken: TOKEN_PRO });
+  assert.equal(fs.docs.get('billing_slots/userA').holdUntil.getTime(), NOW + 31 * DAY);
+  assert.equal((await billing.statusForUser('userA')).blocksPurchase, true);
+});
+
+test('falha de pagamento: carência mantém benefício; em espera suspende benefício mas segue bloqueando', async () => {
+  const subs = { [TOKEN_PRO]: sub(), [TOKEN_ULTRA]: sub({ productId: 'premium_ultra_mensal' }) };
+  const { billing, fs } = setup(subs);
+  await billing.verifyForUser({ uid: 'userA', productId: 'premium_pro_mensal', purchaseToken: TOKEN_PRO });
+  subs[TOKEN_PRO] = sub({ state: 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD', acked: true });
+  await billing.processToken({ purchaseToken: TOKEN_PRO });
+  assert.equal(fs.docs.get('users_xp/userA').premiumTier, 'pro');
+  assert.equal((await billing.statusForUser('userA')).subscription.inGracePeriod, true);
+
+  subs[TOKEN_PRO] = sub({ state: 'SUBSCRIPTION_STATE_ON_HOLD', expiry: NOW - DAY, acked: true });
+  await billing.processToken({ purchaseToken: TOKEN_PRO });
+  assert.equal(fs.docs.get('users_xp/userA').premiumTier, undefined); // sem benefício
+  const st = await billing.statusForUser('userA');
+  assert.equal(st.blocksPurchase, true); // mas ainda ocupa a vaga
+  assert.equal(st.subscription.onHold, true);
+  await assert.rejects(() => billing.verifyForUser({ uid: 'userA', productId: 'premium_ultra_mensal', purchaseToken: TOKEN_ULTRA }), code('subscription_already_active'));
+});
+
+test('reembolso/revogação libera a vaga e o benefício; evento atrasado não reativa', async () => {
+  const subs = { [TOKEN_PRO]: sub() };
+  const { billing, fs } = setup(subs);
+  await billing.verifyForUser({ uid: 'userA', productId: 'premium_pro_mensal', purchaseToken: TOKEN_PRO });
+  await billing.processToken({ purchaseToken: TOKEN_PRO, forceRevoke: true });
+  assert.equal(fs.docs.get('users_xp/userA').premiumTier, undefined);
+  assert.equal((await billing.statusForUser('userA')).blocksPurchase, false);
+  // Google ainda mostra ACTIVE num evento atrasado / app antigo: continua revogada
+  await billing.processToken({ purchaseToken: TOKEN_PRO });
+  await billing.verifyForUser({ uid: 'userA', productId: 'premium_pro_mensal', purchaseToken: TOKEN_PRO });
+  assert.equal(fs.docs.get('users_xp/userA').premiumTier, undefined);
+});
+
+test('evento buscado ANTES do que já está salvo não sobrescreve o estado mais novo', async () => {
+  const hash = await sha256Hex(TOKEN_PRO);
+  const { billing, fs } = setup({ [TOKEN_PRO]: sub() }, {
+    [`billing_purchases/${hash}`]: { uid: 'userA', tier: 'pro', active: false, state: 'SUBSCRIPTION_STATE_EXPIRED', expiresAt: new Date(NOW - DAY), fetchedAt: new Date(NOW + 5000) },
+  });
+  await billing.processToken({ purchaseToken: TOKEN_PRO });
+  assert.equal(fs.docs.get(`billing_purchases/${hash}`).active, false);
+});
+
+test('restaurar compras (mesmo token, após reinstalar) não é bloqueado pela própria vaga', async () => {
+  const { billing, fs } = setup({ [TOKEN_PRO]: sub({ acked: true }) });
+  await billing.verifyForUser({ uid: 'userA', productId: 'premium_pro_mensal', purchaseToken: TOKEN_PRO });
+  fs.docs.set('users_xp/userA', { totalXp: 100 }); // perdeu a sincronização do Premium
+  const r = await billing.verifyForUser({ uid: 'userA', productId: 'premium_pro_mensal', purchaseToken: TOKEN_PRO });
+  assert.equal(r.entitled, true);
+  assert.equal(fs.docs.get('users_xp/userA').premiumTier, 'pro');
+});
+
+test('statusForUser: sem assinatura libera; concessão manual aparece separada e NÃO bloqueia compra', async () => {
+  const { billing } = setup({}, { 'users_xp/userA': { premiumTier: 'pro', premiumExpiresAt: new Date(NOW + 2 * DAY), premiumTrial: true } });
+  const st = await billing.statusForUser('userA');
+  assert.equal(st.blocksPurchase, false);
+  assert.equal(st.subscription, null);
+  assert.equal(st.manualGrant.trial, true);
 });
 
 test('RTDN de compra desconhecida (sem conta) é ignorada sem erro', async () => {
