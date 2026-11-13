@@ -24,6 +24,7 @@ configurar o `BACKEND_URL`** (ver "Ordem segura").
 | `POST /v1/notify/subscription-request` | usuário | avisa admins de pedido de assinatura (modo manual) |
 | `POST /v1/notify/admin` · `tier-tag` | admin | push manual do painel / tag de plano |
 | `POST /v1/notify/premium-expiry` | o próprio usuário | aviso "assinatura vence em até 3 dias" |
+| `GET /noticia/{id}` | público | página do link compartilhado com a prévia (foto, título e resumo) da matéria |
 | `POST /v1/billing/verify` | usuário | valida a compra no Google Play e libera o Premium |
 | `POST /v1/billing/rtdn?secret=…` | Google (Pub/Sub) | renovação / cancelamento / reembolso / expiração |
 | `POST /v1/xp/like` | quem curtiu | credita o XP da curtida ao autor |
